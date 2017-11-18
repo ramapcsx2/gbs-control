@@ -85,7 +85,7 @@ boolean inputAndSyncDetect() {
   byte timeout = 0;
 
   boolean yuvInputWasDetected = false; // todo: make this better
-  
+
   // find the SOG input
   writeOneByte(0xF0, 5);
   writeOneByte(0x02, 0x21); // SOG on, slicer level mid, input 00 > R0/G0/B0/SOG0 as input (YUV & RGBHV (shared somehow))
@@ -536,7 +536,7 @@ void fudgeSyncProcessor() {
   //writeOneByte(0x3a, 0x03); writeOneByte(0x3a, readout);
 }
 
-void switchInputs(){
+void switchInputs() {
   uint8_t readout = 0;
   writeOneByte(0xF0, 5); readFromRegister(0x02, 1, &readout);
   writeOneByte(0x02, (readout & ~(1 << 6)));
@@ -1085,7 +1085,7 @@ void setup() {
 
   writeOneByte(0xF0, 5); writeOneByte(0x18, 0x8d); // phase latch bit
   writeOneByte(0xF0, 5); writeOneByte(0x19, 0x8d);
-  
+
   if (rto->autoGainADC == false) {
     writeOneByte(0xF0, 5);
     writeOneByte(0x09, 0x7f);
@@ -1223,7 +1223,7 @@ void loop() {
   if (Serial.available()) {
     switch (Serial.read()) {
       case ' ':
-        // skip 
+        // skip
         break;
       case 'd':
         for (int segment = 0; segment <= 5; segment++) {
@@ -1638,7 +1638,7 @@ void loop() {
 
       if (failcounter >= 12 ) { // yep, sync is gone
         disableVDS(); // disable output to display until stable // todo: this should be global / preventing VDS to activate
-        
+
         resetSyncProcessor();
         SyncProcessorOffOn();
         delay(500);
@@ -1683,7 +1683,7 @@ void loop() {
   if (rto->printInfos == true) { // information mode
     //unsigned long informationTimingStart = millis();
     writeOneByte(0xF0, 0);
-    
+
     //vertical line number:
     readFromRegister(0x07, 1, &register_high); readFromRegister(0x06, 1, &register_low);
 

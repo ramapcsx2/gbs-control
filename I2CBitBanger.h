@@ -37,59 +37,59 @@
 
 /*
       Normal interface usage pseudo code is as follows:
-       
+
       To Write:
-      
+
       I2CBitBanger test(<7-bit address>);
       test.addByteForTransmission(<byte to send>);
       if(!test.transmitData())
         failed to send data
       else
         success
-      
+
       To Read:
-      
+
       uint8_t recevedData[4];
       I2CBitBanger test(<7-bit address>);
       int bytesReceived = test.recvData(4, receivedData);
       if(bytesReceived != 4) {
         failed to read data
       }
-      
+
       To Change The Slave Address:
-      
+
       test.setSlaveAddress(<7-bit address>);
-    
+
 */
 
 class I2CBitBanger
-{	
+{
   public:
     I2CBitBanger(uint8_t sevenBitAddressArg);
-    
+
     void setSlaveAddress(uint8_t sevenBitAddressArg); // 7-bit address
-    
+
     // Adds a byte to an internally managed transmission buffer (preping for a write)
     void addByteForTransmission(uint8_t data);
-    
+
     // Adds a buffer to an internally managed transmission buffer (preping for a write)
     void addBytesForTransmission(uint8_t* buffer, uint8_t bufferSize);
-    
+
     bool transmitData();  // returns true if transmission was successful (everything ACKed by the slave device)
     int recvData(int numBytesToRead, uint8_t* outputBuffer);  // returns the number of bytes that were read
-    
+
 
   private:
     static uint8_t I2CBB_Buffer[];           // holds I2C send data
     static uint8_t I2CBB_BufferIndex;        // current number of bytes in the send buff
 
     void initializePins();
-    
+
     bool sendDataOverI2c(uint8_t* buffer, uint8_t bufferSize);
     void sendI2cStartSignal();
     bool sendI2cByte(uint8_t dataByte);
     void sendI2cStopSignal();
-    
+
     void receiveI2cByte(bool sendAcknowledge, uint8_t* output);
 };
 

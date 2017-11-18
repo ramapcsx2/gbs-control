@@ -264,7 +264,7 @@ void I2CBitBanger::receiveI2cByte(bool sendAcknowledge, uint8_t* output) {
     ///////
     //while ( (PIN_I2CBB & (1 << SCL_BIT)) == 0x00 ); // ensure SCL is actually high now (accounts for clock stretching)
     //while ( digitalRead(SCL_BIT) == 0 );
-    
+
     // read the bit sent to us from the slave device
     //if (PIN_I2CBB & (1 << SDA_BIT)) {
     if (digitalRead(SDA_BIT) == 1) {
@@ -293,7 +293,7 @@ void I2CBitBanger::receiveI2cByte(bool sendAcknowledge, uint8_t* output) {
   delayMicroseconds(2);
   //DDR_I2CBB &= ~(1 << SCL_BIT); // release SCL
   pinMode(SCL_BIT, INPUT);
-  
+
   // my nodeMCU crashes when polling an input pin for value
   //while ( (PIN_I2CBB & (1 << SCL_BIT)) == 0x00 ); // ensure SCL is actually high now (accounts for clock stretching)
   // while ( digitalRead(SCL_BIT) == 0);
