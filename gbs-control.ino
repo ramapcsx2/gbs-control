@@ -975,6 +975,9 @@ void setup() {
   pinMode(SDA_BIT, INPUT);
   pinMode(SCL_BIT, INPUT);
 
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH); // enable the LED in setup(), let users know the board is starting up
+
   pinMode(10, INPUT); // experimental vsync sample input
   pinMode(2, INPUT); // button for IFdown
   attachInterrupt(digitalPinToInterrupt(2), IFdown, FALLING);
@@ -1012,6 +1015,7 @@ void setup() {
   delay(25);
   inputAndSyncDetect();
   resetDigital();
+  disableVDS();
   resetPLL();
   SyncProcessorOffOn();
   delay(1000);
@@ -1024,13 +1028,16 @@ void setup() {
     delay(10);
   }
 
-  applyPresets(result);
-  enableVDS();
+  if (timeout > 0 && result != 0) {
+    applyPresets(result);
+    resetPLL();
+    enableVDS();
+  }
   // phase
   writeOneByte(0xF0, 5); writeOneByte(0x18, 0x21);
   writeOneByte(0xF0, 5); writeOneByte(0x19, 0x21);
   delay(1000); // at least 750ms required to become stable
-  resetPLL();
+
   resetADCAutoGain();
 
   writeOneByte(0xF0, 5); writeOneByte(0x18, 0x8d); // phase latch bit
@@ -1043,6 +1050,10 @@ void setup() {
     writeOneByte(0x0b, 0x7f);
   }
 #endif
+
+  digitalWrite(LED_BUILTIN, LOW); // startup done, disable the LED
+  pinMode(LED_BUILTIN, INPUT); // and free the pin
+
   Serial.print("MCU: "); Serial.println(F_CPU);
   Serial.println("scaler set up!");
 }
@@ -1518,7 +1529,9 @@ void loop() {
       }
     }
 
-    if (rto->deinterlacerWasTurnedOff == true && rto->videoStandardInput != 0) enableDeinterlacer();
+    if (rto->deinterlacerWasTurnedOff == true && rto->videoStandardInput != 0) {
+      enableDeinterlacer();
+    }
 
     byte timeout = 20;
     while (result == 0 && --timeout > 0) { // wait until sync processor first sees a valid mode
@@ -1533,19 +1546,25 @@ void loop() {
         result = getVideoMode();
         delay(35); // was 25 but that wasn't enough for a hot input switch
       }
-      if (timeout == 0) Serial.println("XXX");
-      applyPresets(result);
-      resetPLL();
-      // phase
-      writeOneByte(0xF0, 5); writeOneByte(0x18, 0x21);
-      writeOneByte(0xF0, 5); writeOneByte(0x19, 0x21); // disable!
-      delay(100);
-      enableVDS(); // display now active
-      delay(900);
-      resetADCAutoGain();
-      // phase
-      writeOneByte(0xF0, 5); writeOneByte(0x18, 0x8d);
-      writeOneByte(0xF0, 5); writeOneByte(0x19, 0x8d);
+
+      if (timeout == 0) {
+        // don't apply presets or enable VDS this loop
+        Serial.println("XXX");
+      }
+      else {
+        applyPresets(result);
+        resetPLL();
+        // phase
+        writeOneByte(0xF0, 5); writeOneByte(0x18, 0x21);
+        writeOneByte(0xF0, 5); writeOneByte(0x19, 0x21);
+        delay(100);
+        enableVDS(); // display now active
+        delay(900);
+        resetADCAutoGain();
+        // phase
+        writeOneByte(0xF0, 5); writeOneByte(0x18, 0x8d);
+        writeOneByte(0xF0, 5); writeOneByte(0x19, 0x8d);
+      }
     }
 
     lastTimeSyncWatcher = thisTime;
