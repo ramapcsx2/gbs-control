@@ -7,10 +7,10 @@ Gbs-control replaces the original control software and better optimizes the True
 
 It is a continuation of previous work by dooklink, mybook4, Ian Stedman and others.
 
-Original development thread:
-https://shmups.system11.org/viewtopic.php?f=6&t=52172
+Original development thread:  
+https://shmups.system11.org/viewtopic.php?f=6&t=52172  
 
-Previous work:
-https://github.com/dooklink/gbs-control
-https://github.com/mybook4/DigisparkSketches/tree/master/GBS_Control
-https://ianstedman.wordpress.com/
+Previous work:  
+https://github.com/dooklink/gbs-control  
+https://github.com/mybook4/DigisparkSketches/tree/master/GBS_Control  
+https://ianstedman.wordpress.com/  
