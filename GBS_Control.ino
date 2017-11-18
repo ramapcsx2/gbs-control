@@ -9,9 +9,7 @@
 // https://github.com/mybook4/DigisparkSketches/tree/master/GBS_Control
 I2CBitBanger i2cObj(0x17); //GBS_I2C_ADDRESS  // 0x2E
 
-// run time options carry current configuration variables in a neat struct
-// makes it possible to reduce the overal ram requirements by using bitfields, etc.
-// I want this to be a global and everything lumped together for easier initial development.
+// I want runTimeOptions to be a global, for easier initial development.
 // Once we know which options are really required, this can be made more local.
 // Note: loop() has many more run time variables
 struct runTimeOptions {
@@ -24,14 +22,14 @@ struct runTimeOptions {
   uint16_t highestValue : 11; // 2047 discrete unsigned values (maximum of analogRead() is 1023)
   uint16_t highestValueEverSeen : 11; // to measure the upper limit we can tune the TiVo DAC to
   uint16_t currentVoltage : 11;
-  uint16_t ADCTarget : 11; // the target brightness (optimal value depends on the individual MCU analogRead() results)
+  uint16_t ADCTarget : 11; // the target brightness (optimal value depends on the individual Arduino analogRead() results)
   boolean deinterlacerWasTurnedOff;
   boolean timingExperimental;
-  boolean IFdown;
+  boolean IFdown; // push button support example using an interrupt
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
-// NOP a since MCU cycle, might be useful.
+// NOP 'times' MCU cycles, might be useful.
 void nopdelay(unsigned int times) {
   while (times-- > 0)
     __asm__("nop\n\t");
@@ -116,8 +114,7 @@ boolean inputAndSyncDetect() {
       Serial.println("input is RGBS");
       if (yuvInputWasDetected == true) {
         Serial.println("but yuv also found! RGBHV?");
-        // okay, we have a signal on borh ports. is this RGBHV?
-        // hm, below we set yuv to false also. might be good enough!
+        // We have a sync signal on both ports.?
       }
       rto->inputIsYpBpR = 0;
       break;
@@ -159,7 +156,6 @@ boolean inputAndSyncDetect() {
     timeout = 50;
     writeProgramArrayNew(ntsc_240p);
     resetSyncProcessor();
-    fudgeSyncProcessor();
     SyncProcessorOffOn();
     delay(500);
     do {
@@ -274,9 +270,9 @@ void writeProgramArrayNew(const uint8_t* programArray)
   uint8_t bank[16];
 
   // programs all valid registers (the register map has holes in it, so it's not straight forward)
-  // we want this programming to happen quickly, so that the processor has valid config bytes while it readjusts to the new settings
-  // each i2c transfer requires a lengthy start and stop sequence, so batches of 16 registers each are used
-  // 'index' keeps track of the current preset data location while we write out those regs in batches of 16
+  // We want this programming to happen quickly, so that the processor is fully configured while it readjusts to the new settings.
+  // Each i2c transfer requires a lengthy start and stop sequence, so batches of 16 registers each are used.
+  // 'index' keeps track of the current preset data location.
   writeOneByte(0xF0, 0);
   writeOneByte(0x46, 0x00); // reset controls 1
   writeOneByte(0x47, 0x00); // reset controls 2
@@ -411,7 +407,7 @@ int readFromRegister(uint8_t reg, int bytesToRead, uint8_t* output)
   return i2cObj.recvData(bytesToRead, output);
 }
 
-// dumps the current chip configuration in a format ready to use as new preset :)
+// dumps the current chip configuration in a format that's ready to use as new preset :)
 void dumpRegisters(int segment)
 {
   uint8_t readout = 0;
@@ -474,7 +470,7 @@ void resetPLL() {
   readFromRegister(0x43, 1, &readout);
   writeOneByte(0x43, (readout & ~(1 << 4))); // main pll lock off
   readFromRegister(0x43, 1, &readout);
-  writeOneByte(0x43, (readout & ~(1 << 5))); // main pll initial vco voltage off if it was on
+  writeOneByte(0x43, (readout & ~(1 << 5))); // main pll initial vco voltage off
   delay(6);
   readFromRegister(0x43, 1, &readout);
   writeOneByte(0x43, (readout | (1 << 4))); // main pll lock on
@@ -495,6 +491,7 @@ void resetDigital() {
 }
 
 // returns true when all SP parameters are reasonable
+// This needs to be extended for supporting more video modes.
 boolean getSyncProcessorSignalValid() {
   uint8_t register_low, register_high = 0;
   uint16_t register_combined = 0;
@@ -525,17 +522,6 @@ boolean getSyncProcessorSignalValid() {
   return returnValue;
 }
 
-// SP will not properly lock to a signal when 'max legal lines' parameter doesn't fit to the input mode (pal/ntsc)
-// This method will fudge it to get a valid reading
-// Update: With current SP presets, this doesn't seem necessary anymore. Todo: Test and remove!
-void fudgeSyncProcessor() {
-  uint8_t readout;
-  writeOneByte(0xF0, 5);
-  readFromRegister(0x3a, 1, &readout);
-  writeOneByte(0x3a, readout ^ (1 << 2)); // valid line length
-  //writeOneByte(0x3a, 0x03); writeOneByte(0x3a, readout);
-}
-
 void switchInputs() {
   uint8_t readout = 0;
   writeOneByte(0xF0, 5); readFromRegister(0x02, 1, &readout);
@@ -545,24 +531,17 @@ void switchInputs() {
 void SyncProcessorOffOn() {
   uint8_t readout = 0;
   writeOneByte(0xF0, 0);
-  //readFromRegister(0x47, 1, &readout);
-  //writeOneByte(0x47, readout & ~(1 << 1));
-  //writeOneByte(0x47, readout | (1 << 1));
   readFromRegister(0x47, 1, &readout);
   writeOneByte(0x47, readout & ~(1 << 2));
   writeOneByte(0x47, readout | (1 << 2));
 }
 
 void resetSyncProcessor() {
-  // sync processor really doesn't like full resets
-  // update: it was reg S5_3a being set < 2. At 2+, SP can be reset
-
   byte timeout = 8;
   uint8_t readout = 0;
   writeOneByte(0xF0, 5); readFromRegister(0x02, 1, &readout); // the input switch register
   do {
-    fudgeSyncProcessor();
-    //delay(20);
+    delay(20);
   }
   while (getSyncProcessorSignalValid() == false && --timeout > 0);
   if (timeout > 0) {
@@ -574,8 +553,7 @@ void resetSyncProcessor() {
     writeOneByte(0xF0, 5); readFromRegister(0x02, 1, &readout);
     writeOneByte(0x02, (readout & ~(1 << 6)));
     do {
-      fudgeSyncProcessor();
-      //delay(20);
+      delay(20);
     }
     while (getSyncProcessorSignalValid() == false && --timeout > 0);
     if (timeout > 0) {
@@ -798,7 +776,6 @@ void getVideoTimings() {
   uint16_t VDS_DIS_VS_ST = 0x0000;
   uint16_t VDS_DIS_VS_SP = 0x0000;
   uint16_t MD_pll_divider = 0x0000;
-  //uint16_t ND_pll_divider = 0x0000;
   uint8_t PLLAD_KS = 0x00;
   uint8_t PLLAD_CKOS = 0x00;
 
@@ -856,12 +833,6 @@ void getVideoTimings() {
   MD_pll_divider = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
   Serial.print("PLLAD_MD: "); Serial.println(MD_pll_divider);
 
-  // get Pixel Clock -- ND[11:0] -- fixed to 0, it is used for test --
-  //readFromRegister(5, 0x14, 1, &regLow);
-  //readFromRegister(5, 0x15, 1, &regHigh);
-  //ND_pll_divider = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  //Serial.print("PLLAD_ND = "); Serial.println(ND_pll_divider);
-
   // get KS, CKOS
   readFromRegister(5, 0x16, 1, &regLow);
   PLLAD_KS = (regLow & 0x30) >> 4;
@@ -874,15 +845,11 @@ void applyPresets(byte result) {
   uint8_t readout = 0;
   if (result == 2 && rto->videoStandardInput != 2) {
     Serial.println("PAL timing ");
-    //for (byte i = 0; i < 6; i++) {
-    //  writeProgramArraySection(pal_240p, i);
-    //}
     writeProgramArrayNew(pal_240p);
     if (rto->inputIsYpBpR == true) {
       Serial.print("(YUV)");
       uint8_t readout = 0;
       writeOneByte(0xF0, 5);
-      //      writeOneByte(0x3a, 0x04); // valid line length
       readFromRegister(0x03, 1, &readout);
       writeOneByte(0x03, readout | (1 << 1)); // midclamp red
       readFromRegister(0x03, 1, &readout);
@@ -894,17 +861,12 @@ void applyPresets(byte result) {
       writeOneByte(0xF0, 1);
       readFromRegister(0x00, 1, &readout);
       writeOneByte(0x00, readout | (1 << 1)); // rgb matrix bypass
-      //readFromRegister(0x29, 1, &readout);
-      //writeOneByte(0x29, readout | (1 << 0)); // auto offset enable
     }
     Serial.print("\n");
     rto->videoStandardInput = 2;
   }
   else if (result == 1 && rto->videoStandardInput != 1) {
     Serial.println("NTSC timing ");
-    //for (byte i = 0; i < 6; i++) {
-    //  writeProgramArraySection(ntsc_240p, i);
-    //}
     writeProgramArrayNew(ntsc_240p);
     if (rto->inputIsYpBpR == true) {
       Serial.print("(YUV)");
@@ -921,8 +883,6 @@ void applyPresets(byte result) {
       writeOneByte(0xF0, 1);
       readFromRegister(0x00, 1, &readout);
       writeOneByte(0x00, readout | (1 << 1)); // rgb matrix bypass
-      //readFromRegister(0x29, 1, &readout);
-      //writeOneByte(0x29, readout | (1 << 0)); // auto offset enable
     }
     Serial.print("\n");
     rto->videoStandardInput = 1;
@@ -930,9 +890,6 @@ void applyPresets(byte result) {
   else if (result == 3 && rto->videoStandardInput != 3) {
     Serial.println("HDTV timing ");
     writeProgramArrayNew(hdtv);
-    //for (byte i = 0; i < 6; i++) {
-    //  writeProgramArraySection(ntsc_240p, i); // ntsc base
-    //}
     writeProgramArrayNew(ntsc_240p); // ntsc base
     if (rto->inputIsYpBpR == true) {
       Serial.print("(YUV)");
@@ -954,9 +911,6 @@ void applyPresets(byte result) {
   }
   else {
     Serial.println("Unknown timing! ");
-    //for (byte i = 0; i < 6; i++) {
-    //  writeProgramArraySection(ntsc_240p, i); // ntsc base
-    //}
     writeProgramArrayNew(ntsc_240p);
     if (rto->inputIsYpBpR == true) {
       Serial.print("(YUV)");
@@ -973,8 +927,6 @@ void applyPresets(byte result) {
       writeOneByte(0xF0, 1);
       readFromRegister(0x00, 1, &readout);
       writeOneByte(0x00, readout | (1 << 1)); // rgb matrix bypass
-      //readFromRegister(0x29, 1, &readout);
-      //writeOneByte(0x29, readout | (1 << 0)); // auto offset enable
     }
     Serial.print("\n");
     rto->videoStandardInput = 1;
@@ -1040,7 +992,7 @@ void setup() {
 
   rto->printInfos = 0;
   rto->inputIsYpBpR = 0;
-  rto->autoGainADC = false; // todo: check! it often goes above the 7f ceiling (too dark)
+  rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
   rto->syncWatcher = true;
   rto->videoStandardInput = 0;
   rto->ADCGainValueFound = 0;
@@ -1050,8 +1002,8 @@ void setup() {
   rto->highestValueEverSeen = 0;
   rto->deinterlacerWasTurnedOff = 0;
   rto->timingExperimental = false;
-  rto->IFdown = false; // hooked to a button
-#if 1
+  rto->IFdown = false;
+#if 1 // make it #if 0 to disable the initialization phase 
   disableVDS();
   zeroAll();
   delay(5);
@@ -1059,8 +1011,6 @@ void setup() {
   disableVDS();
   delay(25);
   inputAndSyncDetect();
-  //writeProgramArrayNew(ntsc_240p); // writing another preset initially helps boot up the Chip into usuable state (latch bits)
-  //disableVDS();
   resetDigital();
   resetPLL();
   SyncProcessorOffOn();
@@ -1114,28 +1064,6 @@ void autoADCGain() {
   static const uint16_t medStep = rto->ADCTarget * 0.015f;
   static const uint16_t smaStep = rto->ADCTarget * 0.005f;
 
-  //    // we want to know what the highest possible readout from the controller ADC is.
-  //    // bodge display to be bright for a short time on startup
-  //static boolean hasInitialized = 0;
-  //  if (!hasInitialized) {
-  //    writeOneByte(0xF0, 4);
-  //    readFromRegister(0x37, 1, &readout);
-  //    writeOneByte(0x37, 0xff); // creates lots of pixels
-  //    for (int i = 0; i < 16000; i++) {
-  //      uint16_t temp = analogRead(A0);
-  //      if (temp != 0) rto->currentVoltage = temp;
-  //      if (rto->currentVoltage > ADCCeiling) {} // ADC misread, most likely
-  //      else if (rto->currentVoltage > rto->highestValueEverSeen) rto->highestValueEverSeen = rto->currentVoltage;
-  //    }
-  //    writeOneByte(0xF0, 4);
-  //    writeOneByte(0x37, readout); // restore to preset value
-  //    rto->currentVoltage = 0; // reset too
-  //    rto->ADCTarget = rto->highestValueEverSeen * 0.96f; // magic value for a nice display on my setup
-  //    Serial.print("ADCTarget: "); Serial.print(rto->ADCTarget);
-  //    hasInitialized = true;
-  //    delay(20);
-  //  }
-
   if (rto->ADCGainValueFound == false) {
     for (int i = 0; i < 1024; i++) {
       uint16_t temp = analogRead(A0);
@@ -1160,7 +1088,8 @@ void autoADCGain() {
     rto->ADCGainValueFound = true;
   }
 
-  if (!rto->ADCGainValueFound) { // increase stage. it increases to the found max, then permanently hands over to decrease stage
+  // increase stage. it increases to the found max, then permanently hands over to decrease stage
+  if (!rto->ADCGainValueFound) {
     writeOneByte(0xF0, 5);
     readFromRegister(0x09, 1, &readout);
     if (readout >= 0x40 && readout <= 0x7F) {  // if we're at 0x3F already, stop increasing
@@ -1174,7 +1103,7 @@ void autoADCGain() {
     }
   }
 
-  // decrease stage, always run
+  // decrease stage, always runs
   if (rto->highestValue > rto->ADCTarget) {
     //Serial.print(" highestValue: "); Serial.print(highestValue);
     writeOneByte(0xF0, 5);
@@ -1190,19 +1119,6 @@ void autoADCGain() {
     rto->highestValue = 0; // reset this for next round
     delay(20); // give it some time to stick
   }
-
-  //  writeOneByte(0xF0, 5);
-  //  readFromRegister(0x09, 1, &readout);
-  //  Serial.print(" ADC: "); Serial.print(readout, HEX);
-  //  Serial.print(" highest: "); Serial.print(rto->highestValueEverSeen); Serial.print(" ");
-  //  Serial.println(rto->highestValue);
-
-  //  if (ADCGainValueFound == true) {
-  //    writeOneByte(0xF0, 5);
-  //    readFromRegister(0x09, 1, &readout);
-  //    Serial.print(" ADC Gain locked at: "); Serial.print(readout, HEX);
-  //    Serial.print(" highestValue: "); Serial.println(highestValue);
-  //  }
 }
 
 void loop() {
@@ -1223,7 +1139,7 @@ void loop() {
   if (Serial.available()) {
     switch (Serial.read()) {
       case ' ':
-        // skip
+        // skip spaces
         break;
       case 'd':
         for (int segment = 0; segment <= 5; segment++) {
@@ -1273,7 +1189,6 @@ void loop() {
         {
           writeOneByte(0xF0, 5);
           readFromRegister(0x19, 1, &readout);
-          Serial.print("was: "); Serial.println(readout, HEX);
           readout |= (1 << 6); readout &= ~(1 << 7); // lock disable // latch off
           writeOneByte(0x19, readout);
           readFromRegister(0x19, 1, &readout);
@@ -1285,15 +1200,13 @@ void loop() {
           readout |= (1 << 7); readout &= ~(1 << 6);
           writeOneByte(0x19, readout);
           readFromRegister(0x19, 1, &readout);
-          Serial.print("is now: "); Serial.println(readout, HEX);
-          //resetPLL();
+          Serial.print("SP phase is now: "); Serial.println(readout, HEX);
         }
         break;
       case 'b':
         {
           writeOneByte(0xF0, 5);
           readFromRegister(0x18, 1, &readout);
-          Serial.print("was: "); Serial.println(readout, HEX);
           readout |= (1 << 6); readout &= ~(1 << 7); // lock disable // latch off
           writeOneByte(0x18, readout);
           readFromRegister(0x18, 1, &readout);
@@ -1305,8 +1218,7 @@ void loop() {
           readout |= (1 << 7); readout &= ~(1 << 6);
           writeOneByte(0x18, readout);
           readFromRegister(0x18, 1, &readout);
-          Serial.print("is now: "); Serial.println(readout, HEX);
-          //resetPLL();
+          Serial.print("ADC phase is now: "); Serial.println(readout, HEX);
         }
         break;
       case 'n':
@@ -1315,7 +1227,7 @@ void loop() {
           readFromRegister(0x12, 1, &readout);
           writeOneByte(0x12, readout + 1);
           readFromRegister(0x12, 1, &readout);
-          Serial.print("5_12:"); Serial.println(readout, HEX);
+          Serial.print("PLL divider: "); Serial.println(readout, HEX);
           resetPLL();
         }
         break;
@@ -1369,10 +1281,6 @@ void loop() {
         writeOneByte(0xF0, 3);
         writeOneByte(0x44, 0xf8);
         writeOneByte(0x45, 0xff);
-        //        writeOneByte(0x47, 0xff);
-        //        writeOneByte(0x49, 0xff);
-        //        writeOneByte(0x4b, 0xff);
-        //        writeOneByte(0x4d, 0xff);
         break;
       case 'z':
         Serial.println("bigger by 1");
@@ -1418,7 +1326,7 @@ void loop() {
         break;
       case 'o':
         if (OSRSwitch == 0) {
-          Serial.println("OSR 1x");
+          Serial.println("OSR 1x"); // oversampling ratio
           writeOneByte(0xF0, 5);
           writeOneByte(0x16, 0xa0);
           writeOneByte(0x00, 0xc0);
@@ -1476,7 +1384,6 @@ void loop() {
         break;
       case 's':
         inputStage++;
-        //Serial.println("s - write register - use: s0s40s7c > writes reg 0xff in segment 0 to 0");
         Serial.flush();
         // we have a multibyte command
         if (inputStage > 0) {
@@ -1516,7 +1423,6 @@ void loop() {
         break;
       case 't':
         inputStage++;
-        //Serial.println("t - toogle bit in register - use: t0t40t0 > toggles segment 0, register 0x40, bit 0");
         Serial.flush();
         // we have a multibyte command
         if (inputStage > 0) {
@@ -1567,12 +1473,11 @@ void loop() {
 
   thisTime = millis();
 
-  // regular ADC phase latch re-set. This is an attempt at getting phase correct sampling right.
+  // ADC phase latch re-set. This is an attempt at getting phase correct sampling right.
   // Reasoning: It's random whether the chip syncs on the correct cycle for a given sample phase setting.
-  // Since we don't have the processing power to manually align the sampling phase, maybe this works instead.
+  // We don't have the processing power to manually align the sampling phase on Arduino but maybe this works instead.
   // (Probably not, so todo: Investigate options. Maybe use nodeMCU with its 160Mhz clock speed!)
   if (thisTime - lastTimePhase > 400) {
-    //Serial.print("+");
     writeOneByte(0xF0, 5); readFromRegister(0x18, 1, &readout);
     readout &= ~(1 << 7); // latch off
     writeOneByte(0x18, readout); readFromRegister(0x18, 1, &readout);
@@ -1585,40 +1490,6 @@ void loop() {
   if (rto->syncWatcher == true && (thisTime - lastTimeSyncWatcher > 10)) {
     byte failcounter = 0;
     byte result = getVideoMode();
-
-    //vertical line number. if it's even, assume interlaced and adjust HRST
-    //    readFromRegister(0x08, 1, &register_high); readFromRegister(0x07, 1, &register_low);
-    //    register_combined = (((uint16_t(register_high) & 0x000f)) << 7) | (((uint16_t)register_low & 0x00fe) >> 1);
-    //    if (result == 1) { // NTSC and sync is okay
-    //      readout = getSingleByteFromPreset(ntsc_240p, 257); // S3_01 HRST
-    //      if ((register_combined % 2) == 1) { // it's progressive
-    //        writeOneByte(0xF0, 3);
-    //        writeOneByte(0x01, readout);
-    //        readFromRegister(0x01, 1, &readout);
-    //        //Serial.print("ntsc p: "); Serial.println(readout, HEX);
-    //      }
-    //      else { // it's interlaced
-    //        writeOneByte(0xF0, 3);
-    //        writeOneByte(0x01, readout-2);
-    //        readFromRegister(0x01, 1, &readout);
-    //        //Serial.print("ntsc i: "); Serial.println(readout, HEX);
-    //      }
-    //    }
-    //    if (result == 2) { // PAL and sync is okay
-    //      readout = getSingleByteFromPreset(pal_240p, 257); // S3_01 HRST
-    //      if ((register_combined % 2) == 1) { // it's progressive
-    //        writeOneByte(0xF0, 3);
-    //        writeOneByte(0x01, readout);
-    //        readFromRegister(0x01, 1, &readout);
-    //        Serial.print("pal p: "); Serial.println(readout, HEX);
-    //      }
-    //      else { // it's interlaced
-    //        writeOneByte(0xF0, 3);
-    //        writeOneByte(0x01, readout-7);
-    //        readFromRegister(0x01, 1, &readout);
-    //        Serial.print("pal i: "); Serial.println(readout, HEX);
-    //      }
-    //    }
 
     if (result != rto->videoStandardInput) {
       // lost sync?
@@ -1662,7 +1533,7 @@ void loop() {
         result = getVideoMode();
         delay(35); // was 25 but that wasn't enough for a hot input switch
       }
-      if (timeout == 0) Serial.println("meh");
+      if (timeout == 0) Serial.println("XXX");
       applyPresets(result);
       resetPLL();
       // phase
@@ -1681,7 +1552,6 @@ void loop() {
   }
 
   if (rto->printInfos == true) { // information mode
-    //unsigned long informationTimingStart = millis();
     writeOneByte(0xF0, 0);
 
     //vertical line number:
@@ -1700,10 +1570,6 @@ void loop() {
     register_low = (register_high & 0x80) ? 1 : 0;
     register_low |= (register_high & 0x40) ? 2 : 0;
     Serial.print(" PLL:"); Serial.print(register_low);
-
-    // FIFO status (8 bits)
-    //readFromRegister(0x13, 1, &register_high);
-    //Serial.print(" FIFO:"); Serial.print(register_high, BIN);
 
     // status
     readFromRegister(0x05, 1, &register_high);
@@ -1725,7 +1591,6 @@ void loop() {
     register_combined = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
     Serial.print(" htotal:"); Serial.print(register_combined);
 
-    //Serial.print(" took ms: "); Serial.print(millis() - informationTimingStart);
     Serial.print("\n");
   } // end information mode
 
