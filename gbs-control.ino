@@ -979,8 +979,11 @@ void setup() {
   digitalWrite(LED_BUILTIN, HIGH); // enable the LED in setup(), let users know the board is starting up
 
   pinMode(10, INPUT); // experimental vsync sample input
-  pinMode(2, INPUT); // button for IFdown
-  attachInterrupt(digitalPinToInterrupt(2), IFdown, FALLING);
+
+  // example for using the gbs8200 onboard buttons in an interrupt routine
+  //pinMode(2, INPUT); // button for IFdown
+  //attachInterrupt(digitalPinToInterrupt(2), IFdown, FALLING);
+
   pinMode(A0, INPUT); // adc auto gain sensor
   analogReference(INTERNAL);
   bitSet(ADCSRA, ADPS0);
