@@ -58,7 +58,7 @@ bool writeBytes(uint8_t slaveRegister, uint8_t* values, int numValues)
   return writeBytes(0x17, slaveRegister, values, numValues);
 }
 
-bool writeProgramArray(const uint8_t* programArray)
+void writeProgramArray(const uint8_t* programArray)
 {
   for (int y = 0; y < 6; y++)
   {
@@ -73,8 +73,6 @@ bool writeProgramArray(const uint8_t* programArray)
       writeBytes(z * 16, bank, 16);
     }
   }
-
-  return true;
 }
 
 boolean inputAndSyncDetect() {
@@ -159,7 +157,6 @@ boolean inputAndSyncDetect() {
     SyncProcessorOffOn();
     delay(500);
     do {
-      Serial.print("+");
       delay(15);
     }
     while (getSyncProcessorSignalValid() == false && --timeout > 0);
@@ -984,32 +981,47 @@ void setup() {
   //pinMode(2, INPUT); // button for IFdown
   //attachInterrupt(digitalPinToInterrupt(2), IFdown, FALLING);
 
-  pinMode(A0, INPUT); // adc auto gain sensor
-  analogReference(INTERNAL);
-  bitSet(ADCSRA, ADPS0);
-  bitClear(ADCSRA, ADPS1);
-  bitSet(ADCSRA, ADPS2); // 101 > x32 div
-  // the analog reference was changed, causing the first couple reads to be wrong
+  pinMode(A0, INPUT);         // auto ADC gain measurement input
+  analogReference(INTERNAL);  // change analog read reference to 1.1V internal
+  bitSet(ADCSRA, ADPS0);      // lower analog read delay
+  bitClear(ADCSRA, ADPS1);    //
+  bitSet(ADCSRA, ADPS2);      // 101 > x32 div
   for (byte i = 0; i < 100; i++) {
-    analogRead(A0); // crude ADC glitch fix
+    analogRead(A0);           // first few analog reads are glitchy after the reference change!
   }
+
   Serial.begin(57600);
   Serial.setTimeout(10);
 
+  // setup run time options here
   rto->printInfos = 0;
   rto->inputIsYpBpR = 0;
   rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
-  rto->syncWatcher = true;
+  rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
   rto->videoStandardInput = 0;
   rto->ADCGainValueFound = 0;
   rto->highestValue = 0;
   rto->currentVoltage = 0;
-  rto->ADCTarget = 635;
+  rto->ADCTarget = 635;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
   rto->highestValueEverSeen = 0;
   rto->deinterlacerWasTurnedOff = 0;
-  rto->timingExperimental = false;
+  rto->timingExperimental = false;  // automatically find the best horizontal total pixel value for a given input timing
   rto->IFdown = false;
-#if 1 // make it #if 0 to disable the initialization phase 
+
+#if 1 // #if 0 disables the initialization phase 
+
+  delay(500); // give the 5725 some extra time to start up. this adds to the Arduino bootloader delay.
+  // is the 5725 up yet?
+  uint8_t temp = 0;
+  writeOneByte(0xF0, 1);
+  readFromRegister(0xF0, 1, &temp);
+  while (temp != 1) {
+    writeOneByte(0xF0, 1);
+    readFromRegister(0xF0, 1, &temp);
+    Serial.println("5725 not responding");
+    delay(1000);
+  }
+
   disableVDS();
   zeroAll();
   delay(5);
@@ -1026,7 +1038,7 @@ void setup() {
   byte result = getVideoMode();
   byte timeout = 255;
   while (result == 0 && --timeout > 0) {
-    Serial.print(".");
+    if ((timeout % 5) == 0) Serial.print(".");
     result = getVideoMode();
     delay(10);
   }
@@ -1057,7 +1069,7 @@ void setup() {
   digitalWrite(LED_BUILTIN, LOW); // startup done, disable the LED
   pinMode(LED_BUILTIN, INPUT); // and free the pin
 
-  Serial.print("MCU: "); Serial.println(F_CPU);
+  Serial.print("\nMCU: "); Serial.println(F_CPU);
   Serial.println("scaler set up!");
 }
 
