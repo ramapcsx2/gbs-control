@@ -1187,9 +1187,17 @@ void loop() {
         Serial.println("resetDigital()");
         break;
       case 'e':
-        Serial.println("restore preset");
+        Serial.println("restore ntsc preset");
         writeProgramArrayNew(ntsc_240p);
         rto->videoStandardInput = 1;
+        resetDigital();
+        resetPLL();
+        break;
+      case 'r':
+        Serial.println("restore pal preset");
+        writeProgramArrayNew(pal_240p);
+        rto->videoStandardInput = 2;
+        resetDigital();
         resetPLL();
         break;
       case '.':
@@ -1313,6 +1321,8 @@ void loop() {
         break;
       case '1':
         writeProgramArrayNew(test720p);
+        resetDigital();
+        resetPLL();
         break;
       case '2':
         writeProgramArraySection(ntsc_240p, 1);
@@ -1328,6 +1338,8 @@ void loop() {
         break;
       case '6':
         writeProgramArrayNew(ntsc_1920x1080);
+        resetDigital();
+        resetPLL();
         break;
       case '7':
         writeProgramArraySection(ntsc_240p, 5, 0);
@@ -1419,7 +1431,6 @@ void loop() {
             szNumbers[0] = Serial.read(); szNumbers[1] = Serial.read(); szNumbers[2] = '\0';
             char * pEnd;
             inputToogleBit = strtol (szNumbers, &pEnd, 16);
-            Serial.print(" inputvalue: "); Serial.println(inputToogleBit, HEX);
             if ((segment >= 0 && segment <= 5) && (inputToogleBit >= 0 && inputToogleBit <= 255)) {
               writeOneByte(0xF0, segment);
               readFromRegister(inputRegister, 1, &readout);
