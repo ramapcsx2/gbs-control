@@ -144,7 +144,6 @@ boolean inputAndSyncDetect() {
   if (getSyncProcessorSignalValid() == false) {
     do {
       delay(15);
-      //resetSyncProcessor();
     }
     while (getSyncProcessorSignalValid() == false && --timeout > 0);
   }
@@ -153,9 +152,8 @@ boolean inputAndSyncDetect() {
     // one last attempt
     timeout = 50;
     writeProgramArrayNew(ntsc_240p);
-    resetSyncProcessor();
     SyncProcessorOffOn();
-    delay(500);
+    delay(750);
     do {
       delay(15);
     }
@@ -479,10 +477,10 @@ void resetPLL() {
 // Note: This leaves the main PLL uninitialized so issue a resetPLL() after this!
 void resetDigital() {
   writeOneByte(0xF0, 0);
-  writeOneByte(0x46, 0); delay(6); writeOneByte(0x47, 0); delay(6);
+  writeOneByte(0x46, 0); writeOneByte(0x47, 0);
   writeOneByte(0x43, 0x20); delay(10); // initial VCO voltage
-  resetPLL(); delay(6);
-  writeOneByte(0x46, 0x7f); // all on
+  resetPLL(); delay(10);
+  writeOneByte(0x46, 0x3f); // all on except VDS (display enable)
   writeOneByte(0x47, 0x17); // all on except HD bypass
   Serial.println("resetDigital");
 }
@@ -493,20 +491,29 @@ boolean getSyncProcessorSignalValid() {
   uint8_t register_low, register_high = 0;
   uint16_t register_combined = 0;
   boolean returnValue = false;
+  boolean horizontalOkay = false;
 
   writeOneByte(0xF0, 0);
   readFromRegister(0x07, 1, &register_high); readFromRegister(0x06, 1, &register_low);
   register_combined =   (((uint16_t)register_high & 0x0001) << 8) | (uint16_t)register_low;
-  Serial.print("h:"); Serial.print(register_combined); Serial.print(" ");
+  //Serial.print("h:"); Serial.print(register_combined); Serial.print(" ");
   // pal: 432, ntsc: 428, hdtv: 214?
-  if (register_combined > 426 && register_combined < 434) returnValue = true;  // pal, ntsc 428-432
-  if (register_combined > 205 && register_combined < 225) returnValue = true; // hdtv 214
+  if (register_combined > 422 && register_combined < 438) {
+    horizontalOkay = true;  // pal, ntsc 428-432
+  }
+  if (register_combined > 205 && register_combined < 225) {
+    horizontalOkay = true;  // hdtv 214
+  }
 
   readFromRegister(0x08, 1, &register_high); readFromRegister(0x07, 1, &register_low);
   register_combined = (((uint16_t(register_high) & 0x000f)) << 7) | (((uint16_t)register_low & 0x00fe) >> 1);
-  Serial.print("v:"); Serial.print(register_combined);
-  if (register_combined > 522 && register_combined < 528) returnValue = true; // ntsc
-  if (register_combined > 620 && register_combined < 632) returnValue = true; // pal
+  //Serial.print("v:"); Serial.print(register_combined);
+  if ((register_combined > 518 && register_combined < 530) && (horizontalOkay == true) ) {
+    returnValue = true;  // ntsc
+  }
+  if ((register_combined > 620 && register_combined < 632) && (horizontalOkay == true) ) {
+    returnValue = true;  // pal
+  }
   // todo: hdtv? several possible line counts. Update: a test returned values much like pal / ntsc so this may be good enough.
 
   //writeOneByte(0xF0, 0);
@@ -515,7 +522,7 @@ boolean getSyncProcessorSignalValid() {
   //Serial.print(" hpw:"); Serial.print(register_combined); // horizontal pulse width
   //if (register_combined < 30 || register_combined > 200) returnValue = false; // todo: pin this down! wii has 128
 
-  Serial.print("\n");
+  //if (!returnValue) { Serial.print("."); }
   return returnValue;
 }
 
@@ -527,41 +534,13 @@ void switchInputs() {
 
 void SyncProcessorOffOn() {
   uint8_t readout = 0;
+  disableDeinterlacer(); delay(5); // hide the glitching
   writeOneByte(0xF0, 0);
   readFromRegister(0x47, 1, &readout);
   writeOneByte(0x47, readout & ~(1 << 2));
+  readFromRegister(0x47, 1, &readout);
   writeOneByte(0x47, readout | (1 << 2));
-}
-
-void resetSyncProcessor() {
-  byte timeout = 8;
-  uint8_t readout = 0;
-  writeOneByte(0xF0, 5); readFromRegister(0x02, 1, &readout); // the input switch register
-  do {
-    delay(20);
-  }
-  while (getSyncProcessorSignalValid() == false && --timeout > 0);
-  if (timeout > 0) {
-    /*we had success!*/ //rto->inputIsYpBpR = 0;
-  }
-
-  if (timeout == 0) { // no success. try other input
-    timeout = 8;
-    writeOneByte(0xF0, 5); readFromRegister(0x02, 1, &readout);
-    writeOneByte(0x02, (readout & ~(1 << 6)));
-    do {
-      delay(20);
-    }
-    while (getSyncProcessorSignalValid() == false && --timeout > 0);
-    if (timeout > 0) {
-      /*we had success!*/ //rto->inputIsYpBpR = 1;
-    }
-    else {
-      // undo above input switch
-      writeOneByte(0xF0, 5); readFromRegister(0x02, 1, &readout);
-      writeOneByte(0x02, (readout | (1 << 6)));
-    }
-  }
+  enableDeinterlacer();
 }
 
 void shiftHorizontal(uint16_t amountToAdd, bool subtracting) {
@@ -1031,7 +1010,6 @@ void setup() {
   inputAndSyncDetect();
   resetDigital();
   disableVDS();
-  resetPLL();
   SyncProcessorOffOn();
   delay(1000);
 
@@ -1189,13 +1167,9 @@ void loop() {
         Serial.println("shift vert. -");
         shiftVerticalDown();
         break;
-      case 'u':
-        Serial.println("sp reset");
-        resetSyncProcessor();
-        break;
       case 'q':
         resetDigital();
-        resetPLL();
+        enableVDS();
         Serial.println("resetDigital()");
         break;
       case 'e':
@@ -1203,14 +1177,14 @@ void loop() {
         writeProgramArrayNew(ntsc_240p);
         rto->videoStandardInput = 1;
         resetDigital();
-        resetPLL();
+        enableVDS();
         break;
       case 'r':
         Serial.println("restore pal preset");
         writeProgramArrayNew(pal_240p);
         rto->videoStandardInput = 2;
         resetDigital();
-        resetPLL();
+        enableVDS();
         break;
       case '.':
         Serial.println("input/sync detect");
@@ -1334,7 +1308,7 @@ void loop() {
       case '1':
         writeProgramArrayNew(test720p);
         resetDigital();
-        resetPLL();
+        enableVDS();
         break;
       case '2':
         writeProgramArraySection(ntsc_240p, 1);
@@ -1351,7 +1325,7 @@ void loop() {
       case '6':
         writeProgramArrayNew(ntsc_1920x1080);
         resetDigital();
-        resetPLL();
+        enableVDS();
         break;
       case '7':
         writeProgramArraySection(ntsc_240p, 5, 0);
@@ -1528,16 +1502,24 @@ void loop() {
     byte failcounter = 0;
     byte result = getVideoMode();
 
-    if (result != rto->videoStandardInput) {
-      // lost sync?
+    // is there a sync problem?
+    if (!getSyncProcessorSignalValid() || result != rto->videoStandardInput) {
       for (byte test = 0; test <= 20; test++) {
         result = getVideoMode();
-        if (result != rto->videoStandardInput) {
+        if (result != rto->videoStandardInput) { // has the video standard changed?
           Serial.print("-");
           failcounter++;
           if (failcounter == 1) disableDeinterlacer();
         }
-        if (result == rto->videoStandardInput) {
+
+        if (!getSyncProcessorSignalValid()) { // is the sync signal recognized? (tells if the console is even on)
+          Serial.print("-");
+          failcounter++;
+          if (failcounter == 1) disableDeinterlacer();
+        }
+
+        if (result == rto->videoStandardInput && getSyncProcessorSignalValid()) { // had the video standard changed, but only briefly (glitch)?
+          //if (getSyncProcessorSignalValid()) {
           Serial.print("+");
           break;
         }
@@ -1545,12 +1527,10 @@ void loop() {
       }
 
       if (failcounter >= 12 ) { // yep, sync is gone
-        disableVDS(); // disable output to display until stable // todo: this should be global / preventing VDS to activate
-
-        resetSyncProcessor();
-        SyncProcessorOffOn();
-        delay(500);
+        disableVDS(); // disable output to display until sync is stable again. at that time, a preset will be loaded and VDS get re-enabled
+        resetDigital();
         //SyncProcessorOffOn();
+        delay(1000);
         rto->videoStandardInput = 0;
       }
     }
@@ -1574,8 +1554,24 @@ void loop() {
       }
 
       if (timeout == 0) {
-        // don't apply presets or enable VDS this loop
+        // don't apply presets or enable VDS this loop.
+        // the console must be off or cables disconnected (or using a bad sync signal)
         Serial.println("XXX");
+        // Stop the real time recovery attempt and wait until Mode Detection says there is a valid signal.
+        uint8_t temp = 0;
+        while (!getSyncProcessorSignalValid()) {
+          temp++; // it's fine to let this overflow
+          if ((temp % 10) == 0) {
+            Serial.print("X");
+          }
+          if ((temp % 100) == 0) {
+            writeProgramArraySection(ntsc_240p, 1); // safety attempt at recovery: restore sections 1 and 5, then reset the chip
+            writeProgramArraySection(ntsc_240p, 5); // for example: GBS lost power but Arduino did not (development setup)
+            resetDigital();
+          }
+          delay(250);
+        }
+        // sync recovered, continue the loop. next run will apply presets as needed
       }
       else {
         applyPresets(result);
@@ -1760,13 +1756,13 @@ void loop() {
     writeOneByte(0x1a, readout & ~(1 << 4)); // toggle frame lock mode
     // my display doesn't always recover with just a single toggle :/
     resetDigital(); // this works // most of the time ><
-    resetPLL();
     if (rto->syncWatcher) {
       delay(1000);
     }
     if (rto->autoGainADC) {
       resetADCAutoGain();
     }
+    enableVDS();
     rto->timingExperimental = false;
   }
 }
