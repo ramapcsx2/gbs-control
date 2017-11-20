@@ -481,7 +481,7 @@ const uint8_t ntsc_240p[] PROGMEM = {
 0,
 216,
 0,
-81,
+97,
 49,
 0,
 0,
