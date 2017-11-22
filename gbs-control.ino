@@ -4,6 +4,7 @@
 #include "hdtv.h"
 #include "ntsc_1920x1080.h"
 #include "test720p.h"
+#include "pal_288p.h"
 
 // bitbanger developed reversing the original firmware I2C timings and signaling by mybook4
 // https://github.com/mybook4/DigisparkSketches/tree/master/GBS_Control
@@ -1303,7 +1304,8 @@ void loop() {
         SyncProcessorOffOn();
         break;
       case '0':
-        rto->timingExperimental = !rto->timingExperimental;
+        //rto->timingExperimental = !rto->timingExperimental;
+        writeProgramArrayNew(pal_288p);
         break;
       case '1':
         writeProgramArrayNew(test720p);
