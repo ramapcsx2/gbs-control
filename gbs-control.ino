@@ -76,102 +76,6 @@ void writeProgramArray(const uint8_t* programArray)
   }
 }
 
-boolean inputAndSyncDetect() {
-  uint8_t readout = 0;
-  uint8_t previous = 0;
-  byte timeout = 0;
-
-  boolean yuvInputWasDetected = false; // todo: make this better
-
-  // find the SOG input
-  writeOneByte(0xF0, 5);
-  writeOneByte(0x02, 0x21); // SOG on, slicer level mid, input 00 > R0/G0/B0/SOG0 as input (YUV & RGBHV (shared somehow))
-  writeOneByte(0xF0, 0);
-  timeout = 20;
-  readFromRegister(0x19, 1, &readout); // hor. pulse width
-  while (timeout-- > 0) {
-    previous = readout;
-    readFromRegister(0x19, 1, &readout);
-    if (previous != readout) {
-      Serial.println("input is YUV or RGBHV");
-      yuvInputWasDetected = true;
-      rto->inputIsYpBpR = 1;
-      break;
-    }
-    delay(1);
-  }
-
-  writeOneByte(0xF0, 5);
-  writeOneByte(0x02, 0x61); // SOG on, slicer level mid, input 01 > R1/G1/B1/SOG1 as input (RGBS)
-  writeOneByte(0xF0, 0);
-  timeout = 20;
-  readFromRegister(0x19, 1, &readout); // hor. pulse width
-  while (timeout-- > 0) {
-    previous = readout;
-    readFromRegister(0x19, 1, &readout);
-    if (previous != readout) {
-      Serial.println("input is RGBS");
-      if (yuvInputWasDetected == true) {
-        Serial.println("but yuv also found! RGBHV?");
-        // We have a sync signal on both ports.?
-      }
-      rto->inputIsYpBpR = 0;
-      break;
-    }
-    delay(1);
-  }
-
-  if (timeout == 0) {
-    Serial.println("no signal?");
-    return false;
-  }
-
-  // inputs found
-  writeOneByte(0xF0, 5);
-  if (rto->inputIsYpBpR) {
-    writeOneByte(0x02, 0x21);
-  }
-  else {
-    writeOneByte(0x02, 0x61);
-  }
-
-  resetPLL();
-  writeOneByte(0xF0, 5);
-  writeOneByte(0x3a, 0x04); // Sync separation control
-  writeOneByte(0x2a, 0x0F); // H active detect control
-  SyncProcessorOffOn();
-
-  timeout = 50;
-  if (getSyncProcessorSignalValid() == false) {
-    do {
-      delay(15);
-    }
-    while (getSyncProcessorSignalValid() == false && --timeout > 0);
-  }
-
-  if (timeout == 0) {
-    // one last attempt
-    timeout = 50;
-    writeProgramArrayNew(ntsc_240p);
-    SyncProcessorOffOn();
-    delay(750);
-    do {
-      delay(15);
-    }
-    while (getSyncProcessorSignalValid() == false && --timeout > 0);
-  }
-
-  if (timeout == 0) {
-    Serial.println("XXX");
-    return false;
-  }
-  return true;
-}
-
-uint8_t getSingleByteFromPreset(const uint8_t* programArray, unsigned int offset) {
-  return pgm_read_byte(programArray + offset);
-}
-
 void writeProgramArraySection(const uint8_t* programArray, byte section, byte subsection = 0) {
   // section 1: index = 48
   uint8_t bank[16];
@@ -258,6 +162,75 @@ void writeProgramArraySection(const uint8_t* programArray, byte section, byte su
     }
     resetPLL(); // only for section 5
   }
+}
+
+boolean inputAndSyncDetect() {
+  // GBS boards have 2 potential sync sources:
+  // - 3 plug RCA connector
+  // - VGA input / 5 pin RGBS header / 8 pin VGA header (all 3 are shared electrically)
+  // This routine finds the input that has a sync signal, then stores the result for global use.
+  // Note: It is assumed that the 5725 has a preset loaded!
+  uint8_t readout = 0;
+  uint8_t previous = 0;
+  byte timeout = 0;
+  boolean syncFound = false;
+
+  writeOneByte(0xF0, 5);
+  writeOneByte(0x02, 0x21); // SOG on, slicer level mid, input 00 > R0/G0/B0/SOG0 as input (YUV)
+  writeOneByte(0x2a, 0x50); // "continue legal line as valid" to a value that helps the SP detect the format
+  writeOneByte(0xF0, 0);
+  timeout = 6; // try this input a few times and look for a change
+  readFromRegister(0x19, 1, &readout); // in hor. pulse width
+  while (timeout-- > 0) {
+    previous = readout;
+    readFromRegister(0x19, 1, &readout);
+    if (previous != readout) {
+      rto->inputIsYpBpR = 1;
+      syncFound = true;
+      break;
+    }
+    delay(1);
+  }
+
+  if (syncFound == false) {
+    writeOneByte(0xF0, 5);
+    writeOneByte(0x02, 0x61); // SOG on, slicer level mid, input 01 > R1/G1/B1/SOG1 as input (RGBS)
+    writeOneByte(0xF0, 0);
+    timeout = 6; // try this input a few times and look for a change
+    readFromRegister(0x19, 1, &readout); // in hor. pulse width
+    while (timeout-- > 0) {
+      previous = readout;
+      readFromRegister(0x19, 1, &readout);
+      if (previous != readout) {
+        rto->inputIsYpBpR = 0;
+        syncFound = true;
+        break;
+      }
+      delay(1);
+    }
+  }
+  
+  if (!syncFound) {
+    Serial.println("no input with sync found");
+  }
+
+  if (rto->inputIsYpBpR == true) {
+    Serial.println("using RCA inputs");
+    writeOneByte(0xF0, 5);
+    writeOneByte(0x02, 0x21);
+  }
+  else {
+    Serial.println("using RGBS inputs");
+    writeOneByte(0xF0, 5);
+    writeOneByte(0x02, 0x61);
+  }
+
+  // even if SP is unstable, we at least have some sync signal
+  return syncFound;
+}
+
+uint8_t getSingleByteFromPreset(const uint8_t* programArray, unsigned int offset) {
+  return pgm_read_byte(programArray + offset);
 }
 
 void writeProgramArrayNew(const uint8_t* programArray)
@@ -524,6 +497,7 @@ boolean getSyncProcessorSignalValid() {
   //if (register_combined < 30 || register_combined > 200) returnValue = false; // todo: pin this down! wii has 128
 
   //if (!returnValue) { Serial.print("."); }
+  //Serial.print("\n");
   return returnValue;
 }
 
@@ -999,7 +973,7 @@ void setup() {
     writeOneByte(0xF0, 1);
     readFromRegister(0xF0, 1, &temp);
     Serial.println("5725 not responding");
-    delay(1000);
+    delay(500);
   }
 
   disableVDS();
@@ -1011,7 +985,7 @@ void setup() {
   inputAndSyncDetect();
   resetDigital();
   disableVDS();
-  SyncProcessorOffOn();
+  //SyncProcessorOffOn();
   delay(1000);
 
   byte result = getVideoMode();
