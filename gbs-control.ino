@@ -1347,16 +1347,16 @@ void loop() {
         // we have a multibyte command
         if (inputStage > 0) {
           if (inputStage == 1) {
-            Serial.print("segment: ");
             segment = Serial.parseInt();
+            Serial.print("segment: ");
             Serial.println(segment);
           }
           else if (inputStage == 2) {
-            Serial.print("register: ");
             char szNumbers[3];
             szNumbers[0] = Serial.read(); szNumbers[1] = Serial.read(); szNumbers[2] = '\0';
             char * pEnd;
             inputRegister = strtol(szNumbers, &pEnd, 16);
+            Serial.print("register: ");
             Serial.println(inputRegister, HEX);
             if ((segment >= 0 && segment <= 5)) {
               writeOneByte(0xF0, segment);
@@ -1376,16 +1376,16 @@ void loop() {
         // we have a multibyte command
         if (inputStage > 0) {
           if (inputStage == 1) {
-            Serial.print("segment: ");
             segment = Serial.parseInt();
+            Serial.print("segment: ");
             Serial.println(segment);
           }
           else if (inputStage == 2) {
-            Serial.print("register: ");
             char szNumbers[3];
             szNumbers[0] = Serial.read(); szNumbers[1] = Serial.read(); szNumbers[2] = '\0';
             char * pEnd;
             inputRegister = strtol(szNumbers, &pEnd, 16);
+            Serial.print("register: ");
             Serial.println(inputRegister);
           }
           else if (inputStage == 3) {
@@ -1414,16 +1414,16 @@ void loop() {
         // we have a multibyte command
         if (inputStage > 0) {
           if (inputStage == 1) {
-            Serial.print("toggle bit segment: ");
             segment = Serial.parseInt();
+            Serial.print("toggle bit segment: ");
             Serial.println(segment);
           }
           else if (inputStage == 2) {
-            Serial.print("toggle bit register: ");
             char szNumbers[3];
             szNumbers[0] = Serial.read(); szNumbers[1] = Serial.read(); szNumbers[2] = '\0';
             char * pEnd;
             inputRegister = strtol (szNumbers, &pEnd, 16);
+            Serial.print("toggle bit register: ");
             Serial.println(inputRegister, HEX);
           }
           else if (inputStage == 3) {
@@ -1445,7 +1445,7 @@ void loop() {
         }
         break;
       case 'x':
-        Serial.print("ADC Target: ");
+        Serial.print("set ADC Target to: ");
         rto->ADCTarget = Serial.parseInt();
         Serial.println(rto->ADCTarget);
         resetADCAutoGain();
