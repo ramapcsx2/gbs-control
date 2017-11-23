@@ -194,7 +194,7 @@ boolean inputAndSyncDetect() {
 
   if (syncFound == false) {
     writeOneByte(0xF0, 5);
-    writeOneByte(0x02, 0x61); // SOG on, slicer level mid, input 01 > R1/G1/B1/SOG1 as input (RGBS)
+    writeOneByte(0x02, 0x59); // SOG on, slicer level mid, input 01 > R1/G1/B1/SOG1 as input (RGBS)
     writeOneByte(0xF0, 0);
     timeout = 6; // try this input a few times and look for a change
     readFromRegister(0x19, 1, &readout); // in hor. pulse width
@@ -222,7 +222,7 @@ boolean inputAndSyncDetect() {
   else {
     Serial.println("using RGBS inputs");
     writeOneByte(0xF0, 5);
-    writeOneByte(0x02, 0x61);
+    writeOneByte(0x02, 0x59);
   }
 
   // even if SP is unstable, we at least have some sync signal
