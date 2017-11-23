@@ -18,6 +18,7 @@ struct runTimeOptions {
   boolean inputIsYpBpR;
   boolean autoGainADC;
   boolean syncWatcher;
+  boolean periodicPhaseLatcher;
   uint8_t videoStandardInput : 2; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 HDTV
   boolean ADCGainValueFound; // ADC auto gain variables
   uint16_t highestValue : 11; // 2047 discrete unsigned values (maximum of analogRead() is 1023)
@@ -209,7 +210,7 @@ boolean inputAndSyncDetect() {
       delay(1);
     }
   }
-  
+
   if (!syncFound) {
     Serial.println("no input with sync found");
   }
@@ -952,6 +953,7 @@ void setup() {
   rto->inputIsYpBpR = 0;
   rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
   rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
+  rto->periodicPhaseLatcher = true; // continously "reminds" the ADC phase correction to get to work. This is a workaround.
   rto->videoStandardInput = 0;
   rto->ADCGainValueFound = 0;
   rto->highestValue = 0;
@@ -1464,7 +1466,7 @@ void loop() {
   // Reasoning: It's random whether the chip syncs on the correct cycle for a given sample phase setting.
   // We don't have the processing power to manually align the sampling phase on Arduino but maybe this works instead.
   // (Probably not, so todo: Investigate options. Maybe use nodeMCU with its 160Mhz clock speed!)
-  if (thisTime - lastTimePhase > 400) {
+  if ((rto->periodicPhaseLatcher == true) && ((thisTime - lastTimePhase) > 400)) {
     writeOneByte(0xF0, 5); readFromRegister(0x18, 1, &readout);
     readout &= ~(1 << 7); // latch off
     writeOneByte(0x18, readout); readFromRegister(0x18, 1, &readout);
@@ -1474,7 +1476,7 @@ void loop() {
   }
 
   // poll sync status continously
-  if (rto->syncWatcher == true && (thisTime - lastTimeSyncWatcher > 10)) {
+  if ((rto->syncWatcher == true) && ((thisTime - lastTimeSyncWatcher) > 10)) {
     byte failcounter = 0;
     byte result = getVideoMode();
 
