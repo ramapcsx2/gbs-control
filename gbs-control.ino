@@ -18,7 +18,11 @@ struct runTimeOptions {
   boolean inputIsYpBpR;
   boolean autoGainADC;
   boolean syncWatcher;
+  uint8_t syncUnstableCounter;
   boolean periodicPhaseLatcher;
+  boolean autoPositionVerticalEnabled;
+  boolean autoPositionVerticalFound;
+  uint8_t autoPositionVerticalValue;
   uint8_t videoStandardInput : 2; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 HDTV
   boolean ADCGainValueFound; // ADC auto gain variables
   uint16_t highestValue : 11; // 2047 discrete unsigned values (maximum of analogRead() is 1023)
@@ -931,6 +935,7 @@ void setup() {
   digitalWrite(LED_BUILTIN, HIGH); // enable the LED in setup(), let users know the board is starting up
 
   pinMode(10, INPUT); // experimental vsync sample input
+  pinMode(11, INPUT); // experimental hsync sample input
 
   // example for using the gbs8200 onboard buttons in an interrupt routine
   //pinMode(2, INPUT); // button for IFdown
@@ -953,7 +958,11 @@ void setup() {
   rto->inputIsYpBpR = 0;
   rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
   rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
+  rto->syncUnstableCounter = 0;
   rto->periodicPhaseLatcher = true; // continously "reminds" the ADC phase correction to get to work. This is a workaround.
+  rto->autoPositionVerticalEnabled = false;
+  rto->autoPositionVerticalFound = false;
+  rto->autoPositionVerticalValue = 0;
   rto->videoStandardInput = 0;
   rto->ADCGainValueFound = 0;
   rto->highestValue = 0;
@@ -1038,6 +1047,16 @@ static byte getVideoMode() {
   return 0; // unknown mode or no sync
 }
 
+boolean syncIsStable() {
+  uint8_t readout = 0;
+  writeOneByte(0xF0, 0);
+  readFromRegister(0x05, 1, &readout);
+  if (readout == 0) {
+    return true;
+  }
+  return false;
+}
+
 void autoADCGain() {
   byte readout = 0;
   static const uint16_t ADCCeiling = 700; // maximum value to expect from the ADC. Used to filter obvious misreads
@@ -1102,6 +1121,52 @@ void autoADCGain() {
   }
 }
 
+void setVerticalPositionAuto() {
+  uint8_t readout = 0;
+  uint16_t analogValue = 0;
+  long startTime = 0;
+  long totalTime = 0;
+
+  noInterrupts();
+  do {} while ((bitRead(PINB, 2)) == 1); // vsync is high
+  do {} while ((bitRead(PINB, 2)) == 0); // vsync is low
+  do {} while ((bitRead(PINB, 2)) == 1);
+  interrupts();
+  startTime = micros(); // we have 1 millisecond time until micros() goes bad
+  noInterrupts();
+  do {
+    analogValue = analogRead(A0);
+    totalTime = micros() - startTime;
+    if (analogValue > 12) { // less than this, assume black level
+      break;
+    }
+  } while (totalTime < 960);
+  interrupts();
+  Serial.println(totalTime);
+
+  writeOneByte(0xF0, 5); readFromRegister(0x40, 1, &readout);
+  if (totalTime < 830 ) { // we saw active video
+    writeOneByte(0x40, readout - 1);  // so move picture down
+    rto->autoPositionVerticalFound = false;
+    if (readout == 0x02) { // limit to 0x01
+      rto->autoPositionVerticalFound = true;
+    }
+  }
+  else  {
+    Serial.print("found at "); Serial.println(totalTime);
+    rto->autoPositionVerticalFound = true;
+  }
+
+  if (rto->autoPositionVerticalFound == true) {
+    readFromRegister(0x40, 1, &readout);
+    writeOneByte(0x40, readout + 2);  // compensate overshoot
+    readFromRegister(0x40, 1, &readout);
+    Serial.print("value: "); Serial.print(readout); Serial.print(" analog: "); Serial.println(analogValue);
+    rto->autoPositionVerticalValue = readout;
+    rto->autoPositionVerticalFound = true;
+  }
+}
+
 void loop() {
   // reminder: static variables are initialized once, not every loop
   static uint8_t readout = 0;
@@ -1148,6 +1213,14 @@ void loop() {
         resetDigital();
         enableVDS();
         Serial.println("resetDigital()");
+        break;
+      case 'y':
+        Serial.println("auto vertical position");
+        rto->autoPositionVerticalEnabled = true;
+        rto->autoPositionVerticalFound = false;
+        writeOneByte(0xF0, 5); readFromRegister(0x40, 1, &readout);
+        writeOneByte(0x40, readout + 20); // shift picture up, so there's active video in first scanline
+        delay(150); // the change disturbs the sync processor a little. wait a while!
         break;
       case 'e':
         Serial.println("restore ntsc preset");
@@ -1217,11 +1290,11 @@ void loop() {
         }
         break;
       case 'a':
-        writeOneByte(0xF0, 1);
-        readFromRegister(0x0b, 1, &readout);
-        Serial.println(readout);
+        writeOneByte(0xF0, 3);
+        readFromRegister(0x01, 1, &readout);
+        Serial.println(readout + 1);
         readout += 1; // one step
-        writeOneByte(0x0b, readout);
+        writeOneByte(0x01, readout);
         break;
       case 'm':
         if (rto->syncWatcher == true) {
@@ -1280,8 +1353,8 @@ void loop() {
         SyncProcessorOffOn();
         break;
       case '0':
-        //rto->timingExperimental = !rto->timingExperimental;
-        writeProgramArrayNew(pal_288p);
+        rto->timingExperimental = !rto->timingExperimental;
+        //writeProgramArrayNew(pal_288p);
         break;
       case '1':
         writeProgramArrayNew(test720p);
@@ -1301,15 +1374,16 @@ void loop() {
         writeProgramArraySection(ntsc_240p, 4);
         break;
       case '6':
+        writeProgramArraySection(ntsc_240p, 5, 0);
+        writeProgramArraySection(ntsc_240p, 5, 1);
+        break;
+      case '7':
         writeProgramArrayNew(ntsc_1920x1080);
         resetDigital();
         enableVDS();
         break;
-      case '7':
-        writeProgramArraySection(ntsc_240p, 5, 0);
-        break;
       case '8':
-        writeProgramArraySection(ntsc_240p, 5, 1);
+        Serial.print("A0: "); Serial.println(analogRead(A0));
         break;
       case '9':
         zeroAll();
@@ -1473,6 +1547,20 @@ void loop() {
     readout |= (1 << 7); // latch on
     writeOneByte(0x18, readout);
     lastTimePhase = thisTime;
+  }
+
+  if (!syncIsStable()) {
+    rto->syncUnstableCounter = 5;
+  }
+  else if (rto->syncUnstableCounter > 0) {
+    rto->syncUnstableCounter--;
+  }
+
+  // only run this when sync is stable!
+  if ((rto->autoPositionVerticalEnabled == true) && (rto->autoPositionVerticalFound == false)
+      && rto->syncUnstableCounter == 0 )
+  {
+    setVerticalPositionAuto();
   }
 
   // poll sync status continously
@@ -1650,7 +1738,7 @@ void loop() {
     writeOneByte(0xF0, 3);
     readFromRegister(0x01, 1, &currentS3_01);
     backup = currentS3_01; // if this fails
-    writeOneByte(0x19, 0x06); // lock frames. set to 6
+    writeOneByte(0x19, 0x02); // lock frames. set to 2
     readFromRegister(0x1a, 1, &readout);
     writeOneByte(0x1a, readout | (1 << 4)); // enable frame lock mode
 
