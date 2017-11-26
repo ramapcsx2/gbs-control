@@ -32,6 +32,8 @@ struct runTimeOptions {
   boolean deinterlacerWasTurnedOff;
   boolean syncLockEnabled;
   boolean syncLockFound;
+  boolean HSYNCconnected;
+  boolean VSYNCconnected;
   boolean IFdown; // push button support example using an interrupt
 } rtos;
 struct runTimeOptions *rto = &rtos;
@@ -977,8 +979,10 @@ void setup() {
   rto->ADCTarget = 635;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
   rto->highestValueEverSeen = 0;
   rto->deinterlacerWasTurnedOff = 0;
-  rto->syncLockEnabled = false;  // automatically find the best horizontal total pixel value for a given input timing
+  rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->syncLockFound = false;
+  rto->HSYNCconnected = false; // don't change
+  rto->VSYNCconnected = false; // don't change
   rto->IFdown = false;
 
 #if 1 // #if 0 disables the initialization phase 
@@ -1735,6 +1739,33 @@ void loop() {
     uint8_t currentS3 = 0;
     uint8_t bestS3 = 0;
 
+    // test if we get the vsync signal (wire is connected, display output is working)
+    // this remembers a positive result via VSYNCconnected and a nefative via syncLockEnabled
+    if (rto->VSYNCconnected == false) {
+      uint16_t test1 = 0;
+      uint16_t test2 = 0;
+      timer1 = millis();
+      do {
+        if ((bitRead(PINB, 2)) == 0) {
+          test1++;
+        }
+        if ((bitRead(PINB, 2)) == 1) {
+          test2++;
+        }
+      }
+      while ((millis() - timer1) < 300);
+
+      if (test1 != 0 && test2 != 0) {
+        rto->VSYNCconnected = true;
+      }
+      else {
+        Serial.println("VSYNC not connected");
+        rto->VSYNCconnected = false;
+        rto->syncLockEnabled = false;
+        return;
+      }
+    }
+    
     writeOneByte(0xF0, 5);
     readFromRegister(0x56, 1, &readout);
     writeOneByte(0x56, readout & ~(1 << 5));
@@ -1762,7 +1793,7 @@ void loop() {
 
     writeOneByte(0xF0, 3);
     readFromRegister(0x01, 1, &currentS3);
-    
+
     uint16_t ceilingS3 = currentS3 + 20;
     Serial.print("ceilingS3 "); Serial.println(ceilingS3);
     if (currentS3 >= 21) {
