@@ -30,7 +30,8 @@ struct runTimeOptions {
   uint16_t currentVoltage : 11;
   uint16_t ADCTarget : 11; // the target brightness (optimal value depends on the individual Arduino analogRead() results)
   boolean deinterlacerWasTurnedOff;
-  boolean timingExperimental;
+  boolean syncLockEnabled;
+  boolean syncLockFound;
   boolean IFdown; // push button support example using an interrupt
 } rtos;
 struct runTimeOptions *rto = &rtos;
@@ -775,13 +776,13 @@ void getVideoTimings() {
   readFromRegister(3, 0x0d, 1, &regLow);
   readFromRegister(3, 0x0e, 1, &regHigh);
   VDS_DIS_VS_ST = (((uint16_t)regHigh & 0x0007) << 8) | ((uint16_t)regLow) ;
-  Serial.print("vs start: "); Serial.println(VDS_DIS_VS_ST);
+  Serial.print("vs start (VDS_VS_ST): "); Serial.println(VDS_DIS_VS_ST);
 
   // get V Sync Stop
   readFromRegister(3, 0x0e, 1, &regLow);
   readFromRegister(3, 0x0f, 1, &regHigh);
   VDS_DIS_VS_SP = ((((uint16_t)regHigh & 0x007f) << 4) | ((uint16_t)regLow & 0x00f0) >> 4) ;
-  Serial.print("vs stop: "); Serial.println(VDS_DIS_VS_SP);
+  Serial.print("vs stop (VDS_VS_SP): "); Serial.println(VDS_DIS_VS_SP);
 
   // get Pixel Clock -- MD[11:0] -- must be smaller than 4096 --
   readFromRegister(5, 0x12, 1, &regLow);
@@ -927,6 +928,12 @@ void IFdown() {
   delay(45); // debounce
 }
 
+void resetSyncLock() {
+  if (rto->syncLockEnabled) {
+    rto->syncLockFound = false;
+  }
+}
+
 void setup() {
   pinMode(SDA_BIT, INPUT);
   pinMode(SCL_BIT, INPUT);
@@ -934,8 +941,8 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH); // enable the LED in setup(), let users know the board is starting up
 
-  pinMode(10, INPUT); // experimental vsync sample input
-  pinMode(11, INPUT); // experimental hsync sample input
+  pinMode(10, INPUT); // vsync sample input
+  pinMode(11, INPUT); // hsync sample input
 
   // example for using the gbs8200 onboard buttons in an interrupt routine
   //pinMode(2, INPUT); // button for IFdown
@@ -970,12 +977,13 @@ void setup() {
   rto->ADCTarget = 635;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
   rto->highestValueEverSeen = 0;
   rto->deinterlacerWasTurnedOff = 0;
-  rto->timingExperimental = false;  // automatically find the best horizontal total pixel value for a given input timing
+  rto->syncLockEnabled = false;  // automatically find the best horizontal total pixel value for a given input timing
+  rto->syncLockFound = false;
   rto->IFdown = false;
 
 #if 1 // #if 0 disables the initialization phase 
 
-  delay(500); // give the 5725 some extra time to start up. this adds to the Arduino bootloader delay.
+  delay(1000); // give the 5725 some extra time to start up. this adds to the Arduino bootloader delay.
   // is the 5725 up yet?
   uint8_t temp = 0;
   writeOneByte(0xF0, 1);
@@ -1018,7 +1026,7 @@ void setup() {
   delay(1000); // at least 750ms required to become stable
 
   resetADCAutoGain();
-
+  resetSyncLock();
   writeOneByte(0xF0, 5); writeOneByte(0x18, 0x8d); // phase latch bit
   writeOneByte(0xF0, 5); writeOneByte(0x19, 0x8d);
 
@@ -1178,9 +1186,6 @@ void loop() {
   static uint16_t register_combined = 0;
   static unsigned long thisTime, lastTimeSyncWatcher, lastTimePhase = millis();
   static byte OSRSwitch = 0;
-  static byte abortTimer = 0;
-  static uint8_t currentS3_01 = 0;
-  static boolean foundIt = 0;
 
   if (Serial.available()) {
     switch (Serial.read()) {
@@ -1353,7 +1358,7 @@ void loop() {
         SyncProcessorOffOn();
         break;
       case '0':
-        rto->timingExperimental = !rto->timingExperimental;
+        rto->syncLockFound = !rto->syncLockFound;
         //writeProgramArrayNew(pal_288p);
         break;
       case '1':
@@ -1536,6 +1541,14 @@ void loop() {
 
   thisTime = millis();
 
+  // is SP stable this loop?
+  if (!syncIsStable()) {
+    rto->syncUnstableCounter = 5;
+  }
+  else if (rto->syncUnstableCounter > 0) {
+    rto->syncUnstableCounter--;
+  }
+
   // ADC phase latch re-set. This is an attempt at getting phase correct sampling right.
   // Reasoning: It's random whether the chip syncs on the correct cycle for a given sample phase setting.
   // We don't have the processing power to manually align the sampling phase on Arduino but maybe this works instead.
@@ -1547,13 +1560,6 @@ void loop() {
     readout |= (1 << 7); // latch on
     writeOneByte(0x18, readout);
     lastTimePhase = thisTime;
-  }
-
-  if (!syncIsStable()) {
-    rto->syncUnstableCounter = 5;
-  }
-  else if (rto->syncUnstableCounter > 0) {
-    rto->syncUnstableCounter--;
   }
 
   // only run this when sync is stable!
@@ -1642,6 +1648,7 @@ void loop() {
       else {
         applyPresets(result);
         resetPLL();
+        resetSyncLock();
         // phase
         writeOneByte(0xF0, 5); writeOneByte(0x18, 0x21);
         writeOneByte(0xF0, 5); writeOneByte(0x19, 0x21);
@@ -1702,7 +1709,7 @@ void loop() {
   } // end information mode
 
   // only run this when sync is stable!
-  if (rto->autoGainADC == true && getVideoMode() != 0) {
+  if (rto->autoGainADC == true && rto->syncUnstableCounter == 0) {
     autoADCGain();
   }
 
@@ -1717,119 +1724,96 @@ void loop() {
     }
   }
 
-  // this is a total hack but it works to show the principle:
-  // We enable frame lock mode, which demands that the input sync timing matches that of the output.
-  // This is almost always not the case, but it can be brought very close by setting a good htotal value (S3_01).
-  // As long as the value is off that sweet spot, there will be a huge, measurable jitter between sync pulses.
-  // The microcontroller measures that jitter and tries to minimize it by tuning S3_01.
-  // When it manages to find such a value, this routine is done and we disable frame lock mode.
-  // The scaler output timing will be optimized to show very little tearing, enabling us to work with a single buffer display.
-  //
-  // This routine has a few caveats: First is that there are several ranges where a minimized jitter can be found.
-  // We have to limit the range to that of the preset S3_01 value +/- maybe 20. For the 1280x1024 preset, we'll use 0xe0 as lower bound.
-  // This works fine with all test consoles and locks them to a good value for htotal.
+  // only run this when sync is stable!
+  if (rto->syncLockEnabled == true && rto->syncLockFound == false && rto->syncUnstableCounter == 0) {
+    long timer1 = 0;
+    long timer2 = 0;
+    long accumulator1 = 1; // input timing
+    long accumulator2 = 1; // current output timing
+    long difference = 99999; // shortcut
+    long prev_difference = 0;
+    uint8_t currentS3 = 0;
+    uint8_t bestS3 = 0;
 
-  if (rto->timingExperimental == true) {
-    long counterOld, counterNow = 0;
-    long maxDifference = 0;
-    long currentDifference = 0;
-    uint8_t backup = 0;
-    abortTimer = 0;
-    writeOneByte(0xF0, 3);
-    readFromRegister(0x01, 1, &currentS3_01);
-    backup = currentS3_01; // if this fails
-    writeOneByte(0x19, 0x02); // lock frames. set to 2
-    readFromRegister(0x1a, 1, &readout);
-    writeOneByte(0x1a, readout | (1 << 4)); // enable frame lock mode
+    writeOneByte(0xF0, 5);
+    readFromRegister(0x56, 1, &readout);
+    writeOneByte(0x56, readout & ~(1 << 5));
+    readFromRegister(0x56, 1, &readout);
+    writeOneByte(0x56, readout | (1 << 6));
+    writeOneByte(0xF0, 0);
+    readFromRegister(0x4f, 1, &readout);
+    writeOneByte(0x4f, readout | (1 << 7));
 
-    currentS3_01 = 0xe0; // e0 is only good as starting point for 1280x1024 preset!
-    writeOneByte(0x01, currentS3_01);
-    foundIt = false;
-    //delay(500);
-    while (!foundIt && currentS3_01 < 0xff) {
-      abortTimer = 0;
-      maxDifference = 0;
-      counterNow = 0;
-      counterOld = 0;
-      // lock to the sync timing
-      noInterrupts();
-      do {} while ((bitRead(PINB, 2)) == 1); // sync is high
+    for (byte a = 0; a < 5; a++) {
       do {} while ((bitRead(PINB, 2)) == 0); // sync is low
       do {} while ((bitRead(PINB, 2)) == 1); // sync is high
-      while (abortTimer < 10 ) { // measure jitter max 10 times
-        abortTimer++;
-        do {} while ((bitRead(PINB, 2)) == 0); // once more, better aligns the MCU
-        do {} while ((bitRead(PINB, 2)) == 1); // after this high, we can start
-
-        do {
-          counterNow++;
-        }
-        while ((bitRead(PINB, 2)) == 0);
-
-        currentDifference = abs(counterNow - counterOld);
-        if (abortTimer < 2) { // using abortTimer as a loop counter
-          counterOld = counterNow;
-          currentDifference = 0;
-        }
-        else {
-          if (currentDifference > maxDifference) maxDifference = currentDifference;
-        }
-        //Serial.print("max "); Serial.print(maxDifference); Serial.print(" cur "); Serial.println(currentDifference);
-        counterOld = counterNow;
-        counterNow = 0;
-
-        if (maxDifference > 2 && abortTimer > 6) break; // abort jitter measure if value found but try at least a few times
-      }
-      interrupts();
-      Serial.print("max "); Serial.println(maxDifference);
-      if (maxDifference > 1 && maxDifference < 150) {
-        // SNES 240p triggers at 37, interlaced at f1
-        // MD2 NTSC 240p triggers at 49, interlaced at 148
-        // old > PSX PAL at 30 NTSC at 35
-        Serial.print("found ");
-        writeOneByte(0xF0, 3);
-        readFromRegister(0x01, 1, &currentS3_01);
-        Serial.println(currentS3_01, HEX);
-        foundIt = true;
-      }
-
-      if (!foundIt) {
-        byte amount = 1;
-        if (maxDifference > 800) amount = 2;
-        if (maxDifference > 1700) amount = 4;
-        // else amount is 1. We don't want to miss it.
-        writeOneByte(0xF0, 3);
-        readFromRegister(0x01, 1, &currentS3_01);
-        uint8_t toSet = currentS3_01 + amount;
-        if (toSet < 0xff) {
-          writeOneByte(0x01, toSet);
-        }
-        else {
-          toSet = currentS3_01 = 0xff;
-          writeOneByte(0x01, toSet);
-        }
-        Serial.println(toSet, HEX);
-      }
+      timer1 = micros();
+      do {} while ((bitRead(PINB, 2)) == 0); // sync is low
+      do {} while ((bitRead(PINB, 2)) == 1); // sync is high
+      timer2 = micros();
+      accumulator2 += (timer2 - timer1);
     }
-    // if we had no success restore original
-    if (!foundIt) {
-      writeOneByte(0xF0, 3);
-      writeOneByte(0x01, backup);
-    }
+    accumulator2 /= 5;
+    Serial.print("input scanline ns: "); Serial.println(accumulator2);
+
+    writeOneByte(0xF0, 0);
+    readFromRegister(0x4f, 1, &readout);
+    writeOneByte(0x4f, readout & ~(1 << 7));
+
     writeOneByte(0xF0, 3);
-    writeOneByte(0x19, 0x01);
-    readFromRegister(0x1a, 1, &readout);
-    writeOneByte(0x1a, readout & ~(1 << 4)); // toggle frame lock mode
-    // my display doesn't always recover with just a single toggle :/
-    resetDigital(); // this works // most of the time ><
-    if (rto->syncWatcher) {
-      delay(1000);
+    readFromRegister(0x01, 1, &currentS3);
+    
+    uint16_t ceilingS3 = currentS3 + 20;
+    Serial.print("ceilingS3 "); Serial.println(ceilingS3);
+    if (currentS3 >= 21) {
+      currentS3 -= 20;
     }
-    if (rto->autoGainADC) {
-      resetADCAutoGain();
+    else {
+      currentS3 = 1;
     }
-    enableVDS();
-    rto->timingExperimental = false;
+
+    while ((currentS3 < 0xff) && (currentS3 < ceilingS3)) {
+      writeOneByte(0xF0, 3);
+      writeOneByte(0x01, currentS3);
+
+      do {} while ((bitRead(PINB, 2)) == 0); // sync is low
+      do {} while ((bitRead(PINB, 2)) == 1); // sync is high
+      timer1 = micros();
+      do {} while ((bitRead(PINB, 2)) == 0); // sync is low
+      do {} while ((bitRead(PINB, 2)) == 1); // sync is high
+      timer2 = micros();
+
+      accumulator1 = (timer2 - timer1);
+      prev_difference = difference;
+      difference = (accumulator1 > accumulator2) ? (accumulator1 - accumulator2) : (accumulator2 - accumulator1);
+      Serial.print(currentS3, HEX); Serial.print(": "); Serial.println(difference);
+
+      if (difference < prev_difference) {
+        bestS3 = currentS3;
+      }
+      else {
+        // increasing again? we have the value, abort loop
+        break;
+      }
+
+      currentS3++;
+    }
+
+    writeOneByte(0xF0, 0);
+    readFromRegister(0x4f, 1, &readout);
+    writeOneByte(0x4f, readout & ~(1 << 7));
+
+    writeOneByte(0xF0, 5);
+    readFromRegister(0x56, 1, &readout);
+    writeOneByte(0x56, readout | (1 << 5));
+    readFromRegister(0x56, 1, &readout);
+    writeOneByte(0x56, readout & ~(1 << 6));
+
+    Serial.print(" best S3: "); Serial.println(bestS3, HEX);
+    writeOneByte(0xF0, 3);
+    writeOneByte(0x01, bestS3);
+
+    rto->syncLockFound = true;
   }
 }
 
