@@ -1231,6 +1231,33 @@ void loop() {
         writeOneByte(0x40, readout + 20); // shift picture up, so there's active video in first scanline
         delay(150); // the change disturbs the sync processor a little. wait a while!
         break;
+      case 'k':
+        {
+          static boolean sp_passthrough_enabled = false;
+          if (!sp_passthrough_enabled) {
+            writeOneByte(0xF0, 5);
+            readFromRegister(0x56, 1, &readout);
+            writeOneByte(0x56, readout & ~(1 << 5));
+            readFromRegister(0x56, 1, &readout);
+            writeOneByte(0x56, readout | (1 << 6));
+            writeOneByte(0xF0, 0);
+            readFromRegister(0x4f, 1, &readout);
+            writeOneByte(0x4f, readout | (1 << 7));
+            sp_passthrough_enabled = true;
+          }
+          else {
+            writeOneByte(0xF0, 5);
+            readFromRegister(0x56, 1, &readout);
+            writeOneByte(0x56, readout | (1 << 5));
+            readFromRegister(0x56, 1, &readout);
+            writeOneByte(0x56, readout & ~(1 << 6));
+            writeOneByte(0xF0, 0);
+            readFromRegister(0x4f, 1, &readout);
+            writeOneByte(0x4f, readout & ~(1 << 7));
+            sp_passthrough_enabled = false;
+          }
+        }
+        break;
       case 'e':
         Serial.println("restore ntsc preset");
         writeProgramArrayNew(ntsc_240p);
