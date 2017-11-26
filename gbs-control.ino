@@ -942,6 +942,9 @@ void resetSyncLock() {
 
 void setup() {
   Wire.begin();
+  // The i2c wire library sets pullup resistors on by default. Disable this so that 5V arduinos aren't trying to drive the 3.3V bus.
+  digitalWrite(SCL, LOW);
+  digitalWrite(SDA, LOW);
   // TV5725 supports 400kHz
   Wire.setClock(400000);
 
