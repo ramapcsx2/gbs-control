@@ -1,4 +1,4 @@
-#include "I2CBitBanger.h"
+#include <Wire.h>
 #include "ntsc_240p.h"
 #include "pal_240p.h"
 #include "hdtv.h"
@@ -6,9 +6,8 @@
 #include "test720p.h"
 #include "pal_288p.h"
 
-// bitbanger developed reversing the original firmware I2C timings and signaling by mybook4
-// https://github.com/mybook4/DigisparkSketches/tree/master/GBS_Control
-I2CBitBanger i2cObj(0x17); //GBS_I2C_ADDRESS  // 0x2E
+// 7 bit GBS I2C Address
+#define GBS_ADDR 0x17
 
 // I want runTimeOptions to be a global, for easier initial development.
 // Once we know which options are really required, this can be made more local.
@@ -51,20 +50,17 @@ bool writeOneByte(uint8_t slaveRegister, uint8_t value)
 
 bool writeBytes(uint8_t slaveAddress, uint8_t slaveRegister, uint8_t* values, uint8_t numValues)
 {
-  //i2cObj.setSlaveAddress(slaveAddress);
-  i2cObj.addByteForTransmission(slaveRegister);
-  i2cObj.addBytesForTransmission(values, numValues);
-  if (!i2cObj.transmitData())
-  {
-    return false;
-  }
+  Wire.beginTransmission(slaveAddress);
+  Wire.write(slaveRegister);
+  int sentBytes = Wire.write(values, numValues);
+  Wire.endTransmission();
 
-  return true;
+  return (sentBytes==numValues);
 }
 
 bool writeBytes(uint8_t slaveRegister, uint8_t* values, int numValues)
 {
-  return writeBytes(0x17, slaveRegister, values, numValues);
+  return writeBytes(GBS_ADDR, slaveRegister, values, numValues);
 }
 
 void writeProgramArray(const uint8_t* programArray)
@@ -378,10 +374,18 @@ int readFromRegister(uint8_t segment, uint8_t reg, int bytesToRead, uint8_t* out
 int readFromRegister(uint8_t reg, int bytesToRead, uint8_t* output)
 {
   // go to the appropriate register
-  i2cObj.addByteForTransmission(reg);
-  i2cObj.transmitData();
+  Wire.beginTransmission(GBS_ADDR);
+  if (!Wire.write(reg))
+    return 0;
+  Wire.endTransmission();
+  Wire.requestFrom(GBS_ADDR, bytesToRead, true);
+  int rcvBytes = 0;
+  while (Wire.available())
+  {
+    output[rcvBytes++] =  Wire.read();
+  }
 
-  return i2cObj.recvData(bytesToRead, output);
+  return (rcvBytes==bytesToRead);
 }
 
 // dumps the current chip configuration in a format that's ready to use as new preset :)
@@ -937,8 +941,12 @@ void resetSyncLock() {
 }
 
 void setup() {
-  pinMode(SDA_BIT, INPUT);
-  pinMode(SCL_BIT, INPUT);
+  Wire.begin();
+  // The i2c wire library sets pullup resistors on by default. Disable this so that 5V arduinos aren't trying to drive the 3.3V bus.
+  digitalWrite(SCL, LOW);
+  digitalWrite(SDA, LOW);
+  // TV5725 supports 400kHz
+  Wire.setClock(400000);
 
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH); // enable the LED in setup(), let users know the board is starting up
