@@ -1642,7 +1642,7 @@ void loop() {
           Serial.print("+");
           break;
         }
-        delay(20);
+        delay(30);
       }
 
       if (failcounter >= 12 ) { // yep, sync is gone
