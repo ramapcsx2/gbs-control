@@ -1837,10 +1837,10 @@ void loop() {
     writeOneByte(0xF0, 3);
     readFromRegister(0x01, 1, &currentS3);
 
-    uint16_t ceilingS3 = currentS3 + 20;
+    uint16_t ceilingS3 = currentS3 + 24;
     Serial.print("ceilingS3 "); Serial.println(ceilingS3);
-    if (currentS3 >= 21) {
-      currentS3 -= 20;
+    if (currentS3 >= 25) {
+      currentS3 -= 24;
     }
     else {
       currentS3 = 1;
@@ -1870,7 +1870,12 @@ void loop() {
         break;
       }
 
-      currentS3++;
+      // one step of S3_01 equals ~12.
+      if (difference > 192) { currentS3 += 14; }
+      else if (difference > 132) { currentS3 += 9; }
+      else if (difference > 72) { currentS3 += 4; }
+      else if (difference > 36) { currentS3 += 2; }
+      else { currentS3 += 1; }
     }
 
     writeOneByte(0xF0, 0);
