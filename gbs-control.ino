@@ -1486,7 +1486,7 @@ void loop() {
             inputRegister = strtol(szNumbers, &pEnd, 16);
             Serial.print("register: ");
             Serial.println(inputRegister, HEX);
-            if ((segment >= 0 && segment <= 5)) {
+            if (segment <= 5) {
               writeOneByte(0xF0, segment);
               readFromRegister(inputRegister, 1, &readout);
               Serial.print(F("register value is: ")); Serial.println(readout, HEX);
@@ -1521,7 +1521,7 @@ void loop() {
             szNumbers[0] = Serial.read(); szNumbers[1] = Serial.read(); szNumbers[2] = '\0';
             char * pEnd;
             inputToogleBit = strtol (szNumbers, &pEnd, 16);
-            if ((segment >= 0 && segment <= 5) && (inputToogleBit >= 0 && inputToogleBit <= 255)) {
+            if (segment <= 5) {
               writeOneByte(0xF0, segment);
               readFromRegister(inputRegister, 1, &readout);
               Serial.print("was: "); Serial.println(readout, HEX);
@@ -1558,7 +1558,7 @@ void loop() {
             inputToogleBit = Serial.parseInt();
             Serial.print(F(" inputToogleBit: ")); Serial.println(inputToogleBit);
             inputStage = 0;
-            if ((segment >= 0 && segment <= 5) && (inputToogleBit >= 0 && inputToogleBit <= 7)) {
+            if ((segment <= 5) && (inputToogleBit <= 7)) {
               writeOneByte(0xF0, segment);
               readFromRegister(inputRegister, 1, &readout);
               Serial.print("was: "); Serial.println(readout, HEX);
@@ -1871,11 +1871,21 @@ void loop() {
       }
 
       // one step of S3_01 equals ~12.
-      if (difference > 192) { currentS3 += 14; }
-      else if (difference > 132) { currentS3 += 9; }
-      else if (difference > 72) { currentS3 += 4; }
-      else if (difference > 36) { currentS3 += 2; }
-      else { currentS3 += 1; }
+      if (difference > 192) {
+        currentS3 += 14;
+      }
+      else if (difference > 132) {
+        currentS3 += 9;
+      }
+      else if (difference > 72) {
+        currentS3 += 4;
+      }
+      else if (difference > 36) {
+        currentS3 += 2;
+      }
+      else {
+        currentS3 += 1;
+      }
     }
 
     writeOneByte(0xF0, 0);
