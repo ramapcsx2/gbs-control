@@ -745,6 +745,8 @@ void getVideoTimings() {
   uint16_t Vds_hsync_rst = 0x0000;
   uint16_t vds_dis_hb_st = 0x0000;
   uint16_t vds_dis_hb_sp = 0x0000;
+  uint16_t VDS_HS_ST = 0x0000;
+  uint16_t VDS_HS_SP = 0x0000;
   uint16_t VDS_DIS_VB_ST = 0x0000;
   uint16_t VDS_DIS_VB_SP = 0x0000;
   uint16_t VDS_DIS_VS_ST = 0x0000;
@@ -758,6 +760,18 @@ void getVideoTimings() {
   readFromRegister(3, 0x02, 1, &regHigh);
   Vds_hsync_rst = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
   Serial.print(F("h total (VDS_HSYNC_RST): ")); Serial.println(Vds_hsync_rst);
+
+  // get VDS_HS_ST
+  readFromRegister(3, 0x0a, 1, &regLow);
+  readFromRegister(3, 0x0b, 1, &regHigh);
+  VDS_HS_ST = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
+  Serial.print(F("hs start (VDS_HS_ST): ")); Serial.println(VDS_HS_ST);
+
+  // get VDS_HS_SP
+  readFromRegister(3, 0x0b, 1, &regLow);
+  readFromRegister(3, 0x0c, 1, &regHigh);
+  VDS_HS_SP = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
+  Serial.print(F("hs stop (VDS_HS_SP): ")); Serial.println(VDS_HS_SP);
 
   // get HBST
   readFromRegister(3, 0x10, 1, &regLow);
@@ -1779,8 +1793,9 @@ void loop() {
     long accumulator2 = 1; // current output timing
     long difference = 99999; // shortcut
     long prev_difference = 0;
-    uint8_t currentS3 = 0;
-    uint8_t bestS3 = 0;
+    uint8_t startHTotal = 0;
+    uint8_t currentHTotal = 0;
+    uint8_t bestHTotal = 0;
 
     // test if we get the vsync signal (wire is connected, display output is working)
     // this remembers a positive result via VSYNCconnected and a nefative via syncLockEnabled
@@ -1818,6 +1833,7 @@ void loop() {
     readFromRegister(0x4f, 1, &readout);
     writeOneByte(0x4f, readout | (1 << 7));
 
+    // todo: interlaced sources can have variying results
     for (byte a = 0; a < 5; a++) {
       do {} while ((bitRead(PINB, 2)) == 0); // sync is low
       do {} while ((bitRead(PINB, 2)) == 1); // sync is high
@@ -1835,20 +1851,22 @@ void loop() {
     writeOneByte(0x4f, readout & ~(1 << 7));
 
     writeOneByte(0xF0, 3);
-    readFromRegister(0x01, 1, &currentS3);
+    readFromRegister(0x01, 1, &currentHTotal);
 
-    uint16_t ceilingS3 = currentS3 + 24;
+    startHTotal = currentHTotal;
+
+    uint16_t ceilingS3 = currentHTotal + 24;
     Serial.print("ceilingS3 "); Serial.println(ceilingS3);
-    if (currentS3 >= 25) {
-      currentS3 -= 24;
+    if (currentHTotal >= 25) {
+      currentHTotal -= 24;
     }
     else {
-      currentS3 = 1;
+      currentHTotal = 1;
     }
 
-    while ((currentS3 < 0xff) && (currentS3 < ceilingS3)) {
+    while ((currentHTotal < 0xff) && (currentHTotal < ceilingS3)) {
       writeOneByte(0xF0, 3);
-      writeOneByte(0x01, currentS3);
+      writeOneByte(0x01, currentHTotal);
 
       do {} while ((bitRead(PINB, 2)) == 0); // sync is low
       do {} while ((bitRead(PINB, 2)) == 1); // sync is high
@@ -1860,10 +1878,10 @@ void loop() {
       accumulator1 = (timer2 - timer1);
       prev_difference = difference;
       difference = (accumulator1 > accumulator2) ? (accumulator1 - accumulator2) : (accumulator2 - accumulator1);
-      Serial.print(currentS3, HEX); Serial.print(": "); Serial.println(difference);
+      Serial.print(currentHTotal, HEX); Serial.print(": "); Serial.println(difference);
 
       if (difference < prev_difference) {
-        bestS3 = currentS3;
+        bestHTotal = currentHTotal;
       }
       else {
         // increasing again? we have the value, abort loop
@@ -1872,19 +1890,19 @@ void loop() {
 
       // one step of S3_01 equals ~12.
       if (difference > 192) {
-        currentS3 += 14;
+        currentHTotal += 14;
       }
       else if (difference > 132) {
-        currentS3 += 9;
+        currentHTotal += 9;
       }
       else if (difference > 72) {
-        currentS3 += 4;
+        currentHTotal += 4;
       }
       else if (difference > 36) {
-        currentS3 += 2;
+        currentHTotal += 2;
       }
       else {
-        currentS3 += 1;
+        currentHTotal += 1;
       }
     }
 
@@ -1898,9 +1916,19 @@ void loop() {
     readFromRegister(0x56, 1, &readout);
     writeOneByte(0x56, readout & ~(1 << 6));
 
-    Serial.print(" best S3: "); Serial.println(bestS3, HEX);
+    Serial.print(" best S3: "); Serial.println(bestHTotal, HEX);
     writeOneByte(0xF0, 3);
-    writeOneByte(0x01, bestS3);
+    writeOneByte(0x01, bestHTotal);
+
+    // adjust horizontal scaling as well (wip)
+    //    int8_t temp = startHTotal - bestHTotal;
+    //    Serial.print("diff: "); Serial.println(temp);
+    //    if (temp > 1 || temp < -1) {
+    //      temp *= 0.9; // that's about the relation between change in HTotal and hor. scaling
+    //    }
+    //    readFromRegister(0x16, 1, &readout);
+    //    Serial.print("s3_16: "); Serial.print(readout, HEX); Serial.print(" will add: "); Serial.println(temp);
+    //    writeOneByte(0x16, readout+temp);
 
     rto->syncLockFound = true;
   }
