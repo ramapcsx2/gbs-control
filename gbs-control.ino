@@ -829,6 +829,18 @@ void getVideoTimings() {
   Serial.print("CKOS: "); Serial.print(PLLAD_CKOS, BIN); Serial.println(F(" (binary)"));
 }
 
+void set_htotal(uint16_t value) {
+  uint8_t regLow = (uint8_t)value;
+  uint8_t regHigh;
+  writeOneByte(0xF0, 3);
+  readFromRegister(3, 0x02, 1, &regHigh);
+  regHigh = (regHigh & 0xf0) | (value>>8);
+  writeOneByte(0x01, regLow);
+  writeOneByte(0x02, regHigh);
+  Serial.print(F(" low byte ")); Serial.println(regLow);
+  Serial.print(F("high byte ")); Serial.println(regHigh);
+}
+
 void applyPresets(byte result) {
   uint8_t readout = 0;
   if (result == 2 && rto->videoStandardInput != 2) {
@@ -1583,6 +1595,32 @@ void loop() {
             else {
               Serial.println(F("abort"));
             }
+          }
+        }
+        break;
+      case 'w':
+        {
+          inputStage++;
+          Serial.flush();
+          uint16_t value = 0;
+          if (inputStage == 1) {
+            String what = Serial.readStringUntil(' ');
+            if (what.length() > 4) {
+              Serial.println(F("abort"));
+              inputStage = 0;
+              break;
+            }
+            value = Serial.parseInt();
+            if (value < 4096) {
+              if (what.equals("ht")) {
+                Serial.print(F("set ")); Serial.print(what); Serial.print(": "); Serial.println(value);
+                set_htotal(value);
+              }
+            }
+            else {
+              Serial.println(F("abort"));
+            }
+            inputStage = 0;
           }
         }
         break;
