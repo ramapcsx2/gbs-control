@@ -453,11 +453,14 @@ void dumpRegisters(int segment)
 void resetPLL() {
   uint8_t readout = 0;
   writeOneByte(0xF0, 5);
+  writeOneByte(0x17, 0x05); // charge pump current = 500uA
   readFromRegister(0x11, 1, &readout);
-  writeOneByte(0x11, (readout & ~(1 << 7)));
+  writeOneByte(0x11, (readout & ~(1 << 7))); // PLLAD latch off
   delay(3);
   readFromRegister(0x11, 1, &readout);
-  writeOneByte(0x11, (readout | (1 << 7)));
+  writeOneByte(0x11, (readout | (1 << 7))); // PLLAD latch on
+  readFromRegister(0x11, 1, &readout);
+  writeOneByte(0x11, (readout | (1 << 5))); // enable VCO high gain
   writeOneByte(0xF0, 0);
   readFromRegister(0x43, 1, &readout);
   writeOneByte(0x43, (readout & ~(1 << 4))); // main pll lock off
