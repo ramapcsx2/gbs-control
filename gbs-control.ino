@@ -741,8 +741,9 @@ void getVideoTimings() {
   uint8_t  regLow = 0x00;
   uint8_t  regHigh = 0x00;
 
-  uint16_t Vds_vsync_rst = 0x0000;
   uint16_t Vds_hsync_rst = 0x0000;
+  uint16_t VDS_HSCALE = 0x0000;
+  uint16_t Vds_vsync_rst = 0x0000;
   uint16_t vds_dis_hb_st = 0x0000;
   uint16_t vds_dis_hb_sp = 0x0000;
   uint16_t VDS_HS_ST = 0x0000;
@@ -760,6 +761,12 @@ void getVideoTimings() {
   readFromRegister(3, 0x02, 1, &regHigh);
   Vds_hsync_rst = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
   Serial.print(F("htotal (HSYNC_RST): ")); Serial.println(Vds_hsync_rst);
+
+  // get horizontal scale up
+  readFromRegister(3, 0x16, 1, &regLow);
+  readFromRegister(3, 0x17, 1, &regHigh);
+  VDS_HSCALE = (( ( ((uint16_t)regHigh) & 0x0003) << 8) | (uint16_t)regLow);
+  Serial.print(F("VDS_HSCALE: ")); Serial.println(VDS_HSCALE);
 
   // get VDS_HS_ST
   readFromRegister(3, 0x0a, 1, &regLow);
@@ -846,16 +853,23 @@ void set_htotal(uint16_t value) {
   uint8_t regLow;
   uint8_t regHigh;
   uint8_t hs_pulse_width;
+  uint16_t VDS_HSCALE;
+  const uint8_t HS_offset = 8;
+
   writeOneByte(0xF0, 3);
 
-  // first, position HS ST shortly after HTotal ( so always at 10 )
-  writeOneByte(0x0a, 0x0a);
-  // make HS length a fraction of the new HTotal
-  hs_pulse_width = (uint8_t)(value * 0.07);
-  Serial.print(F("hs_pulse_width: ")); Serial.println(hs_pulse_width);
+  // first, position HS ST shortly after HTotal (where it restarts counting at 0)
+  writeOneByte(0x0a, HS_offset);
   readFromRegister(3, 0x0b, 1, &regLow);
-  writeOneByte(0x0b, (regLow & 0x0f));
-  writeOneByte(0x0c, ((0x0a + hs_pulse_width) >> 4));
+  writeOneByte(0x0b, (regLow & 0xf0));
+  // calculate HS length as a fraction of the new HTotal
+  hs_pulse_width = (uint8_t)(value * 0.07);
+  hs_pulse_width = hs_pulse_width - (hs_pulse_width % 8);
+  readFromRegister(3, 0x0b, 1, &regLow);
+  regHigh = (uint8_t)((hs_pulse_width) >> 4);
+  regLow = (regLow & 0x0f) | ((uint8_t)(hs_pulse_width << 4));
+  writeOneByte(0x0b, (regLow & 0xf0));
+  writeOneByte(0x0c, regHigh);
 
   // write htotal
   regLow = (uint8_t)value;
@@ -864,26 +878,27 @@ void set_htotal(uint16_t value) {
   writeOneByte(0x01, regLow);
   writeOneByte(0x02, regHigh);
 
-  // also align hbst
-  uint16_t newHbSt = value - 1; // value - (value * 0.025);
+  // align hbst. GBS manual: "we set HB ST to HTotal-1"
+  // also round down to multiples of 8 (video timing guide recommendation)
+  uint16_t newHbSt = value - 1;
+  newHbSt = newHbSt - (newHbSt % 8);
   regLow = (uint8_t)newHbSt;
   readFromRegister(3, 0x11, 1, &regHigh);
   regHigh = (regHigh & 0xf0) | (newHbSt >> 8);
   writeOneByte(0x10, regLow);
   writeOneByte(0x11, regHigh);
-  // hbst (memory fetch)
-  newHbSt = newHbSt - 1; // todo: hier was abziehen
-  //hb stop (vds_dis_hb_sp): 176 - hb stop (memory): 121 ~ 55
-  //hb start (vds_dis_hb_st): 1267 - hb start (memory): 1202 auch ~ 55
 
+  // hbst (memory fetch)
+  newHbSt = newHbSt;
   regLow = (uint8_t)newHbSt;
   readFromRegister(3, 0x05, 1, &regHigh);
   regHigh = (regHigh & 0xf0) | (newHbSt >> 8);
   writeOneByte(0x04, regLow);
   writeOneByte(0x05, regHigh);
 
-  // also align hbsp
+  // align hbsp, round down to multiples of 8 (video timing guide recommendation)
   uint16_t newHbSp = hs_pulse_width * 3;
+  newHbSp = newHbSp - (newHbSp % 8);
   regHigh = (uint8_t)(newHbSp >> 4);
   readFromRegister(3, 0x11, 1, &regLow);
   regLow = (regLow & 0x0f) | ((uint8_t)(newHbSp << 4));
@@ -896,12 +911,26 @@ void set_htotal(uint16_t value) {
   readFromRegister(3, 0x0c, 1, &regHigh);
   uint16_t VDS_HS_SP = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
 
-  newHbSp = VDS_HS_SP + (value * 0.02);
+  newHbSp = VDS_HS_SP + (value * 0.015);
   regHigh = (uint8_t)(newHbSp >> 4);
   readFromRegister(3, 0x05, 1, &regLow);
   regLow = (regLow & 0x0f) | ((uint8_t)(newHbSp << 4));
   writeOneByte(0x05, regLow);
   writeOneByte(0x06, regHigh);
+
+  // adjust horizontal scale up to fit
+  //we need to know the input hor. pixel count
+  writeOneByte(0xF0, 0);
+  readFromRegister(0x07, 1, &regHigh); readFromRegister(0x06, 1, &regLow);
+  uint16_t register_combined = (((uint16_t)regHigh & 0x0001) << 8) | (uint16_t)regLow;
+  VDS_HSCALE = 1024 * (register_combined / (value * 0.51f));
+
+  writeOneByte(0xF0, 3);
+  regLow = (uint8_t)VDS_HSCALE;
+  readFromRegister(3, 0x17, 1, &regHigh);
+  regHigh = (uint8_t)((regHigh & 0xfc) | (uint8_t)((VDS_HSCALE & 0x0300) >> 8));
+  writeOneByte(0x16, regLow);
+  writeOneByte(0x17, regHigh);
 }
 
 void applyPresets(byte result) {
@@ -1453,7 +1482,7 @@ void loop() {
         }
         break;
       case ',':
-        Serial.println(F("getVideoTimings()"));
+        Serial.println(F("-----------------"));
         getVideoTimings();
         break;
       case 'i':
@@ -1681,7 +1710,7 @@ void loop() {
             value = Serial.parseInt();
             if (value < 4096) {
               if (what.equals("ht")) {
-                Serial.print(F("set ")); Serial.print(what); Serial.print(": "); Serial.println(value);
+                Serial.print(F("\nset ")); Serial.print(what); Serial.print(" "); Serial.println(value);
                 set_htotal(value);
               }
             }
@@ -1835,9 +1864,8 @@ void loop() {
   if (rto->printInfos == true) { // information mode
     writeOneByte(0xF0, 0);
 
-    //vertical line number:
+    //horizontal pixels:
     readFromRegister(0x07, 1, &register_high); readFromRegister(0x06, 1, &register_low);
-
     register_combined =   (((uint16_t)register_high & 0x0001) << 8) | (uint16_t)register_low;
     Serial.print("h:"); Serial.print(register_combined); Serial.print(" ");
 
