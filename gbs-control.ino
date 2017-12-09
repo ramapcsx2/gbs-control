@@ -779,11 +779,23 @@ void getVideoTimings() {
   vds_dis_hb_st = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
   Serial.print(F("hb start (vds_dis_hb_st): ")); Serial.println(vds_dis_hb_st);
 
+  // get HBST(memory)
+  readFromRegister(3, 0x04, 1, &regLow);
+  readFromRegister(3, 0x05, 1, &regHigh);
+  vds_dis_hb_st = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
+  Serial.print(F("hb start (memory): ")); Serial.println(vds_dis_hb_st);
+
   // get HBSP
   readFromRegister(3, 0x11, 1, &regLow);
   readFromRegister(3, 0x12, 1, &regHigh);
   vds_dis_hb_sp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
   Serial.print(F("hb stop (vds_dis_hb_sp): ")); Serial.println(vds_dis_hb_sp);
+
+  // get HBSP(memory)
+  readFromRegister(3, 0x05, 1, &regLow);
+  readFromRegister(3, 0x06, 1, &regHigh);
+  vds_dis_hb_sp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
+  Serial.print(F("hb stop (memory): ")); Serial.println(vds_dis_hb_sp);
 
   // get VRST
   readFromRegister(3, 0x02, 1, &regLow);
@@ -830,15 +842,66 @@ void getVideoTimings() {
 }
 
 void set_htotal(uint16_t value) {
-  uint8_t regLow = (uint8_t)value;
+  uint8_t regLow;
   uint8_t regHigh;
+  uint8_t hs_pulse_width;
   writeOneByte(0xF0, 3);
+
+  // first, position HS ST shortly after HTotal ( so always at 10 )
+  writeOneByte(0x0a, 0x0a);
+  // make HS length a fraction of the new HTotal
+  hs_pulse_width = (uint8_t)(value * 0.07);
+  Serial.print(F("hs_pulse_width: ")); Serial.println(hs_pulse_width);
+  readFromRegister(3, 0x0b, 1, &regLow);
+  writeOneByte(0x0b, (regLow & 0x0f));
+  writeOneByte(0x0c, ((0x0a + hs_pulse_width) >> 4));
+
+  // write htotal
+  regLow = (uint8_t)value;
   readFromRegister(3, 0x02, 1, &regHigh);
-  regHigh = (regHigh & 0xf0) | (value>>8);
+  regHigh = (regHigh & 0xf0) | (value >> 8);
   writeOneByte(0x01, regLow);
   writeOneByte(0x02, regHigh);
-  Serial.print(F(" low byte ")); Serial.println(regLow);
-  Serial.print(F("high byte ")); Serial.println(regHigh);
+
+  // also align hbst
+  uint16_t newHbSt = value - 1; // value - (value * 0.025);
+  regLow = (uint8_t)newHbSt;
+  readFromRegister(3, 0x11, 1, &regHigh);
+  regHigh = (regHigh & 0xf0) | (newHbSt >> 8);
+  writeOneByte(0x10, regLow);
+  writeOneByte(0x11, regHigh);
+  // hbst (memory fetch)
+  newHbSt = newHbSt - 1; // todo: hier was abziehen
+  //hb stop (vds_dis_hb_sp): 176 - hb stop (memory): 121 ~ 55
+  //hb start (vds_dis_hb_st): 1267 - hb start (memory): 1202 auch ~ 55
+
+
+  regLow = (uint8_t)newHbSt;
+  readFromRegister(3, 0x05, 1, &regHigh);
+  regHigh = (regHigh & 0xf0) | (newHbSt >> 8);
+  writeOneByte(0x04, regLow);
+  writeOneByte(0x05, regHigh);
+
+  // also align hbsp
+  uint16_t newHbSp = hs_pulse_width * 2;
+  regHigh = (uint8_t)(newHbSp >> 4);
+  readFromRegister(3, 0x11, 1, &regLow);
+  regLow = (regLow & 0x0f) | ((uint8_t)(newHbSp << 4));
+  writeOneByte(0x11, regLow);
+  writeOneByte(0x12, regHigh);
+
+  // also align hbsp (memory fetch)
+  // use hs stop + a fraction of new HTotal to align picture leftmost
+  readFromRegister(3, 0x0b, 1, &regLow);
+  readFromRegister(3, 0x0c, 1, &regHigh);
+  uint16_t VDS_HS_SP = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
+
+  newHbSp = VDS_HS_SP + (value * 0.02);
+  regHigh = (uint8_t)(newHbSp >> 4);
+  readFromRegister(3, 0x05, 1, &regLow);
+  regLow = (regLow & 0x0f) | ((uint8_t)(newHbSp << 4));
+  writeOneByte(0x05, regLow);
+  writeOneByte(0x06, regHigh);
 }
 
 void applyPresets(byte result) {
