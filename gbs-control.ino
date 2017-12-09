@@ -594,11 +594,18 @@ void shiftHorizontal(uint16_t amountToAdd, bool subtracting) {
 
   // handle the case where hbst or hbsp have been decremented below 0
   if (Vds_hb_st & 0x8000) {
-    Vds_hb_st = Vds_hsync_rst - 1;
+    Vds_hb_st = Vds_hsync_rst + Vds_hb_st;
+  }
+  if (Vds_hb_sp & 0x8000) {
+    Vds_hb_sp = Vds_hsync_rst + Vds_hb_sp;
   }
 
-  if (Vds_hb_sp & 0x8000) {
-    Vds_hb_sp = Vds_hsync_rst - 1;
+  // handle the case where hbst or hbsp have been incremented above htotal
+  if (Vds_hb_st > Vds_hsync_rst) {
+    Vds_hb_st = Vds_hb_st - Vds_hsync_rst;
+  }
+  if (Vds_hb_sp > Vds_hsync_rst) {
+    Vds_hb_sp = Vds_hb_sp - Vds_hsync_rst;
   }
 
   writeOneByte(0x04, (uint8_t)(Vds_hb_st & 0x00ff));
@@ -706,11 +713,18 @@ void shiftVertical(uint16_t amountToAdd, bool subtracting) {
 
   // handle the case where hbst or hbsp have been decremented below 0
   if (vbstValue & 0x8000) {
-    vbstValue = vrstValue - 1;
+    vbstValue = vrstValue + vbstValue;
+  }
+  if (vbspValue & 0x8000) {
+    vbspValue = vrstValue + vbspValue;
   }
 
-  if (vbspValue & 0x8000) {
-    vbspValue = vrstValue - 1;
+  // handle the case where vbst or vbsp have been incremented above vrstValue
+  if (vbstValue > vrstValue) {
+    vbstValue = vbstValue - vrstValue;
+  }
+  if (vbspValue > vrstValue) {
+    vbspValue = vbspValue - vrstValue;
   }
 
   writeOneByte(0x07, (uint8_t)(vbstValue & 0x00ff));
