@@ -759,73 +759,74 @@ void getVideoTimings() {
   readFromRegister(3, 0x01, 1, &regLow);
   readFromRegister(3, 0x02, 1, &regHigh);
   Vds_hsync_rst = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  Serial.print(F("h total (VDS_HSYNC_RST): ")); Serial.println(Vds_hsync_rst);
+  Serial.print(F("htotal (HSYNC_RST): ")); Serial.println(Vds_hsync_rst);
 
   // get VDS_HS_ST
   readFromRegister(3, 0x0a, 1, &regLow);
   readFromRegister(3, 0x0b, 1, &regHigh);
   VDS_HS_ST = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  Serial.print(F("hs start (VDS_HS_ST): ")); Serial.println(VDS_HS_ST);
+  Serial.print(F("HS ST (HS_ST): ")); Serial.println(VDS_HS_ST);
 
   // get VDS_HS_SP
   readFromRegister(3, 0x0b, 1, &regLow);
   readFromRegister(3, 0x0c, 1, &regHigh);
   VDS_HS_SP = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
-  Serial.print(F("hs stop (VDS_HS_SP): ")); Serial.println(VDS_HS_SP);
+  Serial.print(F("HS SP (HS_SP): ")); Serial.println(VDS_HS_SP);
 
   // get HBST
   readFromRegister(3, 0x10, 1, &regLow);
   readFromRegister(3, 0x11, 1, &regHigh);
   vds_dis_hb_st = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  Serial.print(F("hb start (vds_dis_hb_st): ")); Serial.println(vds_dis_hb_st);
+  Serial.print(F("HB ST (dis_hb_st): ")); Serial.println(vds_dis_hb_st);
 
   // get HBST(memory)
   readFromRegister(3, 0x04, 1, &regLow);
   readFromRegister(3, 0x05, 1, &regHigh);
   vds_dis_hb_st = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  Serial.print(F("hb start (memory): ")); Serial.println(vds_dis_hb_st);
+  Serial.print(F("HB ST (memory): ")); Serial.println(vds_dis_hb_st);
 
   // get HBSP
   readFromRegister(3, 0x11, 1, &regLow);
   readFromRegister(3, 0x12, 1, &regHigh);
   vds_dis_hb_sp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
-  Serial.print(F("hb stop (vds_dis_hb_sp): ")); Serial.println(vds_dis_hb_sp);
+  Serial.print(F("HB SP (dis_hb_sp): ")); Serial.println(vds_dis_hb_sp);
 
   // get HBSP(memory)
   readFromRegister(3, 0x05, 1, &regLow);
   readFromRegister(3, 0x06, 1, &regHigh);
   vds_dis_hb_sp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
-  Serial.print(F("hb stop (memory): ")); Serial.println(vds_dis_hb_sp);
+  Serial.print(F("HB SP (memory): ")); Serial.println(vds_dis_hb_sp);
 
+  Serial.println(F("----"));
   // get VRST
   readFromRegister(3, 0x02, 1, &regLow);
   readFromRegister(3, 0x03, 1, &regHigh);
   Vds_vsync_rst = ( (((uint16_t)regHigh) & 0x007f) << 4) | ( (((uint16_t)regLow) & 0x00f0) >> 4);
-  Serial.print(F("v total (VDS_VSYNC_RST): ")); Serial.println(Vds_vsync_rst);
+  Serial.print(F("vtotal (VSYNC_RST): ")); Serial.println(Vds_vsync_rst);
 
   // get VBST
   readFromRegister(3, 0x13, 1, &regLow);
   readFromRegister(3, 0x14, 1, &regHigh);
   VDS_DIS_VB_ST = (((uint16_t)regHigh & 0x0007) << 8) | ((uint16_t)regLow) ;
-  Serial.print(F("vb start (VDS_DIS_VB_ST): ")); Serial.println(VDS_DIS_VB_ST);
+  Serial.print(F("VB ST (DIS_VB_ST): ")); Serial.println(VDS_DIS_VB_ST);
 
   // get VBSP
   readFromRegister(3, 0x14, 1, &regLow);
   readFromRegister(3, 0x15, 1, &regHigh);
   VDS_DIS_VB_SP = ((((uint16_t)regHigh & 0x007f) << 4) | ((uint16_t)regLow & 0x00f0) >> 4) ;
-  Serial.print(F("vb stop (VDS_DIS_VB_SP): ")); Serial.println(VDS_DIS_VB_SP);
+  Serial.print(F("VB SP (DIS_VB_SP): ")); Serial.println(VDS_DIS_VB_SP);
 
   // get V Sync Start
   readFromRegister(3, 0x0d, 1, &regLow);
   readFromRegister(3, 0x0e, 1, &regHigh);
   VDS_DIS_VS_ST = (((uint16_t)regHigh & 0x0007) << 8) | ((uint16_t)regLow) ;
-  Serial.print(F("vs start (VDS_VS_ST): ")); Serial.println(VDS_DIS_VS_ST);
+  Serial.print(F("VS ST (VS_ST): ")); Serial.println(VDS_DIS_VS_ST);
 
   // get V Sync Stop
   readFromRegister(3, 0x0e, 1, &regLow);
   readFromRegister(3, 0x0f, 1, &regHigh);
   VDS_DIS_VS_SP = ((((uint16_t)regHigh & 0x007f) << 4) | ((uint16_t)regLow & 0x00f0) >> 4) ;
-  Serial.print(F("vs stop (VDS_VS_SP): ")); Serial.println(VDS_DIS_VS_SP);
+  Serial.print(F("VS SP (VS_SP): ")); Serial.println(VDS_DIS_VS_SP);
 
   // get Pixel Clock -- MD[11:0] -- must be smaller than 4096 --
   readFromRegister(5, 0x12, 1, &regLow);
@@ -837,8 +838,8 @@ void getVideoTimings() {
   readFromRegister(5, 0x16, 1, &regLow);
   PLLAD_KS = (regLow & 0x30) >> 4;
   PLLAD_CKOS = (regLow & 0xc0) >> 6;
-  Serial.print("KS: "); Serial.print(PLLAD_KS, BIN); Serial.println(F(" (binary)"));
-  Serial.print("CKOS: "); Serial.print(PLLAD_CKOS, BIN); Serial.println(F(" (binary)"));
+  Serial.print("KS: "); Serial.print(PLLAD_KS, BIN); Serial.print(F(" (binary)"));
+  Serial.print(" CKOS: "); Serial.print(PLLAD_CKOS, BIN); Serial.println(F(" (binary)"));
 }
 
 void set_htotal(uint16_t value) {
@@ -875,7 +876,6 @@ void set_htotal(uint16_t value) {
   //hb stop (vds_dis_hb_sp): 176 - hb stop (memory): 121 ~ 55
   //hb start (vds_dis_hb_st): 1267 - hb start (memory): 1202 auch ~ 55
 
-
   regLow = (uint8_t)newHbSt;
   readFromRegister(3, 0x05, 1, &regHigh);
   regHigh = (regHigh & 0xf0) | (newHbSt >> 8);
@@ -883,7 +883,7 @@ void set_htotal(uint16_t value) {
   writeOneByte(0x05, regHigh);
 
   // also align hbsp
-  uint16_t newHbSp = hs_pulse_width * 2;
+  uint16_t newHbSp = hs_pulse_width * 3;
   regHigh = (uint8_t)(newHbSp >> 4);
   readFromRegister(3, 0x11, 1, &regLow);
   regLow = (regLow & 0x0f) | ((uint8_t)(newHbSp << 4));
@@ -1431,11 +1431,16 @@ void loop() {
         }
         break;
       case 'a':
-        writeOneByte(0xF0, 3);
-        readFromRegister(0x01, 1, &readout);
-        Serial.println(readout + 1);
-        readout += 1; // one step
-        writeOneByte(0x01, readout);
+        {
+          uint8_t regLow, regHigh;
+          uint16_t Vds_hsync_rst;
+          writeOneByte(0xF0, 3);
+          readFromRegister(3, 0x01, 1, &regLow);
+          readFromRegister(3, 0x02, 1, &regHigh);
+          Vds_hsync_rst = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
+          set_htotal(Vds_hsync_rst + 1);
+          Serial.print(F("HTotal++ is now ")); Serial.println(Vds_hsync_rst + 1);
+        }
         break;
       case 'm':
         if (rto->syncWatcher == true) {
