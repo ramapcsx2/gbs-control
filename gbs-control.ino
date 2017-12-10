@@ -2089,6 +2089,36 @@ void loop() {
     writeOneByte(0xF0, 3);
     writeOneByte(0x01, bestHTotal);
 
+    // HTotal might now be outside horizontal blank pulse
+    uint8_t regLow, regHigh;
+    uint16_t vds_dis_hb_st, vds_dis_hb_sp, Vds_hsync_rst;
+
+    readFromRegister(3, 0x01, 1, &regLow);
+    readFromRegister(3, 0x02, 1, &regHigh);
+    Vds_hsync_rst = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
+    readFromRegister(3, 0x10, 1, &regLow);
+    readFromRegister(3, 0x11, 1, &regHigh);
+    vds_dis_hb_st = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
+    readFromRegister(3, 0x11, 1, &regLow);
+    readFromRegister(3, 0x12, 1, &regHigh);
+    vds_dis_hb_sp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
+
+    if ( Vds_hsync_rst <= vds_dis_hb_st  ) {
+      vds_dis_hb_st = Vds_hsync_rst - 4;
+      vds_dis_hb_sp -= 4;
+      regLow = (uint8_t)vds_dis_hb_st;
+      readFromRegister(3, 0x11, 1, &regHigh);
+      regHigh = (regHigh & 0xf0) | (vds_dis_hb_st >> 8);
+      writeOneByte(0x10, regLow);
+      writeOneByte(0x11, regHigh);
+
+      regHigh = (uint8_t)(vds_dis_hb_sp >> 4);
+      readFromRegister(3, 0x11, 1, &regLow);
+      regLow = (regLow & 0x0f) | ((uint8_t)(vds_dis_hb_sp << 4));
+      writeOneByte(0x11, regLow);
+      writeOneByte(0x12, regHigh);
+    }
+    
     // adjust horizontal scaling as well (wip)
     //    int8_t temp = startHTotal - bestHTotal;
     //    Serial.print("diff: "); Serial.println(temp);
