@@ -468,6 +468,7 @@ void resetPLL() {
   writeOneByte(0x43, (readout | 0x0f)); // main pll skew
   readFromRegister(0x43, 1, &readout);
   writeOneByte(0x43, (readout | (1 << 4))); // main pll lock on
+  digitalWrite(LED_BUILTIN, LOW); // in case LED was on
   Serial.println(F("PLL reset"));
 }
 
@@ -481,6 +482,7 @@ void resetDigital() {
   resetPLL(); delay(10);
   writeOneByte(0x46, 0x3f); // all on except VDS (display enable)
   writeOneByte(0x47, 0x17); // all on except HD bypass
+  digitalWrite(LED_BUILTIN, LOW); // in case LED was on
   Serial.println(F("resetDigital"));
 }
 
@@ -1066,7 +1068,6 @@ void enableDeinterlacer() {
   readFromRegister(0x46, 1, &readout);
   writeOneByte(0x46, readout | (1 << 1));
   rto->deinterlacerWasTurnedOff = false;
-  //Serial.println("deint ON!");
 }
 
 void disableDeinterlacer() {
@@ -1075,7 +1076,6 @@ void disableDeinterlacer() {
   readFromRegister(0x46, 1, &readout);
   writeOneByte(0x46, readout & ~(1 << 1));
   rto->deinterlacerWasTurnedOff = true;
-  //Serial.println("deint OFF!");
 }
 
 void disableVDS() {
@@ -1358,7 +1358,6 @@ void loop() {
   static uint8_t register_low, register_high = 0;
   static uint16_t register_combined = 0;
   static unsigned long thisTime, lastTimeSyncWatcher, lastTimePhase = millis();
-  static byte OSRSwitch = 0;
 
   if (Serial.available()) {
     switch (Serial.read()) {
@@ -1428,14 +1427,14 @@ void loop() {
         }
         break;
       case 'e':
-        Serial.println(F("restore ntsc preset"));
+        Serial.println(F("ntsc preset"));
         writeProgramArrayNew(ntsc_240p);
         rto->videoStandardInput = 1;
         resetDigital();
         enableVDS();
         break;
       case 'r':
-        Serial.println(F("restore pal preset"));
+        Serial.println(F("pal preset"));
         writeProgramArrayNew(pal_240p);
         rto->videoStandardInput = 2;
         resetDigital();
@@ -1463,7 +1462,7 @@ void loop() {
           readout |= (1 << 7); readout &= ~(1 << 6);
           writeOneByte(0x19, readout);
           readFromRegister(0x19, 1, &readout);
-          Serial.print(F("SP phase is now: ")); Serial.println(readout, HEX);
+          Serial.print(F("SP phase: ")); Serial.println(readout, HEX);
         }
         break;
       case 'b':
@@ -1481,7 +1480,7 @@ void loop() {
           readout |= (1 << 7); readout &= ~(1 << 6);
           writeOneByte(0x18, readout);
           readFromRegister(0x18, 1, &readout);
-          Serial.print(F("ADC phase is now: ")); Serial.println(readout, HEX);
+          Serial.print(F("ADC phase: ")); Serial.println(readout, HEX);
         }
         break;
       case 'n':
@@ -1503,43 +1502,46 @@ void loop() {
           readFromRegister(3, 0x02, 1, &regHigh);
           Vds_hsync_rst = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
           set_htotal(Vds_hsync_rst + 1);
-          Serial.print(F("HTotal++ is now ")); Serial.println(Vds_hsync_rst + 1);
+          Serial.print(F("HTotal++: ")); Serial.println(Vds_hsync_rst + 1);
         }
         break;
       case 'm':
+        Serial.print(F("syncwatcher "));
         if (rto->syncWatcher == true) {
           rto->syncWatcher = false;
-          Serial.println(F("syncwatcher off"));
+          Serial.println(F("off"));
         }
         else {
           rto->syncWatcher = true;
-          Serial.println(F("syncwatcher on"));
+          Serial.println(F("on"));
         }
         break;
       case ',':
-        Serial.println(F("-----------------"));
+        Serial.println(F("----"));
         getVideoTimings();
         break;
       case 'i':
+        Serial.print(F("info mode "));
         if (rto->printInfos == true) {
           rto->printInfos = false;
-          Serial.println(F("info mode off"));
+          Serial.println(F("off"));
         }
         else {
           rto->printInfos = true;
-          Serial.println(F("info mode on"));
+          Serial.println(F("on"));
         }
         break;
       case 'c':
+        Serial.print(F("auto gain "));
         if (rto->autoGainADC == true) {
           rto->autoGainADC = false;
           resetADCAutoGain();
-          Serial.println(F("auto gain off"));
+          Serial.println(F("off"));
         }
         else {
           rto->autoGainADC = true;
           resetADCAutoGain();
-          Serial.println(F("auto gain on"));
+          Serial.println(F("on"));
         }
         break;
       case 'f':
@@ -1551,11 +1553,11 @@ void loop() {
         writeOneByte(0x45, 0xff);
         break;
       case 'z':
-        Serial.println(F("bigger by 1"));
+        Serial.println(F("scale+"));
         scaleHorizontalLarger();
         break;
       case 'h':
-        Serial.println(F("smaller by 1"));
+        Serial.println(F("scale-"));
         scaleHorizontalSmaller();
         break;
       case 'l':
@@ -1599,32 +1601,35 @@ void loop() {
         zeroAll();
         break;
       case 'o':
-        if (OSRSwitch == 0) {
-          Serial.println("OSR 1x"); // oversampling ratio
-          writeOneByte(0xF0, 5);
-          writeOneByte(0x16, 0xa0);
-          writeOneByte(0x00, 0xc0);
-          writeOneByte(0x1f, 0x07);
-          resetPLL();
-          OSRSwitch = 1;
-        }
-        else if (OSRSwitch == 1) {
-          Serial.println("OSR 2x");
-          writeOneByte(0xF0, 5);
-          writeOneByte(0x16, 0x6f);
-          writeOneByte(0x00, 0xd0);
-          writeOneByte(0x1f, 0x05);
-          resetPLL();
-          OSRSwitch = 2;
-        }
-        else {
-          Serial.println("OSR 4x");
-          writeOneByte(0xF0, 5);
-          writeOneByte(0x16, 0x2f);
-          writeOneByte(0x00, 0xd8);
-          writeOneByte(0x1f, 0x04);
-          resetPLL();
-          OSRSwitch = 0;
+        {
+          static byte OSRSwitch = 0;
+          if (OSRSwitch == 0) {
+            Serial.println("OSR 1x"); // oversampling ratio
+            writeOneByte(0xF0, 5);
+            writeOneByte(0x16, 0xa0);
+            writeOneByte(0x00, 0xc0);
+            writeOneByte(0x1f, 0x07);
+            resetPLL();
+            OSRSwitch = 1;
+          }
+          else if (OSRSwitch == 1) {
+            Serial.println("OSR 2x");
+            writeOneByte(0xF0, 5);
+            writeOneByte(0x16, 0x6f);
+            writeOneByte(0x00, 0xd0);
+            writeOneByte(0x1f, 0x05);
+            resetPLL();
+            OSRSwitch = 2;
+          }
+          else {
+            Serial.println("OSR 4x");
+            writeOneByte(0xF0, 5);
+            writeOneByte(0x16, 0x2f);
+            writeOneByte(0x00, 0xd8);
+            writeOneByte(0x1f, 0x04);
+            resetPLL();
+            OSRSwitch = 0;
+          }
         }
         break;
       case 'g':
@@ -1824,12 +1829,13 @@ void loop() {
         if (result == rto->videoStandardInput && getSyncProcessorSignalValid()) { // had the video standard changed, but only briefly (glitch)?
           //if (getSyncProcessorSignalValid()) {
           Serial.print("+");
+          failcounter = 2; 
           break;
         }
-        delay(30);
+        delay(90);
       }
 
-      if (failcounter >= 12 ) { // yep, sync is gone
+      if (failcounter >= 19 ) { // yep, sync is gone
         disableVDS(); // disable output to display until sync is stable again. at that time, a preset will be loaded and VDS get re-enabled
         resetDigital();
         //SyncProcessorOffOn();
@@ -1845,7 +1851,6 @@ void loop() {
     byte timeout = 20;
     while (result == 0 && --timeout > 0) { // wait until sync processor first sees a valid mode
       result = getVideoMode();
-      //Serial.print(".");
       delay(10);
     }
 
@@ -1853,7 +1858,7 @@ void loop() {
       byte timeout = 50;
       while (result == 0 && --timeout > 0) {
         result = getVideoMode();
-        delay(35); // was 25 but that wasn't enough for a hot input switch
+        delay(35);
       }
 
       if (timeout == 0) {
@@ -1863,14 +1868,17 @@ void loop() {
         // Stop the real time recovery attempt and wait until Mode Detection says there is a valid signal.
         uint8_t temp = 0;
         while (!getSyncProcessorSignalValid()) {
-          temp++; // it's fine to let this overflow
-          if ((temp % 10) == 0) {
+          temp++;
+          if ((temp % 5) == 0) {
             Serial.print("X");
+            digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
           }
-          if ((temp % 100) == 0) {
+          if ((temp % 25) == 0) {
             writeProgramArraySection(ntsc_240p, 1); // safety attempt at recovery: restore sections 1 and 5, then reset the chip
             writeProgramArraySection(ntsc_240p, 5); // for example: GBS lost power but Arduino did not (development setup)
             resetDigital();
+            delay(500);
+            temp = 0;
           }
           delay(250);
         }
@@ -1962,12 +1970,11 @@ void loop() {
     long accumulator2 = 1; // current output timing
     long difference = 99999; // shortcut
     long prev_difference = 0;
-    //uint8_t startHTotal = 0;
     uint8_t currentHTotal = 0;
     uint8_t bestHTotal = 0;
 
     // test if we get the vsync signal (wire is connected, display output is working)
-    // this remembers a positive result via VSYNCconnected and a nefative via syncLockEnabled
+    // this remembers a positive result via VSYNCconnected and a negative via syncLockEnabled
     if (rto->VSYNCconnected == false) {
       uint16_t test1 = 0;
       uint16_t test2 = 0;
@@ -2021,8 +2028,6 @@ void loop() {
 
     writeOneByte(0xF0, 3);
     readFromRegister(0x01, 1, &currentHTotal);
-
-    //startHTotal = currentHTotal;
 
     uint16_t ceilingHTotal = currentHTotal + 24;
     Serial.print("ceilingHTotal "); Serial.println(ceilingHTotal);
@@ -2118,16 +2123,6 @@ void loop() {
       writeOneByte(0x11, regLow);
       writeOneByte(0x12, regHigh);
     }
-    
-    // adjust horizontal scaling as well (wip)
-    //    int8_t temp = startHTotal - bestHTotal;
-    //    Serial.print("diff: "); Serial.println(temp);
-    //    if (temp > 1 || temp < -1) {
-    //      temp *= 0.9; // that's about the relation between change in HTotal and hor. scaling
-    //    }
-    //    readFromRegister(0x16, 1, &readout);
-    //    Serial.print("s3_16: "); Serial.print(readout, HEX); Serial.print(" will add: "); Serial.println(temp);
-    //    writeOneByte(0x16, readout+temp);
 
     rto->syncLockFound = true;
   }
