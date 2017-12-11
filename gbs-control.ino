@@ -17,12 +17,11 @@ struct runTimeOptions {
   boolean inputIsYpBpR;
   boolean autoGainADC;
   boolean syncWatcher;
-  uint8_t syncUnstableCounter;
   boolean periodicPhaseLatcher;
   boolean autoPositionVerticalEnabled;
   boolean autoPositionVerticalFound;
   uint8_t autoPositionVerticalValue;
-  uint8_t videoStandardInput : 2; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 HDTV
+  uint8_t videoStandardInput : 3; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 480p NTSC, 4 576p PAL
   boolean ADCGainValueFound; // ADC auto gain variables
   uint16_t highestValue : 11; // 2047 discrete unsigned values (maximum of analogRead() is 1023)
   uint16_t highestValueEverSeen : 11; // to measure the upper limit we can tune the TiVo DAC to
@@ -497,7 +496,7 @@ boolean getSyncProcessorSignalValid() {
   writeOneByte(0xF0, 0);
   readFromRegister(0x07, 1, &register_high); readFromRegister(0x06, 1, &register_low);
   register_combined =   (((uint16_t)register_high & 0x0001) << 8) | (uint16_t)register_low;
-  //Serial.print("h:"); Serial.print(register_combined); Serial.print(" ");
+
   // pal: 432, ntsc: 428, hdtv: 214?
   if (register_combined > 422 && register_combined < 438) {
     horizontalOkay = true;  // pal, ntsc 428-432
@@ -515,16 +514,7 @@ boolean getSyncProcessorSignalValid() {
   if ((register_combined > 620 && register_combined < 632) && (horizontalOkay == true) ) {
     returnValue = true;  // pal
   }
-  // todo: hdtv? several possible line counts. Update: a test returned values much like pal / ntsc so this may be good enough.
 
-  //writeOneByte(0xF0, 0);
-  //readFromRegister(0x1a, 1, &register_high); readFromRegister(0x19, 1, &register_low);
-  //register_combined = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
-  //Serial.print(" hpw:"); Serial.print(register_combined); // horizontal pulse width
-  //if (register_combined < 30 || register_combined > 200) returnValue = false; // todo: pin this down! wii has 128
-
-  //if (!returnValue) { Serial.print("."); }
-  //Serial.print("\n");
   return returnValue;
 }
 
@@ -650,17 +640,17 @@ void scaleHorizontal(uint16_t amountToAdd, bool subtracting) {
 
   newHigh = (high & 0xfc) | (uint8_t)( (newValue / 256) & 0x0003);
   newLow = (uint8_t)(newValue & 0x00ff);
-  Serial.println(newValue);
+
   writeOneByte(0x16, newLow);
   writeOneByte(0x17, newHigh);
 }
 
 void scaleHorizontalSmaller() {
-  scaleHorizontal(1, false); // was 4
+  scaleHorizontal(1, false);
 }
 
 void scaleHorizontalLarger() {
-  scaleHorizontal(1, true); // was 4
+  scaleHorizontal(1, true);
 }
 
 void shiftVertical(uint16_t amountToAdd, bool subtracting) {
@@ -971,76 +961,33 @@ void set_htotal(uint16_t value) {
 }
 
 void applyPresets(byte result) {
-  uint8_t readout = 0;
-  if (result == 2 && rto->videoStandardInput != 2) {
+  if (result == 2) {
     Serial.println(F("PAL timing "));
     writeProgramArrayNew(pal_240p);
     if (rto->inputIsYpBpR == true) {
       Serial.print("(YUV)");
-      uint8_t readout = 0;
-      writeOneByte(0xF0, 5);
-      readFromRegister(0x03, 1, &readout);
-      writeOneByte(0x03, readout | (1 << 1)); // midclamp red
-      readFromRegister(0x03, 1, &readout);
-      writeOneByte(0x03, readout | (1 << 3)); // midclamp blue
-      writeOneByte(0x41, 00); // SP clamp postion start
-      writeOneByte(0x43, 10); // SP clamp postion stop
-      //readFromRegister(0x02, 1, &readout);
-      //writeOneByte(0x02, (readout & ~(1 << 6))); // enable ypbpr inputs (again..)
-      writeOneByte(0x02, 0x07); //RCA inputs, SOG on, low level
-      writeOneByte(0x06, 0x40); //adc R offset
-      writeOneByte(0x08, 0x40); //adc B offset
-      writeOneByte(0xF0, 1);
-      readFromRegister(0x00, 1, &readout);
-      writeOneByte(0x00, readout | (1 << 1)); // rgb matrix bypass
+      applyYuvPatches();
     }
     Serial.print("\n");
     rto->videoStandardInput = 2;
   }
-  else if (result == 1 && rto->videoStandardInput != 1) {
+  else if (result == 1) {
     Serial.println(F("NTSC timing "));
     writeProgramArrayNew(ntsc_240p);
     if (rto->inputIsYpBpR == true) {
       Serial.print("(YUV)");
-      uint8_t readout = 0;
-      writeOneByte(0xF0, 5);
-      readFromRegister(0x03, 1, &readout);
-      writeOneByte(0x03, readout | (1 << 1)); // midclamp red
-      readFromRegister(0x03, 1, &readout);
-      writeOneByte(0x03, readout | (1 << 3)); // midclamp blue
-      writeOneByte(0x41, 00); // SP clamp postion start
-      writeOneByte(0x43, 10); // SP clamp postion stop
-      //readFromRegister(0x02, 1, &readout);
-      //writeOneByte(0x02, (readout & ~(1 << 6))); // enable ypbpr inputs (again..)
-      writeOneByte(0x02, 0x07); //RCA inputs, SOG on, low level
-      writeOneByte(0x06, 0x40); //adc R offset
-      writeOneByte(0x08, 0x40); //adc B offset
-      writeOneByte(0xF0, 1);
-      readFromRegister(0x00, 1, &readout);
-      writeOneByte(0x00, readout | (1 << 1)); // rgb matrix bypass
+      applyYuvPatches();
     }
     Serial.print("\n");
     rto->videoStandardInput = 1;
   }
-  else if (result == 3 && rto->videoStandardInput != 3) {
+  else if (result == 3) {
     Serial.println(F("HDTV timing "));
-    writeProgramArrayNew(hdtv);
+    //writeProgramArrayNew(hdtv);
     writeProgramArrayNew(ntsc_240p); // ntsc base
     if (rto->inputIsYpBpR == true) {
       Serial.print("(YUV)");
-      writeOneByte(0xF0, 1);
-      writeOneByte(0x0c, 0x04); // IF patches
-      writeOneByte(0x0d, 0x1a);
-      writeOneByte(0x0e, 0xbe);
-      writeOneByte(0x0f, 0xce);
-      writeOneByte(0xF0, 1); // matrix bypass
-      readFromRegister(0x00, 1, &readout);
-      writeOneByte(0x00, readout | (1 << 1));
-      writeProgramArraySection(hdtv, 5); // hdtv SP block
-      writeOneByte(0xF0, 5);
-      writeOneByte(0x02, 0x07); //RCA inputs, SOG on, low level
-      writeOneByte(0x06, 0x40); //adc R offset
-      writeOneByte(0x08, 0x40); //adc B offset
+      applyYuvPatches();
     }
     rto->videoStandardInput = 3;
     Serial.print("\n");
@@ -1050,22 +997,7 @@ void applyPresets(byte result) {
     writeProgramArrayNew(ntsc_240p);
     if (rto->inputIsYpBpR == true) {
       Serial.print("(YUV)");
-      uint8_t readout = 0;
-      writeOneByte(0xF0, 5);
-      readFromRegister(0x03, 1, &readout);
-      writeOneByte(0x03, readout | (1 << 1)); // midclamp red
-      readFromRegister(0x03, 1, &readout);
-      writeOneByte(0x03, readout | (1 << 3)); // midclamp blue
-      writeOneByte(0x41, 00); // SP clamp postion start
-      writeOneByte(0x43, 10); // SP clamp postion stop
-      //readFromRegister(0x02, 1, &readout);
-      //writeOneByte(0x02, (readout & ~(1 << 6))); // enable ypbpr inputs (again..)
-      writeOneByte(0x02, 0x07); //RCA inputs, SOG on, low level
-      writeOneByte(0x06, 0x40); //adc R offset
-      writeOneByte(0x08, 0x40); //adc B offset
-      writeOneByte(0xF0, 1);
-      readFromRegister(0x00, 1, &readout);
-      writeOneByte(0x00, readout | (1 << 1)); // rgb matrix bypass
+      applyYuvPatches();
     }
     Serial.print("\n");
     rto->videoStandardInput = 1;
@@ -1246,6 +1178,30 @@ void setVerticalPositionAuto() {
   }
 }
 
+void applyYuvPatches() {
+  uint8_t readout;
+
+  writeOneByte(0xF0, 5);
+  readFromRegister(0x03, 1, &readout);
+  writeOneByte(0x03, readout | (1 << 1)); // midclamp red
+  readFromRegister(0x03, 1, &readout);
+  writeOneByte(0x03, readout | (1 << 3)); // midclamp blue
+  writeOneByte(0x41, 00); // SP clamp postion start
+  writeOneByte(0x43, 10); // SP clamp postion stop
+  writeOneByte(0x02, 0x07); //RCA inputs, SOG on, low level
+  writeOneByte(0x06, 0x3f); //adc R offset
+  writeOneByte(0x07, 0x3f); //adc G offset
+  writeOneByte(0x08, 0x3f); //adc B offset
+
+  writeOneByte(0xF0, 1);
+  readFromRegister(0x00, 1, &readout);
+  writeOneByte(0x00, readout | (1 << 1)); // rgb matrix bypass
+
+  writeOneByte(0xF0, 3); // for colors
+  writeOneByte(0x35, 0x7a); writeOneByte(0x3a, 0xfa); writeOneByte(0x36, 0x18);
+  writeOneByte(0x3b, 0x02); writeOneByte(0x37, 0x22); writeOneByte(0x3c, 0x02);
+}
+
 void setup() {
   Serial.begin(57600);
   Serial.setTimeout(10);
@@ -1278,26 +1234,26 @@ void setup() {
   Wire.setClock(400000);
 
   // setup run time options
-  rto->printInfos = 0;
-  rto->inputIsYpBpR = 0;
+  rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
   rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
-  rto->syncUnstableCounter = 0;
   rto->periodicPhaseLatcher = true; // continously "reminds" the ADC phase correction to get to work. This is a workaround.
+  rto->ADCTarget = 635;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
+  // the following is just run time variables. don't change!
   rto->autoPositionVerticalEnabled = false;
+  rto->printInfos = false;
+  rto->inputIsYpBpR = false;
   rto->autoPositionVerticalFound = false;
   rto->autoPositionVerticalValue = 0;
   rto->videoStandardInput = 0;
-  rto->ADCGainValueFound = 0;
+  rto->ADCGainValueFound = false;
   rto->highestValue = 0;
   rto->currentVoltage = 0;
-  rto->ADCTarget = 635;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
   rto->highestValueEverSeen = 0;
-  rto->deinterlacerWasTurnedOff = 0;
-  rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
+  rto->deinterlacerWasTurnedOff = false;
   rto->syncLockFound = false;
-  rto->HSYNCconnected = false; // don't change
-  rto->VSYNCconnected = false; // don't change
+  rto->HSYNCconnected = false;
+  rto->VSYNCconnected = false;
   rto->IFdown = false;
 
 #if 1 // #if 0 to go directly to loop()
@@ -1788,14 +1744,6 @@ void loop() {
 
   thisTime = millis();
 
-  // is SP stable this loop?
-//  if (!getSyncStable()) {
-//    rto->syncUnstableCounter = 5;
-//  }
-//  else if (rto->syncUnstableCounter > 0) {
-//    rto->syncUnstableCounter--;
-//  }
-
   // ADC phase latch re-set. This is an attempt at getting phase correct sampling right.
   // Reasoning: It's random whether the chip syncs on the correct cycle for a given sample phase setting.
   // We don't have the processing power to manually align the sampling phase on Arduino but maybe this works instead.
@@ -1811,11 +1759,11 @@ void loop() {
 
   // only run this when sync is stable!
   if ((rto->autoPositionVerticalEnabled == true) && (rto->autoPositionVerticalFound == false)
-      && rto->syncUnstableCounter == 0 )
+      && getSyncStable() )
   {
     setVerticalPositionAuto();
   }
-  
+
   // poll sync status continously
   if ((rto->syncWatcher == true) && ((thisTime - lastTimeSyncWatcher) > 10)) {
     byte failcounter = 0;
@@ -1834,7 +1782,7 @@ void loop() {
         }
         else if (result == rto->videoStandardInput && getSyncProcessorSignalValid()) {
           Serial.print("\n");
-          failcounter = 2; 
+          failcounter = 2;
           break;
         }
         delay(10);
@@ -1960,7 +1908,7 @@ void loop() {
   } // end information mode
 
   // only run this when sync is stable!
-  if (rto->autoGainADC == true && rto->syncUnstableCounter == 0) {
+  if (rto->autoGainADC == true && getSyncStable()) {
     autoADCGain();
   }
 
@@ -1976,7 +1924,7 @@ void loop() {
   }
 
   // only run this when sync is stable!
-  if (rto->syncLockEnabled == true && rto->syncLockFound == false && rto->syncUnstableCounter == 0) {
+  if (rto->syncLockEnabled == true && rto->syncLockFound == false && getSyncStable()) {
     long timer1 = 0;
     long timer2 = 0;
     long accumulator1 = 1; // input timing
