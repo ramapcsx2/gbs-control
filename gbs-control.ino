@@ -184,7 +184,7 @@ boolean inputAndSyncDetect() {
   boolean syncFound = false;
 
   writeOneByte(0xF0, 5);
-  writeOneByte(0x02, 0x21); // SOG on, slicer level mid, input 00 > R0/G0/B0/SOG0 as input (YUV)
+  writeOneByte(0x02, 0x07); // SOG on, slicer level mid, input 00 > R0/G0/B0/SOG0 as input (YUV)
   writeOneByte(0x2a, 0x50); // "continue legal line as valid" to a value that helps the SP detect the format
   writeOneByte(0xF0, 0);
   timeout = 6; // try this input a few times and look for a change
@@ -225,7 +225,7 @@ boolean inputAndSyncDetect() {
   if (rto->inputIsYpBpR == true) {
     Serial.println(F("using RCA inputs"));
     writeOneByte(0xF0, 5);
-    writeOneByte(0x02, 0x21);
+    writeOneByte(0x02, 0x07);
   }
   else {
     Serial.println(F("using RGBS inputs"));
@@ -983,8 +983,11 @@ void applyPresets(byte result) {
       writeOneByte(0x03, readout | (1 << 1)); // midclamp red
       readFromRegister(0x03, 1, &readout);
       writeOneByte(0x03, readout | (1 << 3)); // midclamp blue
-      readFromRegister(0x02, 1, &readout);
-      writeOneByte(0x02, (readout & ~(1 << 6))); // enable ypbpr inputs (again..)
+      writeOneByte(0x41, 00); // SP clamp postion start
+      writeOneByte(0x43, 10); // SP clamp postion stop
+      //readFromRegister(0x02, 1, &readout);
+      //writeOneByte(0x02, (readout & ~(1 << 6))); // enable ypbpr inputs (again..)
+      writeOneByte(0x02, 0x07); //RCA inputs, SOG on, low level
       writeOneByte(0x06, 0x40); //adc R offset
       writeOneByte(0x08, 0x40); //adc B offset
       writeOneByte(0xF0, 1);
@@ -1005,8 +1008,11 @@ void applyPresets(byte result) {
       writeOneByte(0x03, readout | (1 << 1)); // midclamp red
       readFromRegister(0x03, 1, &readout);
       writeOneByte(0x03, readout | (1 << 3)); // midclamp blue
-      readFromRegister(0x02, 1, &readout);
-      writeOneByte(0x02, (readout & ~(1 << 6))); // enable ypbpr inputs (again..)
+      writeOneByte(0x41, 00); // SP clamp postion start
+      writeOneByte(0x43, 10); // SP clamp postion stop
+      //readFromRegister(0x02, 1, &readout);
+      //writeOneByte(0x02, (readout & ~(1 << 6))); // enable ypbpr inputs (again..)
+      writeOneByte(0x02, 0x07); //RCA inputs, SOG on, low level
       writeOneByte(0x06, 0x40); //adc R offset
       writeOneByte(0x08, 0x40); //adc B offset
       writeOneByte(0xF0, 1);
@@ -1032,6 +1038,7 @@ void applyPresets(byte result) {
       writeOneByte(0x00, readout | (1 << 1));
       writeProgramArraySection(hdtv, 5); // hdtv SP block
       writeOneByte(0xF0, 5);
+      writeOneByte(0x02, 0x07); //RCA inputs, SOG on, low level
       writeOneByte(0x06, 0x40); //adc R offset
       writeOneByte(0x08, 0x40); //adc B offset
     }
@@ -1049,8 +1056,11 @@ void applyPresets(byte result) {
       writeOneByte(0x03, readout | (1 << 1)); // midclamp red
       readFromRegister(0x03, 1, &readout);
       writeOneByte(0x03, readout | (1 << 3)); // midclamp blue
-      readFromRegister(0x02, 1, &readout);
-      writeOneByte(0x02, (readout & ~(1 << 6))); // enable ypbpr inputs (again..)
+      writeOneByte(0x41, 00); // SP clamp postion start
+      writeOneByte(0x43, 10); // SP clamp postion stop
+      //readFromRegister(0x02, 1, &readout);
+      //writeOneByte(0x02, (readout & ~(1 << 6))); // enable ypbpr inputs (again..)
+      writeOneByte(0x02, 0x07); //RCA inputs, SOG on, low level
       writeOneByte(0x06, 0x40); //adc R offset
       writeOneByte(0x08, 0x40); //adc B offset
       writeOneByte(0xF0, 1);
@@ -1284,7 +1294,7 @@ void setup() {
   rto->ADCTarget = 635;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
   rto->highestValueEverSeen = 0;
   rto->deinterlacerWasTurnedOff = 0;
-  rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
+  rto->syncLockEnabled = false;  // automatically find the best horizontal total pixel value for a given input timing
   rto->syncLockFound = false;
   rto->HSYNCconnected = false; // don't change
   rto->VSYNCconnected = false; // don't change
@@ -1827,15 +1837,15 @@ void loop() {
           failcounter = 2; 
           break;
         }
-        delay(90);
+        delay(10);
       }
 
       if (failcounter >= 19 ) { // video mode has changed
         Serial.print("\n");
         disableVDS(); // disable output to display until sync is stable again. at that time, a preset will be loaded and VDS get re-enabled
-        resetDigital();
+        //resetDigital();
         //SyncProcessorOffOn();
-        delay(1000);
+        //delay(1000);
         rto->videoStandardInput = 0;
       }
     }
@@ -1844,15 +1854,15 @@ void loop() {
       enableDeinterlacer();
     }
 
-    byte timeout = 20;
-    while (result == 0 && --timeout > 0) { // wait until sync processor first sees a valid mode
-      result = getVideoMode();
-      delay(10);
-    }
-
     if (rto->videoStandardInput == 0) {
       byte timeout = 50;
+      //this would need to be in the loop, since MD reports the last (valid) signal all the time..
+      //if (!getSyncProcessorSignalValid()){ // MD can get stuck in the last mode when console is powered off
+      //  Serial.println("stuck?");
+      //  resetDigital(); // resets MD as well, causing a new detection
+      //}
       while (result == 0 && --timeout > 0) {
+        Serial.print(".");
         result = getVideoMode();
         delay(35);
       }
@@ -1872,6 +1882,9 @@ void loop() {
           if ((temp % 25) == 0) {
             writeProgramArraySection(ntsc_240p, 1); // safety attempt at recovery: restore sections 1 and 5, then reset the chip
             writeProgramArraySection(ntsc_240p, 5); // for example: GBS lost power but Arduino did not (development setup)
+            if (rto->inputIsYpBpR == true) {
+              writeOneByte(0x02, 0x07); //RCA inputs, SOG on, low level
+            }
             resetDigital();
             delay(500);
             temp = 0;
@@ -1923,7 +1936,7 @@ void loop() {
     readFromRegister(0x05, 1, &register_high);
     Serial.print(" status:"); Serial.print(register_high, HEX);
 
-    // ntsc or pal?
+    // video mode, according to MD
     Serial.print(" mode:"); Serial.print(getVideoMode(), HEX);
 
     writeOneByte(0xF0, 5);
@@ -1938,6 +1951,10 @@ void loop() {
     readFromRegister(0x18, 1, &register_high); readFromRegister(0x17, 1, &register_low);
     register_combined = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
     Serial.print(" htotal:"); Serial.print(register_combined);
+
+    readFromRegister(0x1c, 1, &register_high); readFromRegister(0x1b, 1, &register_low);
+    register_combined = (((uint16_t(register_high) & 0x0007)) << 8) | (uint16_t)register_low;
+    Serial.print(" vtotal:"); Serial.print(register_combined);
 
     Serial.print("\n");
   } // end information mode
