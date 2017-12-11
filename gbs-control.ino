@@ -1294,7 +1294,7 @@ void setup() {
   rto->ADCTarget = 635;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
   rto->highestValueEverSeen = 0;
   rto->deinterlacerWasTurnedOff = 0;
-  rto->syncLockEnabled = false;  // automatically find the best horizontal total pixel value for a given input timing
+  rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->syncLockFound = false;
   rto->HSYNCconnected = false; // don't change
   rto->VSYNCconnected = false; // don't change
