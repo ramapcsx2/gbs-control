@@ -1104,135 +1104,23 @@ void resetSyncLock() {
   }
 }
 
-void setup() {
-  Serial.begin(57600);
-  Serial.setTimeout(10);
-  Serial.println(F("starting"));
-
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH); // enable the LED, lets users know the board is starting up
-  pinMode(10, INPUT); // vsync sample input
-  pinMode(11, INPUT); // hsync sample input
-
-  pinMode(A0, INPUT);         // auto ADC gain measurement input
-  analogReference(INTERNAL);  // change analog read reference to 1.1V internal
-  bitSet(ADCSRA, ADPS0);      // lower analog read delay
-  bitClear(ADCSRA, ADPS1);    //
-  bitSet(ADCSRA, ADPS2);      // 101 > x32 div
-  for (byte i = 0; i < 100; i++) {
-    analogRead(A0);           // first few analog reads are glitchy after the reference change!
-  }
-  // example for using the gbs8200 onboard buttons in an interrupt routine
-  //pinMode(2, INPUT); // button for IFdown
-  //attachInterrupt(digitalPinToInterrupt(2), IFdown, FALLING);
-
-  delay(1000); // give the 5725 some time to start up. this adds to the Arduino bootloader delay.
-
-  Wire.begin();
-  // The i2c wire library sets pullup resistors on by default. Disable this so that 5V arduinos aren't trying to drive the 3.3V bus.
-  digitalWrite(SCL, LOW);
-  digitalWrite(SDA, LOW);
-  // TV5725 supports 400kHz
-  Wire.setClock(400000);
-
-  // setup run time options
-  rto->printInfos = 0;
-  rto->inputIsYpBpR = 0;
-  rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
-  rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
-  rto->syncUnstableCounter = 0;
-  rto->periodicPhaseLatcher = true; // continously "reminds" the ADC phase correction to get to work. This is a workaround.
-  rto->autoPositionVerticalEnabled = false;
-  rto->autoPositionVerticalFound = false;
-  rto->autoPositionVerticalValue = 0;
-  rto->videoStandardInput = 0;
-  rto->ADCGainValueFound = 0;
-  rto->highestValue = 0;
-  rto->currentVoltage = 0;
-  rto->ADCTarget = 635;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
-  rto->highestValueEverSeen = 0;
-  rto->deinterlacerWasTurnedOff = 0;
-  rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
-  rto->syncLockFound = false;
-  rto->HSYNCconnected = false; // don't change
-  rto->VSYNCconnected = false; // don't change
-  rto->IFdown = false;
-
-#if 1 // #if 0 to go directly to loop()
-  // is the 5725 up yet?
-  uint8_t temp = 0;
-  writeOneByte(0xF0, 1);
-  readFromRegister(0xF0, 1, &temp);
-  while (temp != 1) {
-    writeOneByte(0xF0, 1);
-    readFromRegister(0xF0, 1, &temp);
-    Serial.println(F("5725 not responding"));
-    delay(500);
-  }
-
-  disableVDS();
-  zeroAll();
-  delay(5);
-  writeProgramArrayNew(ntsc_240p);
-  disableVDS();
-  delay(25);
-  inputAndSyncDetect();
-  resetDigital();
-  disableVDS();
-  delay(1000);
-
-  byte result = getVideoMode();
-  byte timeout = 255;
-  while (result == 0 && --timeout > 0) {
-    if ((timeout % 5) == 0) Serial.print(".");
-    result = getVideoMode();
-    delay(10);
-  }
-
-  if (timeout > 0 && result != 0) {
-    applyPresets(result);
-    resetPLL();
-    enableVDS();
-  }
-  // phase
-  writeOneByte(0xF0, 5); writeOneByte(0x18, 0x21);
-  writeOneByte(0xF0, 5); writeOneByte(0x19, 0x21);
-  delay(1000); // at least 750ms required to become stable
-
-  resetADCAutoGain();
-  resetSyncLock();
-  writeOneByte(0xF0, 5); writeOneByte(0x18, 0x8d); // phase latch bit
-  writeOneByte(0xF0, 5); writeOneByte(0x19, 0x8d);
-
-  if (rto->autoGainADC == false) {
-    writeOneByte(0xF0, 5);
-    writeOneByte(0x09, 0x7f);
-    writeOneByte(0x0a, 0x7f);
-    writeOneByte(0x0b, 0x7f);
-  }
-#endif
-
-  digitalWrite(LED_BUILTIN, LOW); // startup done, disable the LED
-
-  Serial.print(F("\nMCU: ")); Serial.println(F_CPU);
-  Serial.println(F("scaler set up!"));
-}
-
 static byte getVideoMode() {
   writeOneByte(0xF0, 0);
   byte detectedMode = 0;
   readFromRegister(0x00, 1, &detectedMode);
-  if (detectedMode == 143) return 1; // ntsc
-  if (detectedMode == 167) return 2; // pal
-  if (detectedMode == 151) return 3; // hdtv
-  return 0; // unknown mode or no sync
+  //return detectedMode;
+  if (detectedMode & 0x08) return 1; // ntsc
+  if (detectedMode & 0x20) return 2; // pal
+  if (detectedMode & 0x10) return 3; // hdtv ntsc progressive
+  if (detectedMode & 0x40) return 4; // hdtv pal progressive
+  return 0; // unknown mode
 }
 
-boolean syncIsStable() {
+boolean getSyncStable() {
   uint8_t readout = 0;
   writeOneByte(0xF0, 0);
-  readFromRegister(0x05, 1, &readout);
-  if (readout == 0) {
+  readFromRegister(0x00, 1, &readout);
+  if (readout & 0x04) { // H + V sync both stable
     return true;
   }
   return false;
@@ -1346,6 +1234,121 @@ void setVerticalPositionAuto() {
     rto->autoPositionVerticalValue = readout;
     rto->autoPositionVerticalFound = true;
   }
+}
+
+void setup() {
+  Serial.begin(57600);
+  Serial.setTimeout(10);
+  Serial.println(F("starting"));
+
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH); // enable the LED, lets users know the board is starting up
+  pinMode(10, INPUT); // vsync sample input
+  pinMode(11, INPUT); // hsync sample input
+
+  pinMode(A0, INPUT);         // auto ADC gain measurement input
+  analogReference(INTERNAL);  // change analog read reference to 1.1V internal
+  bitSet(ADCSRA, ADPS0);      // lower analog read delay
+  bitClear(ADCSRA, ADPS1);    //
+  bitSet(ADCSRA, ADPS2);      // 101 > x32 div
+  for (byte i = 0; i < 100; i++) {
+    analogRead(A0);           // first few analog reads are glitchy after the reference change!
+  }
+  // example for using the gbs8200 onboard buttons in an interrupt routine
+  //pinMode(2, INPUT); // button for IFdown
+  //attachInterrupt(digitalPinToInterrupt(2), IFdown, FALLING);
+
+  delay(1000); // give the 5725 some time to start up. this adds to the Arduino bootloader delay.
+
+  Wire.begin();
+  // The i2c wire library sets pullup resistors on by default. Disable this so that 5V arduinos aren't trying to drive the 3.3V bus.
+  digitalWrite(SCL, LOW);
+  digitalWrite(SDA, LOW);
+  // TV5725 supports 400kHz
+  Wire.setClock(400000);
+
+  // setup run time options
+  rto->printInfos = 0;
+  rto->inputIsYpBpR = 0;
+  rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
+  rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
+  rto->syncUnstableCounter = 0;
+  rto->periodicPhaseLatcher = true; // continously "reminds" the ADC phase correction to get to work. This is a workaround.
+  rto->autoPositionVerticalEnabled = false;
+  rto->autoPositionVerticalFound = false;
+  rto->autoPositionVerticalValue = 0;
+  rto->videoStandardInput = 0;
+  rto->ADCGainValueFound = 0;
+  rto->highestValue = 0;
+  rto->currentVoltage = 0;
+  rto->ADCTarget = 635;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
+  rto->highestValueEverSeen = 0;
+  rto->deinterlacerWasTurnedOff = 0;
+  rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
+  rto->syncLockFound = false;
+  rto->HSYNCconnected = false; // don't change
+  rto->VSYNCconnected = false; // don't change
+  rto->IFdown = false;
+
+#if 1 // #if 0 to go directly to loop()
+  // is the 5725 up yet?
+  uint8_t temp = 0;
+  writeOneByte(0xF0, 1);
+  readFromRegister(0xF0, 1, &temp);
+  while (temp != 1) {
+    writeOneByte(0xF0, 1);
+    readFromRegister(0xF0, 1, &temp);
+    Serial.println(F("5725 not responding"));
+    delay(500);
+  }
+
+  disableVDS();
+  //zeroAll();
+  //delay(5);
+  writeProgramArraySection(ntsc_240p, 1); // bring up minimal settings for input detection to work
+  writeProgramArraySection(ntsc_240p, 5);
+  resetDigital();
+  //writeProgramArrayNew(ntsc_240p);
+  delay(25);
+  inputAndSyncDetect();
+  //resetDigital();
+  delay(1000);
+
+  byte result = getVideoMode();
+  byte timeout = 255;
+  while (result == 0 && --timeout > 0) {
+    if ((timeout % 5) == 0) Serial.print(".");
+    result = getVideoMode();
+    delay(10);
+  }
+
+  if (timeout > 0 && result != 0) {
+    applyPresets(result);
+    resetPLL();
+    enableVDS();
+    delay(1000); // at least 750ms required to become stable
+  }
+  // phase
+  writeOneByte(0xF0, 5); writeOneByte(0x18, 0x21);
+  writeOneByte(0xF0, 5); writeOneByte(0x19, 0x21);
+
+  resetADCAutoGain();
+  resetSyncLock();
+  writeOneByte(0xF0, 5); writeOneByte(0x18, 0x8d); // phase latch bit
+  writeOneByte(0xF0, 5); writeOneByte(0x19, 0x8d);
+
+  if (rto->autoGainADC == false) {
+    writeOneByte(0xF0, 5);
+    writeOneByte(0x09, 0x7f);
+    writeOneByte(0x0a, 0x7f);
+    writeOneByte(0x0b, 0x7f);
+  }
+#endif
+
+  digitalWrite(LED_BUILTIN, LOW); // startup done, disable the LED
+
+  Serial.print(F("\nMCU: ")); Serial.println(F_CPU);
+  Serial.println(F("scaler set up!"));
 }
 
 void loop() {
@@ -1566,33 +1569,31 @@ void loop() {
         break;
       case '0':
         rto->syncLockFound = !rto->syncLockFound;
-        //writeProgramArrayNew(pal_288p);
         break;
       case '1':
-        writeProgramArrayNew(test720p);
+        //writeProgramArrayNew(test720p);
         resetDigital();
         enableVDS();
         break;
       case '2':
-        writeProgramArraySection(ntsc_240p, 1);
+
         break;
       case '3':
-        writeProgramArraySection(ntsc_240p, 2);
+
         break;
       case '4':
-        writeProgramArraySection(ntsc_240p, 3);
+
         break;
       case '5':
-        writeProgramArraySection(ntsc_240p, 4);
+
         break;
       case '6':
-        writeProgramArraySection(ntsc_240p, 5, 0);
-        writeProgramArraySection(ntsc_240p, 5, 1);
+
         break;
       case '7':
-        writeProgramArrayNew(ntsc_1920x1080);
-        resetDigital();
-        enableVDS();
+        //writeProgramArrayNew(ntsc_1920x1080);
+        //resetDigital();
+        //enableVDS();
         break;
       case '8':
         Serial.print("A0: "); Serial.println(analogRead(A0));
@@ -1778,12 +1779,12 @@ void loop() {
   thisTime = millis();
 
   // is SP stable this loop?
-  if (!syncIsStable()) {
-    rto->syncUnstableCounter = 5;
-  }
-  else if (rto->syncUnstableCounter > 0) {
-    rto->syncUnstableCounter--;
-  }
+//  if (!getSyncStable()) {
+//    rto->syncUnstableCounter = 5;
+//  }
+//  else if (rto->syncUnstableCounter > 0) {
+//    rto->syncUnstableCounter--;
+//  }
 
   // ADC phase latch re-set. This is an attempt at getting phase correct sampling right.
   // Reasoning: It's random whether the chip syncs on the correct cycle for a given sample phase setting.
@@ -1804,38 +1805,33 @@ void loop() {
   {
     setVerticalPositionAuto();
   }
-
+  
   // poll sync status continously
   if ((rto->syncWatcher == true) && ((thisTime - lastTimeSyncWatcher) > 10)) {
     byte failcounter = 0;
     byte result = getVideoMode();
 
     // is there a sync problem?
-    if (!getSyncProcessorSignalValid() || result != rto->videoStandardInput) {
+    //if (!getSyncProcessorSignalValid() || result != rto->videoStandardInput) {
+    if (result != rto->videoStandardInput) {
       for (byte test = 0; test <= 20; test++) {
         result = getVideoMode();
+        Serial.print(" "); Serial.print(result); Serial.print(" ");
         if (result != rto->videoStandardInput) { // has the video standard changed?
-          Serial.print("-");
+          //Serial.print("-");
           failcounter++;
           if (failcounter == 1) disableDeinterlacer();
         }
-
-        if (!getSyncProcessorSignalValid()) { // is the sync signal recognized? (tells if the console is even on)
-          Serial.print("-");
-          failcounter++;
-          if (failcounter == 1) disableDeinterlacer();
-        }
-
-        if (result == rto->videoStandardInput && getSyncProcessorSignalValid()) { // had the video standard changed, but only briefly (glitch)?
-          //if (getSyncProcessorSignalValid()) {
-          Serial.print("+");
+        else if (result == rto->videoStandardInput && getSyncProcessorSignalValid()) {
+          Serial.print("\n");
           failcounter = 2; 
           break;
         }
         delay(90);
       }
 
-      if (failcounter >= 19 ) { // yep, sync is gone
+      if (failcounter >= 19 ) { // video mode has changed
+        Serial.print("\n");
         disableVDS(); // disable output to display until sync is stable again. at that time, a preset will be loaded and VDS get re-enabled
         resetDigital();
         //SyncProcessorOffOn();
@@ -1925,10 +1921,10 @@ void loop() {
 
     // status
     readFromRegister(0x05, 1, &register_high);
-    Serial.print(" status:"); Serial.print(register_high, BIN);
+    Serial.print(" status:"); Serial.print(register_high, HEX);
 
     // ntsc or pal?
-    Serial.print(" mode:"); Serial.print(getVideoMode());
+    Serial.print(" mode:"); Serial.print(getVideoMode(), HEX);
 
     writeOneByte(0xF0, 5);
     readFromRegister(0x09, 1, &readout);
