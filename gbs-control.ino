@@ -881,17 +881,16 @@ void set_htotal(uint16_t value) {
   uint8_t regHigh;
   uint8_t hs_pulse_width;
   uint16_t VDS_HSCALE;
-  const uint8_t HS_offset = 8;
 
   writeOneByte(0xF0, 3);
 
-  // first, position HS ST shortly after HTotal (where it restarts counting at 0)
-  writeOneByte(0x0a, HS_offset);
+  // first, position HS ST at 8 (will then be shortly after HB ST)
+  writeOneByte(0x0a, 8);
   readFromRegister(3, 0x0b, 1, &regLow);
   writeOneByte(0x0b, (regLow & 0xf0));
   // calculate HS length as a fraction of the new HTotal
-  hs_pulse_width = (uint8_t)(value * 0.07);
-  hs_pulse_width = hs_pulse_width - (hs_pulse_width % 8);
+  hs_pulse_width = ((uint8_t)(value * 0.07)) & 0xff8; // round down to multiple of 8
+  //hs_pulse_width = hs_pulse_width - (hs_pulse_width % 8);
   readFromRegister(3, 0x0b, 1, &regLow);
   regHigh = (uint8_t)((hs_pulse_width) >> 4);
   regLow = (regLow & 0x0f) | ((uint8_t)(hs_pulse_width << 4));
@@ -915,15 +914,7 @@ void set_htotal(uint16_t value) {
   writeOneByte(0x10, regLow);
   writeOneByte(0x11, regHigh);
 
-  // hbst (memory fetch)
-  newHbSt = newHbSt;
-  regLow = (uint8_t)newHbSt;
-  readFromRegister(3, 0x05, 1, &regHigh);
-  regHigh = (regHigh & 0xf0) | (newHbSt >> 8);
-  writeOneByte(0x04, regLow);
-  writeOneByte(0x05, regHigh);
-
-  // align hbsp, round down to multiples of 8 (video timing guide recommendation)
+  // hbsp, round down to multiples of 8 (video timing guide recommendation)
   uint16_t newHbSp = hs_pulse_width * 3;
   newHbSp = newHbSp - (newHbSp % 8);
   regHigh = (uint8_t)(newHbSp >> 4);
@@ -932,13 +923,11 @@ void set_htotal(uint16_t value) {
   writeOneByte(0x11, regLow);
   writeOneByte(0x12, regHigh);
 
-  // also align hbsp (memory fetch)
-  // use hs stop + a fraction of new HTotal to align picture leftmost
-  readFromRegister(3, 0x0b, 1, &regLow);
-  readFromRegister(3, 0x0c, 1, &regHigh);
-  uint16_t VDS_HS_SP = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
-
-  newHbSp = VDS_HS_SP + (value * 0.015);
+  // hbst (memory fetch) set to 0
+  writeOneByte(0x04, 0x00);
+  writeOneByte(0x05, 0x00);
+  // hbsp (memory fetch) set to 16% of HTotal
+  newHbSp = (uint16_t(value * 0.16)) & 0xff8; // also round down to multiple of 8
   regHigh = (uint8_t)(newHbSp >> 4);
   readFromRegister(3, 0x05, 1, &regLow);
   regLow = (regLow & 0x0f) | ((uint8_t)(newHbSp << 4));
@@ -950,14 +939,51 @@ void set_htotal(uint16_t value) {
   writeOneByte(0xF0, 0);
   readFromRegister(0x07, 1, &regHigh); readFromRegister(0x06, 1, &regLow);
   uint16_t register_combined = (((uint16_t)regHigh & 0x0001) << 8) | (uint16_t)regLow;
-  VDS_HSCALE = 1024 * (register_combined / (value * 0.51f));
-
+  VDS_HSCALE = (1024 * ((float)(register_combined << 1) / (float)(value))) - 4; // make it -4 smaller to avoid scaling into IF boundaries
   writeOneByte(0xF0, 3);
   regLow = (uint8_t)VDS_HSCALE;
   readFromRegister(3, 0x17, 1, &regHigh);
   regHigh = (uint8_t)((regHigh & 0xfc) | (uint8_t)((VDS_HSCALE & 0x0300) >> 8));
   writeOneByte(0x16, regLow);
   writeOneByte(0x17, regHigh);
+}
+
+void set_vtotal(uint16_t value) {
+  uint8_t regLow, regHigh;
+  uint16_t Vds_vsync_rst = value;
+
+  // write vtotal
+  writeOneByte(0xF0, 3);
+  regHigh = (uint8_t)(Vds_vsync_rst >> 4);
+  readFromRegister(3, 0x02, 1, &regLow);
+  regLow = ((regLow & 0x0f) | (uint8_t)(Vds_vsync_rst << 4));
+  writeOneByte(0x03, regHigh);
+  writeOneByte(0x02, regLow);
+
+  // VS ST to 0, VS ST to 4
+  writeOneByte(0x0d, 0x00);
+  writeOneByte(0x0e, 0x40);
+  writeOneByte(0x0f, 0x00);
+
+  // VB ST to Vds_vsync_rst - 1
+  uint16_t newVBST = Vds_vsync_rst - 1;
+  regLow = (uint8_t)newVBST;
+  readFromRegister(3, 0x14, 1, &regHigh);
+  regHigh = (uint8_t)((regHigh & 0xfc) | (uint8_t)((newVBST & 0x0300) >> 8));
+  writeOneByte(0x13, regLow);
+  writeOneByte(0x14, regHigh);
+  //VB SP to 3.6% of Vds_vsync_rst
+  uint16_t newVBSP = ((uint16_t)(Vds_vsync_rst * 0.036)) & 0xffe;
+  regHigh = (uint8_t)(newVBSP >> 4);
+  readFromRegister(3, 0x14, 1, &regLow);
+  regLow = ((regLow & 0x0f) | (uint8_t)(newVBSP << 4));
+  writeOneByte(0x15, regHigh);
+  writeOneByte(0x14, regLow);
+
+  // VB ST (memory) to 0, VB SP (memory) to 8
+  writeOneByte(0x07, 0x00);
+  writeOneByte(0x08, 0x80);
+  writeOneByte(0x09, 0x00);
 }
 
 void applyPresets(byte result) {
@@ -1719,6 +1745,10 @@ void loop() {
               if (what.equals("ht")) {
                 Serial.print(F("\nset ")); Serial.print(what); Serial.print(" "); Serial.println(value);
                 set_htotal(value);
+              }
+              if (what.equals("vt")) {
+                Serial.print(F("\nset ")); Serial.print(what); Serial.print(" "); Serial.println(value);
+                set_vtotal(value);
               }
             }
             else {
