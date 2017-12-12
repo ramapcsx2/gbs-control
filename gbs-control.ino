@@ -895,7 +895,7 @@ void set_htotal(uint16_t value) {
   readFromRegister(3, 0x0b, 1, &regLow);
   regHigh = (uint8_t)((hs_pulse_width) >> 4);
   regLow = (regLow & 0x0f) | ((uint8_t)(hs_pulse_width << 4));
-  writeOneByte(0x0b, (regLow & 0xf0));
+  writeOneByte(0x0b, regLow);
   writeOneByte(0x0c, regHigh);
 
   // write htotal
@@ -1537,7 +1537,7 @@ void loop() {
         rto->syncLockFound = !rto->syncLockFound;
         break;
       case '1':
-        //writeProgramArrayNew(test720p);
+        writeProgramArrayNew(test720p);
         resetDigital();
         enableVDS();
         break;
@@ -1557,9 +1557,9 @@ void loop() {
 
         break;
       case '7':
-        //writeProgramArrayNew(ntsc_1920x1080);
-        //resetDigital();
-        //enableVDS();
+        writeProgramArrayNew(ntsc_1920x1080);
+        resetDigital();
+        enableVDS();
         break;
       case '8':
         Serial.print("A0: "); Serial.println(analogRead(A0));
