@@ -2,9 +2,9 @@
 #include "ntsc_240p.h"
 #include "pal_240p.h"
 #include "hdtv.h"
-#include "ntsc_1920x1080.h"
-#include "test720p.h"
-#include "pal_288p.h"
+#include "ntsc_yuv.h"
+#include "pal_yuv.h"
+#include "vclktest.h"
 
 // 7 bit GBS I2C Address
 #define GBS_ADDR 0x17
@@ -1559,12 +1559,14 @@ void loop() {
         rto->syncLockFound = !rto->syncLockFound;
         break;
       case '1':
-        writeProgramArrayNew(test720p);
+        writeProgramArrayNew(pal_yuv);
         resetDigital();
         enableVDS();
         break;
       case '2':
-
+        writeProgramArrayNew(vclktest);
+        resetDigital();
+        enableVDS();
         break;
       case '3':
 
@@ -1579,7 +1581,7 @@ void loop() {
 
         break;
       case '7':
-        writeProgramArrayNew(ntsc_1920x1080);
+        writeProgramArrayNew(ntsc_yuv);
         resetDigital();
         enableVDS();
         break;

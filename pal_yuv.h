@@ -1,4 +1,4 @@
-const uint8_t test720p[] PROGMEM = {
+const uint8_t pal_yuv[] PROGMEM = {
 44,
 164,
 0,

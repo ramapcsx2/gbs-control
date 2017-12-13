@@ -1,4 +1,4 @@
-const uint8_t ntsc_1920x1080[] PROGMEM = {
+const uint8_t ntsc_yuv[] PROGMEM = {
 44,
 164,
 0,
