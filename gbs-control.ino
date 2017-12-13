@@ -17,7 +17,6 @@ struct runTimeOptions {
   boolean inputIsYpBpR;
   boolean autoGainADC;
   boolean syncWatcher;
-  boolean periodicPhaseLatcher;
   boolean autoPositionVerticalEnabled;
   boolean autoPositionVerticalFound;
   uint8_t autoPositionVerticalValue;
@@ -914,6 +913,7 @@ void set_htotal(uint16_t value) {
   writeOneByte(0x10, regLow);
   writeOneByte(0x11, regHigh);
 
+  // fixme: newHbSp should be based on htotal instead, about 12%? check!
   // hbsp, round down to multiples of 8 (video timing guide recommendation)
   uint16_t newHbSp = hs_pulse_width * 3;
   newHbSp = newHbSp - (newHbSp % 8);
@@ -1265,7 +1265,6 @@ void setup() {
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
   rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
-  rto->periodicPhaseLatcher = true; // continously "reminds" the ADC phase correction to get to work. This is a workaround.
   rto->ADCTarget = 635;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
   // the following is just run time variables. don't change!
   rto->autoPositionVerticalEnabled = false;
@@ -1322,14 +1321,9 @@ void setup() {
     enableVDS();
     delay(1000); // at least 750ms required to become stable
   }
-  // phase
-  writeOneByte(0xF0, 5); writeOneByte(0x18, 0x21);
-  writeOneByte(0xF0, 5); writeOneByte(0x19, 0x21);
 
   resetADCAutoGain();
   resetSyncLock();
-  writeOneByte(0xF0, 5); writeOneByte(0x18, 0x8d); // phase latch bit
-  writeOneByte(0xF0, 5); writeOneByte(0x19, 0x8d);
 
   if (rto->autoGainADC == false) {
     writeOneByte(0xF0, 5);
@@ -1354,7 +1348,7 @@ void loop() {
   static uint8_t inputStage = 0;
   static uint8_t register_low, register_high = 0;
   static uint16_t register_combined = 0;
-  static unsigned long thisTime, lastTimeSyncWatcher, lastTimePhase = millis();
+  static unsigned long thisTime, lastTimeSyncWatcher = millis();
 
   if (Serial.available()) {
     switch (Serial.read()) {
@@ -1776,19 +1770,6 @@ void loop() {
 
   thisTime = millis();
 
-  // ADC phase latch re-set. This is an attempt at getting phase correct sampling right.
-  // Reasoning: It's random whether the chip syncs on the correct cycle for a given sample phase setting.
-  // We don't have the processing power to manually align the sampling phase on Arduino but maybe this works instead.
-  // (Probably not, so todo: Investigate options. Maybe use nodeMCU with its 160Mhz clock speed!)
-  if ((rto->periodicPhaseLatcher == true) && ((thisTime - lastTimePhase) > 400)) {
-    writeOneByte(0xF0, 5); readFromRegister(0x18, 1, &readout);
-    readout &= ~(1 << 7); // latch off
-    writeOneByte(0x18, readout); readFromRegister(0x18, 1, &readout);
-    readout |= (1 << 7); // latch on
-    writeOneByte(0x18, readout);
-    lastTimePhase = thisTime;
-  }
-
   // only run this when sync is stable!
   if ((rto->autoPositionVerticalEnabled == true) && (rto->autoPositionVerticalFound == false)
       && getSyncStable() )
@@ -1877,16 +1858,10 @@ void loop() {
         applyPresets(result);
         resetPLL();
         resetSyncLock();
-        // phase
-        writeOneByte(0xF0, 5); writeOneByte(0x18, 0x21);
-        writeOneByte(0xF0, 5); writeOneByte(0x19, 0x21);
         delay(100);
         enableVDS(); // display now active
         delay(900);
         resetADCAutoGain();
-        // phase
-        writeOneByte(0xF0, 5); writeOneByte(0x18, 0x8d);
-        writeOneByte(0xF0, 5); writeOneByte(0x19, 0x8d);
       }
     }
 
@@ -2115,6 +2090,13 @@ void loop() {
       regLow = (regLow & 0x0f) | ((uint8_t)(vds_dis_hb_sp << 4));
       writeOneByte(0x11, regLow);
       writeOneByte(0x12, regHigh);
+    }
+
+    // fix hblank ST memory alignment
+    readFromRegister(3, 0x04, 1, &regLow);
+    if ((bestHTotal % 2 == 0 && regLow % 2 == 1) || (bestHTotal % 2 == 1 && regLow % 2 == 0)) {
+      regLow -= 1;
+      writeOneByte(0x04, regLow); // hope this works!
     }
 
     rto->syncLockFound = true;
