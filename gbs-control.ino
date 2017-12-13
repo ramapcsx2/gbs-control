@@ -988,6 +988,60 @@ void set_vtotal(uint16_t value) {
   writeOneByte(0x09, regHigh);
 }
 
+void moveHblankInterval(uint16_t amount, boolean toRight) {
+  uint8_t regLow, regHigh;
+  writeOneByte(0xf0, 3);
+
+  // get HRST
+  readFromRegister(0x03, 0x01, 1, &regLow);
+  readFromRegister(0x02, 1, &regHigh);
+  uint16_t Vds_hsync_rst = ( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow;
+  
+  // HBST
+  readFromRegister(3, 0x10, 1, &regLow);
+  readFromRegister(3, 0x11, 1, &regHigh);
+  uint16_t vds_dis_hb_st = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
+  Serial.print(F("HB ST (dis_hb_st) was: ")); Serial.println(vds_dis_hb_st);
+  
+  uint16_t newHbSt = toRight ? vds_dis_hb_st + amount : vds_dis_hb_st - amount;
+
+  if (newHbSt > Vds_hsync_rst) {
+    newHbSt = newHbSt - Vds_hsync_rst;
+  }
+  
+  regLow = (uint8_t)newHbSt;
+  readFromRegister(3, 0x11, 1, &regHigh);
+  regHigh = (regHigh & 0xf0) | (newHbSt >> 8);
+  writeOneByte(0x10, regLow);
+  writeOneByte(0x11, regHigh);
+
+  readFromRegister(3, 0x10, 1, &regLow);
+  readFromRegister(3, 0x11, 1, &regHigh);
+  vds_dis_hb_st = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
+  Serial.print(F("HB ST (dis_hb_st) is now: ")); Serial.println(vds_dis_hb_st);
+  
+  // HBSP
+  readFromRegister(3, 0x11, 1, &regLow);
+  readFromRegister(3, 0x12, 1, &regHigh);
+  uint16_t vds_dis_hb_sp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
+  Serial.print(F("HB SP (dis_hb_sp) was: ")); Serial.println(vds_dis_hb_sp);
+
+  uint16_t newHbSp = toRight ? vds_dis_hb_sp + amount : vds_dis_hb_sp - amount;
+  if (newHbSp > Vds_hsync_rst) {
+    newHbSp = newHbSp - Vds_hsync_rst;
+  }
+  regHigh = (uint8_t)(newHbSp >> 4);
+  readFromRegister(3, 0x11, 1, &regLow);
+  regLow = (regLow & 0x0f) | ((uint8_t)(newHbSp << 4));
+  writeOneByte(0x11, regLow);
+  writeOneByte(0x12, regHigh);
+
+  readFromRegister(3, 0x11, 1, &regLow);
+  readFromRegister(3, 0x12, 1, &regHigh);
+  vds_dis_hb_sp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
+  Serial.print(F("HB SP (dis_hb_sp) is now: ")); Serial.println(vds_dis_hb_sp);
+}
+
 void applyPresets(byte result) {
   if (result == 2) {
     Serial.println(F("PAL timing "));
@@ -1569,10 +1623,10 @@ void loop() {
         enableVDS();
         break;
       case '3':
-
+        moveHblankInterval(32, true);
         break;
       case '4':
-
+        moveHblankInterval(32, false);
         break;
       case '5':
 
