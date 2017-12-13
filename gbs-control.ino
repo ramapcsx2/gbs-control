@@ -969,7 +969,7 @@ void set_vtotal(uint16_t value) {
   uint16_t newVBST = Vds_vsync_rst - 1;
   regLow = (uint8_t)newVBST;
   readFromRegister(3, 0x14, 1, &regHigh);
-  regHigh = (uint8_t)((regHigh & 0xfc) | (uint8_t)((newVBST & 0x0300) >> 8));
+  regHigh = (uint8_t)((regHigh & 0xf8) | (uint8_t)((newVBST & 0x0700) >> 8));
   writeOneByte(0x13, regLow);
   writeOneByte(0x14, regHigh);
   //VB SP to 3.6% of Vds_vsync_rst
@@ -980,10 +980,12 @@ void set_vtotal(uint16_t value) {
   writeOneByte(0x15, regHigh);
   writeOneByte(0x14, regLow);
 
-  // VB ST (memory) to 0, VB SP (memory) to 8
+  // VB ST (memory) to 0, VB SP (memory) to newVBSP
+  regLow = ((uint8_t)newVBSP) << 4;
+  regHigh = ((uint8_t)newVBSP) >> 4;
   writeOneByte(0x07, 0x00);
-  writeOneByte(0x08, 0x80);
-  writeOneByte(0x09, 0x00);
+  writeOneByte(0x08, regLow);
+  writeOneByte(0x09, regHigh);
 }
 
 void applyPresets(byte result) {
