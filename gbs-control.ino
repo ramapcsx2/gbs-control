@@ -988,71 +988,6 @@ void set_vtotal(uint16_t value) {
   writeOneByte(0x09, regHigh);
 }
 
-void moveHblankInterval(uint16_t amount, boolean toRight) {
-  uint8_t regLow, regHigh;
-  writeOneByte(0xf0, 3);
-
-  // get HRST
-  readFromRegister(0x03, 0x01, 1, &regLow);
-  readFromRegister(0x02, 1, &regHigh);
-  uint16_t Vds_hsync_rst = ( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow;
-  
-  // HBST
-  readFromRegister(3, 0x10, 1, &regLow);
-  readFromRegister(3, 0x11, 1, &regHigh);
-  uint16_t vds_dis_hb_st = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  uint16_t newHbSt = toRight ? vds_dis_hb_st + amount : vds_dis_hb_st - amount;
-  if (newHbSt > Vds_hsync_rst) {
-    newHbSt = newHbSt - Vds_hsync_rst;
-  }
-  
-  regLow = (uint8_t)newHbSt;
-  readFromRegister(3, 0x11, 1, &regHigh);
-  regHigh = (regHigh & 0xf0) | (newHbSt >> 8);
-  writeOneByte(0x10, regLow);
-  writeOneByte(0x11, regHigh);
-
-  // Move HS ST along as well
-  readFromRegister(3, 0x0a, 1, &regLow);
-  readFromRegister(3, 0x0b, 1, &regHigh);
-  uint16_t VDS_HS_ST = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  uint16_t new_HS_ST = VDS_HS_ST + amount;
-  if (new_HS_ST > Vds_hsync_rst) {
-    new_HS_ST = new_HS_ST - Vds_hsync_rst;
-  }
-  regLow = (uint8_t)new_HS_ST;
-  writeOneByte(0x0a, regLow);
-  regHigh = (regHigh & 0xf0) | (new_HS_ST >> 8);
-  writeOneByte(0x0b, regHigh);
-
-  // HBSP
-  readFromRegister(3, 0x11, 1, &regLow);
-  readFromRegister(3, 0x12, 1, &regHigh);
-  uint16_t vds_dis_hb_sp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
-  uint16_t newHbSp = toRight ? vds_dis_hb_sp + amount : vds_dis_hb_sp - amount;
-  if (newHbSp > Vds_hsync_rst) {
-    newHbSp = newHbSp - Vds_hsync_rst;
-  }
-  regHigh = (uint8_t)(newHbSp >> 4);
-  readFromRegister(3, 0x11, 1, &regLow);
-  regLow = (regLow & 0x0f) | ((uint8_t)(newHbSp << 4));
-  writeOneByte(0x11, regLow);
-  writeOneByte(0x12, regHigh);
-
-  // Move HS SP along as well
-  readFromRegister(3, 0x0b, 1, &regLow);
-  readFromRegister(3, 0x0c, 1, &regHigh);
-  uint16_t VDS_HS_SP = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
-  uint16_t new_HS_SP = VDS_HS_SP + amount;
-  if (new_HS_SP > Vds_hsync_rst) {
-    new_HS_SP = new_HS_SP - Vds_hsync_rst;
-  }
-  regHigh = (uint8_t)(new_HS_SP >> 4);
-  regLow = ((regLow & 0x0f) | (uint8_t)(new_HS_SP << 4));
-  writeOneByte(0x0b, regLow);
-  writeOneByte(0x0c, regHigh);
-}
-
 void applyPresets(byte result) {
   if (result == 2) {
     Serial.println(F("PAL timing "));
@@ -1634,10 +1569,10 @@ void loop() {
         enableVDS();
         break;
       case '3':
-        moveHblankInterval(32, true);
+
         break;
       case '4':
-        moveHblankInterval(32, false);
+
         break;
       case '5':
 
