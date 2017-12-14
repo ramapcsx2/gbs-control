@@ -744,6 +744,20 @@ void resetADCAutoGain() {
   delay(250);
 }
 
+void phaseThing(){
+  writeOneByte(0xf0, 0);
+  long startTime = millis();
+  uint8_t readout;
+  uint16_t counter = 0;
+  while ((millis() - startTime) < 1000) {
+    readFromRegister(0x09, 1, &readout);
+    if (readout & 0x80) {
+      counter++;
+    }
+  }
+  Serial.println(counter);
+}
+
 void getVideoTimings() {
   uint8_t  regLow = 0x00;
   uint8_t  regHigh = 0x00;
@@ -1442,15 +1456,15 @@ void loop() {
         {
           writeOneByte(0xF0, 5);
           readFromRegister(0x19, 1, &readout);
-          readout |= (1 << 6); readout &= ~(1 << 7); // lock disable // latch off
+          readout &= ~(1 << 7); // latch off
           writeOneByte(0x19, readout);
           readFromRegister(0x19, 1, &readout);
           readout = (readout & 0x3e) >> 1;
-          readout += 2; readout = (readout << 1) & 0x3e; readout |= (1 << 0);
+          readout += 1; readout = (readout << 1) & 0x3e; readout |= 1;
           writeOneByte(0x19, readout);
           delay(1);
           readFromRegister(0x19, 1, &readout);
-          readout |= (1 << 7); readout &= ~(1 << 6);
+          readout |= (1 << 7);
           writeOneByte(0x19, readout);
           readFromRegister(0x19, 1, &readout);
           Serial.print(F("SP phase: ")); Serial.println(readout, HEX);
@@ -1569,7 +1583,7 @@ void loop() {
         enableVDS();
         break;
       case '3':
-
+        phaseThing();
         break;
       case '4':
 
