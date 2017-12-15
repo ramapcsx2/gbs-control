@@ -652,6 +652,31 @@ void scaleHorizontalLarger() {
   scaleHorizontal(1, true);
 }
 
+void scaleVertical(uint16_t amountToAdd, bool subtracting) {
+  uint8_t high = 0x00;
+  uint8_t newHigh = 0x00;
+  uint8_t low = 0x00;
+  uint8_t newLow = 0x00;
+  uint16_t newValue = 0x0000;
+
+  readFromRegister(0x03, 0x18, 1, &high);
+  readFromRegister(0x03, 0x17, 1, &low);
+  newValue = ( (((uint16_t)high) & 0x007f) << 4) | ( (((uint16_t)low) & 0x00f0) >> 4);
+  
+  if (subtracting) {
+    newValue -= amountToAdd;
+  } else {
+    newValue += amountToAdd;
+  }
+
+  Serial.print(F("Scale Vertical: ")); Serial.println(newValue);
+  newHigh = (uint8_t)(newValue >> 4);
+  newLow = (low & 0x0f) | (((uint8_t)(newValue & 0x00ff))<< 4) ;
+
+  writeOneByte(0x17, newLow);
+  writeOneByte(0x18, newHigh);
+}
+
 void shiftVertical(uint16_t amountToAdd, bool subtracting) {
 
   uint8_t vrstLow = 0x00;
@@ -744,7 +769,7 @@ void resetADCAutoGain() {
   delay(250);
 }
 
-void phaseThing(){
+void phaseThing() {
   writeOneByte(0xf0, 0);
   long startTime = millis();
   uint8_t readout;
@@ -889,21 +914,24 @@ void getVideoTimings() {
   Serial.print(" CKOS: "); Serial.print(PLLAD_CKOS, BIN); Serial.println(F(" (binary)"));
 }
 
+// wht 2152 wvt 628  | 800x600 ntsc
+// wht 2588 wvt 628 s3s16s70 | 800x600 pal
+// wht 1352 wvt 1000 s3s16scc s3s18s20 | 1280x960 ntsc
+// wht 1626 wvt 1000 s3s16s50 | 1280x960 pal | Scale Vertical: 585 or 512
 void set_htotal(uint16_t value) {
   uint8_t regLow;
-  uint8_t regHigh;
-  uint8_t hs_pulse_width;
-  uint16_t VDS_HSCALE;
-
+  uint8_t regHigh;;
+  float hbi_factor = rto->videoStandardInput == 1 ? 0.22f : 0.22f;  // NTSC value for both
+  float sp_factor = rto->videoStandardInput == 1 ? 0.062f : 0.062f; // NTSC value for both
+  
   writeOneByte(0xF0, 3);
 
-  // first, position HS ST at 8 (will then be shortly after HB ST)
-  writeOneByte(0x0a, 8);
+  // first, position HS ST at 0
+  writeOneByte(0x0a, 0);
   readFromRegister(3, 0x0b, 1, &regLow);
   writeOneByte(0x0b, (regLow & 0xf0));
-  // calculate HS length as a fraction of the new HTotal
-  hs_pulse_width = ((uint8_t)(value * 0.07)) & 0xff8; // round down to multiple of 8
-  //hs_pulse_width = hs_pulse_width - (hs_pulse_width % 8);
+  //HS Pulse 
+  uint8_t hs_pulse_width = ((uint16_t)(value * sp_factor)) & 0xff8;
   readFromRegister(3, 0x0b, 1, &regLow);
   regHigh = (uint8_t)((hs_pulse_width) >> 4);
   regLow = (regLow & 0x0f) | ((uint8_t)(hs_pulse_width << 4));
@@ -917,34 +945,32 @@ void set_htotal(uint16_t value) {
   writeOneByte(0x01, regLow);
   writeOneByte(0x02, regHigh);
 
-  // align hbst. GBS manual: "we set HB ST to HTotal-1"
-  // also round down to multiples of 8 (video timing guide recommendation)
-  uint16_t newHbSt = value - 1;
-  newHbSt = newHbSt - (newHbSt % 8);
+  // NTSC 60Hz: 60 kHz ModeLine "1280x960" 108.00 1280 1376 1488 1800 960 961 964 1000 +HSync +VSync
+  // H-Front Porch: 1376-1280 = 96  = 5.33% of htotal (black pixels left)
+  // H-Back Porch:  1800-1488 = 312 = 17.33% of htotal (black pixels right)
+  // -> hbi = 22.7 % of htotal | about 30% to the left, 70% to the right of 0 (htotal+1 = 0. It wraps.)
+  // hblank interval PAL = 36% of htotal
+  // round down to multiples of 8 (video timing guide recommendation)
+  uint16_t hb_interval = ((uint16_t)(value * hbi_factor)) & 0xff8;
+  Serial.print(F("hb_interval: ")); Serial.println(hb_interval);
+  uint16_t newHbSt = (value - (uint16_t)( hb_interval * 0.30 )) & 0xff8;
   regLow = (uint8_t)newHbSt;
   readFromRegister(3, 0x11, 1, &regHigh);
   regHigh = (regHigh & 0xf0) | (newHbSt >> 8);
   writeOneByte(0x10, regLow);
   writeOneByte(0x11, regHigh);
-
-  // fixme: newHbSp should be based on htotal instead, about 12%? check!
-  // hbsp, round down to multiples of 8 (video timing guide recommendation)
-  uint16_t newHbSp = hs_pulse_width * 3;
-  newHbSp = newHbSp - (newHbSp % 8);
+  // hbst (memory fetch) set same as hbst
+  writeOneByte(0x04, regLow);
+  writeOneByte(0x05, regHigh);
+  
+  // hbsp, 0 + (hblank / 2); round down to multiples of 8
+  uint16_t newHbSp = ((uint16_t)( hb_interval * 0.70 )) & 0xff8;
   regHigh = (uint8_t)(newHbSp >> 4);
   readFromRegister(3, 0x11, 1, &regLow);
   regLow = (regLow & 0x0f) | ((uint8_t)(newHbSp << 4));
   writeOneByte(0x11, regLow);
   writeOneByte(0x12, regHigh);
-
-  // hbst (memory fetch) set to 0
-  writeOneByte(0x04, 0x00);
-  writeOneByte(0x05, 0x00);
-  // hbsp (memory fetch) set to 16% of HTotal
-  newHbSp = (uint16_t(value * 0.16)) & 0xff8; // also round down to multiple of 8
-  regHigh = (uint8_t)(newHbSp >> 4);
-  readFromRegister(3, 0x05, 1, &regLow);
-  regLow = (regLow & 0x0f) | ((uint8_t)(newHbSp << 4));
+  // hbsp (memory fetch) set same as hbsp
   writeOneByte(0x05, regLow);
   writeOneByte(0x06, regHigh);
 
@@ -953,7 +979,7 @@ void set_htotal(uint16_t value) {
   writeOneByte(0xF0, 0);
   readFromRegister(0x07, 1, &regHigh); readFromRegister(0x06, 1, &regLow);
   uint16_t register_combined = (((uint16_t)regHigh & 0x0001) << 8) | (uint16_t)regLow;
-  VDS_HSCALE = (1024 * ((float)(register_combined << 1) / (float)(value))) - 4; // make it -4 smaller to avoid scaling into IF boundaries
+  uint16_t VDS_HSCALE = (1024 * ((float)(register_combined << 1) / (float)(value))) - 4; // make it -4 smaller to avoid scaling into IF boundaries
   writeOneByte(0xF0, 3);
   regLow = (uint8_t)VDS_HSCALE;
   readFromRegister(3, 0x17, 1, &regHigh);
@@ -974,10 +1000,18 @@ void set_vtotal(uint16_t value) {
   writeOneByte(0x03, regHigh);
   writeOneByte(0x02, regLow);
 
-  // VS ST to 0, VS ST to 4
-  writeOneByte(0x0d, 0x00);
-  writeOneByte(0x0e, 0x40);
-  writeOneByte(0x0f, 0x00);
+  // NTSC 60Hz: 60 kHz ModeLine "1280x960" 108.00 1280 1376 1488 1800 960 961 964 1000 +HSync +VSync
+  // V-Front Porch: 961-960 = 1  = 0.1% of vtotal (black bottom lines)
+  // V-Back Porch:  1000-964 = 36 = 3.6% of htotal (black top lines)
+  // -> vbi = 3.7 % of vtotal | almost all on top (> of 0 (vtotal+1 = 0. It wraps.))
+  // vblank interval PAL would be more
+
+  writeOneByte(0x0d, 0x00); // vs start // VS ST to 0
+  uint16_t vssp = ((uint16_t)(value * 0.036));
+  regLow = ((uint8_t)vssp) << 4; // don't care about low bits, they are 0
+  regHigh = (uint8_t)(vssp >> 4);
+  writeOneByte(0x0e, regLow); // vs mixed
+  writeOneByte(0x0f, regHigh); // vs stop
 
   // VB ST to Vds_vsync_rst - 1
   uint16_t newVBST = Vds_vsync_rst - 1;
@@ -987,17 +1021,22 @@ void set_vtotal(uint16_t value) {
   writeOneByte(0x13, regLow);
   writeOneByte(0x14, regHigh);
   //VB SP to 3.6% of Vds_vsync_rst
-  uint16_t newVBSP = ((uint16_t)(Vds_vsync_rst * 0.036)) & 0xffe;
+  uint16_t newVBSP = (uint16_t)(Vds_vsync_rst * 0.036);
   regHigh = (uint8_t)(newVBSP >> 4);
   readFromRegister(3, 0x14, 1, &regLow);
   regLow = ((regLow & 0x0f) | (uint8_t)(newVBSP << 4));
   writeOneByte(0x15, regHigh);
   writeOneByte(0x14, regLow);
 
-  // VB ST (memory) to 0, VB SP (memory) to newVBSP
-  regLow = ((uint8_t)newVBSP) << 4;
-  regHigh = ((uint8_t)newVBSP) >> 4;
-  writeOneByte(0x07, 0x00);
+  // VB ST (memory) to VBSP (display), VB SP (memory) to VBSP (display)*2
+  regLow = (uint8_t)newVBSP;
+  regHigh = (uint8_t)(newVBSP >> 8);
+  writeOneByte(0x07, regLow);
+  writeOneByte(0x08, regHigh);
+  readFromRegister(3, 0x08, 1, &regLow);
+  newVBSP = (newVBSP << 1); // *= 2
+  regLow = (regLow & 0x0f) | ((uint8_t)newVBSP) << 4;
+  regHigh = (uint8_t)(newVBSP >> 4);
   writeOneByte(0x08, regLow);
   writeOneByte(0x09, regHigh);
 }
@@ -1586,10 +1625,10 @@ void loop() {
         phaseThing();
         break;
       case '4':
-
+        scaleVertical(1,true);
         break;
       case '5':
-
+        scaleVertical(1,false);
         break;
       case '6':
 
@@ -1807,11 +1846,11 @@ void loop() {
         if (result != rto->videoStandardInput) { // has the video standard changed?
           //Serial.print("-");
           failcounter++;
-          if (failcounter == 1) disableDeinterlacer();
+          if (failcounter == 3) disableDeinterlacer();
         }
         else if (result == rto->videoStandardInput && getSyncProcessorSignalValid()) {
           Serial.print("\n");
-          failcounter = 2;
+          failcounter = 0;
           break;
         }
         delay(10);
