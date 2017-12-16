@@ -919,74 +919,73 @@ void getVideoTimings() {
 // wht 2588 wvt 628 s3s16s70 | 800x600 pal
 // wht 1352 wvt 1000 s3s16scc s3s18s20 | 1280x960 ntsc
 // wht 1626 wvt 1000 s3s16s50 | 1280x960 pal | Scale Vertical: 585 or 512
-void set_htotal(uint16_t value) {
-  uint8_t regLow;
-  uint8_t regHigh;;
-  float hbi_factor = rto->videoStandardInput == 1 ? 0.22f : 0.22f;  // NTSC value for both
-  float sp_factor = rto->videoStandardInput == 1 ? 0.062f : 0.062f; // NTSC value for both
+void set_htotal(uint16_t htotal) {
+  uint8_t regLow, regHigh;
+
+  // Guide: We set vds_dis_hb_st = H.total – 1, vds_dis_hb_sp = H.blank – 1
+  //
+  // ModeLine "1280x960" 108.00 1280 1376 1488 1800 960 961 964 1000 +HSync +VSync
+  // H.blank: 1800 - 1280 = 520 == 1800 * (13/45)
+  // front porch: H2 - H1: 1376 - 1280 = 96
+  // back porch : H4 - H3: 1800 - 1488 = 312  >  hb stop:  0 + bp: 0 + 312 = 312 == htotal * (13/75)
+  // sync pulse width: H3 - H2: 1488 - 1376 = 112  > (assumption!) HS start: 0  HS stop: 112
+  // HS start: htotal * (4/75) + 1 // +1 because hb start = htotal -1 // (4/75) is the relation of front porch to htotal
+  // HS stop : HS start + (htotal * (14/225))
+  uint16_t h_blank_start_position = htotal - 1;
+  uint16_t h_blank_stop_position = (htotal * (13.0f / 45.0f)) + 1;
+  uint16_t h_sync_start_position = htotal - (htotal * (71.0f / 75.0f)) + 1;
+  uint16_t h_sync_stop_position = h_sync_start_position + ((htotal * (14.0f / 225.0f))) ;
+
+  // Memory fetch locations should be a few pixels before the real blank locations
+  // The guide has from 50 to 100
+  uint16_t h_blank_memory_start_position = h_blank_start_position - 1;
+  uint16_t h_blank_memory_stop_position =  h_blank_stop_position  - 1;
 
   writeOneByte(0xF0, 3);
 
-  // first, position HS ST at 0
-  writeOneByte(0x0a, 0);
-  readFromRegister(3, 0x0b, 1, &regLow);
-  writeOneByte(0x0b, (regLow & 0xf0));
-  //HS Pulse
-  uint8_t hs_pulse_width = ((uint16_t)(value * sp_factor)) & 0xff8;
-  readFromRegister(3, 0x0b, 1, &regLow);
-  regHigh = (uint8_t)((hs_pulse_width) >> 4);
-  regLow = (regLow & 0x0f) | ((uint8_t)(hs_pulse_width << 4));
-  writeOneByte(0x0b, regLow);
-  writeOneByte(0x0c, regHigh);
-
   // write htotal
-  regLow = (uint8_t)value;
+  regLow = (uint8_t)htotal;
   readFromRegister(3, 0x02, 1, &regHigh);
-  regHigh = (regHigh & 0xf0) | (value >> 8);
+  regHigh = (regHigh & 0xf0) | (htotal >> 8);
   writeOneByte(0x01, regLow);
   writeOneByte(0x02, regHigh);
 
-  // NTSC 60Hz: 60 kHz ModeLine "1280x960" 108.00 1280 1376 1488 1800 960 961 964 1000 +HSync +VSync
-  // H-Front Porch: 1376-1280 = 96  = 5.33% of htotal (black pixels left)
-  // H-Back Porch:  1800-1488 = 312 = 17.33% of htotal (black pixels right)
-  // -> hbi = 22.7 % of htotal | about 30% to the left, 70% to the right of 0 (htotal+1 = 0. It wraps.)
-  // hblank interval PAL = 36% of htotal
-  // round down to multiples of 8 (video timing guide recommendation)
-  uint16_t hb_interval = ((uint16_t)(value * hbi_factor)) & 0xff8;
-  Serial.print(F("hb_interval: ")); Serial.println(hb_interval);
-  uint16_t newHbSt = (value - (uint16_t)( hb_interval * 0.30 )) & 0xff8;
-  regLow = (uint8_t)newHbSt;
-  readFromRegister(3, 0x11, 1, &regHigh);
-  regHigh = (regHigh & 0xf0) | (newHbSt >> 8);
+  // HS ST
+  regLow = (uint8_t)h_sync_start_position;
+  regHigh = (uint8_t)((h_sync_start_position & 0x0f00) >> 8);
+  writeOneByte(0x0a, regLow);
+  writeOneByte(0x0b, regHigh);
+
+  // HS SP
+  readFromRegister(3, 0x0b, 1, &regLow);
+  regLow = (regLow & 0x0f) | ((uint8_t)(h_sync_stop_position << 4));
+  regHigh = (uint8_t)((h_sync_stop_position) >> 4);
+  writeOneByte(0x0b, regLow);
+  writeOneByte(0x0c, regHigh);
+
+  // HB ST
+  regLow = (uint8_t)h_blank_start_position;
+  regHigh = (uint8_t)((h_blank_start_position & 0x0f00) >> 8);
   writeOneByte(0x10, regLow);
   writeOneByte(0x11, regHigh);
-  // hbst (memory fetch) set same as hbst
+  // HB ST(memory fetch)
+  regLow = (uint8_t)h_blank_memory_start_position;
+  regHigh = (uint8_t)((h_blank_memory_start_position & 0x0f00) >> 8);
   writeOneByte(0x04, regLow);
   writeOneByte(0x05, regHigh);
 
-  // hbsp, 0 + (hblank / 2); round down to multiples of 8
-  uint16_t newHbSp = ((uint16_t)( hb_interval * 0.70 )) & 0xff8;
-  regHigh = (uint8_t)(newHbSp >> 4);
+  // HB SP
+  regHigh = (uint8_t)(h_blank_stop_position >> 4);
   readFromRegister(3, 0x11, 1, &regLow);
-  regLow = (regLow & 0x0f) | ((uint8_t)(newHbSp << 4));
+  regLow = (regLow & 0x0f) | ((uint8_t)(h_blank_stop_position << 4));
   writeOneByte(0x11, regLow);
   writeOneByte(0x12, regHigh);
-  // hbsp (memory fetch) set same as hbsp
+  // HB SP(memory fetch)
+  readFromRegister(3, 0x05, 1, &regLow);
+  regLow = (regLow & 0x0f) | ((uint8_t)(h_blank_memory_stop_position << 4));
+  regHigh = (uint8_t)(h_blank_memory_stop_position >> 4);
   writeOneByte(0x05, regLow);
   writeOneByte(0x06, regHigh);
-
-  // adjust horizontal scale up to fit
-  //we need to know the input hor. pixel count
-  writeOneByte(0xF0, 0);
-  readFromRegister(0x07, 1, &regHigh); readFromRegister(0x06, 1, &regLow);
-  uint16_t register_combined = (((uint16_t)regHigh & 0x0001) << 8) | (uint16_t)regLow;
-  uint16_t VDS_HSCALE = (1024 * ((float)(register_combined << 1) / (float)(value))) - 4; // make it -4 smaller to avoid scaling into IF boundaries
-  writeOneByte(0xF0, 3);
-  regLow = (uint8_t)VDS_HSCALE;
-  readFromRegister(3, 0x17, 1, &regHigh);
-  regHigh = (uint8_t)((regHigh & 0xfc) | (uint8_t)((VDS_HSCALE & 0x0300) >> 8));
-  writeOneByte(0x16, regLow);
-  writeOneByte(0x17, regHigh);
 }
 
 void set_vtotal(uint16_t vtotal) {
@@ -2153,11 +2152,11 @@ void loop() {
     }
 
     // fix hblank ST memory alignment
-    readFromRegister(3, 0x04, 1, &regLow);
-    if ((bestHTotal % 2 == 0 && regLow % 2 == 1) || (bestHTotal % 2 == 1 && regLow % 2 == 0)) {
-      regLow -= 1;
-      writeOneByte(0x04, regLow); // hope this works!
-    }
+    //    readFromRegister(3, 0x04, 1, &regLow);
+    //    if ((bestHTotal % 2 == 0 && regLow % 2 == 1) || (bestHTotal % 2 == 1 && regLow % 2 == 0)) {
+    //      regLow -= 1;
+    //      writeOneByte(0x04, regLow); // hope this works!
+    //    }
 
     rto->syncLockFound = true;
   }
