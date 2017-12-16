@@ -637,6 +637,7 @@ void scaleHorizontal(uint16_t amountToAdd, bool subtracting) {
     newValue += amountToAdd;
   }
 
+  Serial.print(F("Scale Hor: ")); Serial.println(newValue);
   newHigh = (high & 0xfc) | (uint8_t)( (newValue / 256) & 0x0003);
   newLow = (uint8_t)(newValue & 0x00ff);
 
@@ -662,16 +663,16 @@ void scaleVertical(uint16_t amountToAdd, bool subtracting) {
   readFromRegister(0x03, 0x18, 1, &high);
   readFromRegister(0x03, 0x17, 1, &low);
   newValue = ( (((uint16_t)high) & 0x007f) << 4) | ( (((uint16_t)low) & 0x00f0) >> 4);
-  
+
   if (subtracting) {
     newValue -= amountToAdd;
   } else {
     newValue += amountToAdd;
   }
 
-  Serial.print(F("Scale Vertical: ")); Serial.println(newValue);
+  Serial.print(F("Scale Vert: ")); Serial.println(newValue);
   newHigh = (uint8_t)(newValue >> 4);
-  newLow = (low & 0x0f) | (((uint8_t)(newValue & 0x00ff))<< 4) ;
+  newLow = (low & 0x0f) | (((uint8_t)(newValue & 0x00ff)) << 4) ;
 
   writeOneByte(0x17, newLow);
   writeOneByte(0x18, newHigh);
@@ -923,14 +924,14 @@ void set_htotal(uint16_t value) {
   uint8_t regHigh;;
   float hbi_factor = rto->videoStandardInput == 1 ? 0.22f : 0.22f;  // NTSC value for both
   float sp_factor = rto->videoStandardInput == 1 ? 0.062f : 0.062f; // NTSC value for both
-  
+
   writeOneByte(0xF0, 3);
 
   // first, position HS ST at 0
   writeOneByte(0x0a, 0);
   readFromRegister(3, 0x0b, 1, &regLow);
   writeOneByte(0x0b, (regLow & 0xf0));
-  //HS Pulse 
+  //HS Pulse
   uint8_t hs_pulse_width = ((uint16_t)(value * sp_factor)) & 0xff8;
   readFromRegister(3, 0x0b, 1, &regLow);
   regHigh = (uint8_t)((hs_pulse_width) >> 4);
@@ -962,7 +963,7 @@ void set_htotal(uint16_t value) {
   // hbst (memory fetch) set same as hbst
   writeOneByte(0x04, regLow);
   writeOneByte(0x05, regHigh);
-  
+
   // hbsp, 0 + (hblank / 2); round down to multiples of 8
   uint16_t newHbSp = ((uint16_t)( hb_interval * 0.70 )) & 0xff8;
   regHigh = (uint8_t)(newHbSp >> 4);
@@ -988,55 +989,59 @@ void set_htotal(uint16_t value) {
   writeOneByte(0x17, regHigh);
 }
 
-void set_vtotal(uint16_t value) {
+void set_vtotal(uint16_t vtotal) {
   uint8_t regLow, regHigh;
-  uint16_t Vds_vsync_rst = value;
+  uint16_t v_blank_start_position = vtotal - (vtotal * 0.04);
+  uint16_t v_blank_stop_position = 0; // is this right? 0 should mean 1 line after vtotal.
+  uint16_t v_sync_start_position = v_blank_start_position + 1;
+  uint16_t v_sync_stop_position = v_sync_start_position + 3;
 
   // write vtotal
   writeOneByte(0xF0, 3);
-  regHigh = (uint8_t)(Vds_vsync_rst >> 4);
+  regHigh = (uint8_t)(vtotal >> 4);
   readFromRegister(3, 0x02, 1, &regLow);
-  regLow = ((regLow & 0x0f) | (uint8_t)(Vds_vsync_rst << 4));
+  regLow = ((regLow & 0x0f) | (uint8_t)(vtotal << 4));
   writeOneByte(0x03, regHigh);
   writeOneByte(0x02, regLow);
 
   // NTSC 60Hz: 60 kHz ModeLine "1280x960" 108.00 1280 1376 1488 1800 960 961 964 1000 +HSync +VSync
-  // V-Front Porch: 961-960 = 1  = 0.1% of vtotal (black bottom lines)
+  // V-Front Porch: 961-960 = 1  = 0.1% of vtotal. Start at v_blank_start_position = vtotal - (vtotal*0.04) = 960
   // V-Back Porch:  1000-964 = 36 = 3.6% of htotal (black top lines)
   // -> vbi = 3.7 % of vtotal | almost all on top (> of 0 (vtotal+1 = 0. It wraps.))
   // vblank interval PAL would be more
 
-  writeOneByte(0x0d, 0x00); // vs start // VS ST to 0
-  uint16_t vssp = ((uint16_t)(value * 0.036));
-  regLow = ((uint8_t)vssp) << 4; // don't care about low bits, they are 0
-  regHigh = (uint8_t)(vssp >> 4);
+  regLow = (uint8_t)v_sync_start_position;
+  regHigh = (uint8_t)((v_sync_start_position & 0x0700) >> 8);
+  writeOneByte(0x0d, regLow); // vs mixed
+  writeOneByte(0x0e, regHigh); // vs stop
+  readFromRegister(3, 0x0e, 1, &regLow);
+  readFromRegister(3, 0x0f, 1, &regHigh);
+  regLow = regLow | (uint8_t)(v_sync_stop_position << 4);
+  regHigh = (uint8_t)(v_sync_stop_position >> 4);
   writeOneByte(0x0e, regLow); // vs mixed
   writeOneByte(0x0f, regHigh); // vs stop
 
-  // VB ST to Vds_vsync_rst - 1
-  uint16_t newVBST = Vds_vsync_rst - 1;
-  regLow = (uint8_t)newVBST;
+  // VB ST
+  regLow = (uint8_t)v_blank_start_position;
   readFromRegister(3, 0x14, 1, &regHigh);
-  regHigh = (uint8_t)((regHigh & 0xf8) | (uint8_t)((newVBST & 0x0700) >> 8));
+  regHigh = (uint8_t)((regHigh & 0xf8) | (uint8_t)((v_blank_start_position & 0x0700) >> 8));
   writeOneByte(0x13, regLow);
   writeOneByte(0x14, regHigh);
-  //VB SP to 3.6% of Vds_vsync_rst
-  uint16_t newVBSP = (uint16_t)(Vds_vsync_rst * 0.036);
-  regHigh = (uint8_t)(newVBSP >> 4);
+  //VB SP
+  regHigh = (uint8_t)(v_blank_stop_position >> 4);
   readFromRegister(3, 0x14, 1, &regLow);
-  regLow = ((regLow & 0x0f) | (uint8_t)(newVBSP << 4));
+  regLow = ((regLow & 0x0f) | (uint8_t)(v_blank_stop_position << 4));
   writeOneByte(0x15, regHigh);
   writeOneByte(0x14, regLow);
 
-  // VB ST (memory) to VBSP (display), VB SP (memory) to VBSP (display)*2
-  regLow = (uint8_t)newVBSP;
-  regHigh = (uint8_t)(newVBSP >> 8);
+  // VB ST (memory) to v_blank_start_position (display), VB SP (memory) to v_blank_stop_position (display)
+  regLow = (uint8_t)v_blank_start_position;
+  regHigh = (uint8_t)(v_blank_start_position >> 8);
   writeOneByte(0x07, regLow);
   writeOneByte(0x08, regHigh);
   readFromRegister(3, 0x08, 1, &regLow);
-  newVBSP = (newVBSP << 1); // *= 2
-  regLow = (regLow & 0x0f) | ((uint8_t)newVBSP) << 4;
-  regHigh = (uint8_t)(newVBSP >> 4);
+  regLow = (regLow & 0x0f) | ((uint8_t)v_blank_stop_position) << 4;
+  regHigh = (uint8_t)(v_blank_stop_position >> 4);
   writeOneByte(0x08, regLow);
   writeOneByte(0x09, regHigh);
 }
@@ -1625,10 +1630,10 @@ void loop() {
         phaseThing();
         break;
       case '4':
-        scaleVertical(1,true);
+        scaleVertical(1, true);
         break;
       case '5':
-        scaleVertical(1,false);
+        scaleVertical(1, false);
         break;
       case '6':
 
