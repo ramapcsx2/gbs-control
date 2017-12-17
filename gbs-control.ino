@@ -4,6 +4,7 @@
 #include "hdtv.h"
 #include "ntsc_yuv.h"
 #include "pal_yuv.h"
+//#include "ntsc_snes_1440x900.h"
 #include "vclktest.h"
 
 // 7 bit GBS I2C Address
@@ -937,9 +938,9 @@ void set_htotal(uint16_t htotal) {
   // Memory fetch locations should be a few pixels before the real blank locations
   // The guide has from 50 to 100
   // Start is not fully clear yet. Either 0 or a small amount before htotal.
-  // Auto Frame Lock sets it to 0 if it underflows htotal
-  uint16_t h_blank_memory_start_position = 0;
-  uint16_t h_blank_memory_stop_position =  htotal  * (73.0f / 338.0f);
+  // Auto Frame Lock sets it if it underflows htotal
+  uint16_t h_blank_memory_start_position = h_blank_start_position - 10;
+  uint16_t h_blank_memory_stop_position =  (htotal  * (73.0f / 338.0f) + 2);
 
   writeOneByte(0xF0, 3);
 
@@ -2158,8 +2159,8 @@ void loop() {
       writeOneByte(0x11, regLow);
       writeOneByte(0x12, regHigh);
 
-      setMemoryHblankStartPosition( 0 );
-      setMemoryHblankStopPosition( Vds_hsync_rst  * (73.0f / 338.0f) );
+      setMemoryHblankStartPosition( vds_dis_hb_st - 10 );
+      setMemoryHblankStopPosition( (Vds_hsync_rst  * (73.0f / 338.0f) + 2 ) );
     }
 
     // Might as well fix SNES vertical offset
@@ -2168,9 +2169,11 @@ void loop() {
     register_combined = (((uint16_t(register_high) & 0x0007)) << 8) | (uint16_t)register_low;
     if (register_combined == 261 || register_combined == 311) { // SNES NTSC and PAL
       Serial.print(F("probably SNES: ")); Serial.print(register_combined); Serial.println(F(" vlines"));
-      writeOneByte(0xf0, 5); writeOneByte(0x39, 0x0c); // lower coast stop down from 0x10
+
+      // lower coast stop down from 0x10, would fix snes 239 line mode first scanline jitter but causes lost sync in interlace mode
+      //writeOneByte(0xf0, 5); writeOneByte(0x39, 0x0c); 
       readFromRegister(1, 0x1e, 1, &register_low);
-      writeOneByte(0xf0, 1); writeOneByte(0x1e, register_low - 16); // IF vertical offset
+      writeOneByte(0xf0, 1); writeOneByte(0x1e, register_low - 15); // IF vertical offset
     }
 
     // fix hblank ST memory alignment
