@@ -930,8 +930,8 @@ void set_htotal(uint16_t htotal) {
   // sync pulse width: H3 - H2: 1488 - 1376 = 112  > (assumption!) HS start: 0  HS stop: 112
   // HS start: htotal * (4/75) + 1 // +1 because hb start = htotal -1 // (4/75) is the relation of front porch to htotal
   // HS stop : HS start + (htotal * (14/225))
-  uint16_t h_blank_start_position = htotal - 1;
-  uint16_t h_blank_stop_position = (htotal * (13.0f / 45.0f)) + 1;
+  uint16_t h_blank_start_position = htotal - 8; // just a little margin more (over -1)
+  uint16_t h_blank_stop_position = htotal * (13.0f / 46.0f);
   uint16_t h_sync_start_position = htotal - (htotal * (71.0f / 75.0f)) + 1;
   uint16_t h_sync_stop_position = h_sync_start_position + ((htotal * (14.0f / 225.0f))) ;
 
@@ -939,7 +939,7 @@ void set_htotal(uint16_t htotal) {
   // The guide has from 50 to 100
   // Start is not fully clear yet. Either 0 or a small amount before htotal.
   // Auto Frame Lock sets it if it underflows htotal
-  uint16_t h_blank_memory_start_position = h_blank_start_position - 10;
+  uint16_t h_blank_memory_start_position = h_blank_start_position;
   uint16_t h_blank_memory_stop_position =  (htotal  * (73.0f / 338.0f) + 2);
 
   writeOneByte(0xF0, 3);
@@ -992,7 +992,7 @@ void set_htotal(uint16_t htotal) {
 void set_vtotal(uint16_t vtotal) {
   uint8_t regLow, regHigh;
   uint16_t v_blank_start_position = vtotal - (vtotal * 0.04);
-  uint16_t v_blank_stop_position = 0; // is this right? 0 should mean 1 line after vtotal.
+  uint16_t v_blank_stop_position = 1; // is this right? 0 should mean 1 line after vtotal.
   uint16_t v_sync_start_position = v_blank_start_position + 1;
   uint16_t v_sync_stop_position = v_sync_start_position + 3;
 
@@ -1034,14 +1034,14 @@ void set_vtotal(uint16_t vtotal) {
   writeOneByte(0x15, regHigh);
   writeOneByte(0x14, regLow);
 
-  // VB ST (memory) to v_blank_start_position (display), VB SP (memory) to v_blank_stop_position (display)
+  // VB ST (memory) to v_blank_start_position (display), VB SP (memory) to v_blank_stop_position (display) - 1
   regLow = (uint8_t)v_blank_start_position;
   regHigh = (uint8_t)(v_blank_start_position >> 8);
   writeOneByte(0x07, regLow);
   writeOneByte(0x08, regHigh);
   readFromRegister(3, 0x08, 1, &regLow);
-  regLow = (regLow & 0x0f) | ((uint8_t)v_blank_stop_position) << 4;
-  regHigh = (uint8_t)(v_blank_stop_position >> 4);
+  regLow = (regLow & 0x0f) | ((uint8_t)(vtotal - 1)) << 4;
+  regHigh = (uint8_t)((vtotal - 1) >> 4);
   writeOneByte(0x08, regLow);
   writeOneByte(0x09, regHigh);
 }
@@ -2159,29 +2159,23 @@ void loop() {
       writeOneByte(0x11, regLow);
       writeOneByte(0x12, regHigh);
 
-      setMemoryHblankStartPosition( vds_dis_hb_st - 10 );
+      setMemoryHblankStartPosition( Vds_hsync_rst - 8 );
       setMemoryHblankStopPosition( (Vds_hsync_rst  * (73.0f / 338.0f) + 2 ) );
     }
 
     // Might as well fix SNES vertical offset
-    delay(250);
     readFromRegister(0, 0x1c, 1, &register_high); readFromRegister(0, 0x1b, 1, &register_low);
     register_combined = (((uint16_t(register_high) & 0x0007)) << 8) | (uint16_t)register_low;
     if (register_combined == 261 || register_combined == 311) { // SNES NTSC and PAL
+      // don't patch anything for now. SNES detection via input lines misses regular Super Famicoms, only detects 1Chip
       Serial.print(F("probably SNES: ")); Serial.print(register_combined); Serial.println(F(" vlines"));
 
       // lower coast stop down from 0x10, would fix snes 239 line mode first scanline jitter but causes lost sync in interlace mode
-      //writeOneByte(0xf0, 5); writeOneByte(0x39, 0x0c); 
-      readFromRegister(1, 0x1e, 1, &register_low);
-      writeOneByte(0xf0, 1); writeOneByte(0x1e, register_low - 15); // IF vertical offset
-    }
+      //writeOneByte(0xf0, 5); writeOneByte(0x39, 0x0c);
 
-    // fix hblank ST memory alignment
-    //    readFromRegister(3, 0x04, 1, &regLow);
-    //    if ((bestHTotal % 2 == 0 && regLow % 2 == 1) || (bestHTotal % 2 == 1 && regLow % 2 == 0)) {
-    //      regLow -= 1;
-    //      writeOneByte(0x04, regLow); // hope this works!
-    //    }
+      //readFromRegister(1, 0x1e, 1, &register_low);
+      //writeOneByte(0xf0, 1); writeOneByte(0x1e, register_low - 15); // IF vertical offset
+    }
 
     rto->syncLockFound = true;
   }
