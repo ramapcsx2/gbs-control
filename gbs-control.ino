@@ -573,18 +573,18 @@ void shiftHorizontal(uint16_t amountToAdd, bool subtracting) {
 
   // handle the case where hbst or hbsp have been decremented below 0
   if (Vds_hb_st & 0x8000) {
-    Vds_hb_st = htotal + Vds_hb_st;
+    Vds_hb_st = htotal % 2 == 1 ? (htotal + Vds_hb_st) + 1 : (htotal + Vds_hb_st);
   }
   if (Vds_hb_sp & 0x8000) {
-    Vds_hb_sp = htotal + Vds_hb_sp;
+    Vds_hb_sp = htotal % 2 == 1 ? (htotal + Vds_hb_sp) + 1 : (htotal + Vds_hb_sp);
   }
 
   // handle the case where hbst or hbsp have been incremented above htotal
-  if (Vds_hb_st >= htotal) {
-    Vds_hb_st = Vds_hb_st - htotal;
+  if (Vds_hb_st > htotal) {
+    Vds_hb_st = htotal % 2 == 1 ? (Vds_hb_st - htotal) - 1 : (Vds_hb_st - htotal);
   }
-  if (Vds_hb_sp >= htotal) {
-    Vds_hb_sp = Vds_hb_sp - htotal;
+  if (Vds_hb_sp > htotal) {
+    Vds_hb_sp = htotal % 2 == 1 ? (Vds_hb_sp - htotal) - 1 : (Vds_hb_sp - htotal);
   }
 
   writeOneByte(0x04, (uint8_t)(Vds_hb_st & 0x00ff));
@@ -807,7 +807,7 @@ void getVideoTimings() {
   readFromRegister(3, 0x01, 1, &regLow);
   readFromRegister(3, 0x02, 1, &regHigh);
   Vds_hsync_rst = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  Serial.print(F("htotal (HSYNC_RST): ")); Serial.println(Vds_hsync_rst);
+  Serial.print(F("htotal (HSYNC_RST): ")); Serial.println(Vds_hsync_rst + 1);
 
   // get horizontal scale up
   readFromRegister(3, 0x16, 1, &regLow);
@@ -856,7 +856,7 @@ void getVideoTimings() {
   readFromRegister(3, 0x02, 1, &regLow);
   readFromRegister(3, 0x03, 1, &regHigh);
   Vds_vsync_rst = ( (((uint16_t)regHigh) & 0x007f) << 4) | ( (((uint16_t)regLow) & 0x00f0) >> 4);
-  Serial.print(F("vtotal (VSYNC_RST): ")); Serial.println(Vds_vsync_rst);
+  Serial.print(F("vtotal (VSYNC_RST): ")); Serial.println(Vds_vsync_rst + 1);
 
   // get vertical scale up
   readFromRegister(3, 0x17, 1, &regLow);
@@ -932,22 +932,21 @@ void set_htotal(uint16_t htotal) {
   // HS stop : HS start + (htotal * (14/225))
   uint16_t h_blank_start_position = htotal - 8; // just a little margin more (over -1)
   uint16_t h_blank_stop_position = htotal * (13.0f / 46.0f);
-  uint16_t h_sync_start_position = htotal - (htotal * (71.0f / 75.0f)) + 1;
-  uint16_t h_sync_stop_position = h_sync_start_position + ((htotal * (14.0f / 225.0f))) ;
+  uint16_t h_sync_start_position = ( (uint16_t)((htotal * (4.0f / 75.0f)) + 1) ) & 0xfffe;
+  uint16_t h_sync_stop_position = ( (uint16_t)(h_sync_start_position + ((htotal * (14.0f / 225.0f)))) & 0xfffe );
 
   // Memory fetch locations should be a few pixels before the real blank locations
   // The guide has from 50 to 100
-  // Start is not fully clear yet. Either 0 or a small amount before htotal.
-  // Auto Frame Lock sets it if it underflows htotal
+  // start_position should be set a small amount before htotal
   uint16_t h_blank_memory_start_position = h_blank_start_position;
   uint16_t h_blank_memory_stop_position =  (htotal  * (73.0f / 338.0f) + 2);
 
   writeOneByte(0xF0, 3);
 
   // write htotal
-  regLow = (uint8_t)htotal;
+  regLow = (uint8_t)(htotal - 1);
   readFromRegister(3, 0x02, 1, &regHigh);
-  regHigh = (regHigh & 0xf0) | (htotal >> 8);
+  regHigh = (regHigh & 0xf0) | ((htotal - 1) >> 8);
   writeOneByte(0x01, regLow);
   writeOneByte(0x02, regHigh);
 
@@ -998,9 +997,9 @@ void set_vtotal(uint16_t vtotal) {
 
   // write vtotal
   writeOneByte(0xF0, 3);
-  regHigh = (uint8_t)(vtotal >> 4);
+  regHigh = (uint8_t)((vtotal - 1) >> 4);
   readFromRegister(3, 0x02, 1, &regLow);
-  regLow = ((regLow & 0x0f) | (uint8_t)(vtotal << 4));
+  regLow = ((regLow & 0x0f) | (uint8_t)((vtotal - 1) << 4));
   writeOneByte(0x03, regHigh);
   writeOneByte(0x02, regLow);
 
@@ -2056,7 +2055,7 @@ void loop() {
       accumulator2 += (timer2 - timer1);
     }
     accumulator2 /= 5;
-    Serial.print(F("input scanline ns: ")); Serial.println(accumulator2);
+    Serial.print(F("input scanline us: ")); Serial.println(accumulator2);
 
     writeOneByte(0xF0, 0);
     readFromRegister(0x4f, 1, &readout);
@@ -2169,6 +2168,7 @@ void loop() {
     if (register_combined == 261 || register_combined == 311) { // SNES NTSC and PAL
       // don't patch anything for now. SNES detection via input lines misses regular Super Famicoms, only detects 1Chip
       Serial.print(F("probably SNES: ")); Serial.print(register_combined); Serial.println(F(" vlines"));
+      // good h scaling for SNES seems to be 732
 
       // lower coast stop down from 0x10, would fix snes 239 line mode first scanline jitter but causes lost sync in interlace mode
       //writeOneByte(0xf0, 5); writeOneByte(0x39, 0x0c);
