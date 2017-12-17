@@ -538,7 +538,7 @@ void shiftHorizontal(uint16_t amountToAdd, bool subtracting) {
 
   uint8_t hrstLow = 0x00;
   uint8_t hrstHigh = 0x00;
-  uint16_t Vds_hsync_rst = 0x0000;
+  uint16_t htotal = 0x0000;
   uint8_t hbstLow = 0x00;
   uint8_t hbstHigh = 0x00;
   uint16_t Vds_hb_st = 0x0000;
@@ -547,33 +547,18 @@ void shiftHorizontal(uint16_t amountToAdd, bool subtracting) {
   uint16_t Vds_hb_sp = 0x0000;
 
   // get HRST
-  if (readFromRegister(0x03, 0x01, 1, &hrstLow) != 1) {
-    return;
-  }
-
-  if (readFromRegister(0x02, 1, &hrstHigh) != 1) {
-    return;
-  }
-
-  Vds_hsync_rst = ( ( ((uint16_t)hrstHigh) & 0x000f) << 8) | (uint16_t)hrstLow;
+  readFromRegister(0x03, 0x01, 1, &hrstLow);
+  readFromRegister(0x02, 1, &hrstHigh);
+  htotal = ( ( ((uint16_t)hrstHigh) & 0x000f) << 8) | (uint16_t)hrstLow;
 
   // get HBST
-  if (readFromRegister(0x04, 1, &hbstLow) != 1) {
-    return;
-  }
-
-  if (readFromRegister(0x05, 1, &hbstHigh) != 1) {
-    return;
-  }
-
+  readFromRegister(0x04, 1, &hbstLow);
+  readFromRegister(0x05, 1, &hbstHigh);
   Vds_hb_st = ( ( ((uint16_t)hbstHigh) & 0x000f) << 8) | (uint16_t)hbstLow;
+
   // get HBSP
   hbspLow = hbstHigh;
-
-  if (readFromRegister(0x06, 1, &hbspHigh) != 1) {
-    return;
-  }
-
+  readFromRegister(0x06, 1, &hbspHigh);
   Vds_hb_sp = ( ( ((uint16_t)hbspHigh) & 0x00ff) << 4) | ( (((uint16_t)hbspLow) & 0x00f0) >> 4);
 
   // Perform the addition/subtraction
@@ -587,18 +572,18 @@ void shiftHorizontal(uint16_t amountToAdd, bool subtracting) {
 
   // handle the case where hbst or hbsp have been decremented below 0
   if (Vds_hb_st & 0x8000) {
-    Vds_hb_st = Vds_hsync_rst + Vds_hb_st;
+    Vds_hb_st = htotal + Vds_hb_st;
   }
   if (Vds_hb_sp & 0x8000) {
-    Vds_hb_sp = Vds_hsync_rst + Vds_hb_sp;
+    Vds_hb_sp = htotal + Vds_hb_sp;
   }
 
   // handle the case where hbst or hbsp have been incremented above htotal
-  if (Vds_hb_st > Vds_hsync_rst) {
-    Vds_hb_st = Vds_hb_st - Vds_hsync_rst;
+  if (Vds_hb_st >= htotal) {
+    Vds_hb_st = Vds_hb_st - htotal;
   }
-  if (Vds_hb_sp > Vds_hsync_rst) {
-    Vds_hb_sp = Vds_hb_sp - Vds_hsync_rst;
+  if (Vds_hb_sp >= htotal) {
+    Vds_hb_sp = Vds_hb_sp - htotal;
   }
 
   writeOneByte(0x04, (uint8_t)(Vds_hb_st & 0x00ff));
@@ -621,13 +606,8 @@ void scaleHorizontal(uint16_t amountToAdd, bool subtracting) {
   uint8_t newLow = 0x00;
   uint16_t newValue = 0x0000;
 
-  if (readFromRegister(0x03, 0x16, 1, &low) != 1) {
-    return;
-  }
-
-  if (readFromRegister(0x17, 1, &high) != 1) {
-    return;
-  }
+  readFromRegister(0x03, 0x16, 1, &low);
+  readFromRegister(0x17, 1, &high);
 
   newValue = ( ( ((uint16_t)high) & 0x0003) * 256) + (uint16_t)low;
 
@@ -768,6 +748,24 @@ void resetADCAutoGain() {
   writeOneByte(0x0a, 0x7f);
   writeOneByte(0x0b, 0x7f);
   delay(250);
+}
+
+void setMemoryHblankStartPosition(uint16_t value) {
+  uint8_t regLow, regHigh;
+  regLow = (uint8_t)value;
+  readFromRegister(3, 0x05, 1, &regHigh);
+  regHigh = (regHigh & 0xf0) | (uint8_t)((value & 0x0f00) >> 8);
+  writeOneByte(0x04, regLow);
+  writeOneByte(0x05, regHigh);
+}
+
+void setMemoryHblankStopPosition(uint16_t value) {
+  uint8_t regLow, regHigh;
+  readFromRegister(3, 0x05, 1, &regLow);
+  regLow = (regLow & 0x0f) | (uint8_t)((value & 0x000f) << 4);
+  regHigh = (uint8_t)((value & 0x0ff0) >> 4);
+  writeOneByte(0x05, regLow);
+  writeOneByte(0x06, regHigh);
 }
 
 void phaseThing() {
@@ -918,7 +916,7 @@ void getVideoTimings() {
 // wht 2152 wvt 628  | 800x600 ntsc
 // wht 2588 wvt 628 s3s16s70 | 800x600 pal
 // wht 1352 wvt 1000 s3s16scc s3s18s20 | 1280x960 ntsc
-// wht 1626 wvt 1000 s3s16s50 | 1280x960 pal | Scale Vertical: 585 or 512
+// wht 1625 wvt 1000 1280x960 pal | Scale Vertical: 585 or 512
 void set_htotal(uint16_t htotal) {
   uint8_t regLow, regHigh;
 
@@ -938,8 +936,10 @@ void set_htotal(uint16_t htotal) {
 
   // Memory fetch locations should be a few pixels before the real blank locations
   // The guide has from 50 to 100
-  uint16_t h_blank_memory_start_position = h_blank_start_position - 1;
-  uint16_t h_blank_memory_stop_position =  h_blank_stop_position  - 1;
+  // Start is not fully clear yet. Either 0 or a small amount before htotal.
+  // Auto Frame Lock sets it to 0 if it underflows htotal
+  uint16_t h_blank_memory_start_position = 0;
+  uint16_t h_blank_memory_stop_position =  htotal  * (73.0f / 338.0f);
 
   writeOneByte(0xF0, 3);
 
@@ -1801,9 +1801,17 @@ void loop() {
                 Serial.print(F("\nset ")); Serial.print(what); Serial.print(" "); Serial.println(value);
                 set_htotal(value);
               }
-              if (what.equals("vt")) {
+              else if (what.equals("vt")) {
                 Serial.print(F("\nset ")); Serial.print(what); Serial.print(" "); Serial.println(value);
                 set_vtotal(value);
+              }
+              else if (what.equals("hbst")) {
+                Serial.print(F("\nset ")); Serial.print(what); Serial.print(" "); Serial.println(value);
+                setMemoryHblankStartPosition(value);
+              }
+              else if (what.equals("hbsp")) {
+                Serial.print(F("\nset ")); Serial.print(what); Serial.print(" "); Serial.println(value);
+                setMemoryHblankStopPosition(value);
               }
             }
             else {
@@ -2136,8 +2144,8 @@ void loop() {
     vds_dis_hb_sp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
 
     if ( Vds_hsync_rst <= vds_dis_hb_st  ) {
-      vds_dis_hb_st = Vds_hsync_rst - 4;
-      vds_dis_hb_sp -= 4;
+      vds_dis_hb_st = Vds_hsync_rst - 1;
+      vds_dis_hb_sp -= 1;
       regLow = (uint8_t)vds_dis_hb_st;
       readFromRegister(3, 0x11, 1, &regHigh);
       regHigh = (regHigh & 0xf0) | (vds_dis_hb_st >> 8);
@@ -2149,6 +2157,20 @@ void loop() {
       regLow = (regLow & 0x0f) | ((uint8_t)(vds_dis_hb_sp << 4));
       writeOneByte(0x11, regLow);
       writeOneByte(0x12, regHigh);
+
+      setMemoryHblankStartPosition( 0 );
+      setMemoryHblankStopPosition( Vds_hsync_rst  * (73.0f / 338.0f) );
+    }
+
+    // Might as well fix SNES vertical offset
+    delay(250);
+    readFromRegister(0, 0x1c, 1, &register_high); readFromRegister(0, 0x1b, 1, &register_low);
+    register_combined = (((uint16_t(register_high) & 0x0007)) << 8) | (uint16_t)register_low;
+    if (register_combined == 261 || register_combined == 311) { // SNES NTSC and PAL
+      Serial.print(F("probably SNES: ")); Serial.print(register_combined); Serial.println(F(" vlines"));
+      writeOneByte(0xf0, 5); writeOneByte(0x39, 0x0c); // lower coast stop down from 0x10
+      readFromRegister(1, 0x1e, 1, &register_low);
+      writeOneByte(0xf0, 1); writeOneByte(0x1e, register_low - 16); // IF vertical offset
     }
 
     // fix hblank ST memory alignment
