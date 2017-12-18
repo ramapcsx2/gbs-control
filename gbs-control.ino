@@ -918,28 +918,27 @@ void getVideoTimings() {
 // wht 2588 wvt 628 s3s16s70 | 800x600 pal
 // wht 1352 wvt 1000 s3s16scc s3s18s20 | 1280x960 ntsc
 // wht 1625 wvt 1000 1280x960 pal | Scale Vertical: 585 or 512
+// wht 1480 wvt 1100 s1s1es58  1920x1080 pal
 void set_htotal(uint16_t htotal) {
   uint8_t regLow, regHigh;
 
-  // Guide: We set vds_dis_hb_st = H.total – 1, vds_dis_hb_sp = H.blank – 1
-  //
   // ModeLine "1280x960" 108.00 1280 1376 1488 1800 960 961 964 1000 +HSync +VSync
-  // H.blank: 1800 - 1280 = 520 == 1800 * (13/45)
-  // front porch: H2 - H1: 1376 - 1280 = 96
-  // back porch : H4 - H3: 1800 - 1488 = 312  >  hb stop:  0 + bp: 0 + 312 = 312 == htotal * (13/75)
-  // sync pulse width: H3 - H2: 1488 - 1376 = 112  > (assumption!) HS start: 0  HS stop: 112
-  // HS start: htotal * (4/75) + 1 // +1 because hb start = htotal -1 // (4/75) is the relation of front porch to htotal
-  // HS stop : HS start + (htotal * (14/225))
-  uint16_t h_blank_start_position = htotal - 8; // just a little margin more (over -1)
-  uint16_t h_blank_stop_position = htotal * (13.0f / 46.0f);
-  uint16_t h_sync_start_position = ( (uint16_t)((htotal * (4.0f / 75.0f)) + 1) ) & 0xfffe;
-  uint16_t h_sync_stop_position = ( (uint16_t)(h_sync_start_position + ((htotal * (14.0f / 225.0f)))) & 0xfffe );
+  // front porch: H2 - H1: 1376 - 1280
+  // back porch : H4 - H3: 1800 - 1488
+  // sync pulse : H3 - H2: 1488 - 1376
+  // HB start: 1280 / 1800 = (32/45)
+  // HB stop:  1800        = htotal - 1
+  // HS start: 1376 / 1800 = (172/225)
+  // HS stop : 1488 / 1800 = (62/75)
+  uint16_t h_blank_start_position = (uint16_t)((htotal * (32.0f / 45.0f)) + 1) & 0xfffe;
+  uint16_t h_blank_stop_position =  (uint16_t)(htotal - 1) & 0xfffe;
+  uint16_t h_sync_start_position =  (uint16_t)((htotal * (172.0f / 225.0f)) + 1) & 0xfffe;
+  uint16_t h_sync_stop_position =   (uint16_t)((htotal * (62.0f / 75.0f)) + 1) & 0xfffe;
 
-  // Memory fetch locations should be a few pixels before the real blank locations
-  // The guide has from 50 to 100
-  // start_position should be set a small amount before htotal
-  uint16_t h_blank_memory_start_position = h_blank_start_position;
-  uint16_t h_blank_memory_stop_position =  (htotal  * (73.0f / 338.0f) + 2);
+  // Memory fetch locations should somehow be calculated with settings for line length in IF and/or buffer sizes in S4 (Capture Buffer)
+  // just use something that works for now
+  uint16_t h_blank_memory_start_position = (uint16_t)((htotal * (19.0f / 26.0f)) + 1) & 0xfffe;
+  uint16_t h_blank_memory_stop_position =  (uint16_t)((htotal * (157.0f / 169.0f)) + 1) & 0xfffe;
 
   writeOneByte(0xF0, 3);
 
@@ -2131,35 +2130,24 @@ void loop() {
 
     // HTotal might now be outside horizontal blank pulse
     uint8_t regLow, regHigh;
-    uint16_t vds_dis_hb_st, vds_dis_hb_sp, Vds_hsync_rst;
-
+    uint16_t hpsp, htotal;
     readFromRegister(3, 0x01, 1, &regLow);
     readFromRegister(3, 0x02, 1, &regHigh);
-    Vds_hsync_rst = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-    readFromRegister(3, 0x10, 1, &regLow);
-    readFromRegister(3, 0x11, 1, &regHigh);
-    vds_dis_hb_st = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
+    htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
     readFromRegister(3, 0x11, 1, &regLow);
     readFromRegister(3, 0x12, 1, &regHigh);
-    vds_dis_hb_sp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
+    hpsp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
 
-    if ( Vds_hsync_rst <= vds_dis_hb_st  ) {
-      vds_dis_hb_st = Vds_hsync_rst - 1;
-      vds_dis_hb_sp -= 1;
-      regLow = (uint8_t)vds_dis_hb_st;
-      readFromRegister(3, 0x11, 1, &regHigh);
-      regHigh = (regHigh & 0xf0) | (vds_dis_hb_st >> 8);
-      writeOneByte(0x10, regLow);
-      writeOneByte(0x11, regHigh);
-
-      regHigh = (uint8_t)(vds_dis_hb_sp >> 4);
+    if ( htotal <= hpsp  ) {
+      hpsp = htotal - 1;
+      hpsp &= 0xfffe;
+      regHigh = (uint8_t)(hpsp >> 4);
       readFromRegister(3, 0x11, 1, &regLow);
-      regLow = (regLow & 0x0f) | ((uint8_t)(vds_dis_hb_sp << 4));
+      regLow = (regLow & 0x0f) | ((uint8_t)(hpsp << 4));
       writeOneByte(0x11, regLow);
       writeOneByte(0x12, regHigh);
-
-      setMemoryHblankStartPosition( Vds_hsync_rst - 8 );
-      setMemoryHblankStopPosition( (Vds_hsync_rst  * (73.0f / 338.0f) + 2 ) );
+      //setMemoryHblankStartPosition( Vds_hsync_rst - 8 );
+      //setMemoryHblankStopPosition( (Vds_hsync_rst  * (73.0f / 338.0f) + 2 ) );
     }
 
     // Might as well fix SNES vertical offset
