@@ -637,6 +637,7 @@ void scaleHorizontalLarger() {
 void moveHS(uint16_t amountToAdd, bool subtracting) {
   uint8_t high, low;
   uint16_t newST, newSP;
+  uint16_t dis_hb_st, dis_hb_sp;
 
   writeOneByte(0xf0, 3);
   readFromRegister(0x0a, 1, &low);
@@ -644,17 +645,31 @@ void moveHS(uint16_t amountToAdd, bool subtracting) {
   newST = ( ( ((uint16_t)high) & 0x000f) << 8) | (uint16_t)low;
   readFromRegister(0x0b, 1, &low);
   readFromRegister(0x0c, 1, &high);
-  newSP = ( (((uint16_t)high) & 0x007f) << 4) | ( (((uint16_t)low) & 0x00f0) >> 4);
-  Serial.print("newHSST: "); Serial.println(newST);
-  Serial.print("newHSSP: "); Serial.println(newSP);
+  newSP = ( (((uint16_t)high) & 0x00ff) << 4) | ( (((uint16_t)low) & 0x00f0) >> 4);
+
+  readFromRegister(3, 0x10, 1, &low);
+  readFromRegister(3, 0x11, 1, &high);
+  dis_hb_st = (( ( ((uint16_t)high) & 0x000f) << 8) | (uint16_t)low);
+
+  readFromRegister(3, 0x11, 1, &low);
+  readFromRegister(3, 0x12, 1, &high);
+  dis_hb_sp = ( (((uint16_t)high) << 4) | ((uint16_t)low & 0x00f0) >> 4);
 
   if (subtracting) {
-    newST -= amountToAdd;
-    newSP -= amountToAdd;
+    if (dis_hb_st < (newST - amountToAdd)) {
+      newST -= amountToAdd;
+      newSP -= amountToAdd;
+    }
+    else Serial.println("limit");
   } else {
-    newST += amountToAdd;
-    newSP += amountToAdd;
+    if (dis_hb_sp > (newSP + amountToAdd)) {
+      newST += amountToAdd;
+      newSP += amountToAdd;
+    }
+    else Serial.println("limit");
   }
+  Serial.print("HSST: "); Serial.print(newST);
+  Serial.print(" HSSP: "); Serial.println(newSP);
 
   writeOneByte(0x0a, (uint8_t)(newST & 0x00ff));
   writeOneByte(0x0b, ((uint8_t)(newSP & 0x000f) << 4) | ((uint8_t)((newST & 0x0f00) >> 8)) );
@@ -699,37 +714,20 @@ void shiftVertical(uint16_t amountToAdd, bool subtracting) {
   uint16_t vbspValue;
 
   // get VRST
-  if (readFromRegister(0x03, 0x02, 1, &vrstLow) != 1) {
-    return;
-  }
-
-  if (readFromRegister(0x03, 1, &vrstHigh) != 1) {
-    return;
-  }
-
+  readFromRegister(0x03, 0x02, 1, &vrstLow);
+  readFromRegister(0x03, 1, &vrstHigh);
   vrstValue = ( (((uint16_t)vrstHigh) & 0x007f) << 4) | ( (((uint16_t)vrstLow) & 0x00f0) >> 4);
 
   // get VBST
-  if (readFromRegister(0x07, 1, &vbstLow) != 1) {
-    return;
-  }
-
-  if (readFromRegister(0x08, 1, &vbstHigh) != 1) {
-    return;
-  }
-
+  readFromRegister(0x07, 1, &vbstLow);
+  readFromRegister(0x08, 1, &vbstHigh);
   vbstValue = ( ( ((uint16_t)vbstHigh) & 0x0007) << 8) | (uint16_t)vbstLow;
 
   // get VBSP
   vbspLow = vbstHigh;
-
-  if (readFromRegister(0x09, 1, &vbspHigh) != 1) {
-    return;
-  }
-
+  readFromRegister(0x09, 1, &vbspHigh);
   vbspValue = ( ( ((uint16_t)vbspHigh) & 0x007f) << 4) | ( (((uint16_t)vbspLow) & 0x00f0) >> 4);
 
-  // Perform the addition/subtraction
   if (subtracting) {
     vbstValue -= amountToAdd;
     vbspValue -= amountToAdd;
