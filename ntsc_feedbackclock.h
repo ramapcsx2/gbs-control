@@ -256,7 +256,7 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 0,
 0,
 50,
-89,
+91,
 195,
 32,
 116,

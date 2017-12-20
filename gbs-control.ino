@@ -6,6 +6,7 @@
 #include "pal_yuv.h"
 //#include "ntsc_snes_1440x900.h"
 #include "vclktest.h"
+#include "ntsc_feedbackclock.h"
 
 // 7 bit GBS I2C Address
 #define GBS_ADDR 0x17
@@ -676,6 +677,27 @@ void moveHS(uint16_t amountToAdd, bool subtracting) {
   writeOneByte(0x0c, (uint8_t)((newSP & 0x0ff0) >> 4) );
 }
 
+void invertHS() {
+  uint8_t high, low;
+  uint16_t newST, newSP;
+
+  writeOneByte(0xf0, 3);
+  readFromRegister(0x0a, 1, &low);
+  readFromRegister(0x0b, 1, &high);
+  newST = ( ( ((uint16_t)high) & 0x000f) << 8) | (uint16_t)low;
+  readFromRegister(0x0b, 1, &low);
+  readFromRegister(0x0c, 1, &high);
+  newSP = ( (((uint16_t)high) & 0x00ff) << 4) | ( (((uint16_t)low) & 0x00f0) >> 4);
+
+  uint16_t temp = newST;
+  newST = newSP;
+  newSP = temp;
+
+  writeOneByte(0x0a, (uint8_t)(newST & 0x00ff));
+  writeOneByte(0x0b, ((uint8_t)(newSP & 0x000f) << 4) | ((uint8_t)((newST & 0x0f00) >> 8)) );
+  writeOneByte(0x0c, (uint8_t)((newSP & 0x0ff0) >> 4) );
+}
+
 void scaleVertical(uint16_t amountToAdd, bool subtracting) {
   uint8_t high = 0x00;
   uint8_t newHigh = 0x00;
@@ -1005,10 +1027,10 @@ void set_htotal(uint16_t htotal) {
 
 void set_vtotal(uint16_t vtotal) {
   uint8_t regLow, regHigh;
-  uint16_t v_blank_start_position = vtotal - (vtotal * 0.04);
-  uint16_t v_blank_stop_position = 1; // is this right? 0 should mean 1 line after vtotal.
-  uint16_t v_sync_start_position = v_blank_start_position + 1;
-  uint16_t v_sync_stop_position = v_sync_start_position + 3;
+  uint16_t v_blank_start_position = vtotal * (480.0f / 525.0f);
+  uint16_t v_blank_stop_position = 0;
+  uint16_t v_sync_start_position = v_blank_start_position + (vtotal * (2.0f / 175.0f));
+  uint16_t v_sync_stop_position = v_sync_start_position + (vtotal * (2.0f / 175.0f));
 
   // write vtotal
   writeOneByte(0xF0, 3);
@@ -1048,7 +1070,8 @@ void set_vtotal(uint16_t vtotal) {
   writeOneByte(0x15, regHigh);
   writeOneByte(0x14, regLow);
 
-  // VB ST (memory) to v_blank_start_position (display), VB SP (memory) to v_blank_stop_position (display) - 1
+  // If VSCALE_BYPS = 1 THEN (Vb_sp – Vb_st) = V total – V display enable
+  // VB ST (memory) to v_blank_start_position, VB SP (memory) vtotal - 1
   regLow = (uint8_t)v_blank_start_position;
   regHigh = (uint8_t)(v_blank_start_position >> 8);
   writeOneByte(0x07, regLow);
@@ -1648,7 +1671,7 @@ void loop() {
         scaleVertical(1, false);
         break;
       case '6':
-
+        invertHS();
         break;
       case '7':
         writeProgramArrayNew(ntsc_yuv);
@@ -1661,7 +1684,9 @@ void loop() {
         enableVDS();
         break;
       case '9':
-        zeroAll();
+        writeProgramArrayNew(ntsc_feedbackclock);
+        resetDigital();
+        enableVDS();
         break;
       case 'o':
         {
