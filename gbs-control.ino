@@ -172,75 +172,6 @@ void writeProgramArraySection(const uint8_t* programArray, byte section, byte su
   }
 }
 
-boolean inputAndSyncDetect() {
-  // GBS boards have 2 potential sync sources:
-  // - 3 plug RCA connector
-  // - VGA input / 5 pin RGBS header / 8 pin VGA header (all 3 are shared electrically)
-  // This routine finds the input that has a sync signal, then stores the result for global use.
-  // Note: It is assumed that the 5725 has a preset loaded!
-  uint8_t readout = 0;
-  uint8_t previous = 0;
-  byte timeout = 0;
-  boolean syncFound = false;
-
-  writeOneByte(0xF0, 5);
-  writeOneByte(0x02, 0x07); // SOG on, slicer level mid, input 00 > R0/G0/B0/SOG0 as input (YUV)
-  writeOneByte(0x2a, 0x50); // "continue legal line as valid" to a value that helps the SP detect the format
-  writeOneByte(0xF0, 0);
-  timeout = 6; // try this input a few times and look for a change
-  readFromRegister(0x19, 1, &readout); // in hor. pulse width
-  while (timeout-- > 0) {
-    previous = readout;
-    readFromRegister(0x19, 1, &readout);
-    if (previous != readout) {
-      rto->inputIsYpBpR = 1;
-      syncFound = true;
-      break;
-    }
-    delay(1);
-  }
-
-  if (syncFound == false) {
-    writeOneByte(0xF0, 5);
-    writeOneByte(0x02, 0x59); // SOG on, slicer level mid, input 01 > R1/G1/B1/SOG1 as input (RGBS)
-    writeOneByte(0xF0, 0);
-    timeout = 6; // try this input a few times and look for a change
-    readFromRegister(0x19, 1, &readout); // in hor. pulse width
-    while (timeout-- > 0) {
-      previous = readout;
-      readFromRegister(0x19, 1, &readout);
-      if (previous != readout) {
-        rto->inputIsYpBpR = 0;
-        syncFound = true;
-        break;
-      }
-      delay(1);
-    }
-  }
-
-  if (!syncFound) {
-    Serial.println(F("no input with sync found"));
-  }
-
-  if (rto->inputIsYpBpR == true) {
-    Serial.println(F("using RCA inputs"));
-    writeOneByte(0xF0, 5);
-    writeOneByte(0x02, 0x07);
-  }
-  else {
-    Serial.println(F("using RGBS inputs"));
-    writeOneByte(0xF0, 5);
-    writeOneByte(0x02, 0x59);
-  }
-
-  // even if SP is unstable, we at least have some sync signal
-  return syncFound;
-}
-
-uint8_t getSingleByteFromPreset(const uint8_t* programArray, unsigned int offset) {
-  return pgm_read_byte(programArray + offset);
-}
-
 void writeProgramArrayNew(const uint8_t* programArray)
 {
   int index = 0;
@@ -341,6 +272,75 @@ void writeProgramArrayNew(const uint8_t* programArray)
   writeOneByte(0xF0, 0);
   writeOneByte(0x46, 0x3f); // reset controls 1 // everything on except VDS display output
   writeOneByte(0x47, 0x17); // all on except HD bypass
+}
+
+boolean inputAndSyncDetect() {
+  // GBS boards have 2 potential sync sources:
+  // - 3 plug RCA connector
+  // - VGA input / 5 pin RGBS header / 8 pin VGA header (all 3 are shared electrically)
+  // This routine finds the input that has a sync signal, then stores the result for global use.
+  // Note: It is assumed that the 5725 has a preset loaded!
+  uint8_t readout = 0;
+  uint8_t previous = 0;
+  byte timeout = 0;
+  boolean syncFound = false;
+
+  writeOneByte(0xF0, 5);
+  writeOneByte(0x02, 0x07); // SOG on, slicer level mid, input 00 > R0/G0/B0/SOG0 as input (YUV)
+  writeOneByte(0x2a, 0x50); // "continue legal line as valid" to a value that helps the SP detect the format
+  writeOneByte(0xF0, 0);
+  timeout = 6; // try this input a few times and look for a change
+  readFromRegister(0x19, 1, &readout); // in hor. pulse width
+  while (timeout-- > 0) {
+    previous = readout;
+    readFromRegister(0x19, 1, &readout);
+    if (previous != readout) {
+      rto->inputIsYpBpR = 1;
+      syncFound = true;
+      break;
+    }
+    delay(1);
+  }
+
+  if (syncFound == false) {
+    writeOneByte(0xF0, 5);
+    writeOneByte(0x02, 0x59); // SOG on, slicer level mid, input 01 > R1/G1/B1/SOG1 as input (RGBS)
+    writeOneByte(0xF0, 0);
+    timeout = 6; // try this input a few times and look for a change
+    readFromRegister(0x19, 1, &readout); // in hor. pulse width
+    while (timeout-- > 0) {
+      previous = readout;
+      readFromRegister(0x19, 1, &readout);
+      if (previous != readout) {
+        rto->inputIsYpBpR = 0;
+        syncFound = true;
+        break;
+      }
+      delay(1);
+    }
+  }
+
+  if (!syncFound) {
+    Serial.println(F("no input with sync found"));
+  }
+
+  if (rto->inputIsYpBpR == true) {
+    Serial.println(F("using RCA inputs"));
+    writeOneByte(0xF0, 5);
+    writeOneByte(0x02, 0x07);
+  }
+  else {
+    Serial.println(F("using RGBS inputs"));
+    writeOneByte(0xF0, 5);
+    writeOneByte(0x02, 0x59);
+  }
+
+  // even if SP is unstable, we at least have some sync signal
+  return syncFound;
+}
+
+uint8_t getSingleByteFromPreset(const uint8_t* programArray, unsigned int offset) {
+  return pgm_read_byte(programArray + offset);
 }
 
 void zeroAll()
@@ -1944,7 +1944,7 @@ void loop() {
         while (!getSyncProcessorSignalValid()) {
           temp++;
           if ((temp % 5) == 0) {
-            Serial.print("X");
+            Serial.print(F("No Sync!"));
             digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
           }
           if ((temp % 25) == 0) {
