@@ -1907,14 +1907,14 @@ void loop() {
       signalInputChangeCounter = 0;
     }
 
-    // debug
-    //    if (noSyncCounter > 0 ) {
-    //      Serial.print(signalInputChangeCounter);
-    //      Serial.print(" ");
-    //      Serial.println(noSyncCounter);
-    //    }
+// debug
+//    if (noSyncCounter > 0 ) {
+//      Serial.print(signalInputChangeCounter);
+//      Serial.print(" ");
+//      Serial.println(noSyncCounter);
+//    }
 
-    if (noSyncCounter >= 1000 ) { // MotionDetect reports nothing
+    if (noSyncCounter >= 300 ) { // ModeDetect reports nothing (for about 3 seconds)
       Serial.println(F("No Sync!"));
       disableVDS();
       rto->videoStandardInput = 0;
@@ -2158,21 +2158,6 @@ void loop() {
       writeOneByte(0x12, regHigh);
       //setMemoryHblankStartPosition( Vds_hsync_rst - 8 );
       //setMemoryHblankStopPosition( (Vds_hsync_rst  * (73.0f / 338.0f) + 2 ) );
-    }
-
-    // Might as well fix SNES vertical offset
-    readFromRegister(0, 0x1c, 1, &register_high); readFromRegister(0, 0x1b, 1, &register_low);
-    register_combined = (((uint16_t(register_high) & 0x0007)) << 8) | (uint16_t)register_low;
-    if (register_combined == 261 || register_combined == 311) { // SNES NTSC and PAL
-      // don't patch anything for now. SNES detection via input lines misses regular Super Famicoms, only detects 1Chip
-      Serial.print(F("probably SNES: ")); Serial.print(register_combined); Serial.println(F(" vlines"));
-      // good h scaling for SNES seems to be 732
-
-      // lower coast stop down from 0x10, would fix snes 239 line mode first scanline jitter but causes lost sync in interlace mode
-      //writeOneByte(0xf0, 5); writeOneByte(0x39, 0x0c);
-
-      //readFromRegister(1, 0x1e, 1, &register_low);
-      //writeOneByte(0xf0, 1); writeOneByte(0x1e, register_low - 15); // IF vertical offset
     }
 
     rto->syncLockFound = true;
