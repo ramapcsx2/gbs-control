@@ -465,8 +465,6 @@ void resetPLL() {
   writeOneByte(0x43, (readout & ~(1 << 5))); // main pll initial vco voltage off
   delay(6);
   readFromRegister(0x43, 1, &readout);
-  writeOneByte(0x43, (readout | 0x0f)); // main pll skew
-  readFromRegister(0x43, 1, &readout);
   writeOneByte(0x43, (readout | (1 << 4))); // main pll lock on
   digitalWrite(LED_BUILTIN, LOW); // in case LED was on
   Serial.println(F("PLL reset"));
