@@ -1441,6 +1441,8 @@ void loop() {
   static uint8_t inputStage = 0;
   static uint8_t register_low, register_high = 0;
   static uint16_t register_combined = 0;
+  static uint16_t noSyncCounter = 0;
+  static uint16_t signalInputChangeCounter = 0;
   static unsigned long thisTime, lastTimeSyncWatcher = millis();
 
   if (Serial.available()) {
@@ -1884,90 +1886,55 @@ void loop() {
 
   // poll sync status continously
   if ((rto->syncWatcher == true) && ((thisTime - lastTimeSyncWatcher) > 10)) {
-    byte failcounter = 0;
     byte result = getVideoMode();
 
-    // is there a sync problem?
-    //if (!getSyncProcessorSignalValid() || result != rto->videoStandardInput) {
-    if (result != rto->videoStandardInput) {
-      for (byte test = 0; test <= 20; test++) {
-        result = getVideoMode();
-        Serial.print(" "); Serial.print(result); Serial.print(" ");
-        if (result != rto->videoStandardInput) { // has the video standard changed?
-          //Serial.print("-");
-          failcounter++;
-          if (failcounter == 3) disableDeinterlacer();
-        }
-        else if (result == rto->videoStandardInput && getSyncProcessorSignalValid()) {
-          Serial.print("\n");
-          failcounter = 0;
-          break;
-        }
-        delay(10);
-      }
-
-      if (failcounter >= 19 ) { // video mode has changed
-        Serial.print("\n");
-        disableVDS(); // disable output to display until sync is stable again. at that time, a preset will be loaded and VDS get re-enabled
-        //resetDigital();
-        //SyncProcessorOffOn();
-        //delay(1000);
-        rto->videoStandardInput = 0;
-      }
+    if (result == 0) {
+      noSyncCounter++;
+      signalInputChangeCounter = 0; // not sure yet. needs some field testing
+    }
+    else if (result != rto->videoStandardInput) { // ntsc/pal switch or similar
+      noSyncCounter = 0;
+      signalInputChangeCounter++;
+    }
+    else if (noSyncCounter > 0) { // result is rto->videoStandardInput
+      noSyncCounter = 0;
     }
 
-    if (rto->deinterlacerWasTurnedOff == true && rto->videoStandardInput != 0) {
-      enableDeinterlacer();
+    if (signalInputChangeCounter >= 6 ) { // video mode has changed
+      Serial.println(F("New Input!"));
+      disableVDS(); // disable output to display until sync is stable again. applyPresets() will re-enable it.
+      rto->videoStandardInput = 0;
+      signalInputChangeCounter = 0;
+    }
+
+    // debug
+    //    if (noSyncCounter > 0 ) {
+    //      Serial.print(signalInputChangeCounter);
+    //      Serial.print(" ");
+    //      Serial.println(noSyncCounter);
+    //    }
+
+    if (noSyncCounter >= 1000 ) { // MotionDetect reports nothing
+      Serial.println(F("No Sync!"));
+      disableVDS();
+      rto->videoStandardInput = 0;
+      signalInputChangeCounter = 0;
+      noSyncCounter = 0;
     }
 
     if (rto->videoStandardInput == 0) {
-      byte timeout = 50;
       //this would need to be in the loop, since MD reports the last (valid) signal all the time..
       //if (!getSyncProcessorSignalValid()){ // MD can get stuck in the last mode when console is powered off
       //  Serial.println("stuck?");
       //  resetDigital(); // resets MD as well, causing a new detection
       //}
-      while (result == 0 && --timeout > 0) {
-        Serial.print(".");
-        result = getVideoMode();
-        delay(35);
-      }
-
-      if (timeout == 0) {
-        // don't apply presets or enable VDS this loop.
-        // the console must be off or cables disconnected (or using a bad sync signal)
-        Serial.println("XXX");
-        // Stop the real time recovery attempt and wait until Mode Detection says there is a valid signal.
-        uint8_t temp = 0;
-        while (!getSyncProcessorSignalValid()) {
-          temp++;
-          if ((temp % 5) == 0) {
-            Serial.print(F("No Sync!"));
-            digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-          }
-          if ((temp % 25) == 0) {
-            writeProgramArraySection(ntsc_240p, 1); // safety attempt at recovery: restore sections 1 and 5, then reset the chip
-            writeProgramArraySection(ntsc_240p, 5); // for example: GBS lost power but Arduino did not (development setup)
-            if (rto->inputIsYpBpR == true) {
-              writeOneByte(0x02, 0x07); //RCA inputs, SOG on, low level
-            }
-            resetDigital();
-            delay(500);
-            temp = 0;
-          }
-          delay(250);
-        }
-        // sync recovered, continue the loop. next run will apply presets as needed
-      }
-      else {
-        applyPresets(result);
-        resetPLL();
-        resetSyncLock();
-        delay(100);
-        enableVDS(); // display now active
-        delay(900);
-        resetADCAutoGain();
-      }
+      applyPresets(result);
+      resetPLL();
+      resetSyncLock();
+      delay(100);
+      enableVDS(); // display now active
+      delay(600);
+      resetADCAutoGain();
     }
 
     lastTimeSyncWatcher = thisTime;
