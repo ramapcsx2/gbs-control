@@ -31,7 +31,6 @@ struct runTimeOptions {
   boolean deinterlacerWasTurnedOff;
   boolean syncLockEnabled;
   boolean syncLockFound;
-  boolean HSYNCconnected;
   boolean VSYNCconnected;
   boolean IFdown; // push button support example using an interrupt
 } rtos;
@@ -1081,6 +1080,8 @@ void set_vtotal(uint16_t vtotal) {
   writeOneByte(0x09, regHigh);
 }
 
+
+
 void applyPresets(byte result) {
   if (result == 2) {
     Serial.println(F("PAL timing "));
@@ -1123,6 +1124,8 @@ void applyPresets(byte result) {
     Serial.print("\n");
     rto->videoStandardInput = 1;
   }
+
+  setClampPosition();   // all presets the same for now
 }
 
 void enableDeinterlacer() {
@@ -1299,7 +1302,13 @@ void setVerticalPositionAuto() {
   }
 }
 
-void applyYuvPatches() {
+void setClampPosition() {   // SP this line's color clamp (black reference)
+  writeOneByte(0xF0, 5);
+  writeOneByte(0x44, 0); writeOneByte(0x42, 0);
+  writeOneByte(0x41, 0); writeOneByte(0x43, 0x10);
+}
+
+void applyYuvPatches() {   // also does color mixing changes
   uint8_t readout;
 
   writeOneByte(0xF0, 5);
@@ -1331,7 +1340,6 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH); // enable the LED, lets users know the board is starting up
   pinMode(10, INPUT); // vsync sample input
-  pinMode(11, INPUT); // hsync sample input
 
   pinMode(A0, INPUT);         // auto ADC gain measurement input
   analogReference(INTERNAL);  // change analog read reference to 1.1V internal
@@ -1372,7 +1380,6 @@ void setup() {
   rto->highestValueEverSeen = 0;
   rto->deinterlacerWasTurnedOff = false;
   rto->syncLockFound = false;
-  rto->HSYNCconnected = false;
   rto->VSYNCconnected = false;
   rto->IFdown = false;
 
