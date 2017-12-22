@@ -2039,16 +2039,17 @@ void loop() {
 
   // only run this when sync is stable!
   if (rto->syncLockEnabled == true && rto->syncLockFound == false && getSyncStable()) {
-    long timer1 = 0;
-    long timer2 = 0;
+    long timer1;
+    long timer2;
     long accumulator1 = 1; // input timing
     long accumulator2 = 1; // current output timing
     long difference = 99999; // shortcut
-    long prev_difference = 0;
-    uint8_t currentHTotal = 0;
-    uint8_t bestHTotal = 0;
+    long prev_difference;
+    // rewrite all of this!
+    uint8_t currentHTotal;
+    uint8_t bestHTotal = 1;
     uint8_t regLow, regHigh;
-    uint16_t hpsp, htotal;
+    uint16_t hpsp, htotal, backupHTotal;
 
     // test if we get the vsync signal (wire is connected, display output is working)
     // this remembers a positive result via VSYNCconnected and a negative via syncLockEnabled
@@ -2109,6 +2110,7 @@ void loop() {
     readFromRegister(3, 0x01, 1, &regLow);
     readFromRegister(3, 0x02, 1, &regHigh);
     htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
+    backupHTotal = htotal;
     Serial.print(F(" Start HTotal: ")); Serial.println(htotal);
 
     currentHTotal = 1;
@@ -2169,6 +2171,28 @@ void loop() {
     readFromRegister(3, 0x01, 1, &regLow);
     readFromRegister(3, 0x02, 1, &regHigh);
     htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
+    // safety
+    if (htotal > backupHTotal) {
+      if ((htotal - backupHTotal) > 30) {
+        regLow = (uint8_t)backupHTotal;
+        readFromRegister(3, 0x02, 1, &regHigh);
+        regHigh = (regHigh & 0xf0) | (backupHTotal >> 8);
+        writeOneByte(0x01, regLow);
+        writeOneByte(0x02, regHigh);
+        htotal = backupHTotal;
+      }
+    }
+    else if (htotal < backupHTotal) {
+      if ((backupHTotal - htotal) > 30) {
+        regLow = (uint8_t)backupHTotal;
+        readFromRegister(3, 0x02, 1, &regHigh);
+        regHigh = (regHigh & 0xf0) | (backupHTotal >> 8);
+        writeOneByte(0x01, regLow);
+        writeOneByte(0x02, regHigh);
+        htotal = backupHTotal;
+      }
+    }
+
     readFromRegister(3, 0x11, 1, &regLow);
     readFromRegister(3, 0x12, 1, &regHigh);
     hpsp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
