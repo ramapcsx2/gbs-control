@@ -1522,6 +1522,7 @@ void loop() {
         rto->videoStandardInput = 1;
         resetDigital();
         enableVDS();
+        resetSyncLock();
         break;
       case 'r':
         Serial.println(F("pal preset"));
@@ -1533,6 +1534,7 @@ void loop() {
         rto->videoStandardInput = 2;
         resetDigital();
         enableVDS();
+        resetSyncLock();
         break;
       case '.':
         Serial.println(F("input/sync detect"));
@@ -1672,6 +1674,7 @@ void loop() {
         }
         resetDigital();
         enableVDS();
+        resetSyncLock();
         break;
       case '3':
         phaseThing();
@@ -1693,11 +1696,13 @@ void loop() {
         }
         resetDigital();
         enableVDS();
+        resetSyncLock();
         break;
       case '8':
         writeProgramArrayNew(pal_yuv);
         resetDigital();
         enableVDS();
+        resetSyncLock();
         break;
       case '9':
         writeProgramArrayNew(ntsc_feedbackclock);
@@ -1707,6 +1712,7 @@ void loop() {
         }
         resetDigital();
         enableVDS();
+        resetSyncLock();
         break;
       case 'o':
         {
@@ -2098,14 +2104,9 @@ void loop() {
     htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
     Serial.print(F(" Start HTotal: ")); Serial.println(htotal);
 
-    if (currentHTotal >= 25) {
-      currentHTotal -= 24;
-    }
-    else {
-      currentHTotal = 1;
-    }
+    currentHTotal = 1;
 
-    while ((currentHTotal < 0xff) ) { // && (currentHTotal < ceilingHTotal)
+    while ((currentHTotal < 0xff) ) {
       writeOneByte(0xF0, 3);
       writeOneByte(0x01, currentHTotal);
 
@@ -2121,26 +2122,23 @@ void loop() {
       difference = (accumulator1 > accumulator2) ? (accumulator1 - accumulator2) : (accumulator2 - accumulator1);
       Serial.print(currentHTotal, HEX); Serial.print(": "); Serial.println(difference);
 
-      if (difference < prev_difference) {
+      // todo: do this properly and use the full htotal value with a range calculation, etc
+      if (difference == prev_difference) {
+        // best value is last one, exit loop
+        bestHTotal = currentHTotal - 1;
+        break;
+      }
+      else if (difference < prev_difference) {
         bestHTotal = currentHTotal;
       }
       else {
-        // increasing again? we have the value, abort loop
+        // increasing again? we have the value, exit loop
         break;
       }
 
-      // one step of S3_01 equals ~12.
-      if (difference > 192) {
-        currentHTotal += 14;
-      }
-      else if (difference > 132) {
-        currentHTotal += 9;
-      }
-      else if (difference > 72) {
-        currentHTotal += 4;
-      }
-      else if (difference > 36) {
-        currentHTotal += 2;
+      if (difference > 40) {
+        float htotalfactor = ((float)htotal) / 2200;
+        currentHTotal += ((uint8_t(difference * 0.05f) * htotalfactor) + 1);
       }
       else {
         currentHTotal += 1;
