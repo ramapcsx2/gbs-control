@@ -1515,6 +1515,10 @@ void loop() {
       case 'e':
         Serial.println(F("ntsc preset"));
         writeProgramArrayNew(ntsc_240p);
+        if (rto->inputIsYpBpR == true) {
+          Serial.print("(YUV)");
+          applyYuvPatches();
+        }
         rto->videoStandardInput = 1;
         resetDigital();
         enableVDS();
@@ -1522,6 +1526,10 @@ void loop() {
       case 'r':
         Serial.println(F("pal preset"));
         writeProgramArrayNew(pal_240p);
+        if (rto->inputIsYpBpR == true) {
+          Serial.print("(YUV)");
+          applyYuvPatches();
+        }
         rto->videoStandardInput = 2;
         resetDigital();
         enableVDS();
@@ -1658,6 +1666,10 @@ void loop() {
         break;
       case '2':
         writeProgramArrayNew(vclktest);
+        if (rto->inputIsYpBpR == true) {
+          Serial.print("(YUV)");
+          applyYuvPatches();
+        }
         resetDigital();
         enableVDS();
         break;
@@ -1675,6 +1687,10 @@ void loop() {
         break;
       case '7':
         writeProgramArrayNew(ntsc_yuv);
+        if (rto->inputIsYpBpR == true) {
+          Serial.print("(YUV)");
+          applyYuvPatches();
+        }
         resetDigital();
         enableVDS();
         break;
@@ -1685,6 +1701,10 @@ void loop() {
         break;
       case '9':
         writeProgramArrayNew(ntsc_feedbackclock);
+        if (rto->inputIsYpBpR == true) {
+          Serial.print("(YUV)");
+          applyYuvPatches();
+        }
         resetDigital();
         enableVDS();
         break;
@@ -1907,16 +1927,18 @@ void loop() {
       signalInputChangeCounter = 0;
     }
 
-// debug
-//    if (noSyncCounter > 0 ) {
-//      Serial.print(signalInputChangeCounter);
-//      Serial.print(" ");
-//      Serial.println(noSyncCounter);
-//    }
+    // debug
+    //    if (noSyncCounter > 0 ) {
+    //      Serial.print(signalInputChangeCounter);
+    //      Serial.print(" ");
+    //      Serial.println(noSyncCounter);
+    //    }
 
-    if (noSyncCounter >= 300 ) { // ModeDetect reports nothing (for about 3 seconds)
+    if (noSyncCounter >= 500 ) { // ModeDetect reports nothing (for about 5 seconds)
       Serial.println(F("No Sync!"));
       disableVDS();
+      inputAndSyncDetect();
+      delay(300);
       rto->videoStandardInput = 0;
       signalInputChangeCounter = 0;
       noSyncCounter = 0;
