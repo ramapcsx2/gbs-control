@@ -15,7 +15,6 @@
 // Once we know which options are really required, this can be made more local.
 // Note: loop() has many more run time variables
 struct runTimeOptions {
-  boolean printInfos;
   boolean inputIsYpBpR;
   boolean autoGainADC;
   boolean syncWatcher;
@@ -24,9 +23,6 @@ struct runTimeOptions {
   uint8_t autoPositionVerticalValue;
   uint8_t videoStandardInput : 3; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 480p NTSC, 4 576p PAL
   boolean ADCGainValueFound; // ADC auto gain variables
-  uint16_t highestValue : 11; // 2047 discrete unsigned values (maximum of analogRead() is 1023)
-  uint16_t highestValueEverSeen : 11; // to measure the upper limit we can tune the TiVo DAC to
-  uint16_t currentVoltage : 11;
   uint16_t ADCTarget : 11; // the target brightness (optimal value depends on the individual Arduino analogRead() results)
   boolean deinterlacerWasTurnedOff;
   boolean syncLockEnabled;
@@ -785,9 +781,7 @@ void shiftVerticalDown() {
 }
 
 void resetADCAutoGain() {
-  rto->highestValue = 0;
   rto->ADCGainValueFound = false;
-  rto->currentVoltage = 0;
   writeOneByte(0xF0, 5);
   writeOneByte(0x09, 0x7f);
   writeOneByte(0x0a, 0x7f);
@@ -1198,28 +1192,39 @@ void autoADCGain() {
   static const uint16_t bigStep = rto->ADCTarget * 0.04f;
   static const uint16_t medStep = rto->ADCTarget * 0.015f;
   static const uint16_t smaStep = rto->ADCTarget * 0.005f;
+  static uint16_t currentVoltage = 0;
+  static uint16_t highestValue = 0;
+  //static uint16_t highestValueEverSeen = 0; // to measure the upper limit we can tune the TiVo DAC to
 
   if (rto->ADCGainValueFound == false) {
     for (int i = 0; i < 1024; i++) {
       uint16_t temp = analogRead(A0);
-      if (temp != 0) rto->currentVoltage = temp;
-      if (rto->currentVoltage > ADCCeiling) {} // ADC misread, most likely
-      else if (rto->currentVoltage > rto->highestValue) rto->highestValue = rto->currentVoltage;
+      if (temp != 0) {
+        currentVoltage = temp;
+      }
+      if (currentVoltage > ADCCeiling) {} // ADC misread, most likely
+      else if (currentVoltage > highestValue) {
+        highestValue = currentVoltage;
+      }
     }
   }
   else {
     // for overshoot
     for (int i = 0; i < 1024; i++) {
       uint16_t temp = analogRead(A0);
-      if (temp != 0) rto->currentVoltage = temp;
-      byte randomValue = bitRead(rto->currentVoltage, 0) + bitRead(rto->currentVoltage, 1) + bitRead(rto->currentVoltage, 2);  // random enough
+      if (temp != 0) {
+        currentVoltage = temp;
+      }
+      byte randomValue = bitRead(currentVoltage, 0) + bitRead(currentVoltage, 1) + bitRead(currentVoltage, 2);  // random enough
       delayMicroseconds(randomValue);
-      if (rto->currentVoltage > ADCCeiling) {} // ADC misread, most likely
-      else if (rto->currentVoltage > rto->highestValue) rto->highestValue = rto->currentVoltage;
+      if (currentVoltage > ADCCeiling) {} // ADC misread, most likely
+      else if (currentVoltage > highestValue) {
+        highestValue = currentVoltage;
+      }
     }
   }
 
-  if (rto->highestValue >= rto->ADCTarget) {
+  if (highestValue >= rto->ADCTarget) {
     rto->ADCGainValueFound = true;
   }
 
@@ -1229,9 +1234,9 @@ void autoADCGain() {
     readFromRegister(0x09, 1, &readout);
     if (readout >= 0x40 && readout <= 0x7F) {  // if we're at 0x3F already, stop increasing
       byte amount = 1;
-      if (rto->highestValue < (rto->ADCTarget - bigStep)) amount = 4;
-      else if (rto->highestValue < (rto->ADCTarget - medStep)) amount = 2;
-      else if (rto->highestValue < (rto->ADCTarget - smaStep)) amount = 1;
+      if (highestValue < (rto->ADCTarget - bigStep)) amount = 4;
+      else if (highestValue < (rto->ADCTarget - medStep)) amount = 2;
+      else if (highestValue < (rto->ADCTarget - smaStep)) amount = 1;
       writeOneByte(0x09, readout - amount);
       writeOneByte(0x0a, readout - amount);
       writeOneByte(0x0b, readout - amount);
@@ -1239,19 +1244,19 @@ void autoADCGain() {
   }
 
   // decrease stage, always runs
-  if (rto->highestValue > rto->ADCTarget) {
+  if (highestValue > rto->ADCTarget) {
     //Serial.print(" highestValue: "); Serial.print(highestValue);
     writeOneByte(0xF0, 5);
     readFromRegister(0x09, 1, &readout);
     byte amount = 1;
-    if (rto->highestValue > (rto->ADCTarget + bigStep)) amount = 4;
-    else if (rto->highestValue > (rto->ADCTarget + medStep)) amount = 2;
-    else if (rto->highestValue > (rto->ADCTarget + smaStep)) amount = 1;
+    if (highestValue > (rto->ADCTarget + bigStep)) amount = 4;
+    else if (highestValue > (rto->ADCTarget + medStep)) amount = 2;
+    else if (highestValue > (rto->ADCTarget + smaStep)) amount = 1;
 
     writeOneByte(0x09, readout + amount);
     writeOneByte(0x0a, (readout + amount) - 5); // accounts for G channel offset in presets
     writeOneByte(0x0b, readout + amount);
-    rto->highestValue = 0; // reset this for next round
+    highestValue = 0; // reset this for next round
     delay(20); // give it some time to stick
   }
 }
@@ -1305,7 +1310,7 @@ void setVerticalPositionAuto() {
 void setClampPosition() {   // SP this line's color clamp (black reference)
   writeOneByte(0xF0, 5);
   writeOneByte(0x44, 0); writeOneByte(0x42, 0);
-  writeOneByte(0x41, 0); writeOneByte(0x43, 0x10);
+  writeOneByte(0x41, 0x10); writeOneByte(0x43, 0x80); // wider range for some newer GBS boards (they seem to float the inputs more??)
 }
 
 void applyYuvPatches() {   // also does color mixing changes
@@ -1366,18 +1371,16 @@ void setup() {
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
   rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
-  rto->ADCTarget = 635;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
-  // the following is just run time variables. don't change!
+  rto->ADCTarget = 630;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
   rto->autoPositionVerticalEnabled = false;
-  rto->printInfos = false;
+
+  // the following is just run time variables. don't change!
+
   rto->inputIsYpBpR = false;
   rto->autoPositionVerticalFound = false;
   rto->autoPositionVerticalValue = 0;
   rto->videoStandardInput = 0;
   rto->ADCGainValueFound = false;
-  rto->highestValue = 0;
-  rto->currentVoltage = 0;
-  rto->highestValueEverSeen = 0;
   rto->deinterlacerWasTurnedOff = false;
   rto->syncLockFound = false;
   rto->VSYNCconnected = false;
@@ -1441,6 +1444,7 @@ void setup() {
 
 void loop() {
   // reminder: static variables are initialized once, not every loop
+  static boolean printInfos = false;
   static uint8_t readout = 0;
   static uint8_t segment = 0;
   static uint8_t inputRegister = 0;
@@ -1456,6 +1460,7 @@ void loop() {
     switch (Serial.read()) {
       case ' ':
         // skip spaces
+        inputStage = 0; // reset this as well
         break;
       case 'd':
         for (int segment = 0; segment <= 5; segment++) {
@@ -1625,12 +1630,12 @@ void loop() {
         break;
       case 'i':
         Serial.print(F("info mode "));
-        if (rto->printInfos == true) {
-          rto->printInfos = false;
+        if (printInfos == true) {
+          printInfos = false;
           Serial.println(F("off"));
         }
         else {
-          rto->printInfos = true;
+          printInfos = true;
           Serial.println(F("on"));
         }
         break;
@@ -1975,7 +1980,7 @@ void loop() {
     lastTimeSyncWatcher = thisTime;
   }
 
-  if (rto->printInfos == true) { // information mode
+  if (printInfos == true) { // information mode
     writeOneByte(0xF0, 0);
 
     //horizontal pixels:
@@ -2088,7 +2093,8 @@ void loop() {
     writeOneByte(0x4f, readout | (1 << 7));
 
     // todo: interlaced sources can have variying results
-    for (byte a = 0; a < 5; a++) {
+    byte a = 0;
+    for (; a < 5; a++) {
       do {} while ((bitRead(PINB, 2)) == 0); // sync is low
       do {} while ((bitRead(PINB, 2)) == 1); // sync is high
       timer1 = micros();
@@ -2097,7 +2103,7 @@ void loop() {
       timer2 = micros();
       accumulator2 += (timer2 - timer1);
     }
-    accumulator2 /= 5;
+    accumulator2 /= a;
     Serial.print(F("input scanline us: ")); Serial.println(accumulator2);
 
     writeOneByte(0xF0, 0);
@@ -2174,6 +2180,7 @@ void loop() {
     // safety
     if (htotal > backupHTotal) {
       if ((htotal - backupHTotal) > 30) {
+        Serial.print("safety triggered upper "); Serial.println(htotal - backupHTotal);
         regLow = (uint8_t)backupHTotal;
         readFromRegister(3, 0x02, 1, &regHigh);
         regHigh = (regHigh & 0xf0) | (backupHTotal >> 8);
@@ -2184,6 +2191,7 @@ void loop() {
     }
     else if (htotal < backupHTotal) {
       if ((backupHTotal - htotal) > 30) {
+        Serial.print("safety triggered lower "); Serial.println(backupHTotal - htotal);
         regLow = (uint8_t)backupHTotal;
         readFromRegister(3, 0x02, 1, &regHigh);
         regHigh = (regHigh & 0xf0) | (backupHTotal >> 8);
