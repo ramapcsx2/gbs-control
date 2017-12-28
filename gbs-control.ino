@@ -22,6 +22,8 @@ struct runTimeOptions {
   boolean autoPositionVerticalFound;
   uint8_t autoPositionVerticalValue;
   uint8_t videoStandardInput : 3; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 480p NTSC, 4 576p PAL
+  uint8_t currentSOGSlicerLevel;
+  boolean findBestSOGSlicerLevelEnabled;
   boolean ADCGainValueFound; // ADC auto gain variables
   uint16_t ADCTarget : 11; // the target brightness (optimal value depends on the individual Arduino analogRead() results)
   boolean deinterlacerWasTurnedOff;
@@ -300,6 +302,68 @@ void writeProgramArrayReduced(const uint8_t* programArray)
   writeOneByte(0x47, 0x17); // all on except HD bypass
 }
 
+void setModeDetectParameters() {
+  writeOneByte(0xF0, 1);
+  writeOneByte(0x60, 0x00);
+  writeOneByte(0x61, 0x00);
+  writeOneByte(0x82, 0x01);
+  writeOneByte(0x83, 0x00);
+}
+
+void findSOGLevel() {
+  uint8_t level = 0;
+  uint8_t reg_5_02 = 0;
+  uint8_t status_05 = 0;
+  uint8_t status_00 = 0;
+  uint8_t old_good_counter = 0;
+
+  setModeDetectParameters();
+  writeOneByte(0xF0, 5);
+  readFromRegister(0x02, 1, &reg_5_02);
+  level = 0;
+  reg_5_02 = (reg_5_02 & 0xc1) | (level << 1);
+  writeOneByte(0x02, reg_5_02);
+  while (level <= 31) {
+    //Serial.print(F("current level: ")); Serial.println(reg_5_02, HEX);
+    delay(150);
+    writeOneByte(0xF0, 0);
+    uint8_t good_counter = 0;
+
+    for (uint8_t i = 0; i < 100; i++) {
+      delayMicroseconds(300);
+      readFromRegister(0x05, 1, &status_05);
+      readFromRegister(0x00, 1, &status_00);
+      if ( ((status_05 & 0x0e) == 0) && ((status_00 & 0x04) == 0x04) ) {
+        good_counter++;
+      }
+    }
+    //Serial.print(F("good counter is: ")); Serial.print(good_counter);
+    //Serial.print(F(" old was: ")); Serial.println(old_good_counter);
+
+    if (good_counter > old_good_counter) {
+      rto->currentSOGSlicerLevel = reg_5_02;
+      old_good_counter = good_counter;
+    }
+
+    writeOneByte(0xF0, 5);
+    readFromRegister(0x02, 1, &reg_5_02);
+    level = (reg_5_02 & 0x3e) >> 1;
+    level += 2;
+    reg_5_02 = (reg_5_02 & 0xc1) | (level << 1);
+    writeOneByte(0x02, reg_5_02);
+  }
+
+  Serial.print(F("best SOG level: ")); Serial.println(rto->currentSOGSlicerLevel, HEX);
+}
+
+void setCurrentSOGLevel() {
+  if (rto->currentSOGSlicerLevel != 0) {
+    writeOneByte(0xF0, 5);
+    writeOneByte(0x02, rto->currentSOGSlicerLevel);
+  }
+  delay(500);
+}
+
 boolean inputAndSyncDetect() {
   // GBS boards have 2 potential sync sources:
   // - 3 plug RCA connector
@@ -311,6 +375,7 @@ boolean inputAndSyncDetect() {
   byte timeout = 0;
   boolean syncFound = false;
 
+  setModeDetectParameters();
   writeOneByte(0xF0, 5);
   //  writeOneByte(0x35, 0x90); // sync separation control default was 15, min 80 for noisy composite video sync
   writeOneByte(0x02, 0x1f); // SOG on, slicer level mid, input 00 > R0/G0/B0/SOG0 as input (YUV)
@@ -353,13 +418,17 @@ boolean inputAndSyncDetect() {
 
   if (rto->inputIsYpBpR == true) {
     Serial.println(F("using RCA inputs"));
-    writeOneByte(0xF0, 5);
-    writeOneByte(0x02, 0x1f);
+    if (rto->findBestSOGSlicerLevelEnabled) {
+      findSOGLevel();
+      setCurrentSOGLevel();
+    }
   }
   else {
     Serial.println(F("using RGBS inputs"));
-    writeOneByte(0xF0, 5);
-    writeOneByte(0x02, 0x49);
+    if (rto->findBestSOGSlicerLevelEnabled) {
+      findSOGLevel();
+      setCurrentSOGLevel();
+    }
   }
 
   // even if SP is unstable, we at least have some sync signal
@@ -1133,8 +1202,6 @@ void set_vtotal(uint16_t vtotal) {
   writeOneByte(0x09, regHigh);
 }
 
-
-
 void applyPresets(byte result) {
   if (result == 2) {
     Serial.println(F("PAL timing "));
@@ -1176,8 +1243,13 @@ void applyPresets(byte result) {
     }
     Serial.print("\n");
     rto->videoStandardInput = 1;
+    rto->syncLockEnabled = false;
   }
 
+  if (rto->findBestSOGSlicerLevelEnabled) {
+    setCurrentSOGLevel();
+  }
+  setModeDetectParameters(); // make sure this is consistent
   setClampPosition();   // all presets the same for now
   //  writeOneByte(0xf0, 5);
   //  writeOneByte(0x35, 0x90); // sync separation control default was 15, min 80 for noisy composite video sync
@@ -1432,9 +1504,11 @@ void setup() {
   rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
   rto->ADCTarget = 630;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
   rto->autoPositionVerticalEnabled = false;
+  rto->findBestSOGSlicerLevelEnabled = false; // adds a sync stability measurment stage, then applies what it thinks is best. WIP
 
   // the following is just run time variables. don't change!
 
+  rto->currentSOGSlicerLevel = 0; // 0 means not yet detected
   rto->inputIsYpBpR = false;
   rto->autoPositionVerticalFound = false;
   rto->autoPositionVerticalValue = 0;
@@ -1462,9 +1536,10 @@ void setup() {
   //delay(5);
   writeProgramArraySection(ntsc_240p, 1); // bring up minimal settings for input detection to work
   writeProgramArraySection(ntsc_240p, 5);
+  setModeDetectParameters();
   resetDigital();
   //writeProgramArrayNew(ntsc_240p);
-  delay(25);
+  delay(250);
   inputAndSyncDetect();
   //resetDigital();
   delay(1000);
@@ -1748,7 +1823,13 @@ void loop() {
         resetSyncLock();
         break;
       case '3':
-        phaseThing();
+        rto->findBestSOGSlicerLevelEnabled = !rto->findBestSOGSlicerLevelEnabled;
+        if (rto->findBestSOGSlicerLevelEnabled) {
+          Serial.println(F("now looking for SOG level"));
+          findSOGLevel();
+          setCurrentSOGLevel();
+        }
+        //phaseThing();
         break;
       case '4':
         scaleVertical(1, true);
@@ -2005,11 +2086,17 @@ void loop() {
     }
 
     // debug
-    //    if (noSyncCounter > 0 ) {
-    //      Serial.print(signalInputChangeCounter);
-    //      Serial.print(" ");
-    //      Serial.println(noSyncCounter);
-    //    }
+    //if (noSyncCounter > 0 ) {
+    //Serial.print(signalInputChangeCounter);
+    //Serial.print(" ");
+    //Serial.println(noSyncCounter);
+    //if (noSyncCounter < 5) {
+    //  Serial.print(".");
+    //}
+    //else if (noSyncCounter % 20 == 0) {
+    //  Serial.print(".");
+    //}
+    //}
 
     if (noSyncCounter >= 500 ) { // ModeDetect reports nothing (for about 5 seconds)
       Serial.println(F("No Sync!"));
@@ -2027,6 +2114,7 @@ void loop() {
       //  Serial.println("stuck?");
       //  resetDigital(); // resets MD as well, causing a new detection
       //}
+      result = getVideoMode();
       applyPresets(result);
       resetPLL();
       resetSyncLock();
