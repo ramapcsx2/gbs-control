@@ -252,7 +252,7 @@ void writeProgramArrayNew(const uint8_t* programArray)
         for (int j = 0; j <= 6; j++) { // 7 times
           for (int x = 0; x <= 15; x++) {
             bank[x] = pgm_read_byte(programArray + index);
-            if (index == 482) { // s5_02 bit 6+7 = input selector (only 6 is relevant)
+            if (index == 482) { // s5_02 bit 6+7 = input selector (only bit 6 is relevant)
               if (rto->inputIsYpBpR)bitClear(bank[x], 6);
               else bitSet(bank[x], 6);
             }
@@ -262,6 +262,37 @@ void writeProgramArrayNew(const uint8_t* programArray)
         }
         break;
     }
+  }
+
+  writeOneByte(0xF0, 0);
+  writeOneByte(0x46, 0x3f); // reset controls 1 // everything on except VDS display output
+  writeOneByte(0x47, 0x17); // all on except HD bypass
+}
+
+// required sections for reduced sets:
+// S0_40 - S0_59 "misc"
+// S1_00 - S1_2a "IF"
+// S3_00 - S3_74 "VDS"
+// note: unfinished, don't use!
+void writeProgramArrayReduced(const uint8_t* programArray)
+{
+  uint8_t theByte = 0;
+
+  writeOneByte(0xF0, 0);
+  writeOneByte(0x46, 0x00); // reset controls 1
+  writeOneByte(0x47, 0x00); // reset controls 2
+
+  writeOneByte(0xF0, 0 );
+  for (int x = 0x00; x <= 0x19; x++)
+  {
+    theByte = getSingleByteFromPreset(programArray, x);
+    writeOneByte(0x40 + x, theByte);
+  }
+  writeOneByte(0xF0, 1 );
+  for (int x = 0x1a; x <= 0x1f; x++)
+  {
+    theByte = getSingleByteFromPreset(programArray, x);
+    writeOneByte(x, theByte);
   }
 
   writeOneByte(0xF0, 0);
@@ -281,8 +312,9 @@ boolean inputAndSyncDetect() {
   boolean syncFound = false;
 
   writeOneByte(0xF0, 5);
-  writeOneByte(0x02, 0x07); // SOG on, slicer level mid, input 00 > R0/G0/B0/SOG0 as input (YUV)
-  writeOneByte(0x2a, 0x50); // "continue legal line as valid" to a value that helps the SP detect the format
+  //  writeOneByte(0x35, 0x90); // sync separation control default was 15, min 80 for noisy composite video sync
+  writeOneByte(0x02, 0x1f); // SOG on, slicer level mid, input 00 > R0/G0/B0/SOG0 as input (YUV)
+  //writeOneByte(0x2a, 0x50); // "continue legal line as valid" to a value that helps the SP detect the format
   writeOneByte(0xF0, 0);
   timeout = 6; // try this input a few times and look for a change
   readFromRegister(0x19, 1, &readout); // in hor. pulse width
@@ -299,7 +331,7 @@ boolean inputAndSyncDetect() {
 
   if (syncFound == false) {
     writeOneByte(0xF0, 5);
-    writeOneByte(0x02, 0x59); // SOG on, slicer level mid, input 01 > R1/G1/B1/SOG1 as input (RGBS)
+    writeOneByte(0x02, 0x49); // SOG on, slicer level mid, input 01 > R1/G1/B1/SOG1 as input (RGBS)
     writeOneByte(0xF0, 0);
     timeout = 6; // try this input a few times and look for a change
     readFromRegister(0x19, 1, &readout); // in hor. pulse width
@@ -322,12 +354,12 @@ boolean inputAndSyncDetect() {
   if (rto->inputIsYpBpR == true) {
     Serial.println(F("using RCA inputs"));
     writeOneByte(0xF0, 5);
-    writeOneByte(0x02, 0x07);
+    writeOneByte(0x02, 0x1f);
   }
   else {
     Serial.println(F("using RGBS inputs"));
     writeOneByte(0xF0, 5);
-    writeOneByte(0x02, 0x59);
+    writeOneByte(0x02, 0x49);
   }
 
   // even if SP is unstable, we at least have some sync signal
@@ -442,6 +474,33 @@ void dumpRegisters(int segment)
         Serial.print(readout); Serial.println(",");
       }
       break;
+  }
+}
+
+// required sections for reduced sets:
+// S0_40 - S0_59 "misc"
+// S1_00 - S1_2a "IF"
+// S3_00 - S3_74 "VDS"
+void dumpRegistersReduced()
+{
+  uint8_t readout = 0;
+
+  writeOneByte(0xF0, 0);
+  for (int x = 0x40; x <= 0x59; x++) {
+    readFromRegister(x, 1, &readout);
+    Serial.print(readout); Serial.println(",");
+  }
+
+  writeOneByte(0xF0, 1);
+  for (int x = 0x0; x <= 0x2a; x++) {
+    readFromRegister(x, 1, &readout);
+    Serial.print(readout); Serial.println(",");
+  }
+
+  writeOneByte(0xF0, 3);
+  for (int x = 0x0; x <= 0x74; x++) {
+    readFromRegister(x, 1, &readout);
+    Serial.print(readout); Serial.println(",");
   }
 }
 
@@ -1120,6 +1179,8 @@ void applyPresets(byte result) {
   }
 
   setClampPosition();   // all presets the same for now
+  //  writeOneByte(0xf0, 5);
+  //  writeOneByte(0x35, 0x90); // sync separation control default was 15, min 80 for noisy composite video sync
 }
 
 void enableDeinterlacer() {
@@ -1321,9 +1382,7 @@ void applyYuvPatches() {   // also does color mixing changes
   writeOneByte(0x03, readout | (1 << 1)); // midclamp red
   readFromRegister(0x03, 1, &readout);
   writeOneByte(0x03, readout | (1 << 3)); // midclamp blue
-  writeOneByte(0x41, 00); // SP clamp postion start
-  writeOneByte(0x43, 10); // SP clamp postion stop
-  writeOneByte(0x02, 0x07); //RCA inputs, SOG on, low level
+  writeOneByte(0x02, 0x1f); //RCA inputs, SOG on
   writeOneByte(0x06, 0x3f); //adc R offset
   writeOneByte(0x07, 0x3f); //adc G offset
   writeOneByte(0x08, 0x3f); //adc B offset
