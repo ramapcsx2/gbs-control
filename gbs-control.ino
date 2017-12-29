@@ -318,6 +318,7 @@ void findSOGLevel() {
   uint8_t old_good_counter = 0;
 
   setModeDetectParameters();
+  SyncProcessorOffOn();
   writeOneByte(0xF0, 5);
   readFromRegister(0x02, 1, &reg_5_02);
   level = 0;
@@ -340,26 +341,34 @@ void findSOGLevel() {
     //Serial.print(F("good counter is: ")); Serial.print(good_counter);
     //Serial.print(F(" old was: ")); Serial.println(old_good_counter);
 
-    if (good_counter > old_good_counter) {
-      rto->currentSOGSlicerLevel = reg_5_02;
-      old_good_counter = good_counter;
-    }
-
     writeOneByte(0xF0, 5);
     readFromRegister(0x02, 1, &reg_5_02);
     level = (reg_5_02 & 0x3e) >> 1;
+    if (good_counter > old_good_counter) {
+      if (level == 0) { // minimum. don't use that.
+        rto->currentSOGSlicerLevel = 1;
+      }
+      else {
+        rto->currentSOGSlicerLevel = level;
+      }
+
+      old_good_counter = good_counter;
+    }
     level += 2;
     reg_5_02 = (reg_5_02 & 0xc1) | (level << 1);
     writeOneByte(0x02, reg_5_02);
   }
-
   Serial.print(F("best SOG level: ")); Serial.println(rto->currentSOGSlicerLevel, HEX);
 }
 
 void setCurrentSOGLevel() {
   if (rto->currentSOGSlicerLevel != 0) {
+    uint8_t reg_5_02 = 0;
     writeOneByte(0xF0, 5);
-    writeOneByte(0x02, rto->currentSOGSlicerLevel);
+    readFromRegister(0x02, 1, &reg_5_02);
+    reg_5_02 = (reg_5_02 & 0xc1) | (rto->currentSOGSlicerLevel << 1);
+    writeOneByte(0x02, reg_5_02);
+    Serial.print(F("writing to S5_02: ")); Serial.println(reg_5_02, HEX);
   }
   delay(500);
 }
@@ -1249,6 +1258,7 @@ void applyPresets(byte result) {
   if (rto->findBestSOGSlicerLevelEnabled) {
     setCurrentSOGLevel();
   }
+
   setModeDetectParameters(); // make sure this is consistent
   setClampPosition();   // all presets the same for now
   //  writeOneByte(0xf0, 5);
@@ -2086,17 +2096,17 @@ void loop() {
     }
 
     // debug
-    //if (noSyncCounter > 0 ) {
-    //Serial.print(signalInputChangeCounter);
-    //Serial.print(" ");
-    //Serial.println(noSyncCounter);
-    //if (noSyncCounter < 5) {
-    //  Serial.print(".");
-    //}
-    //else if (noSyncCounter % 20 == 0) {
-    //  Serial.print(".");
-    //}
-    //}
+    if (noSyncCounter > 0 ) {
+      //Serial.print(signalInputChangeCounter);
+      //Serial.print(" ");
+      //Serial.println(noSyncCounter);
+      if (noSyncCounter < 3) {
+        Serial.print(".");
+      }
+      else if (noSyncCounter % 40 == 0) {
+        Serial.print(".");
+      }
+    }
 
     if (noSyncCounter >= 500 ) { // ModeDetect reports nothing (for about 5 seconds)
       Serial.println(F("No Sync!"));
