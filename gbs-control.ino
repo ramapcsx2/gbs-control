@@ -267,6 +267,8 @@ void writeProgramArrayNew(const uint8_t* programArray)
     }
   }
 
+  setSPParameters();
+
   writeOneByte(0xF0, 0);
   writeOneByte(0x46, 0x3f); // reset controls 1 // everything on except VDS display output
   writeOneByte(0x47, 0x17); // all on except HD bypass
@@ -311,19 +313,32 @@ void setModeDetectParameters() {
   writeOneByte(0x83, 0x00);
 }
 
+void setSPParameters() {
+  writeOneByte(0xF0, 5);
+  //writeOneByte(0x3e, 0x30); // disable subcoast, enable h-overflow protect
+  //writeOneByte(0x35, 0x90); // sync separation control default was 15, min 80 for noisy composite video sync
+  //writeOneByte(0x2a, 0x50); // "continue legal line as valid" to a value that helps the SP detect the format
+  // clamp position
+  writeOneByte(0x44, 0); writeOneByte(0x42, 0);
+  writeOneByte(0x41, 0x10); writeOneByte(0x43, 0x80); // wider range for some newer GBS boards (they seem to float the inputs more??)
+  //
+}
+
 void findSOGLevel() {
   uint8_t level = 0;
   uint8_t reg_5_02 = 0;
   uint8_t measurementNumber = 0;
   uint8_t good_counter = 0;
   uint8_t theArray[15] = {0};
+  uint8_t backup_s5_35 = 0;
 
   Serial.println(F("SOG test"));
-  setModeDetectParameters();
   SyncProcessorOffOn();
   delay(150);
   writeOneByte(0xF0, 5);
   readFromRegister(0x02, 1, &reg_5_02);
+  readFromRegister(0x35, 1, &backup_s5_35);
+  writeOneByte(0x35, 0x05);
   level = 0;
   reg_5_02 = (reg_5_02 & 0xc1) | (level << 1);
   writeOneByte(0x02, reg_5_02);
@@ -374,6 +389,8 @@ void findSOGLevel() {
     rto->SOGSlicerLevelFound = false;
   }
 
+  writeOneByte(0xF0, 5);
+  writeOneByte(0x35, backup_s5_35);
 }
 
 void setCurrentSOGLevel() {
@@ -384,7 +401,6 @@ void setCurrentSOGLevel() {
     reg_5_02 = (reg_5_02 & 0xc1) | (rto->currentSOGSlicerLevel << 1);
     writeOneByte(0x02, reg_5_02);
   }
-  delay(200);
 }
 
 boolean inputAndSyncDetect() {
@@ -398,11 +414,10 @@ boolean inputAndSyncDetect() {
   byte timeout = 0;
   boolean syncFound = false;
 
-  setModeDetectParameters();
+  setSPParameters();
+
   writeOneByte(0xF0, 5);
-  //  writeOneByte(0x35, 0x90); // sync separation control default was 15, min 80 for noisy composite video sync
   writeOneByte(0x02, 0x1f); // SOG on, slicer level mid, input 00 > R0/G0/B0/SOG0 as input (YUV)
-  //writeOneByte(0x2a, 0x50); // "continue legal line as valid" to a value that helps the SP detect the format
   writeOneByte(0xF0, 0);
   timeout = 6; // try this input a few times and look for a change
   readFromRegister(0x19, 1, &readout); // in hor. pulse width
@@ -442,17 +457,9 @@ boolean inputAndSyncDetect() {
   if (rto->inputIsYpBpR == true) {
     Serial.println(F("using RCA inputs"));
     applyYuvPatches();
-    if (rto->findBestSOGSlicerLevelEnabled) {
-      findSOGLevel();
-      setCurrentSOGLevel();
-    }
   }
   else {
     Serial.println(F("using RGBS inputs"));
-    if (rto->findBestSOGSlicerLevelEnabled) {
-      findSOGLevel();
-      setCurrentSOGLevel();
-    }
   }
 
   // even if SP is unstable, we at least have some sync signal
@@ -1284,19 +1291,6 @@ void applyPresets(byte result) {
     rto->videoStandardInput = 1;
     rto->syncLockEnabled = false;
   }
-
-  if (rto->findBestSOGSlicerLevelEnabled == true && rto->SOGSlicerLevelFound == true) {
-    setCurrentSOGLevel();
-  }
-  else if (rto->findBestSOGSlicerLevelEnabled == true && rto->SOGSlicerLevelFound == false) {
-    findSOGLevel();
-    setCurrentSOGLevel();
-  }
-
-  setModeDetectParameters(); // make sure this is consistent
-  setClampPosition();   // all presets the same for now
-  //  writeOneByte(0xf0, 5);
-  //  writeOneByte(0x35, 0x90); // sync separation control default was 15, min 80 for noisy composite video sync
 }
 
 void enableDeinterlacer() {
@@ -1484,12 +1478,6 @@ void setVerticalPositionAuto() {
   }
 }
 
-void setClampPosition() {   // SP this line's color clamp (black reference)
-  writeOneByte(0xF0, 5);
-  writeOneByte(0x44, 0); writeOneByte(0x42, 0);
-  writeOneByte(0x41, 0x10); writeOneByte(0x43, 0x80); // wider range for some newer GBS boards (they seem to float the inputs more??)
-}
-
 void applyYuvPatches() {   // also does color mixing changes
   uint8_t readout;
 
@@ -1581,7 +1569,6 @@ void setup() {
   //delay(5);
   writeProgramArraySection(ntsc_240p, 1); // bring up minimal settings for input detection to work
   writeProgramArraySection(ntsc_240p, 5);
-  setModeDetectParameters();
   resetDigital();
   //writeProgramArrayNew(ntsc_240p);
   delay(250);
@@ -2098,6 +2085,12 @@ void loop() {
   }
 
   thisTime = millis();
+
+  if (rto->findBestSOGSlicerLevelEnabled == true && rto->SOGSlicerLevelFound == false) {
+    findSOGLevel();
+    setCurrentSOGLevel();
+    delay(800);
+  }
 
   // only run this when sync is stable!
   if ((rto->autoPositionVerticalEnabled == true) && (rto->autoPositionVerticalFound == false)
