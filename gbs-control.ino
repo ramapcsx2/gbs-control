@@ -315,19 +315,39 @@ void setModeDetectParameters() {
 
 void setSPParameters() {
   writeOneByte(0xF0, 5);
-  //writeOneByte(0x2a, 0x50); // "continue legal line as valid" to a value that helps the SP detect the format
-  //writeOneByte(0x3e, 0x30); // disable subcoast, enable h-overflow protect
-  //writeOneByte(0x35, 0x15); // sync separation control
-  //writeOneByte(0x37, 0x42); // SP_H_PULSE_IGNORE (tweak point)
-  // h coast pre / post lines (tweak point)
-  //writeOneByte(0x38, 0x03); // pre
-  //writeOneByte(0x39, 0x03); // post
+  // H active detect control
+  writeOneByte(0x21, 0x08); // SP_SYNC_TGL_THD    H Sync toggle times threshold
+  writeOneByte(0x22, 0x0f); // SP_L_DLT_REG       Sync pulse width different threshold (little than this as equal).
+  writeOneByte(0x24, 0x40); // SP_T_DLT_REG       H total width different threshold
+  writeOneByte(0x25, 0x00); // SP_T_DLT_REG
+  writeOneByte(0x26, 0x05); // SP_SYNC_PD_THD     H sync pulse width threshold
+  writeOneByte(0x27, 0x00); // SP_SYNC_PD_THD
+  writeOneByte(0x2a, 0x0f); // SP_PRD_EQ_THD      How many continue legal line as valid
+  // V active detect control
+  writeOneByte(0x2d, 0x04); // SP_VSYNC_TGL_THD   V sync toggle times threshold
+  writeOneByte(0x2e, 0x00); // SP_SYNC_WIDTH_DTHD V sync pulse width threshod
+  writeOneByte(0x2f, 0x01); // SP_V_PRD_EQ_THD    How many continue legal v sync as valid
+  writeOneByte(0x31, 0x2f); // SP_VT_DLT_REG      V total different threshold
+  // Timer value control
+  writeOneByte(0x33, 0x28); // SP_H_TIMER_VAL     H timer value for h detect
+  writeOneByte(0x34, 0x03); // SP_V_TIMER_VAL     V timer for V detect
+
+  // from here on this is tuned / known stuff!
+  // Sync separation control
+  writeOneByte(0x35, 0x15); // SP_DLT_REG [7:0]   Sync pulse width difference threshold  (tweak point)
+  writeOneByte(0x36, 0x00); // SP_DLT_REG [11:8]
+  writeOneByte(0x37, 0x42); // SP_H_PULSE_IGNORE (tweak point) H pulse less than this will be ignored. this counter starts when sync large different
+  //writeOneByte(0x38, 0x03); // h coast pre
+  //writeOneByte(0x39, 0x03); // h coast post
+
+  writeOneByte(0x3e, 0x30); // disable subcoast, enable h-overflow protect
+
   // clamp position
   writeOneByte(0x44, 0); writeOneByte(0x42, 0);
   writeOneByte(0x41, 0x10); writeOneByte(0x43, 0x80); // wider range for some newer GBS boards (they seem to float the inputs more??)
   // h coast start / stop positions
-  //writeOneByte(0x50, 0x00); writeOneByte(0x4f, 0x10);
-  //writeOneByte(0x4e, 0x00); writeOneByte(0x4d, 0x00);
+  writeOneByte(0x50, 0x00); writeOneByte(0x4f, 0x10);
+  writeOneByte(0x4e, 0x00); writeOneByte(0x4d, 0x00);
 }
 
 void findSOGLevel() {
