@@ -335,10 +335,10 @@ void setSPParameters() {
   // from here on this is tuned / known stuff!
   // Sync separation control
   writeOneByte(0x35, 0x15); // SP_DLT_REG [7:0]   Sync pulse width difference threshold  (tweak point)
-  writeOneByte(0x36, 0x00); // SP_DLT_REG [11:8]
-  writeOneByte(0x37, 0x42); // SP_H_PULSE_IGNORE (tweak point) H pulse less than this will be ignored. this counter starts when sync large different
-  //writeOneByte(0x38, 0x03); // h coast pre
-  //writeOneByte(0x39, 0x03); // h coast post
+  writeOneByte(0x36, 0x01); // SP_DLT_REG [11:8]
+  writeOneByte(0x37, 0x10); // SP_H_PULSE_IGNORE (tweak point) H pulse less than this will be ignored. this counter starts when sync large different
+  writeOneByte(0x38, 0x08); // h coast pre
+  writeOneByte(0x39, 0x05); // h coast post
 
   writeOneByte(0x3e, 0x30); // disable subcoast, enable h-overflow protect
 
@@ -357,14 +357,16 @@ void findSOGLevel() {
   uint8_t good_counter = 0;
   uint8_t theArray[15] = {0};
   uint8_t backup_s5_35 = 0;
+  uint8_t backup_s5_36 = 0;
 
   Serial.println(F("SOG test"));
-  //SyncProcessorOffOn();
-  //delay(300);
   writeOneByte(0xF0, 5);
   readFromRegister(0x02, 1, &reg_5_02);
   readFromRegister(0x35, 1, &backup_s5_35);
+  readFromRegister(0x36, 1, &backup_s5_36);
   writeOneByte(0x35, 0x05);
+  writeOneByte(0x36, 0x00);
+
   level = 0;
   reg_5_02 = (reg_5_02 & 0xc1) | (level << 1);
   writeOneByte(0x02, reg_5_02);
@@ -373,7 +375,7 @@ void findSOGLevel() {
     good_counter = 0;
     //Serial.print(F("current level: ")); Serial.print(level);
 
-    delay(15);
+    delay(2);
     for (uint8_t i = 0; i < 100; i++) {
       if (getSyncProcessorSignalValid()) {
         good_counter++;
@@ -418,6 +420,7 @@ void findSOGLevel() {
 
   writeOneByte(0xF0, 5);
   writeOneByte(0x35, backup_s5_35);
+  writeOneByte(0x36, backup_s5_36);
 }
 
 void setCurrentSOGLevel() {
@@ -2266,7 +2269,7 @@ void loop() {
   }
 
   // only run this when sync is stable!
-  if (rto->syncLockEnabled == true && rto->syncLockFound == false && getSyncStable()) {
+  if (rto->syncLockEnabled == true && rto->syncLockFound == false && getSyncStable() && rto->videoStandardInput != 0) {
     long timer1;
     long timer2;
     long accumulator1 = 1; // input timing
