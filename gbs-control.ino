@@ -315,13 +315,19 @@ void setModeDetectParameters() {
 
 void setSPParameters() {
   writeOneByte(0xF0, 5);
-  //writeOneByte(0x3e, 0x30); // disable subcoast, enable h-overflow protect
-  //writeOneByte(0x35, 0x90); // sync separation control default was 15, min 80 for noisy composite video sync
   //writeOneByte(0x2a, 0x50); // "continue legal line as valid" to a value that helps the SP detect the format
+  //writeOneByte(0x3e, 0x30); // disable subcoast, enable h-overflow protect
+  //writeOneByte(0x35, 0x15); // sync separation control
+  //writeOneByte(0x37, 0x42); // SP_H_PULSE_IGNORE (tweak point)
+  // h coast pre / post lines (tweak point)
+  //writeOneByte(0x38, 0x03); // pre
+  //writeOneByte(0x39, 0x03); // post
   // clamp position
   writeOneByte(0x44, 0); writeOneByte(0x42, 0);
   writeOneByte(0x41, 0x10); writeOneByte(0x43, 0x80); // wider range for some newer GBS boards (they seem to float the inputs more??)
-  //
+  // h coast start / stop positions
+  //writeOneByte(0x50, 0x00); writeOneByte(0x4f, 0x10);
+  //writeOneByte(0x4e, 0x00); writeOneByte(0x4d, 0x00);
 }
 
 void findSOGLevel() {
@@ -333,8 +339,8 @@ void findSOGLevel() {
   uint8_t backup_s5_35 = 0;
 
   Serial.println(F("SOG test"));
-  SyncProcessorOffOn();
-  delay(150);
+  //SyncProcessorOffOn();
+  //delay(300);
   writeOneByte(0xF0, 5);
   readFromRegister(0x02, 1, &reg_5_02);
   readFromRegister(0x35, 1, &backup_s5_35);
@@ -342,11 +348,12 @@ void findSOGLevel() {
   level = 0;
   reg_5_02 = (reg_5_02 & 0xc1) | (level << 1);
   writeOneByte(0x02, reg_5_02);
-
+  delay(15);
   while (level <= 29) {
     good_counter = 0;
     //Serial.print(F("current level: ")); Serial.print(level);
 
+    delay(15);
     for (uint8_t i = 0; i < 100; i++) {
       if (getSyncProcessorSignalValid()) {
         good_counter++;
@@ -646,6 +653,7 @@ boolean getSyncProcessorSignalValid() {
   boolean returnValue = false;
   boolean horizontalOkay = false;
   boolean verticalOkay = false;
+  boolean hpwOkay = false;
 
   writeOneByte(0xF0, 0);
   readFromRegister(0x07, 1, &register_high); readFromRegister(0x06, 1, &register_low);
@@ -668,7 +676,13 @@ boolean getSyncProcessorSignalValid() {
     verticalOkay = true;  // pal
   }
 
-  if ((horizontalOkay == true) && (verticalOkay == true)) {
+  readFromRegister(0x1a, 1, &register_high); readFromRegister(0x19, 1, &register_low);
+  register_combined = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
+  if (register_combined < 180 ) {
+    hpwOkay = true;
+  }
+
+  if ((horizontalOkay == true) && (verticalOkay == true) && (hpwOkay == true)) {
     returnValue = true;
   }
 
@@ -1282,14 +1296,15 @@ void applyPresets(byte result) {
   }
   else {
     Serial.println(F("Unknown timing! "));
-    writeProgramArrayNew(ntsc_240p);
-    if (rto->inputIsYpBpR == true) {
-      Serial.print("(YUV)");
-      applyYuvPatches();
-    }
-    Serial.print("\n");
-    rto->videoStandardInput = 1;
-    rto->syncLockEnabled = false;
+    rto->SOGSlicerLevelFound = false;
+    inputAndSyncDetect();
+    //delay(3000);
+    rto->videoStandardInput = 0;
+  }
+
+  if (rto->SOGSlicerLevelFound == true) {
+    setCurrentSOGLevel();
+    delay(200);
   }
 }
 
@@ -1573,7 +1588,6 @@ void setup() {
   //writeProgramArrayNew(ntsc_240p);
   delay(250);
   inputAndSyncDetect();
-  //resetDigital();
   delay(1000);
 
   byte result = getVideoMode();
@@ -1581,7 +1595,7 @@ void setup() {
   while (result == 0 && --timeout > 0) {
     if ((timeout % 5) == 0) Serial.print(".");
     result = getVideoMode();
-    delay(10);
+    delay(1);
   }
 
   if (timeout > 0 && result != 0) {
@@ -2152,7 +2166,11 @@ void loop() {
       //  Serial.println("stuck?");
       //  resetDigital(); // resets MD as well, causing a new detection
       //}
-      result = getVideoMode();
+      byte temp = 250;
+      while (result == 0 && temp-- > 0) {
+        delay(3);
+        result = getVideoMode();
+      }
       applyPresets(result);
       resetPLL();
       resetSyncLock();
@@ -2241,6 +2259,8 @@ void loop() {
     uint8_t regLow, regHigh;
     uint16_t hpsp, htotal, backupHTotal;
 
+    // after VDS turns on, it takes a short time for vsync to become active / stable
+    delay(500);
     // test if we get the vsync signal (wire is connected, display output is working)
     // this remembers a positive result via VSYNCconnected and a negative via syncLockEnabled
     if (rto->VSYNCconnected == false) {
