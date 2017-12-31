@@ -268,6 +268,12 @@ void writeProgramArrayNew(const uint8_t* programArray)
   }
 
   setSPParameters();
+  // if stuff, might move that later
+  writeOneByte(0xF0, 1);
+  writeOneByte(0x25, 0x00); // was 0x05
+  writeOneByte(0x24, 0x00); // was 0xf8
+  writeOneByte(0x27, 0x00); // was 0x06
+  writeOneByte(0x26, 0x02); // was 0x29
 
   writeOneByte(0xF0, 0);
   writeOneByte(0x46, 0x3f); // reset controls 1 // everything on except VDS display output
@@ -1752,8 +1758,7 @@ void loop() {
         resetSyncLock();
         break;
       case '.':
-        Serial.println(F("input/sync detect"));
-        inputAndSyncDetect();
+        rto->syncLockFound = !rto->syncLockFound;
         break;
       case 'j':
         resetPLL();
@@ -1854,6 +1859,9 @@ void loop() {
           resetADCAutoGain();
           Serial.println(F("on"));
         }
+        break;
+      case 'u':
+        Serial.print("len: "); Serial.println(pulseIn(10, LOW, 60000) + pulseIn(10, HIGH, 60000));
         break;
       case 'f':
         Serial.println(F("show noise"));
@@ -2270,10 +2278,8 @@ void loop() {
 
   // only run this when sync is stable!
   if (rto->syncLockEnabled == true && rto->syncLockFound == false && getSyncStable() && rto->videoStandardInput != 0) {
-    long timer1;
-    long timer2;
-    long accumulator1 = 1; // input timing
-    long accumulator2 = 1; // current output timing
+    long outputLength = 1;
+    long inputLength = 1;
     long difference = 99999; // shortcut
     long prev_difference;
     // rewrite all of this!
@@ -2282,25 +2288,10 @@ void loop() {
     uint8_t regLow, regHigh;
     uint16_t hpsp, htotal, backupHTotal;
 
-    // after VDS turns on, it takes a short time for vsync to become active / stable
-    delay(500);
     // test if we get the vsync signal (wire is connected, display output is working)
-    // this remembers a positive result via VSYNCconnected and a negative via syncLockEnabled
+    // this remembers a positive result via VSYNCconnected
     if (rto->VSYNCconnected == false) {
-      uint16_t test1 = 0;
-      uint16_t test2 = 0;
-      timer1 = millis();
-      do {
-        if ((bitRead(PINB, 2)) == 0) {
-          test1++;
-        }
-        if ((bitRead(PINB, 2)) == 1) {
-          test2++;
-        }
-      }
-      while ((millis() - timer1) < 300);
-
-      if (test1 != 0 && test2 != 0) {
+      if ((pulseIn(10, HIGH, 50000) != 0) && (pulseIn(10, LOW, 50000) != 0)) {
         rto->VSYNCconnected = true;
       }
       else {
@@ -2320,19 +2311,18 @@ void loop() {
     readFromRegister(0x4f, 1, &readout);
     writeOneByte(0x4f, readout | (1 << 7));
 
-    // todo: interlaced sources can have variying results
-    byte a = 0;
-    for (; a < 5; a++) {
-      do {} while ((bitRead(PINB, 2)) == 0); // sync is low
-      do {} while ((bitRead(PINB, 2)) == 1); // sync is high
-      timer1 = micros();
-      do {} while ((bitRead(PINB, 2)) == 0); // sync is low
-      do {} while ((bitRead(PINB, 2)) == 1); // sync is high
-      timer2 = micros();
-      accumulator2 += (timer2 - timer1);
-    }
-    accumulator2 /= a;
-    Serial.print(F("input scanline us: ")); Serial.println(accumulator2);
+    // todo: interlaced sources have variying results
+    long highTest1, highTest2;
+    long lowTest1, lowTest2;
+
+    highTest1 = pulseIn(10, HIGH, 50000);
+    highTest2 = pulseIn(10, HIGH, 50000);
+    lowTest1 = pulseIn(10, LOW, 50000);
+    lowTest2 = pulseIn(10, LOW, 50000);
+
+    inputLength = highTest1 > highTest2 ? highTest1 : highTest2;
+    inputLength += lowTest1 > lowTest2 ? lowTest1 : lowTest2;
+    Serial.print(F("input scanline us: ")); Serial.println(inputLength);
 
     writeOneByte(0xF0, 0);
     readFromRegister(0x4f, 1, &readout);
@@ -2345,24 +2335,25 @@ void loop() {
     readFromRegister(3, 0x02, 1, &regHigh);
     htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
     backupHTotal = htotal;
-    Serial.print(F(" Start HTotal: ")); Serial.println(htotal);
-
     currentHTotal = 1;
 
+    highTest1 = pulseIn(10, HIGH, 50000);
+    highTest2 = pulseIn(10, HIGH, 50000);
+    long highPulse = highTest1 > highTest2 ? highTest1 : highTest2;
+    lowTest1 = pulseIn(10, LOW, 50000);
+    lowTest2 = pulseIn(10, LOW, 50000);
+    long lowPulse = lowTest1 > lowTest2 ? lowTest1 : lowTest2;
+    Serial.print(F("output Scanline us: ")); Serial.println(lowPulse + highPulse);
+
+    Serial.print(F(" Start HTotal: ")); Serial.println(htotal);
     while ((currentHTotal < 0xff) ) {
       writeOneByte(0xF0, 3);
       writeOneByte(0x01, currentHTotal);
 
-      do {} while ((bitRead(PINB, 2)) == 0); // sync is low
-      do {} while ((bitRead(PINB, 2)) == 1); // sync is high
-      timer1 = micros();
-      do {} while ((bitRead(PINB, 2)) == 0); // sync is low
-      do {} while ((bitRead(PINB, 2)) == 1); // sync is high
-      timer2 = micros();
+      outputLength = pulseIn(10, LOW, 50000) + highPulse;
 
-      accumulator1 = (timer2 - timer1);
       prev_difference = difference;
-      difference = (accumulator1 > accumulator2) ? (accumulator1 - accumulator2) : (accumulator2 - accumulator1);
+      difference = (outputLength > inputLength) ? (outputLength - inputLength) : (inputLength - outputLength);
       Serial.print(currentHTotal, HEX); Serial.print(": "); Serial.println(difference);
 
       // todo: do this properly and use the full htotal value with a range calculation, etc
@@ -2433,7 +2424,7 @@ void loop() {
     readFromRegister(3, 0x12, 1, &regHigh);
     hpsp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
 
-    Serial.print(F(" HTotal: ")); Serial.println(htotal);
+    Serial.print(F(" End HTotal: ")); Serial.println(htotal);
 
     if ( htotal <= hpsp  ) {
       hpsp = htotal - 1;
