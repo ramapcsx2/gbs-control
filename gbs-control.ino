@@ -1,10 +1,6 @@
 #include <Wire.h>
 #include "ntsc_240p.h"
 #include "pal_240p.h"
-#include "hdtv.h"
-#include "ntsc_yuv.h"
-#include "pal_yuv.h"
-//#include "ntsc_snes_1440x900.h"
 #include "vclktest.h"
 #include "ntsc_feedbackclock.h"
 
@@ -1296,7 +1292,6 @@ void applyPresets(byte result) {
   }
   else if (result == 3) {
     Serial.println(F("HDTV timing "));
-    //writeProgramArrayNew(hdtv);
     writeProgramArrayNew(ntsc_240p); // ntsc base
     if (rto->inputIsYpBpR == true) {
       Serial.print("(YUV)");
@@ -1907,20 +1902,10 @@ void loop() {
         invertHS();
         break;
       case '7':
-        writeProgramArrayNew(ntsc_yuv);
-        if (rto->inputIsYpBpR == true) {
-          Serial.print("(YUV)");
-          applyYuvPatches();
-        }
-        resetDigital();
-        enableVDS();
-        resetSyncLock();
+
         break;
       case '8':
-        writeProgramArrayNew(pal_yuv);
-        resetDigital();
-        enableVDS();
-        resetSyncLock();
+
         break;
       case '9':
         writeProgramArrayNew(ntsc_feedbackclock);
