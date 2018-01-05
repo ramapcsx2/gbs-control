@@ -1071,11 +1071,8 @@ void getVideoTimings() {
   Serial.print(F("PLLAD divider: ")); Serial.println(MD_pll_divider);
 }
 
-// wht 2152 wvt 628  | 800x600 ntsc
-// wht 2588 wvt 628 s3s16s70 | 800x600 pal
-// wht 1352 wvt 1000 s3s16scc s3s18s20 | 1280x960 ntsc
-// wht 1625 wvt 1000 1280x960 pal | Scale Vertical: 585 or 512
-// wht 1480 wvt 1100 s1s1es58  1920x1080 pal
+//s0s41s85 wht 1800 wvt 1200 | pal 1280x???
+//s0s41s85 wht 1800 wvt 1000 | ntsc 1280x1024
 void set_htotal(uint16_t htotal) {
   uint8_t regLow, regHigh;
 
@@ -1084,25 +1081,28 @@ void set_htotal(uint16_t htotal) {
   // back porch : H4 - H3: 1800 - 1488
   // sync pulse : H3 - H2: 1488 - 1376
   // HB start: 1280 / 1800 = (32/45)
-  // HB stop:  1800        = htotal - 1
+  // HB stop:  1800        = htotal
   // HS start: 1376 / 1800 = (172/225)
   // HS stop : 1488 / 1800 = (62/75)
+
+  // hbst (memory) should always start before or exactly at hbst (display) for interlaced sources to look nice
+  // .. at least in PAL modes. NTSC doesn't seem to be affected
   uint16_t h_blank_start_position = (uint16_t)((htotal * (32.0f / 45.0f)) + 1) & 0xfffe;
-  uint16_t h_blank_stop_position =  (uint16_t)(htotal - 1) & 0xfffe;
+  uint16_t h_blank_stop_position =  (uint16_t)htotal;
   uint16_t h_sync_start_position =  (uint16_t)((htotal * (172.0f / 225.0f)) + 1) & 0xfffe;
   uint16_t h_sync_stop_position =   (uint16_t)((htotal * (62.0f / 75.0f)) + 1) & 0xfffe;
 
   // Memory fetch locations should somehow be calculated with settings for line length in IF and/or buffer sizes in S4 (Capture Buffer)
   // just use something that works for now
-  uint16_t h_blank_memory_start_position = (uint16_t)((htotal * (19.0f / 26.0f)) + 1) & 0xfffe;
-  uint16_t h_blank_memory_stop_position =  (uint16_t)((htotal * (157.0f / 169.0f)) + 1) & 0xfffe;
+  uint16_t h_blank_memory_start_position = h_blank_start_position;
+  uint16_t h_blank_memory_stop_position =  (uint16_t)((htotal * (157.0f / 169.0f)) + 1) & 0xfffe; // no idea
 
   writeOneByte(0xF0, 3);
 
   // write htotal
-  regLow = (uint8_t)(htotal - 1);
+  regLow = (uint8_t)htotal;
   readFromRegister(3, 0x02, 1, &regHigh);
-  regHigh = (regHigh & 0xf0) | ((htotal - 1) >> 8);
+  regHigh = (regHigh & 0xf0) | (htotal >> 8);
   writeOneByte(0x01, regLow);
   writeOneByte(0x02, regHigh);
 
@@ -1146,16 +1146,25 @@ void set_htotal(uint16_t htotal) {
 
 void set_vtotal(uint16_t vtotal) {
   uint8_t regLow, regHigh;
-  uint16_t v_blank_start_position = vtotal * (480.0f / 525.0f);
-  uint16_t v_blank_stop_position = 0;
-  uint16_t v_sync_start_position = v_blank_start_position + (vtotal * (2.0f / 175.0f));
-  uint16_t v_sync_stop_position = v_sync_start_position + (vtotal * (2.0f / 175.0f));
+  // ModeLine "1280x960" 108.00 1280 1376 1488 1800 960 961 964 1000 +HSync +VSync
+  // front porch: V2 - V1: 961 - 960 = 1
+  // back porch : V4 - V3: 1000 - 964 = 36
+  // sync pulse : V3 - V2: 964 - 961 = 3
+  // VB start: 960 / 1000 = (24/25)
+  // VB stop:  1000        = vtotal
+  // VS start: 961 / 1000 = (961/1000)
+  // VS stop : 964 / 1000 = (241/250)
+
+  uint16_t v_blank_start_position = vtotal * (24.0f / 25.0f);
+  uint16_t v_blank_stop_position = vtotal;
+  uint16_t v_sync_start_position = vtotal * (961.0f / 1000.0f);
+  uint16_t v_sync_stop_position = vtotal * (241.0f / 250.0f);
 
   // write vtotal
   writeOneByte(0xF0, 3);
-  regHigh = (uint8_t)((vtotal - 1) >> 4);
+  regHigh = (uint8_t)(vtotal >> 4);
   readFromRegister(3, 0x02, 1, &regLow);
-  regLow = ((regLow & 0x0f) | (uint8_t)((vtotal - 1) << 4));
+  regLow = ((regLow & 0x0f) | (uint8_t)(vtotal << 4));
   writeOneByte(0x03, regHigh);
   writeOneByte(0x02, regLow);
 
@@ -2189,7 +2198,7 @@ void loop() {
 
     inputLength = highTest1 > highTest2 ? highTest1 : highTest2;
     inputLength += lowTest1 > lowTest2 ? lowTest1 : lowTest2;
-    Serial.print(F("input scanline us: ")); Serial.println(inputLength);
+    Serial.print(F("in field time: ")); Serial.println(inputLength);
 
     writeOneByte(0xF0, 0);
     readFromRegister(0x4f, 1, &readout);
@@ -2210,7 +2219,7 @@ void loop() {
     lowTest1 = pulseIn(10, LOW, 50000);
     lowTest2 = pulseIn(10, LOW, 50000);
     long lowPulse = lowTest1 > lowTest2 ? lowTest1 : lowTest2;
-    Serial.print(F("output Scanline us: ")); Serial.println(lowPulse + highPulse);
+    Serial.print(F("out field time: ")); Serial.println(lowPulse + highPulse);
 
     Serial.print(F(" Start HTotal: ")); Serial.println(htotal);
     while ((currentHTotal < 0xff) ) {
