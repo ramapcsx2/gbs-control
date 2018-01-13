@@ -1145,8 +1145,8 @@ void set_htotal(uint16_t htotal) {
 
   // Memory fetch locations should somehow be calculated with settings for line length in IF and/or buffer sizes in S4 (Capture Buffer)
   // just use something that works for now
-  uint16_t h_blank_memory_start_position = h_blank_start_position;
-  uint16_t h_blank_memory_stop_position =  (uint16_t)((htotal * (157.0f / 169.0f)) + 1) & 0xfffe; // no idea
+  uint16_t h_blank_memory_start_position = h_blank_start_position - 88;
+  uint16_t h_blank_memory_stop_position =  h_blank_stop_position - 108;
 
   writeOneByte(0xF0, 3);
 
@@ -1249,15 +1249,15 @@ void set_vtotal(uint16_t vtotal) {
   writeOneByte(0x15, regHigh);
   writeOneByte(0x14, regLow);
 
-  // If VSCALE_BYPS = 1 THEN (Vb_sp – Vb_st) = V total – V display enable
-  // VB ST (memory) to v_blank_start_position, VB SP (memory): 0
+  // VB ST (memory) to v_blank_start_position, VB SP (memory): v_blank_stop_position - 2
+  // guide says: if vscale enabled, vb (memory) stop -=2, else keep it | scope readings look best with -= 2.
   regLow = (uint8_t)v_blank_start_position;
   regHigh = (uint8_t)(v_blank_start_position >> 8);
   writeOneByte(0x07, regLow);
   writeOneByte(0x08, regHigh);
   readFromRegister(3, 0x08, 1, &regLow);
-  regLow = (regLow & 0x0f) | ((uint8_t)0) << 4;
-  regHigh = (uint8_t)(0 >> 4);
+  regLow = (regLow & 0x0f) | (uint8_t)(v_blank_stop_position - 2) << 4;
+  regHigh = (uint8_t)((v_blank_stop_position - 2) >> 4);
   writeOneByte(0x08, regLow);
   writeOneByte(0x09, regHigh);
 }
