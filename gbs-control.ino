@@ -1263,9 +1263,6 @@ void set_vtotal(uint16_t vtotal) {
 }
 
 void applyPresets(byte result) {
-
-  setSOGLevel(10); // 100mV
-
   if (result == 2) {
     Serial.println(F("PAL timing "));
     writeProgramArrayNew(pal_240p);
@@ -1303,6 +1300,9 @@ void applyPresets(byte result) {
     //delay(3000);
     rto->videoStandardInput = 0;
   }
+
+  // post preset loading patches:
+  setSOGLevel(10); // 100mV
 }
 
 void enableDeinterlacer() {
@@ -1598,6 +1598,7 @@ void setup() {
   //zeroAll(); delay(5);
   writeProgramArraySection(ntsc_240p, 1); // bring up minimal settings for input detection to work
   writeProgramArraySection(ntsc_240p, 5);
+  setSOGLevel(10); // 100mV
   resetDigital();
   //writeProgramArrayNew(ntsc_240p);
   delay(250);
@@ -1737,6 +1738,7 @@ void loop() {
           applyYuvPatches();
         }
         rto->videoStandardInput = 1;
+        setSOGLevel(10); // 100mV
         resetDigital();
         enableVDS();
         resetSyncLock();
@@ -1749,6 +1751,7 @@ void loop() {
           applyYuvPatches();
         }
         rto->videoStandardInput = 2;
+        setSOGLevel(10); // 100mV
         resetDigital();
         enableVDS();
         resetSyncLock();
@@ -1922,6 +1925,7 @@ void loop() {
           Serial.print("(YUV)");
           applyYuvPatches();
         }
+        setSOGLevel(10); // 100mV
         resetDigital();
         enableVDS();
         resetPLLAD();
@@ -1933,6 +1937,7 @@ void loop() {
           Serial.print("(YUV)");
           applyYuvPatches();
         }
+        setSOGLevel(10); // 100mV
         resetDigital();
         enableVDS();
         resetPLLAD();
@@ -1963,6 +1968,7 @@ void loop() {
           Serial.print("(YUV)");
           applyYuvPatches();
         }
+        setSOGLevel(10); // 100mV
         resetDigital();
         enableVDS();
         resetPLLAD();
