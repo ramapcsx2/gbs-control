@@ -1145,8 +1145,8 @@ void set_htotal(uint16_t htotal) {
 
   // Memory fetch locations should somehow be calculated with settings for line length in IF and/or buffer sizes in S4 (Capture Buffer)
   // just use something that works for now
-  uint16_t h_blank_memory_start_position = h_blank_start_position - 88;
-  uint16_t h_blank_memory_stop_position =  h_blank_stop_position - 108;
+  uint16_t h_blank_memory_start_position = h_blank_start_position - 92;
+  uint16_t h_blank_memory_stop_position =  h_blank_stop_position - 112;
 
   writeOneByte(0xF0, 3);
 
