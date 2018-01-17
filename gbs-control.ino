@@ -342,8 +342,8 @@ void setSPParameters() {
   writeOneByte(0x2f, 0x04); // SP_V_PRD_EQ_THD    How many continue legal v sync as valid  0x04
   writeOneByte(0x31, 0x2f); // SP_VT_DLT_REG      V total different threshold
   // Timer value control
-  writeOneByte(0x33, 0x28); // SP_H_TIMER_VAL     H timer value for h detect
-  writeOneByte(0x34, 0x03); // SP_V_TIMER_VAL     V timer for V detect
+  writeOneByte(0x33, 0x28); // SP_H_TIMER_VAL     H timer value for h detect (hpw 148 typical, need a little slack > 160/4 = 40 (0x28)) (was 0x28)
+  writeOneByte(0x34, 0x03); // SP_V_TIMER_VAL     V timer for V detect       (?typical vtotal: 259. times 2 for 518. ntsc 525 - 518 = 7. so 0x08?)
 
   // Sync separation control
   //writeOneByte(0x35, 0xb0); // SP_DLT_REG [7:0]   Sync pulse width difference threshold  (tweak point) (b0 seems best from experiments. above, no difference)
@@ -1145,8 +1145,8 @@ void set_htotal(uint16_t htotal) {
 
   // Memory fetch locations should somehow be calculated with settings for line length in IF and/or buffer sizes in S4 (Capture Buffer)
   // just use something that works for now
-  uint16_t h_blank_memory_start_position = h_blank_start_position - 92;
-  uint16_t h_blank_memory_stop_position =  h_blank_stop_position - 112;
+  uint16_t h_blank_memory_start_position = h_blank_start_position - 1;
+  uint16_t h_blank_memory_stop_position =  h_blank_stop_position * (41.0f / 45.0f);
 
   writeOneByte(0xF0, 3);
 
@@ -2308,7 +2308,7 @@ void loop() {
     long difference = 99999; // shortcut
     long prev_difference;
     uint8_t regLow, regHigh;
-    uint16_t hpsp, htotal, backupHTotal, bestHTotal = 1;
+    uint16_t hbsp, htotal, backupHTotal, bestHTotal = 1;
 
     // test if we get the vsync signal (wire is connected, display output is working)
     // this remembers a positive result via VSYNCconnected
@@ -2437,16 +2437,16 @@ void loop() {
 
     readFromRegister(3, 0x11, 1, &regLow);
     readFromRegister(3, 0x12, 1, &regHigh);
-    hpsp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
+    hbsp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
 
     Serial.print(F(" End HTotal: ")); Serial.println(htotal);
 
-    if ( htotal <= hpsp  ) {
-      hpsp = htotal - 1;
-      hpsp &= 0xfffe;
-      regHigh = (uint8_t)(hpsp >> 4);
+    if ( htotal <= hbsp  ) {
+      hbsp = htotal - 1;
+      hbsp &= 0xfffe;
+      regHigh = (uint8_t)(hbsp >> 4);
       readFromRegister(3, 0x11, 1, &regLow);
-      regLow = (regLow & 0x0f) | ((uint8_t)(hpsp << 4));
+      regLow = (regLow & 0x0f) | ((uint8_t)(hbsp << 4));
       writeOneByte(0x11, regLow);
       writeOneByte(0x12, regHigh);
       //setMemoryHblankStartPosition( Vds_hsync_rst - 8 );
