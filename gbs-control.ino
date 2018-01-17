@@ -1136,39 +1136,40 @@ void set_vtotal(uint16_t vtotal) {
   writeOneByte(0x09, regHigh);
 }
 
+void doPostPresetLoadSteps() {
+  if (rto->inputIsYpBpR == true) {
+    Serial.print("(YUV)");
+    applyYuvPatches();
+  }
+  setSOGLevel( rto->currentLevelSOG );
+  enableVDS(); delay(10);
+  resetPLLAD();
+  setPhaseADC(); setPhaseSP();
+  resetSyncLock();
+  resetADCAutoGain();
+}
+
 void applyPresets(byte result) {
   if (result == 2) {
     Serial.println(F("PAL timing "));
     writeProgramArrayNew(pal_240p);
-    if (rto->inputIsYpBpR == true) {
-      Serial.print("(YUV)");
-      applyYuvPatches();
-    }
-    setSOGLevel( rto->currentLevelSOG );
+    
     rto->videoStandardInput = 2;
-    resetPLLAD();
+    doPostPresetLoadSteps();
   }
   else if (result == 1) {
     Serial.println(F("NTSC timing "));
     writeProgramArrayNew(ntsc_240p);
-    if (rto->inputIsYpBpR == true) {
-      Serial.print("(YUV)");
-      applyYuvPatches();
-    }
-    setSOGLevel( rto->currentLevelSOG );
+    
     rto->videoStandardInput = 1;
-    resetPLLAD();
+    doPostPresetLoadSteps();
   }
   else if (result == 3) {
     Serial.println(F("HDTV timing "));
     writeProgramArrayNew(ntsc_240p); // ntsc base
-    if (rto->inputIsYpBpR == true) {
-      Serial.print("(YUV)");
-      applyYuvPatches();
-    }
-    setSOGLevel( rto->currentLevelSOG );
+    
     rto->videoStandardInput = 3;
-    resetPLLAD();
+    doPostPresetLoadSteps();
   }
   else {
     Serial.println(F("Unknown timing! "));
@@ -1490,9 +1491,6 @@ void setup() {
 
   if (timeout > 0 && result != 0) {
     applyPresets(result);
-    resetPLL();
-    enableVDS();
-    resetPLLAD();
     delay(1000); // at least 750ms required to become stable
   }
 
@@ -1608,28 +1606,12 @@ void loop() {
       case 'e':
         Serial.println(F("ntsc preset"));
         writeProgramArrayNew(ntsc_240p);
-        if (rto->inputIsYpBpR == true) {
-          Serial.print("(YUV)");
-          applyYuvPatches();
-        }
-        rto->videoStandardInput = 1;
-        setSOGLevel(10); // 100mV
-        resetDigital();
-        enableVDS();
-        resetSyncLock();
+        doPostPresetLoadSteps();
         break;
       case 'r':
         Serial.println(F("pal preset"));
         writeProgramArrayNew(pal_240p);
-        if (rto->inputIsYpBpR == true) {
-          Serial.print("(YUV)");
-          applyYuvPatches();
-        }
-        rto->videoStandardInput = 2;
-        setSOGLevel(10); // 100mV
-        resetDigital();
-        enableVDS();
-        resetSyncLock();
+        doPostPresetLoadSteps();
         break;
       case '.':
         rto->syncLockFound = !rto->syncLockFound;
@@ -1796,27 +1778,11 @@ void loop() {
         break;
       case '2':
         writeProgramArrayNew(vclktest);
-        if (rto->inputIsYpBpR == true) {
-          Serial.print("(YUV)");
-          applyYuvPatches();
-        }
-        setSOGLevel(10); // 100mV
-        resetDigital();
-        enableVDS();
-        resetPLLAD();
-        resetSyncLock();
+        doPostPresetLoadSteps();
         break;
       case '3':
         writeProgramArrayNew(ofw_ypbpr);
-        if (rto->inputIsYpBpR == true) {
-          Serial.print("(YUV)");
-          applyYuvPatches();
-        }
-        setSOGLevel(10); // 100mV
-        resetDigital();
-        enableVDS();
-        resetPLLAD();
-        resetSyncLock();
+        doPostPresetLoadSteps();
         break;
       case '4':
         scaleVertical(1, true);
@@ -1839,15 +1805,7 @@ void loop() {
       case '9':
         writeProgramArrayNew(ntsc_feedbackclock);
         //writeProgramArrayNew(rgbhv);
-        if (rto->inputIsYpBpR == true) {
-          Serial.print("(YUV)");
-          applyYuvPatches();
-        }
-        setSOGLevel(10); // 100mV
-        resetDigital();
-        enableVDS();
-        resetPLLAD();
-        resetSyncLock();
+        doPostPresetLoadSteps();
         break;
       case 'o':
         {
@@ -1858,7 +1816,7 @@ void loop() {
             writeOneByte(0x16, 0xa0);
             writeOneByte(0x00, 0xc0);
             writeOneByte(0x1f, 0x07);
-            resetPLL();
+            resetPLL(); resetPLLAD();
             OSRSwitch = 1;
           }
           else if (OSRSwitch == 1) {
@@ -1867,7 +1825,7 @@ void loop() {
             writeOneByte(0x16, 0x6f);
             writeOneByte(0x00, 0xd0);
             writeOneByte(0x1f, 0x05);
-            resetPLL();
+            resetPLL(); resetPLLAD();
             OSRSwitch = 2;
           }
           else {
@@ -1876,7 +1834,7 @@ void loop() {
             writeOneByte(0x16, 0x2f);
             writeOneByte(0x00, 0xd8);
             writeOneByte(0x1f, 0x04);
-            resetPLL();
+            resetPLL(); resetPLLAD();
             OSRSwitch = 0;
           }
         }
@@ -2103,13 +2061,7 @@ void loop() {
         result = getVideoMode();
       }
       applyPresets(result);
-      if (result != 0) resetPLL();
-      resetSyncLock();
-      delay(100);
-      enableVDS(); // display now active
-      //resetPLLAD();
       delay(600);
-      resetADCAutoGain();
     }
 
     lastTimeSyncWatcher = millis();
