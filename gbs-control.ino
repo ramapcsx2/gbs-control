@@ -256,8 +256,8 @@ void setSPParameters() {
   writeOneByte(0x54, 0x00); // 0xc0
 
   //writeOneByte(0x55, 0x50); // auto coast off (on = d0, was default)  0xc0 rgbhv: 0 but 50 is fine
-  //writeOneByte(0x56, 0x05); // sog mode on, clamp source 27mhz, no sync inversion (default was invert h sync?)  0x21 rgbhv: 36
-  // writeOneByte(0x57, 0xc0); // 0xc0 rgbhv: 44
+  //writeOneByte(0x56, 0x0d); // sog mode on, clamp source pixclk, no sync inversion (default was invert h sync?)  0x21 rgbhv: 36
+  //writeOneByte(0x57, 0xc0); // 0xc0 rgbhv: 44
 
   writeOneByte(0x58, 0x05); //rgbhv: 0
   writeOneByte(0x59, 0xc0); //rgbhv: c0
@@ -1395,6 +1395,7 @@ void applyYuvPatches() {   // also does color mixing changes
   readFromRegister(0x03, 1, &readout);
   writeOneByte(0x03, readout | (1 << 3)); // midclamp blue
   writeOneByte(0x02, 0x19); //RCA inputs, SOG on
+  writeOneByte(0x56, 0x0d); //sog mode on, clamp source pixclk, no sync inversion
   writeOneByte(0x06, 0x3f); //adc R offset
   writeOneByte(0x07, 0x3f); //adc G offset
   writeOneByte(0x08, 0x3f); //adc B offset
