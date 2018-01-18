@@ -8,6 +8,18 @@
 
 #include <EEPROM.h>
 
+//#define ESP8266_BOARD
+
+#ifdef ESP8266_BOARD
+#define vsyncInPin D7
+#define LEDON  digitalWrite(LED_BUILTIN, LOW) // active low
+#define LEDOFF digitalWrite(LED_BUILTIN, HIGH)
+#else
+#define vsyncInPin 10
+#define LEDON  digitalWrite(LED_BUILTIN, HIGH)
+#define LEDOFF digitalWrite(LED_BUILTIN, LOW)
+#endif
+
 // 7 bit GBS I2C Address
 #define GBS_ADDR 0x17
 
@@ -502,7 +514,6 @@ void resetPLL() {
   readout |= (1 << 4); // lock on
   delay(10);
   writeOneByte(0x43, readout); // main pll lock on
-  digitalWrite(LED_BUILTIN, LOW); // in case LED was on
   Serial.println(F("reset PLL648"));
 }
 
@@ -516,7 +527,6 @@ void resetDigital() {
   resetPLL(); delay(10);
   writeOneByte(0x46, 0x3f); // all on except VDS (display enable)
   writeOneByte(0x47, 0x17); // all on except HD bypass
-  digitalWrite(LED_BUILTIN, LOW); // in case LED was on
   Serial.println(F("resetDigital"));
 }
 
@@ -1147,27 +1157,28 @@ void doPostPresetLoadSteps() {
   setPhaseADC(); setPhaseSP();
   resetSyncLock();
   resetADCAutoGain();
+  LEDOFF; // in case LED was on
 }
 
 void applyPresets(byte result) {
   if (result == 2) {
     Serial.println(F("PAL timing "));
     writeProgramArrayNew(pal_240p);
-    
+
     rto->videoStandardInput = 2;
     doPostPresetLoadSteps();
   }
   else if (result == 1) {
     Serial.println(F("NTSC timing "));
     writeProgramArrayNew(ntsc_240p);
-    
+
     rto->videoStandardInput = 1;
     doPostPresetLoadSteps();
   }
   else if (result == 3) {
     Serial.println(F("HDTV timing "));
     writeProgramArrayNew(ntsc_240p); // ntsc base
-    
+
     rto->videoStandardInput = 3;
     doPostPresetLoadSteps();
   }
@@ -1415,16 +1426,21 @@ void setup() {
   Serial.setTimeout(10);
   Serial.println(F("starting"));
 
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH); // enable the LED, lets users know the board is starting up
-  pinMode(10, INPUT); // vsync sample input
+#ifdef ESP8266_BOARD
+  pinMode(vsyncInPin, INPUT);
+#else
+  pinMode(vsyncInPin, INPUT);
   pinMode(11, INPUT); // phase sample input
-
-  pinMode(A0, INPUT);         // auto ADC gain measurement input
   analogReference(INTERNAL);  // change analog read reference to 1.1V internal
   bitSet(ADCSRA, ADPS0);      // lower analog read delay
   bitClear(ADCSRA, ADPS1);    //
   bitSet(ADCSRA, ADPS2);      // 101 > x32 div
+#endif
+
+  pinMode(LED_BUILTIN, OUTPUT);
+  LEDON; // enable the LED, lets users know the board is starting up
+  pinMode(A0, INPUT); // auto ADC gain measurement input
+
   for (byte i = 0; i < 100; i++) {
     analogRead(A0);           // first few analog reads are glitchy after the reference change!
   }
@@ -1476,10 +1492,8 @@ void setup() {
   //zeroAll(); delay(5);
   writeProgramArrayNew(ntsc_240p); // bring the chip up for input detection
   resetDigital();
-  //writeProgramArrayNew(ntsc_240p);
   delay(250);
   inputAndSyncDetect();
-  delay(1000);
 
   byte result = getVideoMode();
   byte timeout = 255;
@@ -1493,22 +1507,11 @@ void setup() {
     applyPresets(result);
     delay(1000); // at least 750ms required to become stable
   }
-
-  resetADCAutoGain();
-  resetSyncLock();
-
-  if (rto->autoGainADC == false) {
-    writeOneByte(0xF0, 5);
-    writeOneByte(0x09, 0x7f);
-    writeOneByte(0x0a, 0x7f);
-    writeOneByte(0x0b, 0x7f);
-  }
 #endif
-
-  digitalWrite(LED_BUILTIN, LOW); // startup done, disable the LED
 
   Serial.print(F("\nMCU: ")); Serial.println(F_CPU);
   Serial.println(F("scaler set up!"));
+  LEDOFF; // startup done, disable the LED
 }
 
 void loop() {
@@ -1701,6 +1704,7 @@ void loop() {
         break;
       case 'u':
         //Serial.print("len: "); Serial.println(pulseIn(10, LOW, 60000) + pulseIn(10, HIGH, 60000));
+#ifndef ESP8266_BOARD
         writeOneByte(0xF0, 5);
         writeOneByte(0x1e, 0);
         {
@@ -1756,7 +1760,7 @@ void loop() {
           Serial.print(F("ADC phase: ")); Serial.println(readout, HEX);
           //counter = 0;
         }
-
+#endif
         break;
       case 'f':
         Serial.println(F("show noise"));
@@ -2141,7 +2145,7 @@ void loop() {
     // test if we get the vsync signal (wire is connected, display output is working)
     // this remembers a positive result via VSYNCconnected
     if (rto->VSYNCconnected == false) {
-      if ((pulseIn(10, HIGH, 50000) != 0) && (pulseIn(10, LOW, 50000) != 0)) {
+      if ((pulseIn(vsyncInPin, HIGH, 50000) != 0) && (pulseIn(vsyncInPin, LOW, 50000) != 0)) {
         rto->VSYNCconnected = true;
       }
       else {
@@ -2160,10 +2164,10 @@ void loop() {
     long highTest1, highTest2;
     long lowTest1, lowTest2;
 
-    highTest1 = pulseIn(10, HIGH, 50000);
-    highTest2 = pulseIn(10, HIGH, 50000);
-    lowTest1 = pulseIn(10, LOW, 50000);
-    lowTest2 = pulseIn(10, LOW, 50000);
+    highTest1 = pulseIn(vsyncInPin, HIGH, 50000);
+    highTest2 = pulseIn(vsyncInPin, HIGH, 50000);
+    lowTest1 = pulseIn(vsyncInPin, LOW, 50000);
+    lowTest2 = pulseIn(vsyncInPin, LOW, 50000);
 
     inputLength = highTest1 > highTest2 ? highTest1 : highTest2;
     inputLength += lowTest1 > lowTest2 ? lowTest1 : lowTest2;
@@ -2179,11 +2183,11 @@ void loop() {
     htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
     backupHTotal = htotal;
 
-    highTest1 = pulseIn(10, HIGH, 50000);
-    highTest2 = pulseIn(10, HIGH, 50000);
+    highTest1 = pulseIn(vsyncInPin, HIGH, 50000);
+    highTest2 = pulseIn(vsyncInPin, HIGH, 50000);
     long highPulse = highTest1 > highTest2 ? highTest1 : highTest2;
-    lowTest1 = pulseIn(10, LOW, 50000);
-    lowTest2 = pulseIn(10, LOW, 50000);
+    lowTest1 = pulseIn(vsyncInPin, LOW, 50000);
+    lowTest2 = pulseIn(vsyncInPin, LOW, 50000);
     long lowPulse = lowTest1 > lowTest2 ? lowTest1 : lowTest2;
     Serial.print(F("out field time: ")); Serial.println(lowPulse + highPulse);
     Serial.print(F(" Start HTotal: ")); Serial.println(htotal);
@@ -2196,7 +2200,7 @@ void loop() {
       regHigh = (regHigh & 0xf0) | (htotal >> 8);
       writeOneByte(0x01, regLow);
       writeOneByte(0x02, regHigh);
-      outputLength = pulseIn(10, LOW, 50000) + highPulse;
+      outputLength = pulseIn(vsyncInPin, LOW, 50000) + highPulse;
 
       prev_difference = difference;
       difference = (outputLength > inputLength) ? (outputLength - inputLength) : (inputLength - outputLength);
