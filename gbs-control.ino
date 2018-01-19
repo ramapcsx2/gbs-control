@@ -11,6 +11,7 @@
 //#define ESP8266_BOARD
 
 #ifdef ESP8266_BOARD
+#include <ESP8266WiFi.h>
 #define vsyncInPin D7
 #define LEDON  digitalWrite(LED_BUILTIN, LOW) // active low
 #define LEDOFF digitalWrite(LED_BUILTIN, HIGH)
@@ -190,7 +191,11 @@ void writeProgramArrayNew(const uint8_t* programArray)
   }
 
   setSPParameters();
-
+  
+  writeOneByte(0xF0, 1);
+  writeOneByte(0x60, 0x81); // MD H unlock / lock 
+  writeOneByte(0x61, 0x81); // MD V unlock / lock 
+  
   // capture guard
   //writeOneByte(0xF0, 4);
   //writeOneByte(0x24, 0x00);
@@ -1158,6 +1163,9 @@ void doPostPresetLoadSteps() {
   resetSyncLock();
   resetADCAutoGain();
   LEDOFF; // in case LED was on
+  Serial.println(F("----"));
+  getVideoTimings();
+  Serial.println(F("----"));
 }
 
 void applyPresets(byte result) {
@@ -1427,14 +1435,25 @@ void setup() {
   Serial.println(F("starting"));
 
 #ifdef ESP8266_BOARD
+#define WDT_CNTL ((volatile uint32_t*) 0x60000900)
   pinMode(vsyncInPin, INPUT);
+  WiFi.disconnect();
+  WiFi.mode(WIFI_OFF);
+  WiFi.forceSleepBegin();
+  delay(1);
+
+  *WDT_CNTL &= ~0x0001; // disable hardware watchdog
+  ESP.wdtDisable(); // disable software watchdog
+  ets_isr_mask((1 << 0)); // appears to be the soft watchdog ISR. This *really* disables it.
 #else
+
   pinMode(vsyncInPin, INPUT);
   pinMode(11, INPUT); // phase sample input
   analogReference(INTERNAL);  // change analog read reference to 1.1V internal
   bitSet(ADCSRA, ADPS0);      // lower analog read delay
   bitClear(ADCSRA, ADPS1);    //
   bitSet(ADCSRA, ADPS2);      // 101 > x32 div
+
 #endif
 
   pinMode(LED_BUILTIN, OUTPUT);
@@ -1573,6 +1592,9 @@ void loop() {
       case 'y':
         {
           uint16_t address = 0;
+#ifdef ESP8266_BOARD
+          EEPROM.begin(1024); //ESP8266
+#endif
           while (1) {
             Serial.println(EEPROM.read(address), HEX);
             address++;
@@ -1580,9 +1602,24 @@ void loop() {
               break;
             }
           }
+#ifdef ESP8266_BOARD
+          EEPROM.end(); //ESP8266
+#endif
+          Serial.println(F("----"));
           //h:429 v:523 PLL:2 status:0 mode:1 ADC:7F hpw:158 htotal:1710 vtotal:259  Mega Drive NTSC
         }
         break;
+#ifdef ESP8266_BOARD
+      case 'p':
+        {
+          //Serial.print("ADC: "); Serial.println(analogRead(A0));
+          pinMode(D6, OUTPUT);
+          while (1) {
+            digitalWrite(D6, !digitalRead(D6));
+          }
+        }
+        break;
+#endif
       case 'k':
         {
           static boolean sp_passthrough_enabled = false;
