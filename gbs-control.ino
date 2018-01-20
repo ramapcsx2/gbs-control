@@ -5,6 +5,7 @@
 #include "ntsc_feedbackclock.h"
 #include "ofw_ypbpr.h"
 #include "rgbhv.h"
+#include "minimal_startup.h"
 
 #include <EEPROM.h>
 
@@ -191,11 +192,11 @@ void writeProgramArrayNew(const uint8_t* programArray)
   }
 
   setSPParameters();
-  
+
   writeOneByte(0xF0, 1);
-  writeOneByte(0x60, 0x81); // MD H unlock / lock 
-  writeOneByte(0x61, 0x81); // MD V unlock / lock 
-  
+  writeOneByte(0x60, 0x81); // MD H unlock / lock
+  writeOneByte(0x61, 0x81); // MD V unlock / lock
+
   // capture guard
   //writeOneByte(0xF0, 4);
   //writeOneByte(0x24, 0x00);
@@ -238,21 +239,21 @@ void setSPParameters() {
   writeOneByte(0x34, 0x03); // SP_V_TIMER_VAL     V timer for V detect       (?typical vtotal: 259. times 2 for 518. ntsc 525 - 518 = 7. so 0x08?)
 
   // Sync separation control
-  //writeOneByte(0x35, 0xb0); // SP_DLT_REG [7:0]   Sync pulse width difference threshold  (tweak point) (b0 seems best from experiments. above, no difference)
-  //writeOneByte(0x36, 0x00); // SP_DLT_REG [11:8]
-  //writeOneByte(0x37, 0x58); // SP_H_PULSE_IGNORE (tweak point) H pulse less than this will be ignored. (MD needs > 0x51) rgbhv: a
-  //writeOneByte(0x38, 0x07); // h coast pre (psx starts eq pulses around 4 hsyncs before vs pulse) rgbhv: 7
-  //writeOneByte(0x39, 0x01); // h coast post (psx stops eq pulses around 4 hsyncs after vs pulse) rgbhv: 12
+  writeOneByte(0x35, 0xb0); // SP_DLT_REG [7:0]   Sync pulse width difference threshold  (tweak point) (b0 seems best from experiments. above, no difference)
+  writeOneByte(0x36, 0x00); // SP_DLT_REG [11:8]
+  writeOneByte(0x37, 0x58); // SP_H_PULSE_IGNORE (tweak point) H pulse less than this will be ignored. (MD needs > 0x51) rgbhv: a
+  writeOneByte(0x38, 0x07); // h coast pre (psx starts eq pulses around 4 hsyncs before vs pulse) rgbhv: 7
+  writeOneByte(0x39, 0x01); // h coast post (psx stops eq pulses around 4 hsyncs after vs pulse) rgbhv: 12
 
-  //writeOneByte(0x3a, 0x0a); // 0x0a rgbhv: 20
+  writeOneByte(0x3a, 0x0a); // 0x0a rgbhv: 20
   //writeOneByte(0x3f, 0x03); // 0x03
   //writeOneByte(0x40, 0x0b); // 0x0b
 
   //writeOneByte(0x3e, 0x00); // problems with snes 239 line mode, use 0x00  0xc0 rgbhv: f0
 
   // clamp position
-  //writeOneByte(0x41, 0x32); writeOneByte(0x43, 0x45); // newer GBS boards seem to float the inputs more??  0x32 0x45
-  //writeOneByte(0x44, 0x00); writeOneByte(0x42, 0x00); // 0xc0 0xc0
+  writeOneByte(0x41, 0x32); writeOneByte(0x43, 0x45); // newer GBS boards seem to float the inputs more??  0x32 0x45
+  writeOneByte(0x44, 0x00); writeOneByte(0x42, 0x00); // 0xc0 0xc0
 
   writeOneByte(0x45, 0x00); // 0x00
   writeOneByte(0x46, 0x00); // 0xc0
@@ -264,8 +265,8 @@ void setSPParameters() {
   writeOneByte(0x4c, 0x00); // 0xc0
 
   // h coast start / stop positions
-  //writeOneByte(0x4e, 0x00); writeOneByte(0x4d, 0x00); // test rgbhv: 0 0
-  //writeOneByte(0x50, 0x06); writeOneByte(0x4f, 0x50); // test rgbhv: 0 0
+  //writeOneByte(0x4e, 0x00); writeOneByte(0x4d, 0x00); //  | rgbhv: 0 0
+  //writeOneByte(0x50, 0x06); writeOneByte(0x4f, 0x90); //  | rgbhv: 0 0
 
   writeOneByte(0x51, 0x02); // 0x00 rgbhv: 2
   writeOneByte(0x52, 0x00); // 0xc0
@@ -713,7 +714,6 @@ void scaleHorizontalLarger() {
 void moveHS(uint16_t amountToAdd, bool subtracting) {
   uint8_t high, low;
   uint16_t newST, newSP;
-  uint16_t dis_hb_st, dis_hb_sp;
 
   writeOneByte(0xf0, 3);
   readFromRegister(0x0a, 1, &low);
@@ -723,26 +723,12 @@ void moveHS(uint16_t amountToAdd, bool subtracting) {
   readFromRegister(0x0c, 1, &high);
   newSP = ( (((uint16_t)high) & 0x00ff) << 4) | ( (((uint16_t)low) & 0x00f0) >> 4);
 
-  readFromRegister(3, 0x10, 1, &low);
-  readFromRegister(3, 0x11, 1, &high);
-  dis_hb_st = (( ( ((uint16_t)high) & 0x000f) << 8) | (uint16_t)low);
-
-  readFromRegister(3, 0x11, 1, &low);
-  readFromRegister(3, 0x12, 1, &high);
-  dis_hb_sp = ( (((uint16_t)high) << 4) | ((uint16_t)low & 0x00f0) >> 4);
-
   if (subtracting) {
-    if (dis_hb_st < (newST - amountToAdd)) {
-      newST -= amountToAdd;
-      newSP -= amountToAdd;
-    }
-    else Serial.println("limit");
+    newST -= amountToAdd;
+    newSP -= amountToAdd;
   } else {
-    if (dis_hb_sp > (newSP + amountToAdd)) {
-      newST += amountToAdd;
-      newSP += amountToAdd;
-    }
-    else Serial.println("limit");
+    newST += amountToAdd;
+    newSP += amountToAdd;
   }
   Serial.print("HSST: "); Serial.print(newST);
   Serial.print(" HSSP: "); Serial.println(newSP);
@@ -1028,14 +1014,14 @@ void set_htotal(uint16_t htotal) {
   // hbst (memory) should always start before or exactly at hbst (display) for interlaced sources to look nice
   // .. at least in PAL modes. NTSC doesn't seem to be affected
   uint16_t h_blank_start_position = (uint16_t)((htotal * (32.0f / 45.0f)) + 1) & 0xfffe;
-  uint16_t h_blank_stop_position =  (uint16_t)htotal;
+  uint16_t h_blank_stop_position =  0;  //(uint16_t)htotal;  // it's better to use 0 here, allows for easier masking
   uint16_t h_sync_start_position =  (uint16_t)((htotal * (172.0f / 225.0f)) + 1) & 0xfffe;
   uint16_t h_sync_stop_position =   (uint16_t)((htotal * (62.0f / 75.0f)) + 1) & 0xfffe;
 
   // Memory fetch locations should somehow be calculated with settings for line length in IF and/or buffer sizes in S4 (Capture Buffer)
   // just use something that works for now
   uint16_t h_blank_memory_start_position = h_blank_start_position - 1;
-  uint16_t h_blank_memory_stop_position =  h_blank_stop_position * (41.0f / 45.0f);
+  uint16_t h_blank_memory_stop_position =  (uint16_t)htotal * (41.0f / 45.0f);
 
   writeOneByte(0xF0, 3);
 
@@ -1415,7 +1401,7 @@ void applyYuvPatches() {   // also does color mixing changes
   readFromRegister(0x03, 1, &readout);
   writeOneByte(0x03, readout | (1 << 3)); // midclamp blue
   writeOneByte(0x02, 0x19); //RCA inputs, SOG on
-  writeOneByte(0x56, 0x0d); //sog mode on, clamp source pixclk, no sync inversion
+  writeOneByte(0x56, 0x09); //sog mode on, clamp source pixclk, no sync inversion, clamp manual off! (for yuv only, bit 2)
   writeOneByte(0x06, 0x3f); //adc R offset
   writeOneByte(0x07, 0x3f); //adc G offset
   writeOneByte(0x08, 0x3f); //adc B offset
@@ -1509,10 +1495,11 @@ void setup() {
 
   disableVDS();
   //zeroAll(); delay(5);
-  writeProgramArrayNew(ntsc_240p); // bring the chip up for input detection
+  writeProgramArrayNew(minimal_startup); // bring the chip up for input detection
   resetDigital();
   delay(250);
   inputAndSyncDetect();
+  delay(500);
 
   byte result = getVideoMode();
   byte timeout = 255;
