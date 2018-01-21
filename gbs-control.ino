@@ -308,6 +308,19 @@ void writeProgramArraySection(const uint8_t* programArray, byte section, byte su
   }
 }
 
+void fuzzySPWrite(){
+  writeOneByte(0xF0, 5);
+  for (uint8_t reg = 0x21; reg <= 0x34; reg++) {
+    writeOneByte(reg, random(0x00, 0xFF));
+  }
+//  for (uint8_t reg = 0x51; reg <= 0x54; reg++) {
+//    writeOneByte(reg, random(0x00, 0xFF));
+//  }
+  for (uint8_t reg = 0x49; reg <= 0x4c; reg++) {
+    writeOneByte(reg, random(0x00, 0xFF));
+  }
+}
+
 void setSPParameters() {
   writeOneByte(0xF0, 5);
   //writeOneByte(0x20, 0xd2); // was 0xd2, polarity detection aparently is active when bit1 = 0 or not? try d2 again (vga input)
@@ -333,7 +346,8 @@ void setSPParameters() {
   writeOneByte(0x36, 0x00); // SP_DLT_REG [11:8]
   writeOneByte(0x37, 0x58); // SP_H_PULSE_IGNORE (tweak point) H pulse less than this will be ignored. (MD needs > 0x51) rgbhv: a
   writeOneByte(0x38, 0x07); // h coast pre (psx starts eq pulses around 4 hsyncs before vs pulse) rgbhv: 7
-  writeOneByte(0x39, 0x01); // h coast post (psx stops eq pulses around 4 hsyncs after vs pulse) rgbhv: 12
+  writeOneByte(0x39, 0x03); // h coast post (psx stops eq pulses around 4 hsyncs after vs pulse) rgbhv: 12
+  // note: the pre / post lines number probably depends on the vsync pulse delay, ie: sync stripper vsync delay
 
   writeOneByte(0x3a, 0x0a); // 0x0a rgbhv: 20
   //writeOneByte(0x3f, 0x03); // 0x03
@@ -348,18 +362,21 @@ void setSPParameters() {
   writeOneByte(0x41, 0x70); writeOneByte(0x43, 0x98); // newer GBS boards seem to float the inputs more??  0x32 0x45
   writeOneByte(0x44, 0x00); writeOneByte(0x42, 0x00); // 0xc0 0xc0
 
-  writeOneByte(0x45, 0x00); // 0x00
-  writeOneByte(0x46, 0x00); // 0xc0
-  writeOneByte(0x47, 0x05); // 0x05
-  writeOneByte(0x48, 0x00); // 0xc0
+  //0x45 to 0x48 set a HS position just for Mode Detect. it's fine at start = 0 and stop = 1 or above
+  //writeOneByte(0x45, 0x00); // 0x00
+  //writeOneByte(0x46, 0x00); // 0xc0
+  writeOneByte(0x47, 0x40); // 0x05 // make it a little larger, in case units other than MD use this
+  //writeOneByte(0x48, 0x00); // 0xc0
   writeOneByte(0x49, 0x04); // 0x04 rgbhv: 20
   writeOneByte(0x4a, 0x00); // 0xc0
-  writeOneByte(0x4b, 0x34); // 0x34 rgbhv: 50
+  writeOneByte(0x4b, 0x44); // 0x34 rgbhv: 50
   writeOneByte(0x4c, 0x00); // 0xc0
 
   // h coast start / stop positions
-  //writeOneByte(0x4e, 0x00); writeOneByte(0x4d, 0x00); //  | rgbhv: 0 0
-  //writeOneByte(0x50, 0x06); writeOneByte(0x4f, 0x90); //  | rgbhv: 0 0
+  // try these values and t5t3et2 when using cvid sync / no sync stripper
+  // appears start should be around 0x70, stop should be htotal - 0x70
+  //writeOneByte(0x4e, 0x00); writeOneByte(0x4d, 0x70); //  | rgbhv: 0 0
+  //writeOneByte(0x50, 0x06); writeOneByte(0x4f, 0x70); //  | rgbhv: 0 0
 
   writeOneByte(0x51, 0x02); // 0x00 rgbhv: 2
   writeOneByte(0x52, 0x00); // 0xc0
@@ -1232,6 +1249,7 @@ void doPostPresetLoadSteps() {
   if (rto->inputIsYpBpR == true) {
     Serial.print("(YUV)");
     applyYuvPatches();
+    rto->currentLevelSOG = 12; // do this here, gets applied next line
   }
   setSOGLevel( rto->currentLevelSOG );
   enableVDS(); delay(10);
@@ -1519,11 +1537,10 @@ void applyYuvPatches() {   // also does color mixing changes
 
   writeOneByte(0xF0, 5);
   readFromRegister(0x03, 1, &readout);
-  writeOneByte(0x03, readout | (1 << 1)); // midclamp red
+  writeOneByte(0x03, readout | (1 << 1)); // midlevel clamp red
   readFromRegister(0x03, 1, &readout);
-  writeOneByte(0x03, readout | (1 << 3)); // midclamp blue
-  writeOneByte(0x02, 0x19); //RCA inputs, SOG on
-  writeOneByte(0x56, 0x09); //sog mode on, clamp source pixclk, no sync inversion, clamp manual off! (for yuv only, bit 2)
+  writeOneByte(0x03, readout | (1 << 3)); // midlevel clamp blue
+  writeOneByte(0x56, 0x01); //sog mode on, clamp source 27mhz, no sync inversion, clamp manual off! (for yuv only, bit 2)
   writeOneByte(0x06, 0x3f); //adc R offset
   writeOneByte(0x07, 0x3f); //adc G offset
   writeOneByte(0x08, 0x3f); //adc B offset
@@ -1537,10 +1554,11 @@ void applyYuvPatches() {   // also does color mixing changes
   writeOneByte(0x3b, 0x02); writeOneByte(0x37, 0x22); writeOneByte(0x3c, 0x02);
 }
 
-void applyRGBPatches() { // to undo yuvpatches
+// undo yuvpatches if necessary
+void applyRGBPatches() { 
   //uint8_t readout;
-
-  // ToDo
+  rto->currentLevelSOG = 10;
+  setSOGLevel( rto->currentLevelSOG );
 }
 
 void setup() {
@@ -1770,7 +1788,9 @@ void loop() {
         doPostPresetLoadSteps();
         break;
       case '.':
-        rto->syncLockFound = !rto->syncLockFound;
+        //rto->syncLockFound = !rto->syncLockFound;
+        fuzzySPWrite();
+        SyncProcessorOffOn();
         break;
       case 'j':
         resetPLL(); resetPLLAD();
