@@ -1,4 +1,9 @@
+#if defined(ESP8266)
+#define ESP8266_BOARD
+#endif
+
 #include <Wire.h>
+#include <EEPROM.h>
 #include "ntsc_240p.h"
 #include "pal_240p.h"
 #include "vclktest.h"
@@ -6,10 +11,6 @@
 #include "ofw_ypbpr.h"
 #include "rgbhv.h"
 #include "minimal_startup.h"
-
-#include <EEPROM.h>
-
-//#define ESP8266_BOARD
 
 #ifdef ESP8266_BOARD
 #include <ESP8266WiFi.h>
@@ -2388,9 +2389,9 @@ void loop() {
       }
     }
 
-//    writeOneByte(0xF0, 0);
-//    readFromRegister(0x4f, 1, &readout);
-//    writeOneByte(0x4f, readout & ~(1 << 7));
+    //    writeOneByte(0xF0, 0);
+    //    readFromRegister(0x4f, 1, &readout);
+    //    writeOneByte(0x4f, readout & ~(1 << 7));
 
     writeOneByte(0xF0, 3);
     regLow = (uint8_t)bestHTotal;
