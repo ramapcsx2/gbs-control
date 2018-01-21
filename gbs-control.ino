@@ -2329,19 +2329,27 @@ void loop() {
     readFromRegister(0x4f, 1, &readout);
     writeOneByte(0x4f, readout & ~(1 << 7));
 
-    writeOneByte(0xF0, 3);
-    readFromRegister(3, 0x01, 1, &regLow);
-    readFromRegister(3, 0x02, 1, &regHigh);
-    htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-    backupHTotal = htotal;
-
     highTest1 = pulseIn(vsyncInPin, HIGH, 50000);
     highTest2 = pulseIn(vsyncInPin, HIGH, 50000);
     long highPulse = highTest1 > highTest2 ? highTest1 : highTest2;
     lowTest1 = pulseIn(vsyncInPin, LOW, 50000);
     lowTest2 = pulseIn(vsyncInPin, LOW, 50000);
     long lowPulse = lowTest1 > lowTest2 ? lowTest1 : lowTest2;
-    Serial.print(F("out field time: ")); Serial.println(lowPulse + highPulse);
+    outputLength = lowPulse + highPulse;
+    Serial.print(F("out field time: ")); Serial.println(outputLength);
+
+    // shortcut to exit if in and out are close
+    int inOutDiff = outputLength - inputLength;
+    if ( abs(inOutDiff) < 5) {
+      rto->syncLockFound = true;
+      return;
+    }
+
+    writeOneByte(0xF0, 3);
+    readFromRegister(3, 0x01, 1, &regLow);
+    readFromRegister(3, 0x02, 1, &regHigh);
+    htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
+    backupHTotal = htotal;
     Serial.print(F(" Start HTotal: ")); Serial.println(htotal);
 
     htotal -= 30;
@@ -2380,9 +2388,9 @@ void loop() {
       }
     }
 
-    writeOneByte(0xF0, 0);
-    readFromRegister(0x4f, 1, &readout);
-    writeOneByte(0x4f, readout & ~(1 << 7));
+//    writeOneByte(0xF0, 0);
+//    readFromRegister(0x4f, 1, &readout);
+//    writeOneByte(0x4f, readout & ~(1 << 7));
 
     writeOneByte(0xF0, 3);
     regLow = (uint8_t)bestHTotal;
