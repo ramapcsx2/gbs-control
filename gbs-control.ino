@@ -218,6 +218,95 @@ void writeProgramArrayNew(const uint8_t* programArray)
 // S3_00 - S3_74 "VDS"
 //
 
+// This is still sometimes useful:
+void writeProgramArraySection(const uint8_t* programArray, byte section, byte subsection = 0) {
+  // section 1: index = 48
+  uint8_t bank[16];
+  int index = 0;
+
+  if (section == 0) {
+    index = 0;
+    writeOneByte(0xF0, 0);
+    for (int j = 0; j <= 1; j++) { // 2 times
+      for (int x = 0; x <= 15; x++) {
+        bank[x] = pgm_read_byte(programArray + index);
+        index++;
+      }
+      writeBytes(0x40 + (j * 16), bank, 16);
+    }
+    for (int x = 0; x <= 15; x++) {
+      bank[x] = pgm_read_byte(programArray + index);
+      index++;
+    }
+    writeBytes(0x90, bank, 16);
+  }
+  if (section == 1) {
+    index = 48;
+    writeOneByte(0xF0, 1);
+    for (int j = 0; j <= 8; j++) { // 9 times
+      for (int x = 0; x <= 15; x++) {
+        bank[x] = pgm_read_byte(programArray + index);
+        index++;
+      }
+      writeBytes(j * 16, bank, 16);
+    }
+  }
+  if (section == 2) {
+    index = 192;
+    writeOneByte(0xF0, 2);
+    for (int j = 0; j <= 3; j++) { // 4 times
+      for (int x = 0; x <= 15; x++) {
+        bank[x] = pgm_read_byte(programArray + index);
+        index++;
+      }
+      writeBytes(j * 16, bank, 16);
+    }
+  }
+  if (section == 3) {
+    index = 256;
+    writeOneByte(0xF0, 3);
+    for (int j = 0; j <= 7; j++) { // 8 times
+      for (int x = 0; x <= 15; x++) {
+        bank[x] = pgm_read_byte(programArray + index);
+        index++;
+      }
+      writeBytes(j * 16, bank, 16);
+    }
+  }
+  if (section == 4) {
+    index = 384;
+    writeOneByte(0xF0, 4);
+    for (int j = 0; j <= 5; j++) { // 6 times
+      for (int x = 0; x <= 15; x++) {
+        bank[x] = pgm_read_byte(programArray + index);
+        index++;
+      }
+      writeBytes(j * 16, bank, 16);
+    }
+  }
+  if (section == 5) {
+    index = 480;
+    int j = 0;
+    if (subsection == 1) {
+      index = 512;
+      j = 2;
+    }
+    writeOneByte(0xF0, 5);
+    for (; j <= 6; j++) {
+      for (int x = 0; x <= 15; x++) {
+        bank[x] = pgm_read_byte(programArray + index);
+        if (index == 482) { // s5_02 bit 6+7 = input selector (only 6 is relevant)
+          if (rto->inputIsYpBpR)bitClear(bank[x], 6);
+          else bitSet(bank[x], 6);
+        }
+        index++;
+      }
+      writeBytes(j * 16, bank, 16);
+    }
+    resetPLL(); resetPLLAD();// only for section 5
+  }
+}
+
 void setSPParameters() {
   writeOneByte(0xF0, 5);
   //writeOneByte(0x20, 0xd2); // was 0xd2, polarity detection aparently is active when bit1 = 0 or not? try d2 again (vga input)
@@ -252,7 +341,10 @@ void setSPParameters() {
   //writeOneByte(0x3e, 0x00); // problems with snes 239 line mode, use 0x00  0xc0 rgbhv: f0
 
   // clamp position
-  writeOneByte(0x41, 0x32); writeOneByte(0x43, 0x45); // newer GBS boards seem to float the inputs more??  0x32 0x45
+  // in RGB mode, should use sync tip clamping: s5s41s80 s5s43s90 s5s42s06 s5s44s06
+  // in YUV mode, should use back porch clamping: s5s41s70 s5s43s98 s5s42s00 s5s44s00
+  // tip: see clamp pulse in RGB signal with clamp start > clamp end (scope trigger on sync in, show one of the RGB lines)
+  writeOneByte(0x41, 0x70); writeOneByte(0x43, 0x98); // newer GBS boards seem to float the inputs more??  0x32 0x45
   writeOneByte(0x44, 0x00); writeOneByte(0x42, 0x00); // 0xc0 0xc0
 
   writeOneByte(0x45, 0x00); // 0x00
@@ -278,11 +370,11 @@ void setSPParameters() {
   //writeOneByte(0x57, 0xc0); // 0xc0 rgbhv: 44
 
   writeOneByte(0x58, 0x05); //rgbhv: 0
-  writeOneByte(0x59, 0xc0); //rgbhv: c0
-  writeOneByte(0x5a, 0x01); //rgbhv: 0
-  writeOneByte(0x5b, 0xc8); //rgbhv: c8
+  writeOneByte(0x59, 0x00); //rgbhv: c0
+  writeOneByte(0x5a, 0x05); //rgbhv: 0
+  writeOneByte(0x5b, 0x00); //rgbhv: c8
   writeOneByte(0x5c, 0x06); //rgbhv: 0
-  writeOneByte(0x5d, 0x01); //rgbhv: 0
+  writeOneByte(0x5d, 0x00); //rgbhv: 0
 }
 
 // Sync detect resolution: 5bits; comparator voltage range 10mv~320mv.
@@ -504,9 +596,8 @@ void resetPLLAD() {
   writeOneByte(0x11, readout);
   readFromRegister(0x11, 1, &readout);
   readout |= (1 << 1); // lock on
-  delay(10);
+  delay(2);
   writeOneByte(0x11, readout);
-  Serial.println(F("reset PLLAD"));
 }
 
 void resetPLL() {
@@ -518,9 +609,8 @@ void resetPLL() {
   writeOneByte(0x43, (readout & ~(1 << 5)));
   readFromRegister(0x43, 1, &readout);
   readout |= (1 << 4); // lock on
-  delay(10);
+  delay(2);
   writeOneByte(0x43, readout); // main pll lock on
-  Serial.println(F("reset PLL648"));
 }
 
 // soft reset cycle
@@ -1149,6 +1239,7 @@ void doPostPresetLoadSteps() {
   resetSyncLock();
   resetADCAutoGain();
   LEDOFF; // in case LED was on
+  setClampPosition();
   Serial.println(F("----"));
   getVideoTimings();
   Serial.println(F("----"));
@@ -1365,7 +1456,6 @@ void setPhaseSP() {
   writeOneByte(0xF0, 5);
   writeOneByte(0x19, readout);
   resetPLLAD();
-  Serial.println(readout, HEX);
 }
 
 void setPhaseADC() {
@@ -1389,7 +1479,38 @@ void setPhaseADC() {
   writeOneByte(0xF0, 5);
   writeOneByte(0x18, readout);
   resetPLLAD();
-  Serial.println(readout, HEX);
+}
+
+void setClampPosition() {
+  if (rto->inputIsYpBpR) {
+    return;
+  }
+  else if ( getSyncStable() ) {
+    uint8_t register_high, register_low;
+    uint16_t hpw, htotal, clampPositionStart, clampPositionStop;
+
+    writeOneByte(0xF0, 0);
+    readFromRegister(0x1a, 1, &register_high); readFromRegister(0x19, 1, &register_low);
+    hpw = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
+    readFromRegister(0x18, 1, &register_high); readFromRegister(0x17, 1, &register_low);
+    htotal = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
+
+    clampPositionStart = (htotal - hpw) + 20;
+    clampPositionStop = htotal - 20;
+    Serial.print(" clampPositionStart: "); Serial.println(clampPositionStart);
+    Serial.print(" clampPositionStop: "); Serial.println(clampPositionStop);
+    register_high = clampPositionStart >> 8;
+    register_low = (uint8_t)clampPositionStart;
+    writeOneByte(0xF0, 5);
+    writeOneByte(0x41, register_low); writeOneByte(0x42, register_high);
+
+    register_high = clampPositionStop >> 8;
+    register_low = (uint8_t)clampPositionStop;
+    writeOneByte(0x43, register_low); writeOneByte(0x44, register_high);
+  }
+  else {
+    Serial.println(F("setClampPos: Sync unstable!"));
+  }
 }
 
 void applyYuvPatches() {   // also does color mixing changes
@@ -1413,6 +1534,12 @@ void applyYuvPatches() {   // also does color mixing changes
   writeOneByte(0xF0, 3); // for colors
   writeOneByte(0x35, 0x7a); writeOneByte(0x3a, 0xfa); writeOneByte(0x36, 0x18);
   writeOneByte(0x3b, 0x02); writeOneByte(0x37, 0x22); writeOneByte(0x3c, 0x02);
+}
+
+void applyRGBPatches() { // to undo yuvpatches
+  //uint8_t readout;
+
+  // ToDo
 }
 
 void setup() {
@@ -1496,6 +1623,7 @@ void setup() {
   disableVDS();
   //zeroAll(); delay(5);
   writeProgramArrayNew(minimal_startup); // bring the chip up for input detection
+  //writeProgramArraySection(ntsc_240p, 1); writeProgramArraySection(ntsc_240p, 5);
   resetDigital();
   delay(250);
   inputAndSyncDetect();
@@ -2312,5 +2440,6 @@ void loop() {
     rto->syncLockFound = true;
   }
 }
+
 
 
