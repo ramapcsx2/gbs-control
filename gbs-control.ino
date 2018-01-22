@@ -385,7 +385,7 @@ void setSPParameters() {
 
   //writeOneByte(0x55, 0x50); // auto coast off (on = d0, was default)  0xc0 rgbhv: 0 but 50 is fine
   //writeOneByte(0x56, 0x0d); // sog mode on, clamp source pixclk, no sync inversion (default was invert h sync?)  0x21 rgbhv: 36
-  writeOneByte(0x56, 0x01); // update: one of the new bits causes clamp glitches, check with checkerboard pattern
+  writeOneByte(0x56, 0x05); // update: one of the new bits causes clamp glitches, check with checkerboard pattern
   //writeOneByte(0x57, 0xc0); // 0xc0 rgbhv: 44
 
   writeOneByte(0x58, 0x05); //rgbhv: 0
