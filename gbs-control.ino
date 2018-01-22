@@ -308,17 +308,17 @@ void writeProgramArraySection(const uint8_t* programArray, byte section, byte su
   }
 }
 
-void fuzzySPWrite(){
+void fuzzySPWrite() {
   writeOneByte(0xF0, 5);
   for (uint8_t reg = 0x21; reg <= 0x34; reg++) {
     writeOneByte(reg, random(0x00, 0xFF));
   }
-//  for (uint8_t reg = 0x51; reg <= 0x54; reg++) {
-//    writeOneByte(reg, random(0x00, 0xFF));
-//  }
-  for (uint8_t reg = 0x49; reg <= 0x4c; reg++) {
-    writeOneByte(reg, random(0x00, 0xFF));
-  }
+  //  for (uint8_t reg = 0x51; reg <= 0x54; reg++) {
+  //    writeOneByte(reg, random(0x00, 0xFF));
+  //  }
+  //  for (uint8_t reg = 0x49; reg <= 0x4c; reg++) {
+  //    writeOneByte(reg, random(0x00, 0xFF));
+  //  }
 }
 
 void setSPParameters() {
@@ -385,6 +385,7 @@ void setSPParameters() {
 
   //writeOneByte(0x55, 0x50); // auto coast off (on = d0, was default)  0xc0 rgbhv: 0 but 50 is fine
   //writeOneByte(0x56, 0x0d); // sog mode on, clamp source pixclk, no sync inversion (default was invert h sync?)  0x21 rgbhv: 36
+  writeOneByte(0x56, 0x01); // update: one of the new bits causes clamp glitches, check with checkerboard pattern
   //writeOneByte(0x57, 0xc0); // 0xc0 rgbhv: 44
 
   writeOneByte(0x58, 0x05); //rgbhv: 0
@@ -1555,7 +1556,7 @@ void applyYuvPatches() {   // also does color mixing changes
 }
 
 // undo yuvpatches if necessary
-void applyRGBPatches() { 
+void applyRGBPatches() {
   //uint8_t readout;
   rto->currentLevelSOG = 10;
   setSOGLevel( rto->currentLevelSOG );
@@ -1788,32 +1789,14 @@ void loop() {
         doPostPresetLoadSteps();
         break;
       case '.':
-        //rto->syncLockFound = !rto->syncLockFound;
-        fuzzySPWrite();
-        SyncProcessorOffOn();
+        rto->syncLockFound = !rto->syncLockFound;
         break;
       case 'j':
         resetPLL(); resetPLLAD();
         break;
       case 'v':
-        {
-          writeOneByte(0xF0, 5);
-          readFromRegister(0x19, 1, &readout);
-          readout &= ~(1 << 7); // latch off
-          writeOneByte(0x19, readout);
-          readFromRegister(0x19, 1, &readout);
-          readout = (readout & 0x3e) >> 1;
-          readout += 1; readout = (readout << 1) & 0x3e; readout |= 1;
-          writeOneByte(0x19, readout);
-
-          readFromRegister(0x19, 1, &readout);
-          readout |= (1 << 7);
-          writeOneByte(0x19, readout);
-
-          resetPLLAD();
-          readFromRegister(0x19, 1, &readout);
-          Serial.print(F("SP phase: ")); Serial.println(readout, HEX);
-        }
+        fuzzySPWrite();
+        SyncProcessorOffOn();
         break;
       case 'b':
         advancePhase();
@@ -2332,31 +2315,40 @@ void loop() {
     writeOneByte(0xF0, 0);
     readFromRegister(0x4f, 1, &readout);
     writeOneByte(0x4f, readout | (1 << 7));
+    delay(2);
 
-    // todo: interlaced sources have variying results
     long highTest1, highTest2;
     long lowTest1, lowTest2;
 
-    highTest1 = pulseIn(vsyncInPin, HIGH, 50000);
-    highTest2 = pulseIn(vsyncInPin, HIGH, 50000);
-    lowTest1 = pulseIn(vsyncInPin, LOW, 50000);
-    lowTest2 = pulseIn(vsyncInPin, LOW, 50000);
+    // input field time
+    noInterrupts();
+    highTest1 = pulseIn(vsyncInPin, HIGH, 90000);
+    highTest2 = pulseIn(vsyncInPin, HIGH, 90000);
+    lowTest1 = pulseIn(vsyncInPin, LOW, 90000);
+    lowTest2 = pulseIn(vsyncInPin, LOW, 90000);
+    interrupts();
 
-    inputLength = highTest1 > highTest2 ? highTest1 : highTest2;
-    inputLength += lowTest1 > lowTest2 ? lowTest1 : lowTest2;
-    Serial.print(F("in field time: ")); Serial.println(inputLength);
+    inputLength = (highTest1 + highTest2) / 2;
+    inputLength += (lowTest1 + lowTest2) / 2;
 
     writeOneByte(0xF0, 0);
     readFromRegister(0x4f, 1, &readout);
     writeOneByte(0x4f, readout & ~(1 << 7));
+    delay(2);
 
-    highTest1 = pulseIn(vsyncInPin, HIGH, 50000);
-    highTest2 = pulseIn(vsyncInPin, HIGH, 50000);
-    long highPulse = highTest1 > highTest2 ? highTest1 : highTest2;
-    lowTest1 = pulseIn(vsyncInPin, LOW, 50000);
-    lowTest2 = pulseIn(vsyncInPin, LOW, 50000);
-    long lowPulse = lowTest1 > lowTest2 ? lowTest1 : lowTest2;
+    // current output field time
+    noInterrupts();
+    lowTest1 = pulseIn(vsyncInPin, LOW, 90000);
+    lowTest2 = pulseIn(vsyncInPin, LOW, 90000);
+    highTest1 = pulseIn(vsyncInPin, HIGH, 90000); // now these are short pulses
+    highTest2 = pulseIn(vsyncInPin, HIGH, 90000);
+    interrupts();
+
+    long highPulse = (highTest1 + highTest2) / 2;
+    long lowPulse = (lowTest1 + lowTest2) / 2;
     outputLength = lowPulse + highPulse;
+
+    Serial.print(F("in field time: ")); Serial.println(inputLength);
     Serial.print(F("out field time: ")); Serial.println(outputLength);
 
     // shortcut to exit if in and out are close
@@ -2373,7 +2365,9 @@ void loop() {
     backupHTotal = htotal;
     Serial.print(F(" Start HTotal: ")); Serial.println(htotal);
 
-    htotal -= 30;
+    // start looking at an htotal value at or slightly below anticipated target
+    htotal = ((float)(htotal) / (float)(outputLength)) * (float)(inputLength);
+
     while ((htotal < (backupHTotal + 30)) ) {
       writeOneByte(0xF0, 3);
       regLow = (uint8_t)htotal;
@@ -2381,8 +2375,9 @@ void loop() {
       regHigh = (regHigh & 0xf0) | (htotal >> 8);
       writeOneByte(0x01, regLow);
       writeOneByte(0x02, regHigh);
+      noInterrupts();
       outputLength = pulseIn(vsyncInPin, LOW, 50000) + highPulse;
-
+      interrupts();
       prev_difference = difference;
       difference = (outputLength > inputLength) ? (outputLength - inputLength) : (inputLength - outputLength);
       Serial.print(htotal); Serial.print(": "); Serial.println(difference);
@@ -2400,18 +2395,8 @@ void loop() {
         break;
       }
 
-      if (difference > 40) {
-        float htotalfactor = ((float)htotal) / 2200;
-        htotal += ((uint8_t(difference * 0.05f) * htotalfactor) + 1);
-      }
-      else {
-        htotal += 1;
-      }
+      htotal += 1;
     }
-
-    //    writeOneByte(0xF0, 0);
-    //    readFromRegister(0x4f, 1, &readout);
-    //    writeOneByte(0x4f, readout & ~(1 << 7));
 
     writeOneByte(0xF0, 3);
     regLow = (uint8_t)bestHTotal;
