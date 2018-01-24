@@ -323,7 +323,7 @@ void fuzzySPWrite() {
 
 void setSPParameters() {
   writeOneByte(0xF0, 5);
-  //writeOneByte(0x20, 0xd2); // was 0xd2, polarity detection aparently is active when bit1 = 0 or not? try d2 again (vga input)
+  writeOneByte(0x20, 0x02); // was 0xd2 // keep jitter sync off, 0x02 is right (auto correct sog polarity, sog source = ADC)
   // H active detect control
   writeOneByte(0x21, 0x20); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20
   writeOneByte(0x22, 0x0f); // SP_L_DLT_REG       Sync pulse width different threshold (little than this as equal).
@@ -362,11 +362,12 @@ void setSPParameters() {
   writeOneByte(0x41, 0x70); writeOneByte(0x43, 0x98); // newer GBS boards seem to float the inputs more??  0x32 0x45
   writeOneByte(0x44, 0x00); writeOneByte(0x42, 0x00); // 0xc0 0xc0
 
-  //0x45 to 0x48 set a HS position just for Mode Detect. it's fine at start = 0 and stop = 1 or above
-  //writeOneByte(0x45, 0x00); // 0x00
-  //writeOneByte(0x46, 0x00); // 0xc0
-  writeOneByte(0x47, 0x40); // 0x05 // make it a little larger, in case units other than MD use this
-  //writeOneByte(0x48, 0x00); // 0xc0
+  // 0x45 to 0x48 set a HS position just for Mode Detect. it's fine at start = 0 and stop = 1 or above
+  // Update: This is the retiming module. It can be used for SP processing with t5t57t6
+  writeOneByte(0x45, 0x00); // 0x00 // retiming SOG HS start
+  writeOneByte(0x46, 0x00); // 0xc0 // retiming SOG HS start
+  writeOneByte(0x47, 0x02); // 0x05 // retiming SOG HS stop // align with 1_26 (same value) seems good for phase
+  writeOneByte(0x48, 0x00); // 0xc0 // retiming SOG HS stop
   writeOneByte(0x49, 0x04); // 0x04 rgbhv: 20
   writeOneByte(0x4a, 0x00); // 0xc0
   writeOneByte(0x4b, 0x44); // 0x34 rgbhv: 50
@@ -386,7 +387,7 @@ void setSPParameters() {
   //writeOneByte(0x55, 0x50); // auto coast off (on = d0, was default)  0xc0 rgbhv: 0 but 50 is fine
   //writeOneByte(0x56, 0x0d); // sog mode on, clamp source pixclk, no sync inversion (default was invert h sync?)  0x21 rgbhv: 36
   writeOneByte(0x56, 0x05); // update: one of the new bits causes clamp glitches, check with checkerboard pattern
-  //writeOneByte(0x57, 0xc0); // 0xc0 rgbhv: 44
+  //writeOneByte(0x57, 0xc0); // 0xc0 rgbhv: 44 // set to 0x80 for retiming
 
   writeOneByte(0x58, 0x05); //rgbhv: 0
   writeOneByte(0x59, 0x00); //rgbhv: c0
@@ -2172,7 +2173,7 @@ void loop() {
 
     if (result == 0) {
       noSyncCounter++;
-      signalInputChangeCounter = 0; // not sure yet. needs some field testing
+      signalInputChangeCounter = 0; // needs some field testing > seems to be fine!
     }
     else if (result != rto->videoStandardInput) { // ntsc/pal switch or similar
       noSyncCounter = 0;
@@ -2182,9 +2183,10 @@ void loop() {
       noSyncCounter--;
     }
 
+    // PAL PSX consoles have a quirky reset cycle. They will boot up in NTSC mode up until right before the logo shows.
+    // Avoiding constant mode switches would be good. Set signalInputChangeCounter to above 55 for that.
     if (signalInputChangeCounter >= 6 ) { // video mode has changed
       Serial.println(F("New Input!"));
-      disableVDS(); // disable output to display until sync is stable again. applyPresets() will re-enable it.
       rto->videoStandardInput = 0;
       signalInputChangeCounter = 0;
     }
