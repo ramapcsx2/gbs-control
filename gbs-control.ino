@@ -1644,11 +1644,16 @@ void setup() {
   delay(1000); // give the 5725 some time to start up. this adds to the Arduino bootloader delay.
 
   Wire.begin();
-  // The i2c wire library sets pullup resistors on by default. Disable this so that 5V arduinos aren't trying to drive the 3.3V bus.
+  // ToDo: check for ESP8266!
+  // The i2c wire library sets pullup resistors on by default. Disable this so that 5V MCUs aren't trying to drive the 3.3V bus.
+#if defined(ESP32)
+  pinMode(SCL, OUTPUT_OPEN_DRAIN);
+  pinMode(SDA, OUTPUT_OPEN_DRAIN);
+#else
   digitalWrite(SCL, LOW);
   digitalWrite(SDA, LOW);
-  // TV5725 supports 400kHz
-  Wire.setClock(400000);
+#endif
+  Wire.setClock(400000); // TV5725 supports 400kHz
 
   // setup run time options
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
