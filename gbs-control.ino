@@ -1,9 +1,3 @@
-#if defined(ESP8266)
-#define ESP8266_BOARD
-#elif defined (ESP32)
-#define ESP32_BOARD
-#endif
-
 #include <Wire.h>
 #include <EEPROM.h>
 #include "ntsc_240p.h"
@@ -14,13 +8,13 @@
 #include "rgbhv.h"
 #include "minimal_startup.h"
 
-#ifdef ESP8266_BOARD
+#if defined(ESP8266)
 #include <ESP8266WiFi.h>
 #define vsyncInPin D7
 #define LEDON  digitalWrite(LED_BUILTIN, LOW) // active low
 #define LEDOFF digitalWrite(LED_BUILTIN, HIGH)
 
-#elif defined (ESP32)
+#elif defined(ESP32)
 #include <WiFi.h>
 #define LEDON  digitalWrite(LED_BUILTIN, HIGH)
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW)
@@ -1612,7 +1606,7 @@ void setup() {
   Serial.setTimeout(10);
   Serial.println(F("starting"));
 
-#if defined(ESP8266_BOARD)
+#if defined(ESP8266)
 #define WDT_CNTL ((volatile uint32_t*) 0x60000900)
   pinMode(vsyncInPin, INPUT);
   WiFi.disconnect();
@@ -1625,6 +1619,7 @@ void setup() {
   ets_isr_mask((1 << 0)); // appears to be the soft watchdog ISR. This *really* disables it.
 #elif defined(ESP32)
   pinMode(vsyncInPin, INPUT);
+  WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   WiFi.mode(WIFI_OFF);
 #else // Arduino
@@ -1775,7 +1770,7 @@ void loop() {
           // EEPROM is wildly different on each chip
 
           //          uint16_t address = 0;
-          //#ifdef ESP8266_BOARD
+          //#if defined(ESP8266)
           //          EEPROM.begin(1024); //ESP8266
           //#endif
           //          while (1) {
@@ -1785,14 +1780,14 @@ void loop() {
           //              break;
           //            }
           //          }
-          //#ifdef ESP8266_BOARD
+          //#if defined(ESP8266)
           //          EEPROM.end(); //ESP8266
           //#endif
           Serial.println(F("----"));
           //h:429 v:523 PLL:2 status:0 mode:1 ADC:7F hpw:158 htotal:1710 vtotal:259  Mega Drive NTSC
         }
         break;
-#ifdef ESP8266_BOARD
+#if defined(ESP8266)
       case 'p':
         {
           //Serial.print("ADC: "); Serial.println(analogRead(A0));
