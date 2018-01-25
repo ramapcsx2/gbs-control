@@ -42,6 +42,7 @@ struct runTimeOptions {
   uint8_t phaseADC;
   uint8_t currentLevelSOG;
   boolean deinterlacerWasTurnedOff;
+  boolean modeDetectInReset;
   boolean syncLockEnabled;
   boolean syncLockFound;
   boolean VSYNCconnected;
@@ -112,6 +113,7 @@ void writeProgramArrayNew(const uint8_t* programArray)
   writeOneByte(0x12, getSingleByteFromPreset(programArray, 498));
   writeOneByte(0x16, getSingleByteFromPreset(programArray, 502)); // might as well
   writeOneByte(0x17, getSingleByteFromPreset(programArray, 503)); // charge pump current
+  writeOneByte(0x18, 0); writeOneByte(0x19, 0); // adc / sp phase reset
 
   for (int y = 0; y < 6; y++)
   {
@@ -197,6 +199,10 @@ void writeProgramArrayNew(const uint8_t* programArray)
   writeOneByte(0xF0, 1);
   writeOneByte(0x60, 0x81); // MD H unlock / lock
   writeOneByte(0x61, 0x81); // MD V unlock / lock
+  writeOneByte(0x80, 0xa9); // MD V nonsensical custom mode
+  writeOneByte(0x81, 0x2e); // MD H nonsensical custom mode
+  writeOneByte(0x82, 0x35); // MD H / V timer detect enable, auto detect enable
+  writeOneByte(0x83, 0x10); // MD H / V unstable estimation lock value medium
 
   // capture guard
   //writeOneByte(0xF0, 4);
@@ -334,7 +340,7 @@ void setSPParameters() {
   writeOneByte(0x2a, 0x0f); // SP_PRD_EQ_THD      How many continue legal line as valid
   // V active detect control
   writeOneByte(0x2d, 0x04); // SP_VSYNC_TGL_THD   V sync toggle times threshold
-  writeOneByte(0x2e, 0x00); // SP_SYNC_WIDTH_DTHD V sync pulse width threshod
+  writeOneByte(0x2e, 0x04); // SP_SYNC_WIDTH_DTHD V sync pulse width threshod // the 04 is a test
   writeOneByte(0x2f, 0x04); // SP_V_PRD_EQ_THD    How many continue legal v sync as valid  0x04
   writeOneByte(0x31, 0x2f); // SP_VT_DLT_REG      V total different threshold
   // Timer value control
@@ -681,7 +687,7 @@ boolean getSyncProcessorSignalValid() {
 
   readFromRegister(0x1a, 1, &register_high); readFromRegister(0x19, 1, &register_low);
   register_combined = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
-  if (register_combined < 180 ) {
+  if ( (register_combined < 180) && (register_combined > 5)) {
     hpwOkay = true;
   }
   else {
@@ -714,12 +720,22 @@ void SyncProcessorOffOn() {
 }
 
 void resetModeDetect() {
-  uint8_t readout = 0;
-  writeOneByte(0xF0, 0);
-  readFromRegister(0x47, 1, &readout);
-  writeOneByte(0x47, readout & ~(1 << 1));
-  readFromRegister(0x47, 1, &readout);
-  writeOneByte(0x47, readout | (1 << 1));
+  uint8_t readout = 0, backup = 0;
+  //  writeOneByte(0xF0, 0);
+  //  readFromRegister(0x47, 1, &readout);
+  //  writeOneByte(0x47, readout & ~(1 << 1));
+  //  readFromRegister(0x47, 1, &readout);
+  //  writeOneByte(0x47, readout | (1 << 1));
+
+  // try a softer approach
+  writeOneByte(0xF0, 1);
+  readFromRegister(0x63, 1, &readout);
+  backup = readout;
+  writeOneByte(0x63, readout & ~(1 << 6));
+  writeOneByte(0x63, readout | (1 << 6));
+  writeOneByte(0x63, readout & ~(1 << 7));
+  writeOneByte(0x63, readout | (1 << 7));
+  writeOneByte(0x63, backup);
 }
 
 void shiftHorizontal(uint16_t amountToAdd, bool subtracting) {
@@ -1254,16 +1270,32 @@ void doPostPresetLoadSteps() {
     rto->currentLevelSOG = 12; // do this here, gets applied next line
   }
   setSOGLevel( rto->currentLevelSOG );
-  enableVDS(); delay(10);
+  resetDigital();
+  delay(50);
+  byte result = getVideoMode();
+  byte timeout = 255;
+  while (result == 0 && --timeout > 0) {
+    result = getVideoMode();
+    delay(2);
+  }
+  if (timeout == 0) {
+    Serial.println(F("sync lost"));
+    rto->videoStandardInput = 0;
+    return;
+  }
+  setClampPosition();
+  resetPLL();
+  enableVDS(); delay(10); // VDS has to be on before setPhaseADC() or setPhaseSP() !
   resetPLLAD();
-  setPhaseADC(); setPhaseSP();
+  setPhaseSP(); delay (10); setPhaseADC();
   resetSyncLock();
   resetADCAutoGain();
+  rto->modeDetectInReset = false;
   LEDOFF; // in case LED was on
-  setClampPosition();
-  Serial.println(F("----"));
-  getVideoTimings();
-  Serial.println(F("----"));
+  Serial.println(F("post preset done"));
+  //Serial.println(F("----"));
+  //getVideoTimings();
+  //Serial.println(F("----"));
 }
 
 void applyPresets(byte result) {
@@ -1467,7 +1499,10 @@ void setPhaseSP() {
   writeOneByte(0x19, readout);
 
   readout = rto->phaseSP << 1;
-  readout |= (1 << 0); readout |= (1 << 7);
+  readout |= (1 << 0);
+  writeOneByte(0x19, readout); // write this first
+  readFromRegister(0x19, 1, &readout);
+  readout |= (1 << 7);
 
   writeOneByte(0xF0, 0);
   do {
@@ -1476,7 +1511,6 @@ void setPhaseSP() {
 
   writeOneByte(0xF0, 5);
   writeOneByte(0x19, readout);
-  resetPLLAD();
 }
 
 void setPhaseADC() {
@@ -1490,7 +1524,10 @@ void setPhaseADC() {
   writeOneByte(0x18, readout);
 
   readout = rto->phaseADC << 1;
-  readout |= (1 << 0); readout |= (1 << 7);
+  readout |= (1 << 0);
+  writeOneByte(0x18, readout); // write this first
+  readFromRegister(0x18, 1, &readout);
+  readout |= (1 << 7);
 
   writeOneByte(0xF0, 0);
   do {
@@ -1499,14 +1536,13 @@ void setPhaseADC() {
 
   writeOneByte(0xF0, 5);
   writeOneByte(0x18, readout);
-  resetPLLAD();
 }
 
 void setClampPosition() {
   if (rto->inputIsYpBpR) {
     return;
   }
-  else if ( getSyncStable() ) {
+  else {
     uint8_t register_high, register_low;
     uint16_t hpw, htotal, clampPositionStart, clampPositionStop;
 
@@ -1516,8 +1552,8 @@ void setClampPosition() {
     readFromRegister(0x18, 1, &register_high); readFromRegister(0x17, 1, &register_low);
     htotal = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
 
-    clampPositionStart = (htotal - hpw) + 20;
-    clampPositionStop = htotal - 20;
+    clampPositionStart = ((htotal - hpw) + 20) & 0xfff8;
+    clampPositionStop = (htotal - 20) & 0xfff8;
     Serial.print(" clampPositionStart: "); Serial.println(clampPositionStart);
     Serial.print(" clampPositionStop: "); Serial.println(clampPositionStop);
     register_high = clampPositionStart >> 8;
@@ -1528,9 +1564,6 @@ void setClampPosition() {
     register_high = clampPositionStop >> 8;
     register_low = (uint8_t)clampPositionStop;
     writeOneByte(0x43, register_low); writeOneByte(0x44, register_high);
-  }
-  else {
-    Serial.println(F("setClampPos: Sync unstable!"));
   }
 }
 
@@ -1564,7 +1597,7 @@ void applyRGBPatches() {
 }
 
 void setup() {
-  Serial.begin(57600);
+  Serial.begin(250000); // up from 57600
   Serial.setTimeout(10);
   Serial.println(F("starting"));
 
@@ -1615,8 +1648,8 @@ void setup() {
   rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
   rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
   rto->ADCTarget = 630;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
-  rto->phaseADC = 16;
-  rto->phaseSP = 16;
+  rto->phaseADC = 10; // 0 to 31
+  rto->phaseSP = 12; // 0 to 31
 
   // the following is just run time variables. don't change!
 
@@ -1625,6 +1658,7 @@ void setup() {
   rto->videoStandardInput = 0;
   rto->ADCGainValueFound = false;
   rto->deinterlacerWasTurnedOff = false;
+  rto->modeDetectInReset = false;
   rto->syncLockFound = false;
   rto->VSYNCconnected = false;
   rto->IFdown = false;
@@ -1665,7 +1699,6 @@ void setup() {
 #endif
 
   Serial.print(F("\nMCU: ")); Serial.println(F_CPU);
-  Serial.println(F("scaler set up!"));
   LEDOFF; // startup done, disable the LED
 }
 
@@ -1682,7 +1715,7 @@ void loop() {
   static uint16_t noSyncCounter = 0;
   static uint16_t signalInputChangeCounter = 0;
   static unsigned long lastTimeSyncWatcher = millis();
-  //static unsigned long lastTimeMDWatchdog = millis();
+  static unsigned long lastTimeMDWatchdog = millis();
 
   if (Serial.available()) {
     switch (Serial.read()) {
@@ -1800,7 +1833,7 @@ void loop() {
         SyncProcessorOffOn();
         break;
       case 'b':
-        advancePhase();
+        advancePhase(); resetPLLAD();
         break;
       case 'n':
         {
@@ -1883,7 +1916,7 @@ void loop() {
             if (sum1 < lowestSum1) {
               lowestSum1 = sum1;
             }
-            advancePhase();
+            advancePhase(); resetPLLAD();
             sum1 = 0;
           }
           Serial.print(" lowestSum1: "); Serial.println(lowestSum1);
@@ -1891,7 +1924,7 @@ void loop() {
           counter = 0;
           lowestSum1 += 20;
           do {
-            advancePhase();
+            advancePhase(); resetPLLAD();
             sum2 = 0;
             for (uint16_t a = 0; a < 1000; a++) {
               do {} while ((bitRead(PINB, 2)) == 0);
@@ -1910,7 +1943,7 @@ void loop() {
           Serial.print(" sum2: "); Serial.print(sum2);
           Serial.print(" lowestSum1: "); Serial.println(lowestSum1);
           //for (byte c = 0; c < 5; c++) {
-          //  advancePhase();
+          //  advancePhase(); resetPLLAD();
           //}
           writeOneByte(0xF0, 5);
           readFromRegister(0x18, 1, &readout);
@@ -1961,7 +1994,8 @@ void loop() {
       case '8':
         rto->phaseADC += 1; rto->phaseADC &= 0x1f;
         rto->phaseSP += 1; rto->phaseSP &= 0x1f;
-        Serial.print(rto->phaseADC); Serial.print(" "); Serial.print(rto->phaseSP);
+        Serial.print("ADC: "); Serial.println(rto->phaseADC);
+        Serial.print(" SP: "); Serial.println(rto->phaseSP);
         break;
       case '9':
         writeProgramArrayNew(ntsc_feedbackclock);
@@ -2155,21 +2189,10 @@ void loop() {
     }
   }
 
-  // ModeDetect can get stuck in the last mode when console is powered off
-  //  if ((millis() - lastTimeMDWatchdog) > 10000) {
-  //    if ((rto->videoStandardInput > 0) && !getSyncProcessorSignalValid()) {
-  //      delay(40);
-  //      if (!getSyncProcessorSignalValid()) { // check a second time; ignores glitches
-  //        Serial.println("MD stuck");
-  //        resetModeDetect();
-  //        delay(1000);
-  //      }
-  //    }
-  //    lastTimeMDWatchdog = millis();
-  //  }
   // poll sync status continously
   if ((rto->syncWatcher == true) && ((millis() - lastTimeSyncWatcher) > 60)) {
     byte result = getVideoMode();
+    boolean doChangeVideoMode = false;
 
     if (result == 0) {
       noSyncCounter++;
@@ -2185,10 +2208,11 @@ void loop() {
 
     // PAL PSX consoles have a quirky reset cycle. They will boot up in NTSC mode up until right before the logo shows.
     // Avoiding constant mode switches would be good. Set signalInputChangeCounter to above 55 for that.
-    if (signalInputChangeCounter >= 6 ) { // video mode has changed
+    if (signalInputChangeCounter >= 3 ) { // video mode has changed
       Serial.println(F("New Input!"));
       rto->videoStandardInput = 0;
       signalInputChangeCounter = 0;
+      doChangeVideoMode = true;
     }
 
     // debug
@@ -2213,17 +2237,49 @@ void loop() {
       delay(300); // and give MD some time
       //rto->videoStandardInput = 0;
       signalInputChangeCounter = 0;
-      noSyncCounter = 0;
+      noSyncCounter = 60; // speed up sog change attempts by not zeroing this here
     }
 
-    if (rto->videoStandardInput == 0) {
+    if ( (doChangeVideoMode == true) && (rto->videoStandardInput == 0) ) {
       byte temp = 250;
       while (result == 0 && temp-- > 0) {
         delay(1);
         result = getVideoMode();
       }
-      applyPresets(result);
-      delay(600);
+      boolean isValid = getSyncProcessorSignalValid();
+      if (result > 0 && isValid) { // ensures this isn't an MD glitch
+        applyPresets(result);
+        delay(600);
+        noSyncCounter = 0;
+      }
+      else if (result > 0 && !isValid) Serial.println(F("MD Glitch!"));
+    }
+
+    // ModeDetect can get stuck in the last mode when console is powered off
+    if ((millis() - lastTimeMDWatchdog) > 3000) {
+      if ( (rto->videoStandardInput > 0) && !getSyncProcessorSignalValid() && (rto->modeDetectInReset == false) ) {
+        delay(40);
+        if (!getSyncProcessorSignalValid()) { // check a second time; avoids glitches
+          Serial.println("MD stuck");
+          resetModeDetect(); resetModeDetect();
+          delay(200);
+          byte another_test = 0;
+          for ( byte i = 0; i < 10; i++) {
+            if (getVideoMode() == 0) { // due to resetModeDetect(), this now works
+              another_test++;
+            }
+          }
+
+          if (another_test > 7) {
+            disableVDS(); // pretty sure now that the source has been turned off
+            SyncProcessorOffOn();
+            rto->videoStandardInput = 0;
+            rto->modeDetectInReset = true;
+            noSyncCounter = 60; // speed up sync detect attempts
+          }
+        }
+      }
+      lastTimeMDWatchdog = millis();
     }
 
     lastTimeSyncWatcher = millis();
