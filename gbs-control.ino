@@ -1,5 +1,7 @@
 #if defined(ESP8266)
 #define ESP8266_BOARD
+#elif defined (ESP32)
+#define ESP32_BOARD
 #endif
 
 #include <Wire.h>
@@ -17,10 +19,17 @@
 #define vsyncInPin D7
 #define LEDON  digitalWrite(LED_BUILTIN, LOW) // active low
 #define LEDOFF digitalWrite(LED_BUILTIN, HIGH)
-#else
-#define vsyncInPin 10
+
+#elif defined (ESP32)
+#include <WiFi.h>
 #define LEDON  digitalWrite(LED_BUILTIN, HIGH)
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW)
+#define vsyncInPin 27
+
+#else // Arduino
+#define LEDON  digitalWrite(LED_BUILTIN, HIGH)
+#define LEDOFF digitalWrite(LED_BUILTIN, LOW)
+#define vsyncInPin 10
 #endif
 
 // 7 bit GBS I2C Address
@@ -1501,6 +1510,7 @@ void setPhaseSP() {
   readout = rto->phaseSP << 1;
   readout |= (1 << 0);
   writeOneByte(0x19, readout); // write this first
+  // new phase is now ready. it will go in effect when the latch bit gets toggled
   readFromRegister(0x19, 1, &readout);
   readout |= (1 << 7);
 
@@ -1526,6 +1536,7 @@ void setPhaseADC() {
   readout = rto->phaseADC << 1;
   readout |= (1 << 0);
   writeOneByte(0x18, readout); // write this first
+  // new phase is now ready. it will go in effect when the latch bit gets toggled
   readFromRegister(0x18, 1, &readout);
   readout |= (1 << 7);
 
@@ -1601,7 +1612,7 @@ void setup() {
   Serial.setTimeout(10);
   Serial.println(F("starting"));
 
-#ifdef ESP8266_BOARD
+#if defined(ESP8266_BOARD)
 #define WDT_CNTL ((volatile uint32_t*) 0x60000900)
   pinMode(vsyncInPin, INPUT);
   WiFi.disconnect();
@@ -1612,15 +1623,16 @@ void setup() {
   *WDT_CNTL &= ~0x0001; // disable hardware watchdog
   ESP.wdtDisable(); // disable software watchdog
   ets_isr_mask((1 << 0)); // appears to be the soft watchdog ISR. This *really* disables it.
-#else
-
+#elif defined(ESP32)
   pinMode(vsyncInPin, INPUT);
-  pinMode(11, INPUT); // phase sample input
+  WiFi.disconnect();
+  WiFi.mode(WIFI_OFF);
+#else // Arduino
+  pinMode(vsyncInPin, INPUT);
   analogReference(INTERNAL);  // change analog read reference to 1.1V internal
   bitSet(ADCSRA, ADPS0);      // lower analog read delay
   bitClear(ADCSRA, ADPS1);    //
   bitSet(ADCSRA, ADPS2);      // 101 > x32 div
-
 #endif
 
   pinMode(LED_BUILTIN, OUTPUT);
@@ -1760,20 +1772,22 @@ void loop() {
         break;
       case 'y':
         {
-          uint16_t address = 0;
-#ifdef ESP8266_BOARD
-          EEPROM.begin(1024); //ESP8266
-#endif
-          while (1) {
-            Serial.println(EEPROM.read(address), HEX);
-            address++;
-            if (address == EEPROM.length()) {
-              break;
-            }
-          }
-#ifdef ESP8266_BOARD
-          EEPROM.end(); //ESP8266
-#endif
+          // EEPROM is wildly different on each chip
+
+          //          uint16_t address = 0;
+          //#ifdef ESP8266_BOARD
+          //          EEPROM.begin(1024); //ESP8266
+          //#endif
+          //          while (1) {
+          //            Serial.println(EEPROM.read(address), HEX);
+          //            address++;
+          //            if (address == EEPROM.length()) {
+          //              break;
+          //            }
+          //          }
+          //#ifdef ESP8266_BOARD
+          //          EEPROM.end(); //ESP8266
+          //#endif
           Serial.println(F("----"));
           //h:429 v:523 PLL:2 status:0 mode:1 ADC:7F hpw:158 htotal:1710 vtotal:259  Mega Drive NTSC
         }
@@ -1894,63 +1908,7 @@ void loop() {
         break;
       case 'u':
         //Serial.print("len: "); Serial.println(pulseIn(10, LOW, 60000) + pulseIn(10, HIGH, 60000));
-#ifndef ESP8266_BOARD
-        writeOneByte(0xF0, 5);
-        writeOneByte(0x1e, 0);
-        {
-          uint16_t counter = 0;
-          uint16_t sum1 = 0;
-          uint16_t lowestSum1 = 65500;
-          uint16_t sum2 = 0;
-          for (byte b = 0; b < 250; b++) {
-            for (uint16_t a = 0; a < 1000; a++) {
-              do {} while ((bitRead(PINB, 2)) == 0);
-              do {} while ((bitRead(PINB, 2)) == 1);
-              do {
-                if ((bitRead(PINB, 3)) == 1)  counter++;
-              }
-              while ((bitRead(PINB, 2)) == 0);
-              sum1 += counter;
-              counter = 0;
-            }
-            if (sum1 < lowestSum1) {
-              lowestSum1 = sum1;
-            }
-            advancePhase(); resetPLLAD();
-            sum1 = 0;
-          }
-          Serial.print(" lowestSum1: "); Serial.println(lowestSum1);
 
-          counter = 0;
-          lowestSum1 += 20;
-          do {
-            advancePhase(); resetPLLAD();
-            sum2 = 0;
-            for (uint16_t a = 0; a < 1000; a++) {
-              do {} while ((bitRead(PINB, 2)) == 0);
-              do {} while ((bitRead(PINB, 2)) == 1);
-              do {
-                if ((bitRead(PINB, 3)) == 1)  counter++;
-              }
-              while ((bitRead(PINB, 2)) == 0);
-              sum2 += counter;
-              counter = 0;
-            }
-            Serial.print(" sum2: "); Serial.println(sum2);
-
-          }
-          while (sum2 > lowestSum1);
-          Serial.print(" sum2: "); Serial.print(sum2);
-          Serial.print(" lowestSum1: "); Serial.println(lowestSum1);
-          //for (byte c = 0; c < 5; c++) {
-          //  advancePhase(); resetPLLAD();
-          //}
-          writeOneByte(0xF0, 5);
-          readFromRegister(0x18, 1, &readout);
-          Serial.print(F("ADC phase: ")); Serial.println(readout, HEX);
-          //counter = 0;
-        }
-#endif
         break;
       case 'f':
         Serial.println(F("show noise"));
