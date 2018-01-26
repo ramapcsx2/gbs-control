@@ -1660,8 +1660,8 @@ void setup() {
   rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
   rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
   rto->ADCTarget = 630;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
-  rto->phaseADC = 10; // 0 to 31
-  rto->phaseSP = 12; // 0 to 31
+  rto->phaseADC = 16; // 0 to 31
+  rto->phaseSP = 10; // 0 to 31
 
   // the following is just run time variables. don't change!
 
