@@ -4,6 +4,7 @@
 #include "pal_240p.h"
 #include "vclktest.h"
 #include "ntsc_feedbackclock.h"
+#include "pal_feedbackclock.h"
 #include "ofw_ypbpr.h"
 #include "rgbhv.h"
 #include "minimal_startup.h"
@@ -1929,7 +1930,8 @@ void loop() {
         moveHS(1, false);
         break;
       case '2':
-        writeProgramArrayNew(vclktest);
+        //writeProgramArrayNew(vclktest);
+        writeProgramArrayNew(pal_feedbackclock); // ModeLine "720x576@50" 27 720 732 795 864 576 581 586 625 -hsync -vsync
         doPostPresetLoadSteps();
         break;
       case '3':
