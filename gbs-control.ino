@@ -1398,6 +1398,19 @@ boolean getSyncStable() {
   return false;
 }
 
+void liveUpdateIF() {
+//  uint16_t register_combined;
+//  uint8_t register_high, register_low;
+//  writeOneByte(0xF0, 0);
+//  readFromRegister(0x08, 1, &register_high); readFromRegister(0x07, 1, &register_low);
+//  register_combined = (((uint16_t(register_high) & 0x000f)) << 7) | (((uint16_t)register_low & 0x00fe) >> 1);
+//
+//  // update IF vertical blanking stop position
+//  writeOneByte(0xF0, 1);
+//  writeOneByte(0x1e, (uint8_t)register_combined);
+//  writeOneByte(0x1f, (uint8_t)(register_combined >> 8));
+}
+
 void autoADCGain() {
   byte readout = 0;
   static const uint16_t ADCCeiling = 700; // maximum value to expect from the ADC. Used to filter obvious misreads
@@ -2242,6 +2255,8 @@ void loop() {
       lastTimeMDWatchdog = millis();
     }
 
+    liveUpdateIF();
+    
     lastTimeSyncWatcher = millis();
   }
 
