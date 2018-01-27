@@ -60,7 +60,7 @@ const uint8_t minimal_startup[] PROGMEM = {
 0,
 80,
 6,
-4,
+6,
 68,
 203,
 128,

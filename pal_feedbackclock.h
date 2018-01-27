@@ -60,7 +60,7 @@ const uint8_t pal_feedbackclock[] PROGMEM = {
 0,
 80,
 6,
-4,
+100,
 68,
 203,
 128,

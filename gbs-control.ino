@@ -198,7 +198,7 @@ void writeProgramArrayNew(const uint8_t* programArray)
     }
   }
 
-  setSPParameters();
+  setParametersSP();
 
   writeOneByte(0xF0, 1);
   writeOneByte(0x60, 0x81); // MD H unlock / lock
@@ -331,7 +331,7 @@ void fuzzySPWrite() {
   //  }
 }
 
-void setSPParameters() {
+void setParametersSP() {
   writeOneByte(0xF0, 5);
   writeOneByte(0x20, 0x02); // was 0xd2 // keep jitter sync off, 0x02 is right (auto correct sog polarity, sog source = ADC)
   // H active detect control
@@ -430,7 +430,7 @@ void inputAndSyncDetect() {
   byte timeout = 0;
   boolean syncFound = false;
 
-  setSPParameters();
+  setParametersSP();
 
   writeOneByte(0xF0, 5);
   writeOneByte(0x02, 0x15); // SOG on, slicer level 100mV, input 00 > R0/G0/B0/SOG0 as input (YUV)
@@ -1287,6 +1287,7 @@ void doPostPresetLoadSteps() {
     rto->videoStandardInput = 0;
     return;
   }
+  setParametersIF();
   setClampPosition();
   resetPLL();
   enableVDS(); delay(10); // VDS has to be on before setPhaseADC() or setPhaseSP() !
@@ -1306,6 +1307,7 @@ void applyPresets(byte result) {
   if (result == 2) {
     Serial.println(F("PAL timing "));
     writeProgramArrayNew(pal_240p);
+    //writeProgramArrayNew(pal_feedbackclock);
 
     rto->videoStandardInput = 2;
     doPostPresetLoadSteps();
@@ -1313,6 +1315,7 @@ void applyPresets(byte result) {
   else if (result == 1) {
     Serial.println(F("NTSC timing "));
     writeProgramArrayNew(ntsc_240p);
+    //writeProgramArrayNew(ntsc_feedbackclock);
 
     rto->videoStandardInput = 1;
     doPostPresetLoadSteps();
@@ -1320,6 +1323,7 @@ void applyPresets(byte result) {
   else if (result == 3) {
     Serial.println(F("HDTV timing "));
     writeProgramArrayNew(ntsc_240p); // ntsc base
+    //writeProgramArrayNew(ntsc_feedbackclock);
 
     rto->videoStandardInput = 3;
     doPostPresetLoadSteps();
@@ -1398,17 +1402,33 @@ boolean getSyncStable() {
   return false;
 }
 
-void liveUpdateIF() {
-//  uint16_t register_combined;
-//  uint8_t register_high, register_low;
-//  writeOneByte(0xF0, 0);
-//  readFromRegister(0x08, 1, &register_high); readFromRegister(0x07, 1, &register_low);
-//  register_combined = (((uint16_t(register_high) & 0x000f)) << 7) | (((uint16_t)register_low & 0x00fe) >> 1);
-//
-//  // update IF vertical blanking stop position
-//  writeOneByte(0xF0, 1);
-//  writeOneByte(0x1e, (uint8_t)register_combined);
-//  writeOneByte(0x1f, (uint8_t)(register_combined >> 8));
+void setParametersIF() {
+  uint16_t register_combined;
+  uint8_t register_high, register_low;
+  writeOneByte(0xF0, 0);
+  // get detected vlines (will be around 625 PAL / 525 NTSC)
+  readFromRegister(0x08, 1, &register_high); readFromRegister(0x07, 1, &register_low);
+  register_combined = (((uint16_t(register_high) & 0x000f)) << 7) | (((uint16_t)register_low & 0x00fe) >> 1);
+
+  // update IF vertical blanking stop position
+  writeOneByte(0xF0, 1);
+  writeOneByte(0x1e, (uint8_t)register_combined);
+  writeOneByte(0x1f, (uint8_t)(register_combined >> 8));
+
+  // IF vertical blanking start position should be in the loaded preset
+}
+
+void setParametersIF_continous() {
+  uint16_t register_combined;
+  uint8_t register_high, register_low;
+  writeOneByte(0xF0, 0);
+  readFromRegister(0x08, 1, &register_high); readFromRegister(0x07, 1, &register_low);
+  register_combined = (((uint16_t(register_high) & 0x000f)) << 7) | (((uint16_t)register_low & 0x00fe) >> 1);
+
+  // update IF vertical blanking stop position
+  writeOneByte(0xF0, 1);
+  writeOneByte(0x1e, (uint8_t)register_combined);
+  writeOneByte(0x1f, (uint8_t)(register_combined >> 8));
 }
 
 void autoADCGain() {
@@ -2255,8 +2275,8 @@ void loop() {
       lastTimeMDWatchdog = millis();
     }
 
-    liveUpdateIF();
-    
+    setParametersIF_continous();
+
     lastTimeSyncWatcher = millis();
   }
 
