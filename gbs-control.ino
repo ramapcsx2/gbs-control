@@ -335,11 +335,11 @@ void setParametersSP() {
   writeOneByte(0xF0, 5);
   writeOneByte(0x20, 0x02); // was 0xd2 // keep jitter sync off, 0x02 is right (auto correct sog polarity, sog source = ADC)
   // H active detect control
-  writeOneByte(0x21, 0x20); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20
+  writeOneByte(0x21, 0x1b); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20
   writeOneByte(0x22, 0x0f); // SP_L_DLT_REG       Sync pulse width different threshold (little than this as equal).
-  writeOneByte(0x24, 0x40); // SP_T_DLT_REG       H total width different threshold rgbhv: b
+  writeOneByte(0x24, 0x40); // SP_T_DLT_REG       H total width different threshold rgbhv: b // try reducing to 0x0b again
   writeOneByte(0x25, 0x00); // SP_T_DLT_REG
-  writeOneByte(0x26, 0x05); // SP_SYNC_PD_THD     H sync pulse width threshold
+  writeOneByte(0x26, 0x05); // SP_SYNC_PD_THD     H sync pulse width threshold // try increasing to ~ 0x50
   writeOneByte(0x27, 0x00); // SP_SYNC_PD_THD
   writeOneByte(0x2a, 0x0f); // SP_PRD_EQ_THD      How many continue legal line as valid
   // V active detect control
@@ -1678,9 +1678,12 @@ void setup() {
   delay(1000); // give the 5725 some time to start up. this adds to the Arduino bootloader delay.
 
   Wire.begin();
-  // ToDo: check for ESP8266!
+
   // The i2c wire library sets pullup resistors on by default. Disable this so that 5V MCUs aren't trying to drive the 3.3V bus.
 #if defined(ESP32)
+  pinMode(SCL, OUTPUT_OPEN_DRAIN);
+  pinMode(SDA, OUTPUT_OPEN_DRAIN);
+#elif defined(ESP8266)
   pinMode(SCL, OUTPUT_OPEN_DRAIN);
   pinMode(SDA, OUTPUT_OPEN_DRAIN);
 #else
