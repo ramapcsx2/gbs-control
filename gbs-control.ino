@@ -1670,6 +1670,7 @@ void setup() {
   pinMode(vsyncInPin, INPUT);
   if (rto->webServerEnabled) {
     start_webserver();
+    WiFi.setOutputPower(6.0f); // float: min 0.0f, max 20.5f
   }
   else {
     WiFi.disconnect();
