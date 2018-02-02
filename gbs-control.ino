@@ -30,8 +30,6 @@
 // 7 bit GBS I2C Address
 #define GBS_ADDR 0x17
 
-// zoom in mode for snes, md, etc 240p old consoles
-
 // I want runTimeOptions to be a global, for easier initial development.
 // Once we know which options are really required, this can be made more local.
 // Note: loop() has many more run time variables
@@ -51,8 +49,12 @@ struct runTimeOptions {
   boolean syncLockFound;
   boolean VSYNCconnected;
   boolean IFdown; // push button support example using an interrupt
+  boolean printInfos;
+  boolean webServerEnabled;
 } rtos;
 struct runTimeOptions *rto = &rtos;
+
+char globalCommand;
 
 // NOP 'times' MCU cycles, might be useful.
 void nopdelay(unsigned int times) {
@@ -1640,22 +1642,51 @@ void setup() {
   Serial.setTimeout(10);
   Serial.println(F("starting"));
 
-#if defined(ESP8266)
-#define WDT_CNTL ((volatile uint32_t*) 0x60000900)
-  pinMode(vsyncInPin, INPUT);
-  WiFi.disconnect();
-  WiFi.mode(WIFI_OFF);
-  WiFi.forceSleepBegin();
-  delay(1);
+  // setup run time options
+  rto->webServerEnabled = true; // control gbs-control(:p) via web browser, only available on wifi boards. disable to conserve power.
+  rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
+  rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
+  rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
+  rto->ADCTarget = 630;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
+  rto->phaseADC = 16; // 0 to 31
+  rto->phaseSP = 10; // 0 to 31
 
-  *WDT_CNTL &= ~0x0001; // disable hardware watchdog
-  ESP.wdtDisable(); // disable software watchdog
-  ets_isr_mask((1 << 0)); // appears to be the soft watchdog ISR. This *really* disables it.
+  // the following is just run time variables. don't change!
+
+  rto->currentLevelSOG = 10;
+  rto->inputIsYpBpR = false;
+  rto->videoStandardInput = 0;
+  rto->ADCGainValueFound = false;
+  rto->deinterlacerWasTurnedOff = false;
+  rto->modeDetectInReset = false;
+  rto->syncLockFound = false;
+  rto->VSYNCconnected = false;
+  rto->IFdown = false;
+  rto->printInfos = false;
+
+  globalCommand = 0; // web server uses this to issue commands
+
+#if defined(ESP8266)
+  pinMode(vsyncInPin, INPUT);
+  if (rto->webServerEnabled) {
+    start_webserver();
+  }
+  else {
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
+    WiFi.forceSleepBegin();
+    delay(1);
+  }
 #elif defined(ESP32)
   pinMode(vsyncInPin, INPUT);
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  WiFi.mode(WIFI_OFF);
+  if (rto->webServerEnabled) {
+    start_webserver();
+  }
+  else {
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
+  }
 #else // Arduino
   pinMode(vsyncInPin, INPUT);
   analogReference(INTERNAL);  // change analog read reference to 1.1V internal
@@ -1691,26 +1722,6 @@ void setup() {
   digitalWrite(SDA, LOW);
 #endif
   Wire.setClock(400000); // TV5725 supports 400kHz
-
-  // setup run time options
-  rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
-  rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
-  rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
-  rto->ADCTarget = 630;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
-  rto->phaseADC = 16; // 0 to 31
-  rto->phaseSP = 10; // 0 to 31
-
-  // the following is just run time variables. don't change!
-
-  rto->currentLevelSOG = 10;
-  rto->inputIsYpBpR = false;
-  rto->videoStandardInput = 0;
-  rto->ADCGainValueFound = false;
-  rto->deinterlacerWasTurnedOff = false;
-  rto->modeDetectInReset = false;
-  rto->syncLockFound = false;
-  rto->VSYNCconnected = false;
-  rto->IFdown = false;
 
 #if 1 // #if 0 to go directly to loop()
   // is the 5725 up yet?
@@ -1753,7 +1764,6 @@ void setup() {
 
 void loop() {
   // reminder: static variables are initialized once, not every loop
-  static boolean printInfos = false;
   static uint8_t readout = 0;
   static uint8_t segment = 0;
   static uint8_t inputRegister = 0;
@@ -1766,8 +1776,16 @@ void loop() {
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastTimeMDWatchdog = millis();
 
-  if (Serial.available()) {
-    switch (Serial.read()) {
+#if defined(ESP8266) || defined(ESP32)
+  if (rto->webServerEnabled) {
+    handleWebClient();
+    // if there's a control command from the server, globalCommand will now hold it.
+    // process it in the parser, then reset to 0 at the end of the sketch.
+  }
+#endif
+
+  if (Serial.available() || globalCommand != 0) {
+    switch (globalCommand == 0 ? Serial.read() : globalCommand) {
       case ' ':
         // skip spaces
         inputStage = 0; // reset this as well
@@ -1928,7 +1946,7 @@ void loop() {
         getVideoTimings();
         break;
       case 'i':
-        printInfos = !printInfos;
+        rto->printInfos = !rto->printInfos;
         break;
       case 'c':
         Serial.print(F("auto gain "));
@@ -1944,8 +1962,28 @@ void loop() {
         }
         break;
       case 'u':
-        //Serial.print("len: "); Serial.println(pulseIn(10, LOW, 60000) + pulseIn(10, HIGH, 60000));
-
+        {
+          rto->webServerEnabled = !rto->webServerEnabled;
+          if (rto->webServerEnabled) {
+#if defined(ESP8266) || defined(ESP32)
+            start_webserver();
+#endif
+          }
+          else {
+            Serial.println(F("stopping web server"));
+#if defined(ESP8266)
+            WiFi.disconnect();
+            WiFi.mode(WIFI_OFF);
+            WiFi.forceSleepBegin();
+            delay(1);
+#elif defined(ESP32)
+            WiFi.mode(WIFI_STA);
+            WiFi.disconnect();
+            WiFi.mode(WIFI_OFF);
+#endif
+            // else Arduino, Do nothing
+          }
+        }
         break;
       case 'f':
         Serial.println(F("show noise"));
@@ -2283,7 +2321,7 @@ void loop() {
     lastTimeSyncWatcher = millis();
   }
 
-  if (printInfos == true) { // information mode
+  if (rto->printInfos == true) { // information mode
     writeOneByte(0xF0, 0);
 
     //horizontal pixels:
@@ -2509,7 +2547,7 @@ void loop() {
 
     rto->syncLockFound = true;
   }
+
+  globalCommand = 0; // in case the web server had this set
 }
-
-
 
