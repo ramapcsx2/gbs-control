@@ -1413,24 +1413,12 @@ void setParametersIF() {
   register_combined = (((uint16_t(register_high) & 0x000f)) << 7) | (((uint16_t)register_low & 0x00fe) >> 1);
 
   // update IF vertical blanking stop position
+  register_combined -= 4; // but leave some line as safety (black screen glitch protection)
   writeOneByte(0xF0, 1);
   writeOneByte(0x1e, (uint8_t)register_combined);
   writeOneByte(0x1f, (uint8_t)(register_combined >> 8));
 
   // IF vertical blanking start position should be in the loaded preset
-}
-
-void setParametersIF_continous() {
-  uint16_t register_combined;
-  uint8_t register_high, register_low;
-  writeOneByte(0xF0, 0);
-  readFromRegister(0x08, 1, &register_high); readFromRegister(0x07, 1, &register_low);
-  register_combined = (((uint16_t(register_high) & 0x000f)) << 7) | (((uint16_t)register_low & 0x00fe) >> 1);
-
-  // update IF vertical blanking stop position
-  writeOneByte(0xF0, 1);
-  writeOneByte(0x1e, (uint8_t)register_combined);
-  writeOneByte(0x1f, (uint8_t)(register_combined >> 8));
 }
 
 void autoADCGain() {
@@ -1932,7 +1920,7 @@ void loop() {
         }
         break;
       case 'm':
-        Serial.print(F("syncwatcher "));
+        Serial.print(F("syncwatcher + autoIF "));
         if (rto->syncWatcher == true) {
           rto->syncWatcher = false;
           Serial.println(F("off"));
@@ -2317,7 +2305,7 @@ void loop() {
       lastTimeMDWatchdog = millis();
     }
 
-    setParametersIF_continous();
+    setParametersIF(); // continously update, so offsets match when switching from progressive to interlaced modes
 
     lastTimeSyncWatcher = millis();
   }
