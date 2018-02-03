@@ -1668,6 +1668,7 @@ void setup() {
   }
 #elif defined(ESP32)
   pinMode(vsyncInPin, INPUT);
+  WiFi.disconnect(); delay(2);
   if (rto->webServerEnabled) {
     start_webserver();
   }
@@ -1703,6 +1704,7 @@ void setup() {
 #if defined(ESP32)
   pinMode(SCL, OUTPUT_OPEN_DRAIN);
   pinMode(SDA, OUTPUT_OPEN_DRAIN);
+  delay(2);
 #elif defined(ESP8266)
   pinMode(SCL, OUTPUT_OPEN_DRAIN);
   pinMode(SDA, OUTPUT_OPEN_DRAIN);
@@ -1711,7 +1713,7 @@ void setup() {
   digitalWrite(SDA, LOW);
 #endif
   Wire.setClock(400000); // TV5725 supports 400kHz
-
+  delay(2);
 #if 1 // #if 0 to go directly to loop()
   // is the 5725 up yet?
   uint8_t temp = 0;
