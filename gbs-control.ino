@@ -1,5 +1,5 @@
 #include <Wire.h>
-#include <EEPROM.h>
+//#include <EEPROM.h>
 #include "ntsc_240p.h"
 #include "pal_240p.h"
 #include "vclktest.h"
@@ -17,6 +17,8 @@
 
 #elif defined(ESP32)
 #include <WiFi.h>
+#include <esp_wifi.h>
+#include <esp_pm.h>
 #define LEDON  digitalWrite(LED_BUILTIN, HIGH)
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW)
 #define vsyncInPin 27
@@ -76,6 +78,9 @@ void writeBytes(uint8_t slaveAddress, uint8_t slaveRegister, uint8_t* values, ui
 
   if (sentBytes != numValues) {
     Serial.println(F("i2c error"));
+#if defined(ESP32)
+    Wire.reset();
+#endif
   }
 }
 
@@ -519,6 +524,9 @@ void readFromRegister(uint8_t reg, int bytesToRead, uint8_t* output)
   Wire.beginTransmission(GBS_ADDR);
   if (!Wire.write(reg)) {
     Serial.println(F("i2c error"));
+#if defined(ESP32)
+    Wire.reset();
+#endif
   }
 
   Wire.endTransmission();
@@ -531,6 +539,9 @@ void readFromRegister(uint8_t reg, int bytesToRead, uint8_t* output)
 
   if (rcvBytes != bytesToRead) {
     Serial.println(F("i2c error"));
+#if defined(ESP32)
+    Wire.reset();
+#endif
   }
 }
 
@@ -1625,6 +1636,35 @@ void applyRGBPatches() {
   setSOGLevel( rto->currentLevelSOG );
 }
 
+#if defined(ESP32)
+void esp32_power() {
+  int8_t power = 0;
+  //  esp_pm_config_esp32_t pm_config = {
+  //       .max_cpu_freq =RTC_CPU_FREQ_240M,
+  //       .min_cpu_freq = RTC_CPU_FREQ_XTAL,
+  //    };
+  //  esp_err_t ret;
+  //    if((ret = esp_pm_configure(&pm_config)) != ESP_OK) {
+  //        Serial.print("pm config error ");Serial.println(ret);
+  //    }
+  //    else Serial.println("okay!");
+
+
+
+  Serial.print("get wifi max tx power: "); esp_wifi_get_max_tx_power(&power); Serial.println(power);
+  Serial.print("set wifi tx low power: "); Serial.println(esp_wifi_set_max_tx_power(15));
+  Serial.print("set wifi powersave: "); Serial.println(esp_wifi_set_ps(WIFI_PS_MODEM));
+  Serial.print("set btStop: "); Serial.println(btStop());
+  Serial.print("get btStarted: "); Serial.println(btStarted());
+
+  Serial.println("light_sleep_enter");
+  esp_sleep_enable_timer_wakeup(10000000); //10 seconds
+  int ret = esp_light_sleep_start();
+  Serial.printf("light_sleep: %d\n", ret);
+  //adc_power_off();
+}
+#endif
+
 void setup() {
   Serial.begin(250000); // up from 57600
   Serial.setTimeout(10);
@@ -1671,6 +1711,7 @@ void setup() {
   WiFi.disconnect(); delay(2);
   if (rto->webServerEnabled) {
     start_webserver();
+    //esp32_power(); // power saving!
   }
   else {
     WiFi.mode(WIFI_STA);
@@ -1952,11 +1993,19 @@ void loop() {
           Serial.println(F("on"));
         }
         break;
+#if defined(ESP32)
+      case 'U':
+        esp32_power();
+        break;
+#endif
       case 'u':
         {
           rto->webServerEnabled = !rto->webServerEnabled;
           if (rto->webServerEnabled) {
-#if defined(ESP8266) || defined(ESP32)
+#if defined(ESP32)
+            start_webserver();
+            //esp32_power();
+#elif defined(ESP8266)
             start_webserver();
 #endif
           }
