@@ -16,9 +16,11 @@
 #define LEDOFF digitalWrite(LED_BUILTIN, HIGH)
 
 #elif defined(ESP32)
-#include <WiFi.h>
-#include <esp_wifi.h>
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 #include <esp_pm.h>
+#include <esp_wifi.h>
+#include <WiFi.h>
 #define LEDON  digitalWrite(LED_BUILTIN, HIGH)
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW)
 #define vsyncInPin 27
@@ -1649,28 +1651,26 @@ void esp32_power() {
   //    }
   //    else Serial.println("okay!");
 
-
-
-  Serial.print("get wifi max tx power: "); esp_wifi_get_max_tx_power(&power); Serial.println(power);
-  Serial.print("set wifi tx low power: "); Serial.println(esp_wifi_set_max_tx_power(15));
-  Serial.print("set wifi powersave: "); Serial.println(esp_wifi_set_ps(WIFI_PS_MODEM));
+  //rtc_clk_cpu_freq_set(RTC_CPU_FREQ_80M); // this call works but it's missing some sdk stuff, so the active wifi breaks
+  Serial.print("wifi max tx power before: "); esp_wifi_get_max_tx_power(&power); Serial.println(power);
+  Serial.print("set esp_wifi_set_max_tx_power(15): "); Serial.println(esp_wifi_set_max_tx_power(15));
+  Serial.print("wifi max tx power after : "); esp_wifi_get_max_tx_power(&power); Serial.println(power);
+  Serial.print("set wifi ps WIFI_PS_MODEM: "); Serial.println(esp_wifi_set_ps(WIFI_PS_MODEM));
+  Serial.print("btStarted before: "); Serial.println(btStarted());
   Serial.print("set btStop: "); Serial.println(btStop());
-  Serial.print("get btStarted: "); Serial.println(btStarted());
-
-  Serial.println("light_sleep_enter");
-  esp_sleep_enable_timer_wakeup(10000000); //10 seconds
-  int ret = esp_light_sleep_start();
-  Serial.printf("light_sleep: %d\n", ret);
-  //adc_power_off();
+  Serial.print("btStarted after: "); Serial.println(btStarted());
 }
 #endif
 
 void setup() {
+#if defined(ESP32)
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
+#endif
   Serial.begin(250000); // up from 57600
   Serial.setTimeout(10);
   Serial.println(F("starting"));
 
-  // setup run time options
+  // run time options
   rto->webServerEnabled = true; // control gbs-control(:p) via web browser, only available on wifi boards. disable to conserve power.
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
@@ -1680,7 +1680,6 @@ void setup() {
   rto->phaseSP = 10; // 0 to 31
 
   // the following is just run time variables. don't change!
-
   rto->currentLevelSOG = 10;
   rto->inputIsYpBpR = false;
   rto->videoStandardInput = 0;
@@ -1692,33 +1691,7 @@ void setup() {
   rto->IFdown = false;
   rto->printInfos = false;
 
-  globalCommand = 0; // web server uses this to issue commands
-
-#if defined(ESP8266)
-  pinMode(vsyncInPin, INPUT);
-  if (rto->webServerEnabled) {
-    start_webserver();
-    WiFi.setOutputPower(6.0f); // float: min 0.0f, max 20.5f
-  }
-  else {
-    WiFi.disconnect();
-    WiFi.mode(WIFI_OFF);
-    WiFi.forceSleepBegin();
-    delay(1);
-  }
-#elif defined(ESP32)
-  pinMode(vsyncInPin, INPUT);
-  WiFi.disconnect(); delay(2);
-  if (rto->webServerEnabled) {
-    start_webserver();
-    //esp32_power(); // power saving!
-  }
-  else {
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
-    WiFi.mode(WIFI_OFF);
-  }
-#else // Arduino
+#if !defined(ESP8266) && !defined(ESP32) // Arduino
   pinMode(vsyncInPin, INPUT);
   analogReference(INTERNAL);  // change analog read reference to 1.1V internal
   bitSet(ADCSRA, ADPS0);      // lower analog read delay
@@ -1740,7 +1713,6 @@ void setup() {
   delay(1000); // give the 5725 some time to start up. this adds to the Arduino bootloader delay.
 
   Wire.begin();
-
   // The i2c wire library sets pullup resistors on by default. Disable this so that 5V MCUs aren't trying to drive the 3.3V bus.
 #if defined(ESP32)
   pinMode(SCL, OUTPUT_OPEN_DRAIN);
@@ -1755,12 +1727,12 @@ void setup() {
 #endif
   Wire.setClock(400000); // TV5725 supports 400kHz
   delay(2);
+
 #if 1 // #if 0 to go directly to loop()
-  // is the 5725 up yet?
   uint8_t temp = 0;
   writeOneByte(0xF0, 1);
   readFromRegister(0xF0, 1, &temp);
-  while (temp != 1) {
+  while (temp != 1) { // is the 5725 up yet?
     writeOneByte(0xF0, 1);
     readFromRegister(0xF0, 1, &temp);
     Serial.println(F("5725 not responding"));
@@ -1790,6 +1762,31 @@ void setup() {
   }
 #endif
 
+  globalCommand = 0; // web server uses this to issue commands
+#if defined(ESP8266)
+  pinMode(vsyncInPin, INPUT);
+  if (rto->webServerEnabled) {
+    start_webserver();
+    WiFi.setOutputPower(6.0f); // float: min 0.0f, max 20.5f
+  }
+  else {
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
+    WiFi.forceSleepBegin();
+    delay(1);
+  }
+#elif defined(ESP32)
+  pinMode(vsyncInPin, INPUT);
+  if (rto->webServerEnabled) {
+    start_webserver();
+    delay(50);
+    esp32_power();
+  }
+  else {
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
+  }
+#endif
   Serial.print(F("\nMCU: ")); Serial.println(F_CPU);
   LEDOFF; // startup done, disable the LED
 }
@@ -2004,7 +2001,8 @@ void loop() {
           if (rto->webServerEnabled) {
 #if defined(ESP32)
             start_webserver();
-            //esp32_power();
+            delay(50);
+            esp32_power();
 #elif defined(ESP8266)
             start_webserver();
 #endif
