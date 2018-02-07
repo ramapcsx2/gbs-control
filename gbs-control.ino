@@ -1426,7 +1426,7 @@ void setParametersIF() {
   register_combined = (((uint16_t(register_high) & 0x000f)) << 7) | (((uint16_t)register_low & 0x00fe) >> 1);
 
   // update IF vertical blanking stop position
-  register_combined -= 4; // but leave some line as safety (black screen glitch protection)
+  register_combined -= 2; // but leave some line as safety (black screen glitch protection)
   writeOneByte(0xF0, 1);
   writeOneByte(0x1e, (uint8_t)register_combined);
   writeOneByte(0x1f, (uint8_t)(register_combined >> 8));
