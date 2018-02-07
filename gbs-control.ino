@@ -2133,6 +2133,7 @@ void loop() {
         break;
     }
   }
+  globalCommand = 0; // in case the web server had this set
 
   // poll sync status continously
   if ((rto->syncWatcher == true) && ((millis() - lastTimeSyncWatcher) > 60)) {
@@ -2453,7 +2454,5 @@ void loop() {
 
     rto->syncLockFound = true;
   }
-
-  globalCommand = 0; // in case the web server had this set
 }
 
