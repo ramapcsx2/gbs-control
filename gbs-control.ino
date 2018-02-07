@@ -34,16 +34,11 @@
 // 7 bit GBS I2C Address
 #define GBS_ADDR 0x17
 
-// I want runTimeOptions to be a global, for easier initial development.
-// Once we know which options are really required, this can be made more local.
-// Note: loop() has many more run time variables
+// runTimeOptions holds system variables
 struct runTimeOptions {
   boolean inputIsYpBpR;
-  boolean autoGainADC;
   boolean syncWatcher;
   uint8_t videoStandardInput : 3; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 480p NTSC, 4 576p PAL
-  boolean ADCGainValueFound; // ADC auto gain variables
-  uint16_t ADCTarget : 11; // the target brightness (optimal value depends on the individual Arduino analogRead() results)
   uint8_t phaseSP;
   uint8_t phaseADC;
   uint8_t currentLevelSOG;
@@ -993,15 +988,6 @@ void shiftVerticalDown() {
   shiftVertical(4, false);
 }
 
-void resetADCAutoGain() {
-  rto->ADCGainValueFound = false;
-  writeOneByte(0xF0, 5);
-  writeOneByte(0x09, 0x7f);
-  writeOneByte(0x0a, 0x7f);
-  writeOneByte(0x0b, 0x7f);
-  delay(250);
-}
-
 void setMemoryHblankStartPosition(uint16_t value) {
   uint8_t regLow, regHigh;
   regLow = (uint8_t)value;
@@ -1309,7 +1295,6 @@ void doPostPresetLoadSteps() {
   resetPLLAD();
   setPhaseSP(); delay (10); setPhaseADC();
   resetSyncLock();
-  resetADCAutoGain();
   rto->modeDetectInReset = false;
   LEDOFF; // in case LED was on
   Serial.println(F("post preset done"));
@@ -1432,81 +1417,6 @@ void setParametersIF() {
   writeOneByte(0x1f, (uint8_t)(register_combined >> 8));
 
   // IF vertical blanking start position should be in the loaded preset
-}
-
-void autoADCGain() {
-  byte readout = 0;
-  static const uint16_t ADCCeiling = 700; // maximum value to expect from the ADC. Used to filter obvious misreads
-  static const uint16_t bigStep = rto->ADCTarget * 0.04f;
-  static const uint16_t medStep = rto->ADCTarget * 0.015f;
-  static const uint16_t smaStep = rto->ADCTarget * 0.005f;
-  static uint16_t currentVoltage = 0;
-  static uint16_t highestValue = 0;
-  //static uint16_t highestValueEverSeen = 0; // to measure the upper limit we can tune the TiVo DAC to
-
-  if (rto->ADCGainValueFound == false) {
-    for (int i = 0; i < 1024; i++) {
-      uint16_t temp = analogRead(A0);
-      if (temp != 0) {
-        currentVoltage = temp;
-      }
-      if (currentVoltage > ADCCeiling) {} // ADC misread, most likely
-      else if (currentVoltage > highestValue) {
-        highestValue = currentVoltage;
-      }
-    }
-  }
-  else {
-    // for overshoot
-    for (int i = 0; i < 1024; i++) {
-      uint16_t temp = analogRead(A0);
-      if (temp != 0) {
-        currentVoltage = temp;
-      }
-      byte randomValue = bitRead(currentVoltage, 0) + bitRead(currentVoltage, 1) + bitRead(currentVoltage, 2);  // random enough
-      delayMicroseconds(randomValue);
-      if (currentVoltage > ADCCeiling) {} // ADC misread, most likely
-      else if (currentVoltage > highestValue) {
-        highestValue = currentVoltage;
-      }
-    }
-  }
-
-  if (highestValue >= rto->ADCTarget) {
-    rto->ADCGainValueFound = true;
-  }
-
-  // increase stage. it increases to the found max, then permanently hands over to decrease stage
-  if (!rto->ADCGainValueFound) {
-    writeOneByte(0xF0, 5);
-    readFromRegister(0x09, 1, &readout);
-    if (readout >= 0x40 && readout <= 0x7F) {  // if we're at 0x3F already, stop increasing
-      byte amount = 1;
-      if (highestValue < (rto->ADCTarget - bigStep)) amount = 4;
-      else if (highestValue < (rto->ADCTarget - medStep)) amount = 2;
-      else if (highestValue < (rto->ADCTarget - smaStep)) amount = 1;
-      writeOneByte(0x09, readout - amount);
-      writeOneByte(0x0a, readout - amount);
-      writeOneByte(0x0b, readout - amount);
-    }
-  }
-
-  // decrease stage, always runs
-  if (highestValue > rto->ADCTarget) {
-    //Serial.print(" highestValue: "); Serial.print(highestValue);
-    writeOneByte(0xF0, 5);
-    readFromRegister(0x09, 1, &readout);
-    byte amount = 1;
-    if (highestValue > (rto->ADCTarget + bigStep)) amount = 4;
-    else if (highestValue > (rto->ADCTarget + medStep)) amount = 2;
-    else if (highestValue > (rto->ADCTarget + smaStep)) amount = 1;
-
-    writeOneByte(0x09, readout + amount);
-    writeOneByte(0x0a, (readout + amount) - 5); // accounts for G channel offset in presets
-    writeOneByte(0x0b, readout + amount);
-    highestValue = 0; // reset this for next round
-    delay(20); // give it some time to stick
-  }
 }
 
 void advancePhase() {
@@ -1673,9 +1583,7 @@ void setup() {
   // run time options
   rto->webServerEnabled = true; // control gbs-control(:p) via web browser, only available on wifi boards. disable to conserve power.
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
-  rto->autoGainADC = false; // todo: check! this tends to fail after brief sync losses
   rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
-  rto->ADCTarget = 630;    // ADC auto gain target value. somewhat depends on the individual Arduino. todo: auto measure the range
   rto->phaseADC = 16; // 0 to 31
   rto->phaseSP = 10; // 0 to 31
 
@@ -1683,7 +1591,6 @@ void setup() {
   rto->currentLevelSOG = 10;
   rto->inputIsYpBpR = false;
   rto->videoStandardInput = 0;
-  rto->ADCGainValueFound = false;
   rto->deinterlacerWasTurnedOff = false;
   rto->modeDetectInReset = false;
   rto->syncLockFound = false;
@@ -1691,21 +1598,10 @@ void setup() {
   rto->IFdown = false;
   rto->printInfos = false;
 
-#if !defined(ESP8266) && !defined(ESP32) // Arduino
   pinMode(vsyncInPin, INPUT);
-  analogReference(INTERNAL);  // change analog read reference to 1.1V internal
-  bitSet(ADCSRA, ADPS0);      // lower analog read delay
-  bitClear(ADCSRA, ADPS1);    //
-  bitSet(ADCSRA, ADPS2);      // 101 > x32 div
-#endif
-
   pinMode(LED_BUILTIN, OUTPUT);
   LEDON; // enable the LED, lets users know the board is starting up
-  pinMode(A0, INPUT); // auto ADC gain measurement input
-
-  for (byte i = 0; i < 100; i++) {
-    analogRead(A0);           // first few analog reads are glitchy after the reference change!
-  }
+  
   // example for using the gbs8200 onboard buttons in an interrupt routine
   //pinMode(2, INPUT); // button for IFdown
   //attachInterrupt(digitalPinToInterrupt(2), IFdown, FALLING);
@@ -1764,7 +1660,6 @@ void setup() {
 
   globalCommand = 0; // web server uses this to issue commands
 #if defined(ESP8266)
-  pinMode(vsyncInPin, INPUT);
   if (rto->webServerEnabled) {
     start_webserver();
     WiFi.setOutputPower(6.0f); // float: min 0.0f, max 20.5f
@@ -1776,7 +1671,6 @@ void setup() {
     delay(1);
   }
 #elif defined(ESP32)
-  pinMode(vsyncInPin, INPUT);
   if (rto->webServerEnabled) {
     start_webserver();
     delay(50);
@@ -1876,17 +1770,9 @@ void loop() {
           //h:429 v:523 PLL:2 status:0 mode:1 ADC:7F hpw:158 htotal:1710 vtotal:259  Mega Drive NTSC
         }
         break;
-#if defined(ESP8266)
       case 'p':
-        {
-          //Serial.print("ADC: "); Serial.println(analogRead(A0));
-          pinMode(D6, OUTPUT);
-          while (1) {
-            digitalWrite(D6, !digitalRead(D6));
-          }
-        }
+        //
         break;
-#endif
       case 'k':
         {
           static boolean sp_passthrough_enabled = false;
@@ -1978,17 +1864,7 @@ void loop() {
         rto->printInfos = !rto->printInfos;
         break;
       case 'c':
-        Serial.print(F("auto gain "));
-        if (rto->autoGainADC == true) {
-          rto->autoGainADC = false;
-          resetADCAutoGain();
-          Serial.println(F("off"));
-        }
-        else {
-          rto->autoGainADC = true;
-          resetADCAutoGain();
-          Serial.println(F("on"));
-        }
+        //
         break;
 #if defined(ESP32)
       case 'U':
@@ -2248,10 +2124,7 @@ void loop() {
         }
         break;
       case 'x':
-        Serial.print(F("ADC Target: "));
-        rto->ADCTarget = Serial.parseInt();
-        Serial.println(rto->ADCTarget);
-        resetADCAutoGain();
+        //
         break;
       default:
         Serial.println(F("command not understood"));
@@ -2404,11 +2277,6 @@ void loop() {
 
     Serial.print("\n");
   } // end information mode
-
-  // only run this when sync is stable!
-  if (rto->autoGainADC == true && getSyncStable()) {
-    autoADCGain();
-  }
 
   if (rto->IFdown == true) {
     rto->IFdown = false;
