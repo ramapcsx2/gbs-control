@@ -3,9 +3,12 @@
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h> // install WiFiManager library by tzapu first!
+extern "C" {
+#include <user_interface.h>
+}
 #endif
 
-const char* ap_ssid = "gbs";
+const char* ap_ssid = "gbscontrol";
 const char* ap_password =  "qqqqqqqq";
 
 WiFiServer webserver(80);
@@ -15,17 +18,27 @@ const char HTML[] PROGMEM = "<head><style>html{font-family: 'Droid Sans', sans-s
 void start_webserver()
 {
 #if defined(ESP8266)
-  WiFi.hostname("gbscontrol"); // call this before WiFi.begin()
+  WiFi.hostname("gbscontrol"); // not every router updates the old hostname though (mine doesn't)
+  
+  // hostname fix: spoof MAC by increasing the last octet by 1
+  // Routers now see this as a new device and respect the hostname.
+  uint8_t macAddr[6];
+  Serial.print("orig. MAC: ");  Serial.println(WiFi.macAddress()); 
+  WiFi.macAddress(macAddr); // macAddr now holds the current device MAC
+  macAddr[5] += 1; // change last octet by 1
+  wifi_set_macaddr(STATION_IF, macAddr);
+  Serial.print("new MAC:   ");  Serial.println(WiFi.macAddress()); 
+  
   WiFiManager wifiManager;
   wifiManager.setTimeout(180); // in seconds
   wifiManager.autoConnect(ap_ssid, ap_password);
   // The WiFiManager library will spawn an access point, waiting to be configured.
   // Once configured, it stores the credentials and restarts the board.
   // On restart, it tries to connect to the configured AP. If successfull, it resumes execution here.
-  // Option: A timeout closes the configuration AP after 120 seconds, resuming gbs-control (but without any web server)
+  // Option: A timeout closes the configuration AP after 180 seconds, resuming gbs-control (but without any web server)
   Serial.print("dnsIP: "); Serial.println(WiFi.dnsIP());
   Serial.print("hostname: "); Serial.println(WiFi.hostname());
-#else if defined(ESP32)
+#elif defined(ESP32)
   WiFi.softAP(ap_ssid, ap_password);
   Serial.print("starting web server on: ");
   Serial.println(WiFi.softAPIP());
