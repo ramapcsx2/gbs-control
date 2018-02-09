@@ -15,6 +15,7 @@ const char HTML[] PROGMEM = "<head><style>html{font-family: 'Droid Sans', sans-s
 void start_webserver()
 {
 #if defined(ESP8266)
+  WiFi.hostname("gbscontrol"); // call this before WiFi.begin()
   WiFiManager wifiManager;
   wifiManager.setTimeout(180); // in seconds
   wifiManager.autoConnect(ap_ssid, ap_password);
@@ -22,6 +23,8 @@ void start_webserver()
   // Once configured, it stores the credentials and restarts the board.
   // On restart, it tries to connect to the configured AP. If successfull, it resumes execution here.
   // Option: A timeout closes the configuration AP after 120 seconds, resuming gbs-control (but without any web server)
+  Serial.print("dnsIP: "); Serial.println(WiFi.dnsIP());
+  Serial.print("hostname: "); Serial.println(WiFi.hostname());
 #else if defined(ESP32)
   WiFi.softAP(ap_ssid, ap_password);
   Serial.print("starting web server on: ");
