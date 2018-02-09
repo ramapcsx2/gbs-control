@@ -31,6 +31,11 @@
 #define vsyncInPin 10
 #endif
 
+#if defined(ESP8266) || defined(ESP32)
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+#endif
+
 // 7 bit GBS I2C Address
 #define GBS_ADDR 0x17
 
@@ -50,6 +55,7 @@ struct runTimeOptions {
   boolean IFdown; // push button support example using an interrupt
   boolean printInfos;
   boolean webServerEnabled;
+  boolean allowUpdatesOTA;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -1582,6 +1588,7 @@ void setup() {
 
   // run time options
   rto->webServerEnabled = true; // control gbs-control(:p) via web browser, only available on wifi boards. disable to conserve power.
+  rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
   rto->phaseADC = 16; // 0 to 31
@@ -1601,7 +1608,7 @@ void setup() {
   pinMode(vsyncInPin, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   LEDON; // enable the LED, lets users know the board is starting up
-  
+
   // example for using the gbs8200 onboard buttons in an interrupt routine
   //pinMode(2, INPUT); // button for IFdown
   //attachInterrupt(digitalPinToInterrupt(2), IFdown, FALLING);
@@ -1704,6 +1711,10 @@ void loop() {
     handleWebClient();
     // if there's a control command from the server, globalCommand will now hold it.
     // process it in the parser, then reset to 0 at the end of the sketch.
+  }
+
+  if (rto->allowUpdatesOTA) {
+    ArduinoOTA.handle();
   }
 #endif
 
@@ -1863,9 +1874,13 @@ void loop() {
       case 'i':
         rto->printInfos = !rto->printInfos;
         break;
+#if defined(ESP8266) || defined(ESP32)
       case 'c':
-        //
+        Serial.println(F("OTA Updates enabled"));
+        initUpdateOTA();
+        rto->allowUpdatesOTA = true;
         break;
+#endif
 #if defined(ESP32)
       case 'U':
         esp32_power();
@@ -1886,14 +1901,14 @@ void loop() {
           else {
             Serial.println(F("stopping web server"));
 #if defined(ESP8266)
-            WiFi.disconnect();
-            WiFi.mode(WIFI_OFF);
-            WiFi.forceSleepBegin();
-            delay(1);
+            //WiFi.disconnect(); // this should be called WiFi.disconnect___and_delete_settings_from_flash_justbytheway() (SDK bug)
+            //WiFi.persistent(false): https://github.com/esp8266/Arduino/blob/master/doc/esp8266wifi/generic-class.rst#persistent
+            WiFi.mode(WIFI_OFF); delay(100);
+            WiFi.forceSleepBegin(); delay(100);
 #elif defined(ESP32)
-            WiFi.mode(WIFI_STA);
-            WiFi.disconnect();
-            WiFi.mode(WIFI_OFF);
+            //WiFi.mode(WIFI_STA);
+            //WiFi.disconnect(); // same SDK bug? Just turn WiFi off
+            WiFi.mode(WIFI_OFF); delay(100);
 #endif
             // else Arduino, Do nothing
           }
@@ -2176,7 +2191,7 @@ void loop() {
 
     if (noSyncCounter >= 80 ) { // ModeDetect reports nothing
       Serial.println(F("No Sync!"));
-      //disableVDS();
+      disableVDS();
       inputAndSyncDetect();
       setSOGLevel( random(0, 31) ); // try a random(min, max) sog level, hopefully find some sync
       resetModeDetect();
