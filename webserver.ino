@@ -13,22 +13,22 @@ const char* ap_password =  "qqqqqqqq";
 
 WiFiServer webserver(80);
 
-const char HTML[] PROGMEM = "<head><style>html{font-family: 'Droid Sans', sans-serif;}h1{position: relative; margin-left: -22px; /* 15px padding + 7px border ribbon shadow*/ margin-right: -22px; padding: 15px; background: #e5e5e5; background: linear-gradient(#f5f5f5, #e5e5e5); box-shadow: 0 -1px 0 rgba(255,255,255,.8) inset; text-shadow: 0 1px 0 #fff;}h1:before,h1:after{position: absolute; left: 0; bottom: -6px; content:''; border-top: 6px solid #555; border-left: 6px solid transparent;}h1:before{border-top: 6px solid #555; border-right: 6px solid transparent; border-left: none; left: auto; right: 0; bottom: -6px;}.button{background-color: #008CBA; /* Blue */ border: none; border-radius: 12px; color: white; padding: 15px 32px; text-align: center; text-decoration: none; display: inline-block; font-size: 28px; margin: 10px 10px; cursor: pointer; -webkit-transition-duration: 0.4s; /* Safari */ transition-duration: 0.4s; width: 440px; float: left;}.button:hover{background-color: #4CAF50;}.button a{color: white; text-decoration: none;}.button .tooltiptext{visibility: hidden; width: 100px; background-color: black; color: #fff; text-align: center; padding: 5px 0; border-radius: 6px; height: 12px; font-size: 10px; /* Position the tooltip */ position: absolute; z-index: 1; margin-left: 10px;}.button:hover .tooltiptext{visibility: visible;}br{clear: left;}h2{clear: left; padding-top: 10px;}</style><script>function loadDoc(link){var xhttp=new XMLHttpRequest(); xhttp.open(\"GET\", \"serial_\"+link, true); xhttp.send();}</script></head><body><h1>Standard-Presets</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('r')\">PAL 240p<span class=\"tooltiptext\">Serial r</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('e')\">NTSC 240p<span class=\"tooltiptext\">Serial e</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('2')\">PAL Feedback Clock<span class=\"tooltiptext\">Serial 2</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('9')\">NTSC Feedback Clock<span class=\"tooltiptext\">Serial 9</span></button><br><h1>Picture Control</h1><h2>Scaling</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('5')\">Vertical Smaller<span class=\"tooltiptext\">Serial 5</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('4')\">Vertical Larger<span class=\"tooltiptext\">Serial 4</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('h')\">Horizontal Smaller<span class=\"tooltiptext\">Serial h</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('z')\">Horizontal Larger<span class=\"tooltiptext\">Serial z</span></button><h2>Movement</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('*')\">Vertical Up<span class=\"tooltiptext\">Serial *</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('/')\">Vertical Down<span class=\"tooltiptext\">Serial /</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('-')\">Horizontal Left<span class=\"tooltiptext\">Serial -</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('+')\">Horizontal Right<span class=\"tooltiptext\">Serial +</span></button><h2>Blanking</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('0')\">Move HS Left<span class=\"tooltiptext\">Serial 0</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('1')\">Move HS Right<span class=\"tooltiptext\">Serial 1</span></button><br><h1>En-/Disable</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('m')\">SyncWatcher<span class=\"tooltiptext\">Serial m</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('.')\">SyncLock<span class=\"tooltiptext\">Serial .</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('k')\">Passthrough<span class=\"tooltiptext\">Serial k</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('l')\">SyncProcessor<span class=\"tooltiptext\">Serial l</span></button><br><h1>Informations</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('i')\">Print Infos<span class=\"tooltiptext\">Serial i</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc(',')\">Get Video Timings<span class=\"tooltiptext\">Serial ,</span></button><br><h1>Internal</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('o')\">Oversampling Ratio<span class=\"tooltiptext\">Serial o</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('8')\">ADC / SP Phase++<span class=\"tooltiptext\">Serial 8</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('7')\">Set PhaseADC<span class=\"tooltiptext\">Serial 7</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('6')\">Set PhaseSP<span class=\"tooltiptext\">Serial 6</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('f')\">Show Noise<span class=\"tooltiptext\">Serial f</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('a')\">HTotal++<span class=\"tooltiptext\">Serial a</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('n')\">PLL divider++<span class=\"tooltiptext\">Serial n</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('b')\">Advance Phase<span class=\"tooltiptext\">Serial b</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('c')\">Enable OTA<span class=\"tooltiptext\">Serial c</span></button><br><h1>Reset</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('j')\">Reset PLL/PLLAD<span class=\"tooltiptext\">Serial j</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('q')\">Reset Digital<span class=\"tooltiptext\">Serial q</span></button></body>";
+const char HTML[] PROGMEM = "<head><link rel=\"icon\" href=\"data:,\"><style>html{font-family: 'Droid Sans', sans-serif;}h1{position: relative; margin-left: -22px; /* 15px padding + 7px border ribbon shadow*/ margin-right: -22px; padding: 15px; background: #e5e5e5; background: linear-gradient(#f5f5f5, #e5e5e5); box-shadow: 0 -1px 0 rgba(255,255,255,.8) inset; text-shadow: 0 1px 0 #fff;}h1:before,h1:after{position: absolute; left: 0; bottom: -6px; content:''; border-top: 6px solid #555; border-left: 6px solid transparent;}h1:before{border-top: 6px solid #555; border-right: 6px solid transparent; border-left: none; left: auto; right: 0; bottom: -6px;}.button{background-color: #008CBA; /* Blue */ border: none; border-radius: 12px; color: white; padding: 15px 32px; text-align: center; text-decoration: none; display: inline-block; font-size: 28px; margin: 10px 10px; cursor: pointer; -webkit-transition-duration: 0.4s; /* Safari */ transition-duration: 0.4s; width: 440px; float: left;}.button:hover{background-color: #4CAF50;}.button a{color: white; text-decoration: none;}.button .tooltiptext{visibility: hidden; width: 100px; background-color: black; color: #fff; text-align: center; padding: 5px 0; border-radius: 6px; height: 12px; font-size: 10px; /* Position the tooltip */ position: absolute; z-index: 1; margin-left: 10px;}.button:hover .tooltiptext{visibility: visible;}br{clear: left;}h2{clear: left; padding-top: 10px;}</style><script>function loadDoc(link){var xhttp=new XMLHttpRequest(); xhttp.open(\"GET\", \"serial_\"+link, true); xhttp.send();}</script></head><body><h1>Standard-Presets</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('r')\">PAL 240p<span class=\"tooltiptext\">Serial r</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('e')\">NTSC 240p<span class=\"tooltiptext\">Serial e</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('2')\">PAL Feedback Clock<span class=\"tooltiptext\">Serial 2</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('9')\">NTSC Feedback Clock<span class=\"tooltiptext\">Serial 9</span></button><br><h1>Picture Control</h1><h2>Scaling</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('5')\">Vertical Smaller<span class=\"tooltiptext\">Serial 5</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('4')\">Vertical Larger<span class=\"tooltiptext\">Serial 4</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('h')\">Horizontal Smaller<span class=\"tooltiptext\">Serial h</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('z')\">Horizontal Larger<span class=\"tooltiptext\">Serial z</span></button><h2>Movement</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('*')\">Vertical Up<span class=\"tooltiptext\">Serial *</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('/')\">Vertical Down<span class=\"tooltiptext\">Serial /</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('-')\">Horizontal Left<span class=\"tooltiptext\">Serial -</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('+')\">Horizontal Right<span class=\"tooltiptext\">Serial +</span></button><h2>Blanking</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('0')\">Move HS Left<span class=\"tooltiptext\">Serial 0</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('1')\">Move HS Right<span class=\"tooltiptext\">Serial 1</span></button><br><h1>En-/Disable</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('m')\">SyncWatcher<span class=\"tooltiptext\">Serial m</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('.')\">SyncLock<span class=\"tooltiptext\">Serial .</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('k')\">Passthrough<span class=\"tooltiptext\">Serial k</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('l')\">SyncProcessor<span class=\"tooltiptext\">Serial l</span></button><br><h1>Informations</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('i')\">Print Infos<span class=\"tooltiptext\">Serial i</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc(',')\">Get Video Timings<span class=\"tooltiptext\">Serial ,</span></button><br><h1>Internal</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('o')\">Oversampling Ratio<span class=\"tooltiptext\">Serial o</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('8')\">ADC / SP Phase++<span class=\"tooltiptext\">Serial 8</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('7')\">Set PhaseADC<span class=\"tooltiptext\">Serial 7</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('6')\">Set PhaseSP<span class=\"tooltiptext\">Serial 6</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('f')\">Show Noise<span class=\"tooltiptext\">Serial f</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('a')\">HTotal++<span class=\"tooltiptext\">Serial a</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('n')\">PLL divider++<span class=\"tooltiptext\">Serial n</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('b')\">Advance Phase<span class=\"tooltiptext\">Serial b</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('c')\">Enable OTA<span class=\"tooltiptext\">Serial c</span></button><br><h1>Reset</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('j')\">Reset PLL/PLLAD<span class=\"tooltiptext\">Serial j</span></button><button class=\"button\" type=\"button\" onclick=\"loadDoc('q')\">Reset Digital<span class=\"tooltiptext\">Serial q</span></button></body>";
 
 void start_webserver()
 {
 #if defined(ESP8266)
   WiFi.hostname("gbscontrol"); // not every router updates the old hostname though (mine doesn't)
-  
+
   // hostname fix: spoof MAC by increasing the last octet by 1
   // Routers now see this as a new device and respect the hostname.
   uint8_t macAddr[6];
-  Serial.print("orig. MAC: ");  Serial.println(WiFi.macAddress()); 
+  Serial.print("orig. MAC: ");  Serial.println(WiFi.macAddress());
   WiFi.macAddress(macAddr); // macAddr now holds the current device MAC
   macAddr[5] += 1; // change last octet by 1
   wifi_set_macaddr(STATION_IF, macAddr);
-  Serial.print("new MAC:   ");  Serial.println(WiFi.macAddress()); 
-  
+  Serial.print("new MAC:   ");  Serial.println(WiFi.macAddress());
+
   WiFiManager wifiManager;
   wifiManager.setTimeout(180); // in seconds
   wifiManager.autoConnect(ap_ssid, ap_password);
@@ -50,51 +50,68 @@ void start_webserver()
   webserver.begin();
 }
 
+// size of buffer used to capture HTTP requests
+#define REQ_BUF_SZ 500 // we have the RAM
+char HTTP_req[REQ_BUF_SZ] = {0}; // buffered HTTP request stored as null terminated string
+uint16_t req_index = 0; // index into HTTP_req buffer
+
 void handleWebClient()
 {
-  char linebuf[160]; // was 80 but that's too small for some user agent strings
-  uint16_t charcount = 0;
-
   WiFiClient client = webserver.available();
   if (client) {
     Serial.println("New client");
-    memset(linebuf, 0, sizeof(linebuf));
-    charcount = 0;
     // an http request ends with a blank line
     boolean currentLineIsBlank = true;
+
     while (client.connected()) {
       if (client.available()) {
         char c = client.read();
-        Serial.write(c);
-        //read char by char HTTP request
-        linebuf[charcount] = c;
-        if (charcount < sizeof(linebuf) - 1) charcount++;
+        // limit the size of the stored received HTTP request
+        // buffer first part of HTTP request in HTTP_req array (string)
+        // leave last element in array as 0 to null terminate string (REQ_BUF_SZ - 1)
+        if (req_index < (REQ_BUF_SZ - 1)) {
+          HTTP_req[req_index] = c;   // save one request character
+          req_index++;
+        }
 
-        // if you've gotten to the end of the line (received a newline
-        // character) and the line is blank, the http request has ended,
-        // so you can send a reply
+        // last line of client request is blank and ends with \n
+        // respond to client only after last line received
         if (c == '\n' && currentLineIsBlank) {
-          // send a standard http response header
-          client.println("HTTP/1.1 200 OK");
-          client.println("Content-Type: text/html");
-          client.println("Connection: close");  // the connection will be closed after completion of the response
-          client.println();
-          client.println("<!DOCTYPE HTML><html>");
-          client.println(FPSTR(HTML)); // client.println(HTML) segfaults on ESP8266 due to not being 32bit aligned. Use FPSTR(HTML) instead.
-          client.println("</html>");
+          // display received HTTP request on serial port
+          Serial.println("HTTP Request: "); Serial.print(HTTP_req); Serial.println();
+
+          if (strstr(HTTP_req, "Accept: */*")) { // this is a xhttp request, no need to send the whole page again
+            client.println("HTTP/1.1 200 OK");
+            client.println();
+          }
+          else {
+            // send standard http response header ..
+            client.println("HTTP/1.1 200 OK");
+            client.println("Content-Type: text/html");
+            client.println("Connection: keep-alive");
+            client.println();
+            // .. and our page
+            client.println("<!DOCTYPE HTML><html>");
+            client.println(FPSTR(HTML)); // client.println(HTML) segfaults on ESP8266 due to not being 32bit aligned. Use FPSTR(HTML) instead.
+            client.println("</html>");
+          }
+          // reset buffer index and all buffer elements to 0
+          req_index = 0;
+          StrClear(HTTP_req, REQ_BUF_SZ);
           break;
         }
         if (c == '\n') {
           // you're starting a new line
-          if (strstr(linebuf, "GET /serial_") /* > 0 */) { // strstr returns a pointer or null, comparing with 0 threw a warning
-            Serial.print("Linebuf[12]: "); Serial.println(linebuf[12]);
-            globalCommand = linebuf[12];
+          if (strstr(HTTP_req, "GET /serial_") /* > 0 */) { // strstr returns a pointer or null, comparing with 0 threw a warning
+            Serial.print("Linebuf[12]: "); Serial.println(HTTP_req[12]);
+            globalCommand = HTTP_req[12];
+            // reset buffer index and all buffer elements to 0 (we don't care about the rest)
+            req_index = 0;
+            StrClear(HTTP_req, REQ_BUF_SZ);
           }
           currentLineIsBlank = true;
-          memset(linebuf, 0, sizeof(linebuf));
-          charcount = 0;
         } else if (c != '\r') {
-          // you've gotten a character on the current line
+          // a text character was received from client
           currentLineIsBlank = false;
         }
       }
@@ -105,6 +122,7 @@ void handleWebClient()
     // close the connection:
     client.stop();
     Serial.println("client disconnected");
+
   }
 }
 
@@ -141,5 +159,13 @@ void initUpdateOTA() {
     else if (error == OTA_END_ERROR) Serial.println("End Failed");
   });
   ArduinoOTA.begin();
+}
+
+// sets every element of str to 0 (clears array)
+void StrClear(char *str, uint16_t length)
+{
+  for (int i = 0; i < length; i++) {
+    str[i] = 0;
+  }
 }
 #endif
