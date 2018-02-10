@@ -897,6 +897,46 @@ void moveHS(uint16_t amountToAdd, bool subtracting) {
   writeOneByte(0x0c, (uint8_t)((newSP & 0x0ff0) >> 4) );
 }
 
+void moveVS(uint16_t amountToAdd, bool subtracting) {
+  uint8_t regHigh, regLow;
+  uint16_t newST, newSP, VDS_DIS_VB_ST, VDS_DIS_VB_SP;
+
+  writeOneByte(0xf0, 3);
+  // get VBST
+  readFromRegister(3, 0x13, 1, &regLow);
+  readFromRegister(3, 0x14, 1, &regHigh);
+  VDS_DIS_VB_ST = (((uint16_t)regHigh & 0x0007) << 8) | ((uint16_t)regLow) ;
+  // get VBSP
+  readFromRegister(3, 0x14, 1, &regLow);
+  readFromRegister(3, 0x15, 1, &regHigh);
+  VDS_DIS_VB_SP = ((((uint16_t)regHigh & 0x007f) << 4) | ((uint16_t)regLow & 0x00f0) >> 4) ;
+
+  readFromRegister(0x0d, 1, &regLow);
+  readFromRegister(0x0e, 1, &regHigh);
+  newST = ( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow;
+  readFromRegister(0x0e, 1, &regLow);
+  readFromRegister(0x0f, 1, &regHigh);
+  newSP = ( (((uint16_t)regHigh) & 0x00ff) << 4) | ( (((uint16_t)regLow) & 0x00f0) >> 4);
+
+  if (subtracting) {
+    if ((newST - amountToAdd) > VDS_DIS_VB_ST) {
+      newST -= amountToAdd;
+      newSP -= amountToAdd;
+    } else Serial.println(F("limit"));
+  } else {
+    if ((newSP + amountToAdd) < VDS_DIS_VB_SP) {
+      newST += amountToAdd;
+      newSP += amountToAdd;
+    } else Serial.println(F("limit"));
+  }
+  Serial.print("VSST: "); Serial.print(newST);
+  Serial.print(" VSSP: "); Serial.println(newSP);
+
+  writeOneByte(0x0d, (uint8_t)(newST & 0x00ff));
+  writeOneByte(0x0e, ((uint8_t)(newSP & 0x000f) << 4) | ((uint8_t)((newST & 0x0f00) >> 8)) );
+  writeOneByte(0x0f, (uint8_t)((newSP & 0x0ff0) >> 4) );
+}
+
 void invertHS() {
   uint8_t high, low;
   uint16_t newST, newSP;
@@ -916,6 +956,27 @@ void invertHS() {
   writeOneByte(0x0a, (uint8_t)(newST & 0x00ff));
   writeOneByte(0x0b, ((uint8_t)(newSP & 0x000f) << 4) | ((uint8_t)((newST & 0x0f00) >> 8)) );
   writeOneByte(0x0c, (uint8_t)((newSP & 0x0ff0) >> 4) );
+}
+
+void invertVS() {
+  uint8_t high, low;
+  uint16_t newST, newSP;
+
+  writeOneByte(0xf0, 3);
+  readFromRegister(0x0d, 1, &low);
+  readFromRegister(0x0e, 1, &high);
+  newST = ( ( ((uint16_t)high) & 0x000f) << 8) | (uint16_t)low;
+  readFromRegister(0x0e, 1, &low);
+  readFromRegister(0x0f, 1, &high);
+  newSP = ( (((uint16_t)high) & 0x00ff) << 4) | ( (((uint16_t)low) & 0x00f0) >> 4);
+
+  uint16_t temp = newST;
+  newST = newSP;
+  newSP = temp;
+
+  writeOneByte(0x0d, (uint8_t)(newST & 0x00ff));
+  writeOneByte(0x0e, ((uint8_t)(newSP & 0x000f) << 4) | ((uint8_t)((newST & 0x0f00) >> 8)) );
+  writeOneByte(0x0f, (uint8_t)((newSP & 0x0ff0) >> 4) );
 }
 
 void scaleVertical(uint16_t amountToAdd, bool subtracting) {
@@ -2118,6 +2179,18 @@ void loop() {
         Serial.println(F("l - spOffOn"));
         SyncProcessorOffOn();
         break;
+      case 'Q':
+        setPhaseSP();
+        break;
+      case 'W':
+        setPhaseADC();
+        break;
+      case 'E':
+        rto->phaseADC += 1; rto->phaseADC &= 0x1f;
+        rto->phaseSP += 1; rto->phaseSP &= 0x1f;
+        Serial.print("ADC: "); Serial.println(rto->phaseADC);
+        Serial.print(" SP: "); Serial.println(rto->phaseSP);
+        break;
       case '0':
         moveHS(1, true);
         break;
@@ -2140,17 +2213,14 @@ void loop() {
         scaleVertical(1, false);
         break;
       case '6':
-        //invertHS();
-        setPhaseSP();
+        moveVS(1, true);
         break;
       case '7':
-        setPhaseADC();
+        moveVS(1, false);
         break;
       case '8':
-        rto->phaseADC += 1; rto->phaseADC &= 0x1f;
-        rto->phaseSP += 1; rto->phaseSP &= 0x1f;
-        Serial.print("ADC: "); Serial.println(rto->phaseADC);
-        Serial.print(" SP: "); Serial.println(rto->phaseSP);
+        Serial.println(F("invert sync"));
+        invertHS(); invertVS();
         break;
       case '9':
         writeProgramArrayNew(ntsc_feedbackclock);
