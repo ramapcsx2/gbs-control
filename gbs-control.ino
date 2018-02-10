@@ -54,6 +54,7 @@ struct runTimeOptions {
   boolean VSYNCconnected;
   boolean IFdown; // push button support example using an interrupt
   boolean printInfos;
+  boolean sourceDisconnected;
   boolean webServerEnabled;
   boolean allowUpdatesOTA;
 } rtos;
@@ -478,14 +479,26 @@ void inputAndSyncDetect() {
 
   if (!syncFound) {
     Serial.println(F("no input with sync found"));
+    writeOneByte(0xF0, 0);
+    byte a = 0;
+    for (byte b = 0; b < 100; b++) {
+      readFromRegister(0x17, 1, &readout); // input htotal
+      a += readout;
+    }
+    if (a == 0) {
+      rto->sourceDisconnected = true;
+      Serial.println(F("source is off"));
+    }
   }
 
-  if (rto->inputIsYpBpR == true) {
+  if (syncFound && rto->inputIsYpBpR == true) {
     Serial.println(F("using RCA inputs"));
+    rto->sourceDisconnected = false;
     applyYuvPatches();
   }
-  else {
+  else if (syncFound && rto->inputIsYpBpR == false) {
     Serial.println(F("using RGBS inputs"));
+    rto->sourceDisconnected = false;
   }
 }
 
@@ -1274,6 +1287,171 @@ void set_vtotal(uint16_t vtotal) {
   writeOneByte(0x09, regHigh);
 }
 
+void aquireSyncLock() {
+  long outputLength = 1;
+  long inputLength = 1;
+  long difference = 99999; // shortcut
+  long prev_difference;
+  uint8_t regLow, regHigh, readout;
+  uint16_t hbsp, htotal, backupHTotal, bestHTotal = 1;
+
+  // test if we get the vsync signal (wire is connected, display output is working)
+  // this remembers a positive result via VSYNCconnected
+  if (rto->VSYNCconnected == false) {
+    if (pulseIn(vsyncInPin, HIGH, 100000) != 0) {
+      if  (pulseIn(vsyncInPin, LOW, 100000) != 0) {
+        rto->VSYNCconnected = true;
+      }
+    }
+    else {
+      Serial.println(F("VSYNC not connected"));
+      rto->VSYNCconnected = false;
+      rto->syncLockEnabled = false;
+      return;
+    }
+  }
+
+  writeOneByte(0xF0, 0);
+  readFromRegister(0x4f, 1, &readout);
+  writeOneByte(0x4f, readout | (1 << 7));
+  delay(2);
+
+  long highTest1, highTest2;
+  long lowTest1, lowTest2;
+
+  // input field time
+  noInterrupts();
+  highTest1 = pulseIn(vsyncInPin, HIGH, 90000);
+  highTest2 = pulseIn(vsyncInPin, HIGH, 90000);
+  lowTest1 = pulseIn(vsyncInPin, LOW, 90000);
+  lowTest2 = pulseIn(vsyncInPin, LOW, 90000);
+  interrupts();
+
+  inputLength = (highTest1 + highTest2) / 2;
+  inputLength += (lowTest1 + lowTest2) / 2;
+
+  writeOneByte(0xF0, 0);
+  readFromRegister(0x4f, 1, &readout);
+  writeOneByte(0x4f, readout & ~(1 << 7));
+  delay(2);
+
+  // current output field time
+  noInterrupts();
+  lowTest1 = pulseIn(vsyncInPin, LOW, 90000);
+  lowTest2 = pulseIn(vsyncInPin, LOW, 90000);
+  highTest1 = pulseIn(vsyncInPin, HIGH, 90000); // now these are short pulses
+  highTest2 = pulseIn(vsyncInPin, HIGH, 90000);
+  interrupts();
+
+  long highPulse = (highTest1 + highTest2) / 2;
+  long lowPulse = (lowTest1 + lowTest2) / 2;
+  outputLength = lowPulse + highPulse;
+
+  Serial.print(F("in field time: ")); Serial.println(inputLength);
+  Serial.print(F("out field time: ")); Serial.println(outputLength);
+
+  // shortcut to exit if in and out are close
+  int inOutDiff = outputLength - inputLength;
+  if ( abs(inOutDiff) < 5) {
+    rto->syncLockFound = true;
+    return;
+  }
+
+  writeOneByte(0xF0, 3);
+  readFromRegister(3, 0x01, 1, &regLow);
+  readFromRegister(3, 0x02, 1, &regHigh);
+  htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
+  backupHTotal = htotal;
+  Serial.print(F(" Start HTotal: ")); Serial.println(htotal);
+
+  // start looking at an htotal value at or slightly below anticipated target
+  htotal = ((float)(htotal) / (float)(outputLength)) * (float)(inputLength);
+
+  while ((htotal < (backupHTotal + 30)) ) {
+    writeOneByte(0xF0, 3);
+    regLow = (uint8_t)htotal;
+    readFromRegister(3, 0x02, 1, &regHigh);
+    regHigh = (regHigh & 0xf0) | (htotal >> 8);
+    writeOneByte(0x01, regLow);
+    writeOneByte(0x02, regHigh);
+    noInterrupts();
+    outputLength = pulseIn(vsyncInPin, LOW, 50000) + highPulse;
+    interrupts();
+    prev_difference = difference;
+    difference = (outputLength > inputLength) ? (outputLength - inputLength) : (inputLength - outputLength);
+    Serial.print(htotal); Serial.print(": "); Serial.println(difference);
+
+    if (difference == prev_difference) {
+      // best value is last one, exit
+      bestHTotal = htotal - 1;
+      break;
+    }
+    else if (difference < prev_difference) {
+      bestHTotal = htotal;
+    }
+    else {
+      // increasing again? we have the value, exit
+      break;
+    }
+
+    htotal += 1;
+  }
+
+  writeOneByte(0xF0, 3);
+  regLow = (uint8_t)bestHTotal;
+  readFromRegister(3, 0x02, 1, &regHigh);
+  regHigh = (regHigh & 0xf0) | (bestHTotal >> 8);
+  writeOneByte(0x01, regLow);
+  writeOneByte(0x02, regHigh);
+
+  // HTotal might now be outside horizontal blank pulse
+  readFromRegister(3, 0x01, 1, &regLow);
+  readFromRegister(3, 0x02, 1, &regHigh);
+  htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
+  // safety
+  if (htotal > backupHTotal) {
+    if ((htotal - backupHTotal) > 30) {
+      Serial.print("safety triggered upper "); Serial.println(htotal - backupHTotal);
+      regLow = (uint8_t)backupHTotal;
+      readFromRegister(3, 0x02, 1, &regHigh);
+      regHigh = (regHigh & 0xf0) | (backupHTotal >> 8);
+      writeOneByte(0x01, regLow);
+      writeOneByte(0x02, regHigh);
+      htotal = backupHTotal;
+    }
+  }
+  else if (htotal < backupHTotal) {
+    if ((backupHTotal - htotal) > 30) {
+      Serial.print("safety triggered lower "); Serial.println(backupHTotal - htotal);
+      regLow = (uint8_t)backupHTotal;
+      readFromRegister(3, 0x02, 1, &regHigh);
+      regHigh = (regHigh & 0xf0) | (backupHTotal >> 8);
+      writeOneByte(0x01, regLow);
+      writeOneByte(0x02, regHigh);
+      htotal = backupHTotal;
+    }
+  }
+
+  readFromRegister(3, 0x11, 1, &regLow);
+  readFromRegister(3, 0x12, 1, &regHigh);
+  hbsp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
+
+  Serial.print(F(" End HTotal: ")); Serial.println(htotal);
+
+  if ( htotal <= hbsp  ) {
+    hbsp = htotal - 1;
+    hbsp &= 0xfffe;
+    regHigh = (uint8_t)(hbsp >> 4);
+    readFromRegister(3, 0x11, 1, &regLow);
+    regLow = (regLow & 0x0f) | ((uint8_t)(hbsp << 4));
+    writeOneByte(0x11, regLow);
+    writeOneByte(0x12, regHigh);
+    //setMemoryHblankStartPosition( Vds_hsync_rst - 8 );
+    //setMemoryHblankStopPosition( (Vds_hsync_rst  * (73.0f / 338.0f) + 2 ) );
+  }
+
+  rto->syncLockFound = true;
+}
 void doPostPresetLoadSteps() {
   if (rto->inputIsYpBpR == true) {
     Serial.print("(YUV)");
@@ -1604,6 +1782,7 @@ void setup() {
   rto->VSYNCconnected = false;
   rto->IFdown = false;
   rto->printInfos = false;
+  rto->sourceDisconnected = false;
 
   pinMode(vsyncInPin, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
@@ -1662,6 +1841,19 @@ void setup() {
   if (timeout > 0 && result != 0) {
     applyPresets(result);
     delay(1000); // at least 750ms required to become stable
+  }
+
+  // prepare for synclock
+  result = getVideoMode();
+  timeout = 255;
+  while (result == 0 && --timeout > 0) {
+    if ((timeout % 5) == 0) Serial.print(".");
+    result = getVideoMode();
+    delay(1);
+  }
+  // sync should be stable now
+  if ((result != 0) && rto->syncLockEnabled == true && rto->syncLockFound == false && rto->videoStandardInput != 0) {
+    aquireSyncLock();
   }
 #endif
 
@@ -2151,7 +2343,7 @@ void loop() {
   globalCommand = 0; // in case the web server had this set
 
   // poll sync status continously
-  if ((rto->syncWatcher == true) && ((millis() - lastTimeSyncWatcher) > 60)) {
+  if ((rto->sourceDisconnected == false) && (rto->syncWatcher == true) && ((millis() - lastTimeSyncWatcher) > 60)) {
     byte result = getVideoMode();
     boolean doChangeVideoMode = false;
 
@@ -2236,7 +2428,8 @@ void loop() {
             SyncProcessorOffOn();
             rto->videoStandardInput = 0;
             rto->modeDetectInReset = true;
-            noSyncCounter = 60; // speed up sync detect attempts
+            inputAndSyncDetect();
+            //noSyncCounter = 60; // speed up sync detect attempts
           }
         }
       }
@@ -2307,167 +2500,21 @@ void loop() {
 
   // only run this when sync is stable!
   if (rto->syncLockEnabled == true && rto->syncLockFound == false && getSyncStable() && rto->videoStandardInput != 0) {
-    long outputLength = 1;
-    long inputLength = 1;
-    long difference = 99999; // shortcut
-    long prev_difference;
-    uint8_t regLow, regHigh;
-    uint16_t hbsp, htotal, backupHTotal, bestHTotal = 1;
+    aquireSyncLock();
+  }
 
-    // test if we get the vsync signal (wire is connected, display output is working)
-    // this remembers a positive result via VSYNCconnected
-    if (rto->VSYNCconnected == false) {
-      if ((pulseIn(vsyncInPin, HIGH, 50000) != 0) && (pulseIn(vsyncInPin, LOW, 50000) != 0)) {
-        rto->VSYNCconnected = true;
-      }
-      else {
-        Serial.println(F("VSYNC not connected"));
-        rto->VSYNCconnected = false;
-        rto->syncLockEnabled = false;
-        return;
-      }
-    }
-
+  if (rto->sourceDisconnected == true) { // keep looking for new input
     writeOneByte(0xF0, 0);
-    readFromRegister(0x4f, 1, &readout);
-    writeOneByte(0x4f, readout | (1 << 7));
-    delay(2);
-
-    long highTest1, highTest2;
-    long lowTest1, lowTest2;
-
-    // input field time
-    noInterrupts();
-    highTest1 = pulseIn(vsyncInPin, HIGH, 90000);
-    highTest2 = pulseIn(vsyncInPin, HIGH, 90000);
-    lowTest1 = pulseIn(vsyncInPin, LOW, 90000);
-    lowTest2 = pulseIn(vsyncInPin, LOW, 90000);
-    interrupts();
-
-    inputLength = (highTest1 + highTest2) / 2;
-    inputLength += (lowTest1 + lowTest2) / 2;
-
-    writeOneByte(0xF0, 0);
-    readFromRegister(0x4f, 1, &readout);
-    writeOneByte(0x4f, readout & ~(1 << 7));
-    delay(2);
-
-    // current output field time
-    noInterrupts();
-    lowTest1 = pulseIn(vsyncInPin, LOW, 90000);
-    lowTest2 = pulseIn(vsyncInPin, LOW, 90000);
-    highTest1 = pulseIn(vsyncInPin, HIGH, 90000); // now these are short pulses
-    highTest2 = pulseIn(vsyncInPin, HIGH, 90000);
-    interrupts();
-
-    long highPulse = (highTest1 + highTest2) / 2;
-    long lowPulse = (lowTest1 + lowTest2) / 2;
-    outputLength = lowPulse + highPulse;
-
-    Serial.print(F("in field time: ")); Serial.println(inputLength);
-    Serial.print(F("out field time: ")); Serial.println(outputLength);
-
-    // shortcut to exit if in and out are close
-    int inOutDiff = outputLength - inputLength;
-    if ( abs(inOutDiff) < 5) {
-      rto->syncLockFound = true;
-      return;
+    byte a = 0;
+    for (byte b = 0; b < 20; b++) {
+      readFromRegister(0x17, 1, &readout); // input htotal
+      a += readout;
     }
-
-    writeOneByte(0xF0, 3);
-    readFromRegister(3, 0x01, 1, &regLow);
-    readFromRegister(3, 0x02, 1, &regHigh);
-    htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-    backupHTotal = htotal;
-    Serial.print(F(" Start HTotal: ")); Serial.println(htotal);
-
-    // start looking at an htotal value at or slightly below anticipated target
-    htotal = ((float)(htotal) / (float)(outputLength)) * (float)(inputLength);
-
-    while ((htotal < (backupHTotal + 30)) ) {
-      writeOneByte(0xF0, 3);
-      regLow = (uint8_t)htotal;
-      readFromRegister(3, 0x02, 1, &regHigh);
-      regHigh = (regHigh & 0xf0) | (htotal >> 8);
-      writeOneByte(0x01, regLow);
-      writeOneByte(0x02, regHigh);
-      noInterrupts();
-      outputLength = pulseIn(vsyncInPin, LOW, 50000) + highPulse;
-      interrupts();
-      prev_difference = difference;
-      difference = (outputLength > inputLength) ? (outputLength - inputLength) : (inputLength - outputLength);
-      Serial.print(htotal); Serial.print(": "); Serial.println(difference);
-
-      if (difference == prev_difference) {
-        // best value is last one, exit loop
-        bestHTotal = htotal - 1;
-        break;
-      }
-      else if (difference < prev_difference) {
-        bestHTotal = htotal;
-      }
-      else {
-        // increasing again? we have the value, exit loop
-        break;
-      }
-
-      htotal += 1;
+    if (a == 0) {
+      rto->sourceDisconnected = true;
+    } else {
+      rto->sourceDisconnected = false;
     }
-
-    writeOneByte(0xF0, 3);
-    regLow = (uint8_t)bestHTotal;
-    readFromRegister(3, 0x02, 1, &regHigh);
-    regHigh = (regHigh & 0xf0) | (bestHTotal >> 8);
-    writeOneByte(0x01, regLow);
-    writeOneByte(0x02, regHigh);
-
-    // HTotal might now be outside horizontal blank pulse
-    readFromRegister(3, 0x01, 1, &regLow);
-    readFromRegister(3, 0x02, 1, &regHigh);
-    htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-    // safety
-    if (htotal > backupHTotal) {
-      if ((htotal - backupHTotal) > 30) {
-        Serial.print("safety triggered upper "); Serial.println(htotal - backupHTotal);
-        regLow = (uint8_t)backupHTotal;
-        readFromRegister(3, 0x02, 1, &regHigh);
-        regHigh = (regHigh & 0xf0) | (backupHTotal >> 8);
-        writeOneByte(0x01, regLow);
-        writeOneByte(0x02, regHigh);
-        htotal = backupHTotal;
-      }
-    }
-    else if (htotal < backupHTotal) {
-      if ((backupHTotal - htotal) > 30) {
-        Serial.print("safety triggered lower "); Serial.println(backupHTotal - htotal);
-        regLow = (uint8_t)backupHTotal;
-        readFromRegister(3, 0x02, 1, &regHigh);
-        regHigh = (regHigh & 0xf0) | (backupHTotal >> 8);
-        writeOneByte(0x01, regLow);
-        writeOneByte(0x02, regHigh);
-        htotal = backupHTotal;
-      }
-    }
-
-    readFromRegister(3, 0x11, 1, &regLow);
-    readFromRegister(3, 0x12, 1, &regHigh);
-    hbsp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
-
-    Serial.print(F(" End HTotal: ")); Serial.println(htotal);
-
-    if ( htotal <= hbsp  ) {
-      hbsp = htotal - 1;
-      hbsp &= 0xfffe;
-      regHigh = (uint8_t)(hbsp >> 4);
-      readFromRegister(3, 0x11, 1, &regLow);
-      regLow = (regLow & 0x0f) | ((uint8_t)(hbsp << 4));
-      writeOneByte(0x11, regLow);
-      writeOneByte(0x12, regHigh);
-      //setMemoryHblankStartPosition( Vds_hsync_rst - 8 );
-      //setMemoryHblankStopPosition( (Vds_hsync_rst  * (73.0f / 338.0f) + 2 ) );
-    }
-
-    rto->syncLockFound = true;
   }
 }
 
