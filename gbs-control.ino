@@ -60,6 +60,12 @@ struct runTimeOptions {
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
+// userOptions holds user preferences / customizations
+struct userOptions {
+  boolean preferFeedbackClockPresets;
+} uopts;
+struct userOptions *uopt = &uopts;
+
 char globalCommand;
 
 // NOP 'times' MCU cycles, might be useful.
@@ -398,7 +404,8 @@ void setParametersSP() {
   // try these values and t5t3et2 when using cvid sync / no sync stripper
   // appears start should be around 0x70, stop should be htotal - 0x70
   //writeOneByte(0x4e, 0x00); writeOneByte(0x4d, 0x70); //  | rgbhv: 0 0
-  //writeOneByte(0x50, 0x06); writeOneByte(0x4f, 0x70); //  | rgbhv: 0 0
+  //writeOneByte(0x50, 0x06); // rgbhv: 0 // is 0x06 for comment below 
+  writeOneByte(0x4f, 0x9a); // rgbhv: 0 // psx with 54mhz osc. > 0xa4 too much, 0xa0 barely ok, > 0x9a!
 
   writeOneByte(0x51, 0x02); // 0x00 rgbhv: 2
   writeOneByte(0x52, 0x00); // 0xc0
@@ -1471,7 +1478,7 @@ void aquireSyncLock() {
   htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
   // safety
   if (htotal > backupHTotal) {
-    if ((htotal - backupHTotal) > 30) {
+    if ((htotal - backupHTotal) > 400) { // increased from 30 to 400 (54mhz psx)
       Serial.print("safety triggered upper "); Serial.println(htotal - backupHTotal);
       regLow = (uint8_t)backupHTotal;
       readFromRegister(3, 0x02, 1, &regHigh);
@@ -1482,7 +1489,7 @@ void aquireSyncLock() {
     }
   }
   else if (htotal < backupHTotal) {
-    if ((backupHTotal - htotal) > 30) {
+    if ((backupHTotal - htotal) > 400) { // increased from 30 to 400 (54mhz psx)
       Serial.print("safety triggered lower "); Serial.println(backupHTotal - htotal);
       regLow = (uint8_t)backupHTotal;
       readFromRegister(3, 0x02, 1, &regHigh);
@@ -1551,25 +1558,25 @@ void doPostPresetLoadSteps() {
 void applyPresets(byte result) {
   if (result == 2) {
     Serial.println(F("PAL timing "));
-    writeProgramArrayNew(pal_240p);
-    //writeProgramArrayNew(pal_feedbackclock);
-
+    if (uopt->preferFeedbackClockPresets) writeProgramArrayNew(pal_feedbackclock);
+    else writeProgramArrayNew(pal_240p);
     rto->videoStandardInput = 2;
     doPostPresetLoadSteps();
   }
   else if (result == 1) {
     Serial.println(F("NTSC timing "));
-    writeProgramArrayNew(ntsc_240p);
-    //writeProgramArrayNew(ntsc_feedbackclock);
+    if (uopt->preferFeedbackClockPresets) writeProgramArrayNew(ntsc_feedbackclock);
+    else writeProgramArrayNew(ntsc_240p);
 
     rto->videoStandardInput = 1;
     doPostPresetLoadSteps();
   }
   else if (result == 3) {
     Serial.println(F("HDTV timing "));
-    writeProgramArrayNew(ntsc_240p); // ntsc base
-    //writeProgramArrayNew(ntsc_feedbackclock);
-
+    // ntsc base
+    if (uopt->preferFeedbackClockPresets) writeProgramArrayNew(ntsc_feedbackclock);
+    else writeProgramArrayNew(ntsc_240p);
+    // todo: and now? isn't there something missing? check with Wii
     rto->videoStandardInput = 3;
     doPostPresetLoadSteps();
   }
@@ -1825,6 +1832,8 @@ void setup() {
   Serial.setTimeout(10);
   Serial.println(F("starting"));
 
+  // user options // todo: save/load from EEPROM
+  uopt->preferFeedbackClockPresets = false;
   // run time options
   rto->webServerEnabled = true; // control gbs-control(:p) via web browser, only available on wifi boards. disable to conserve power.
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
