@@ -855,9 +855,9 @@ void scaleHorizontal(uint16_t amountToAdd, bool subtracting) {
 
   newValue = ( ( ((uint16_t)high) & 0x0003) * 256) + (uint16_t)low;
 
-  if (subtracting) {
+  if (subtracting && ((newValue - amountToAdd) >= 0)) {
     newValue -= amountToAdd;
-  } else {
+  } else if ((newValue + amountToAdd) <= 1023){
     newValue += amountToAdd;
   }
 
@@ -997,9 +997,9 @@ void scaleVertical(uint16_t amountToAdd, bool subtracting) {
   readFromRegister(0x03, 0x17, 1, &low);
   newValue = ( (((uint16_t)high) & 0x007f) << 4) | ( (((uint16_t)low) & 0x00f0) >> 4);
 
-  if (subtracting) {
+  if (subtracting && ((newValue - amountToAdd) >= 0)) {
     newValue -= amountToAdd;
-  } else {
+  } else if ((newValue + amountToAdd) <= 1023){
     newValue += amountToAdd;
   }
 
@@ -1540,7 +1540,7 @@ void doPostPresetLoadSteps() {
     rto->videoStandardInput = 0;
     return;
   }
-  setParametersIF();
+  //setParametersIF(); // it's sufficient to do this in syncwatcher
   setClampPosition();
   resetPLL();
   enableVDS(); delay(10); // VDS has to be on before setPhaseADC() or setPhaseSP() !
