@@ -404,7 +404,7 @@ void setParametersSP() {
   // try these values and t5t3et2 when using cvid sync / no sync stripper
   // appears start should be around 0x70, stop should be htotal - 0x70
   //writeOneByte(0x4e, 0x00); writeOneByte(0x4d, 0x70); //  | rgbhv: 0 0
-  //writeOneByte(0x50, 0x06); // rgbhv: 0 // is 0x06 for comment below 
+  //writeOneByte(0x50, 0x06); // rgbhv: 0 // is 0x06 for comment below
   writeOneByte(0x4f, 0x9a); // rgbhv: 0 // psx with 54mhz osc. > 0xa4 too much, 0xa0 barely ok, > 0x9a!
 
   writeOneByte(0x51, 0x02); // 0x00 rgbhv: 2
@@ -1931,7 +1931,7 @@ void setup() {
 #if defined(ESP8266)
   if (rto->webServerEnabled) {
     start_webserver();
-    WiFi.setOutputPower(6.0f); // float: min 0.0f, max 20.5f
+    WiFi.setOutputPower(12.0f); // float: min 0.0f, max 20.5f
   }
   else {
     WiFi.disconnect();
