@@ -1475,6 +1475,17 @@ void aquireSyncLock() {
   writeOneByte(0x01, regLow);
   writeOneByte(0x02, regHigh);
 
+  // changing htotal shifts the canvas with in the frame. Correct this now.
+  int toShiftPixels = backupHTotal - bestHTotal;
+  if (toShiftPixels >= 0 && toShiftPixels < 40) {
+    Serial.print("shifting "); Serial.print(toShiftPixels); Serial.println(" pixels left");
+    shiftHorizontal(toShiftPixels, true); // true = left
+  }
+  else if (toShiftPixels < 0 && toShiftPixels > -40) {
+    Serial.print("shifting "); Serial.print(-toShiftPixels); Serial.println(" pixels right");
+    shiftHorizontal(-toShiftPixels, false); // false = right
+  }
+
   // HTotal might now be outside horizontal blank pulse
   readFromRegister(3, 0x01, 1, &regLow);
   readFromRegister(3, 0x02, 1, &regHigh);
