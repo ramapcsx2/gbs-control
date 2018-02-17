@@ -857,7 +857,7 @@ void scaleHorizontal(uint16_t amountToAdd, bool subtracting) {
 
   if (subtracting && ((newValue - amountToAdd) >= 0)) {
     newValue -= amountToAdd;
-  } else if ((newValue + amountToAdd) <= 1023){
+  } else if ((newValue + amountToAdd) <= 1023) {
     newValue += amountToAdd;
   }
 
@@ -999,7 +999,7 @@ void scaleVertical(uint16_t amountToAdd, bool subtracting) {
 
   if (subtracting && ((newValue - amountToAdd) >= 0)) {
     newValue -= amountToAdd;
-  } else if ((newValue + amountToAdd) <= 1023){
+  } else if ((newValue + amountToAdd) <= 1023) {
     newValue += amountToAdd;
   }
 
@@ -1217,6 +1217,7 @@ void getVideoTimings() {
 
 //s0s41s85 wht 1800 wvt 1200 | pal 1280x???
 //s0s41s85 wht 1800 wvt 1000 | ntsc 1280x1024
+// memory blanking ntsc 1280x960 (htotal 1803): whbst 0 whbsp 314, then shift into frame
 void set_htotal(uint16_t htotal) {
   uint8_t regLow, regHigh;
 
@@ -1395,8 +1396,8 @@ void aquireSyncLock() {
   lowTest2 = pulseIn(vsyncInPin, LOW, 90000);
   interrupts();
 
-  inputLength = (highTest1 + highTest2) / 2;
-  inputLength += (lowTest1 + lowTest2) / 2;
+  inputLength = ((highTest1 + highTest2) / 2);
+  inputLength += ((lowTest1 + lowTest2) / 2);
 
   writeOneByte(0xF0, 0);
   readFromRegister(0x4f, 1, &readout);
@@ -1411,8 +1412,8 @@ void aquireSyncLock() {
   highTest2 = pulseIn(vsyncInPin, HIGH, 90000);
   interrupts();
 
-  long highPulse = (highTest1 + highTest2) / 2;
-  long lowPulse = (lowTest1 + lowTest2) / 2;
+  long highPulse = ((highTest1 + highTest2) / 2);
+  long lowPulse = ((lowTest1 + lowTest2) / 2);
   outputLength = lowPulse + highPulse;
 
   Serial.print(F("in field time: ")); Serial.println(inputLength);
@@ -1420,7 +1421,7 @@ void aquireSyncLock() {
 
   // shortcut to exit if in and out are close
   int inOutDiff = outputLength - inputLength;
-  if ( abs(inOutDiff) < 5) {
+  if ( abs(inOutDiff) < 7) {
     rto->syncLockFound = true;
     return;
   }
@@ -1435,15 +1436,17 @@ void aquireSyncLock() {
   // start looking at an htotal value at or slightly below anticipated target
   htotal = ((float)(htotal) / (float)(outputLength)) * (float)(inputLength);
 
-  while ((htotal < (backupHTotal + 30)) ) {
+  uint8_t attempts = 40;
+  while (attempts-- > 0) {
     writeOneByte(0xF0, 3);
     regLow = (uint8_t)htotal;
     readFromRegister(3, 0x02, 1, &regHigh);
     regHigh = (regHigh & 0xf0) | (htotal >> 8);
     writeOneByte(0x01, regLow);
     writeOneByte(0x02, regHigh);
+    delay(1);
     noInterrupts();
-    outputLength = pulseIn(vsyncInPin, LOW, 50000) + highPulse;
+    outputLength = pulseIn(vsyncInPin, LOW, 90000) + highPulse;
     interrupts();
     prev_difference = difference;
     difference = (outputLength > inputLength) ? (outputLength - inputLength) : (inputLength - outputLength);
