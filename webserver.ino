@@ -137,7 +137,7 @@ void handleWebClient()
 {
   WiFiClient client = webserver.available();
   if (client) {
-    Serial.println("New client");
+    //Serial.println("New client");
     // an http request ends with a blank line
     boolean currentLineIsBlank = true;
     uint16_t client_timeout = 0;
@@ -156,7 +156,7 @@ void handleWebClient()
         // respond to client only after last line received
         if (c == '\n' && currentLineIsBlank) {
           // display received HTTP request on serial port
-          Serial.println("HTTP Request: "); Serial.print(HTTP_req); Serial.println();
+          //Serial.println("HTTP Request: "); Serial.print(HTTP_req); Serial.println();
 
           if (strstr(HTTP_req, "Accept: */*")) { // this is a xhttp request, no need to send the whole page again
             client.println("HTTP/1.1 200 OK");
@@ -182,14 +182,14 @@ void handleWebClient()
         if (c == '\n') {
           // you're starting a new line
           if (strstr(HTTP_req, "GET /serial_")) {
-            Serial.print("HTTP_req[12]: "); Serial.println(HTTP_req[12]);
+            //Serial.print("HTTP_req[12]: "); Serial.println(HTTP_req[12]);
             globalCommand = HTTP_req[12];
             // reset buffer index and all buffer elements to 0 (we don't care about the rest)
             req_index = 0;
             StrClear(HTTP_req, REQ_BUF_SZ);
           }
           else if (strstr(HTTP_req, "GET /user_")) {
-            Serial.print("HTTP_req[10]: "); Serial.println(HTTP_req[10]);
+            //Serial.print("HTTP_req[10]: "); Serial.println(HTTP_req[10]);
             if (HTTP_req[10] == '0') {
               uopt->preferFeedbackClockPresets = true;
             }
@@ -236,7 +236,7 @@ void handleWebClient()
 
     // close the connection:
     client.stop();
-    Serial.println("client disconnected");
+    //Serial.println("client disconnected");
   }
 }
 #endif
