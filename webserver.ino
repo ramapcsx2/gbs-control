@@ -4,6 +4,9 @@
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h> // install WiFiManager library by tzapu first!
+struct tcp_pcb;
+extern struct tcp_pcb* tcp_tw_pcbs;
+extern "C" void tcp_abort (struct tcp_pcb* pcb);
 extern "C" {
 #include <user_interface.h>
 }
@@ -75,6 +78,7 @@ void initUpdateOTA() {
       type = "filesystem";
 
     // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+    SPIFFS.end();
     Serial.println("Start updating " + type);
   });
   ArduinoOTA.onEnd([]() {
@@ -105,7 +109,7 @@ void StrClear(char *str, uint16_t length)
 uint8_t* loadPresetFromSPIFFS() {
   static uint8_t preset[592];
   String s = "";
-  Serial.print("free ram before: "); Serial.println(ESP.getFreeHeap());
+
   File f = SPIFFS.open("/preset0.txt", "r");
   if (!f) {
     Serial.println("open preset file failed");
@@ -123,9 +127,68 @@ uint8_t* loadPresetFromSPIFFS() {
     preset[i++] = (uint8_t)atoi(tmp);
     tmp = strtok(NULL, ",");
   }
-  Serial.print("free ram after read: "); Serial.println(ESP.getFreeHeap());
 
   return preset;
+}
+
+void savePresetToSPIFFS() {
+  uint8_t readout = 0;
+
+  File f = SPIFFS.open("/preset0.txt", "r+");
+  if (!f) {
+    Serial.println("open preset file failed");
+  }
+  else {
+    Serial.println("preset0.txt ok");
+
+    for (int i = 0; i <= 5; i++) {
+      writeOneByte(0xF0, i);
+      switch (i) {
+        case 0:
+          for (int x = 0x40; x <= 0x5F; x++) {
+            readFromRegister(x, 1, &readout);
+            f.print(readout); f.println(",");
+          }
+          for (int x = 0x90; x <= 0x9F; x++) {
+            readFromRegister(x, 1, &readout);
+            f.print(readout); f.println(",");
+          }
+          break;
+        case 1:
+          for (int x = 0x0; x <= 0x8F; x++) {
+            readFromRegister(x, 1, &readout);
+            f.print(readout); f.println(",");
+          }
+          break;
+        case 2:
+          for (int x = 0x0; x <= 0x3F; x++) {
+            readFromRegister(x, 1, &readout);
+            f.print(readout); f.println(",");
+          }
+          break;
+        case 3:
+          for (int x = 0x0; x <= 0x7F; x++) {
+            readFromRegister(x, 1, &readout);
+            f.print(readout); f.println(",");
+          }
+          break;
+        case 4:
+          for (int x = 0x0; x <= 0x5F; x++) {
+            readFromRegister(x, 1, &readout);
+            f.print(readout); f.println(",");
+          }
+          break;
+        case 5:
+          for (int x = 0x0; x <= 0x6F; x++) {
+            readFromRegister(x, 1, &readout);
+            f.print(readout); f.println(",");
+          }
+          break;
+      }
+    }
+    f.println("};");
+    f.close();
+  }
 }
 
 // size of buffer used to capture HTTP requests
@@ -135,6 +198,11 @@ uint16_t req_index = 0; // index into HTTP_req buffer
 
 void handleWebClient()
 {
+  //while (tcp_tw_pcbs != NULL)
+  //{
+  //  tcp_abort(tcp_tw_pcbs);
+  //}
+
   WiFiClient client = webserver.available();
   if (client) {
     //Serial.println("New client");
@@ -204,6 +272,7 @@ void handleWebClient()
             else if (HTTP_req[10] == '3') {
               // save
               // maybe insert a flag / cheap crc on first line, check that on load
+              savePresetToSPIFFS();
             }
 
             // reset buffer index and all buffer elements to 0 (we don't care about the rest)
@@ -236,7 +305,7 @@ void handleWebClient()
 
     // close the connection:
     client.stop();
-    //Serial.println("client disconnected");
+    Serial.print("free ram: "); Serial.println(ESP.getFreeHeap());
   }
 }
 #endif
