@@ -246,6 +246,15 @@ void writeProgramArrayNew(const uint8_t* programArray)
   //writeOneByte(0x32, 0x00); // 0x28 ntsc_240p
   //writeOneByte(0x33, 0x01);
 
+  //update rto phase variables
+  uint8_t readout = 0;
+  writeOneByte(0xF0, 5);
+  readFromRegister(0x18, 1, &readout);
+  rto->phaseADC = ((readout & 0x3e) >> 1);
+  readFromRegister(0x19, 1, &readout);
+  rto->phaseSP = ((readout & 0x3e) >> 1);
+
+  Serial.println(rto->phaseADC); Serial.println(rto->phaseSP);
   writeOneByte(0xF0, 0);
   writeOneByte(0x46, 0x3f); // reset controls 1 // everything on except VDS display output
   writeOneByte(0x47, 0x17); // all on except HD bypass

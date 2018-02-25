@@ -387,7 +387,7 @@ const uint8_t vclktest[] PROGMEM = {
 48,
 0,
 0,
-48,
+50,
 119,
 66,
 51,
