@@ -1357,15 +1357,15 @@ void set_htotal(uint16_t htotal) {
 
   // hbst (memory) should always start before or exactly at hbst (display) for interlaced sources to look nice
   // .. at least in PAL modes. NTSC doesn't seem to be affected
-  uint16_t h_blank_start_position = (uint16_t)((htotal * (32.0f / 45.0f)) + 1) & 0xfffe;
+  uint16_t h_blank_start_position = (uint16_t)(((uint32_t) htotal * 32) / 45 + 1) & 0xfffe;
   uint16_t h_blank_stop_position =  0;  //(uint16_t)htotal;  // it's better to use 0 here, allows for easier masking
-  uint16_t h_sync_start_position =  (uint16_t)((htotal * (172.0f / 225.0f)) + 1) & 0xfffe;
-  uint16_t h_sync_stop_position =   (uint16_t)((htotal * (62.0f / 75.0f)) + 1) & 0xfffe;
+  uint16_t h_sync_start_position =  (uint16_t)(((uint32_t) htotal * 172) / 225 + 1) & 0xfffe;
+  uint16_t h_sync_stop_position =   (uint16_t)(((uint32_t) htotal * 62) / 75 + 1) & 0xfffe;
 
   // Memory fetch locations should somehow be calculated with settings for line length in IF and/or buffer sizes in S4 (Capture Buffer)
   // just use something that works for now
   uint16_t h_blank_memory_start_position = h_blank_start_position - 1;
-  uint16_t h_blank_memory_stop_position =  (uint16_t)htotal * (41.0f / 45.0f);
+  uint16_t h_blank_memory_stop_position =  (uint16_t)(((uint32_t) htotal * 41) / 45);
 
   writeOneByte(0xF0, 3);
 
@@ -1425,10 +1425,10 @@ void set_vtotal(uint16_t vtotal) {
   // VS start: 961 / 1000 = (961/1000)
   // VS stop : 964 / 1000 = (241/250)
 
-  uint16_t v_blank_start_position = vtotal * (24.0f / 25.0f);
+  uint16_t v_blank_start_position = ((uint32_t) vtotal * 24) / 25;
   uint16_t v_blank_stop_position = vtotal;
-  uint16_t v_sync_start_position = vtotal * (961.0f / 1000.0f);
-  uint16_t v_sync_stop_position = vtotal * (241.0f / 250.0f);
+  uint16_t v_sync_start_position = ((uint32_t) vtotal * 961) / 1000;
+  uint16_t v_sync_stop_position = ((uint32_t) vtotal * 241) / 250;
 
   // write vtotal
   writeOneByte(0xF0, 3);
@@ -1584,7 +1584,7 @@ void aquireSyncLock() {
   Serial.print(F(" Start HTotal: ")); Serial.println(htotal);
 
   // start looking at an htotal value at or slightly below anticipated target
-  htotal = ((float)(htotal) / (float)(outputLength)) * (float)(inputLength);
+  htotal = ((uint32_t)htotal * inputLength) / outputLength;
 
   uint8_t attempts = 40;
   while (attempts-- > 0) {
