@@ -116,23 +116,6 @@ void writeBytes(uint8_t slaveRegister, uint8_t* values, int numValues)
   writeBytes(GBS_ADDR, slaveRegister, values, numValues);
 }
 
-void writeProgramArray(const uint8_t* programArray)
-{
-  for (int y = 0; y < 6; y++)
-  {
-    writeOneByte(0xF0, (uint8_t)y );
-    for (int z = 0; z < 16; z++)
-    {
-      uint8_t bank[16];
-      for (int w = 0; w < 16; w++)
-      {
-        bank[w] = pgm_read_byte(programArray + (y * 256 + z * 16 + w));
-      }
-      writeBytes(z * 16, bank, 16);
-    }
-  }
-}
-
 void writeProgramArrayNew(const uint8_t* programArray)
 {
   int index = 0;
@@ -277,95 +260,6 @@ void writeProgramArrayNew(const uint8_t* programArray)
 // S1_00 - S1_2a "IF"
 // S3_00 - S3_74 "VDS"
 //
-
-// This is still sometimes useful:
-void writeProgramArraySection(const uint8_t* programArray, byte section, byte subsection = 0) {
-  // section 1: index = 48
-  uint8_t bank[16];
-  int index = 0;
-
-  if (section == 0) {
-    index = 0;
-    writeOneByte(0xF0, 0);
-    for (int j = 0; j <= 1; j++) { // 2 times
-      for (int x = 0; x <= 15; x++) {
-        bank[x] = pgm_read_byte(programArray + index);
-        index++;
-      }
-      writeBytes(0x40 + (j * 16), bank, 16);
-    }
-    for (int x = 0; x <= 15; x++) {
-      bank[x] = pgm_read_byte(programArray + index);
-      index++;
-    }
-    writeBytes(0x90, bank, 16);
-  }
-  if (section == 1) {
-    index = 48;
-    writeOneByte(0xF0, 1);
-    for (int j = 0; j <= 8; j++) { // 9 times
-      for (int x = 0; x <= 15; x++) {
-        bank[x] = pgm_read_byte(programArray + index);
-        index++;
-      }
-      writeBytes(j * 16, bank, 16);
-    }
-  }
-  if (section == 2) {
-    index = 192;
-    writeOneByte(0xF0, 2);
-    for (int j = 0; j <= 3; j++) { // 4 times
-      for (int x = 0; x <= 15; x++) {
-        bank[x] = pgm_read_byte(programArray + index);
-        index++;
-      }
-      writeBytes(j * 16, bank, 16);
-    }
-  }
-  if (section == 3) {
-    index = 256;
-    writeOneByte(0xF0, 3);
-    for (int j = 0; j <= 7; j++) { // 8 times
-      for (int x = 0; x <= 15; x++) {
-        bank[x] = pgm_read_byte(programArray + index);
-        index++;
-      }
-      writeBytes(j * 16, bank, 16);
-    }
-  }
-  if (section == 4) {
-    index = 384;
-    writeOneByte(0xF0, 4);
-    for (int j = 0; j <= 5; j++) { // 6 times
-      for (int x = 0; x <= 15; x++) {
-        bank[x] = pgm_read_byte(programArray + index);
-        index++;
-      }
-      writeBytes(j * 16, bank, 16);
-    }
-  }
-  if (section == 5) {
-    index = 480;
-    int j = 0;
-    if (subsection == 1) {
-      index = 512;
-      j = 2;
-    }
-    writeOneByte(0xF0, 5);
-    for (; j <= 6; j++) {
-      for (int x = 0; x <= 15; x++) {
-        bank[x] = pgm_read_byte(programArray + index);
-        if (index == 482) { // s5_02 bit 6+7 = input selector (only 6 is relevant)
-          if (rto->inputIsYpBpR)bitClear(bank[x], 6);
-          else bitSet(bank[x], 6);
-        }
-        index++;
-      }
-      writeBytes(j * 16, bank, 16);
-    }
-    resetPLL(); resetPLLAD();// only for section 5
-  }
-}
 
 void fuzzySPWrite() {
   writeOneByte(0xF0, 5);
