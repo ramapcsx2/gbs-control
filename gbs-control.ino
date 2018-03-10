@@ -53,6 +53,25 @@ extern "C" {
 // 7 bit GBS I2C Address
 #define GBS_ADDR 0x17
 
+//
+// Sync locking tunables/magic numbers
+//
+
+// Sync lock sampling timeout in microseconds
+static const uint32_t syncTimeout = 200000;
+// Sync lock interval in milliseconds
+static const uint32_t syncLockInterval = 30 * 16; // Approximately every 30 frames
+// Sync correction in scanlines to apply when phase lags target
+static const int16_t syncCorrection = 2;
+// Target vsync phase offset (output trails input) in degrees
+static const uint32_t syncTargetPhase = 90;
+// Threshold at which comparison between input and output vsync period is considered
+// settled.  Comparisons are performed iteratively until one "wins" by this margin
+// over the other.  This overcomes problems with measurement jitter.
+static const int8_t syncCompareThresh = 6;
+// Number of samples to average when comparing input and output vsync periods
+static const int8_t syncCompareSamples = 2;
+
 // runTimeOptions holds system variables
 struct runTimeOptions {
   boolean inputIsYpBpR;
@@ -65,15 +84,14 @@ struct runTimeOptions {
   boolean deinterlacerWasTurnedOff;
   boolean modeDetectInReset;
   boolean syncLockEnabled;
-  boolean syncLockFound;
-  boolean VSYNCconnected;
-  boolean DEBUGINconnected;
+  boolean syncLockReady;
   boolean IFdown; // push button support example using an interrupt
   boolean printInfos;
   boolean sourceDisconnected;
   boolean webServerEnabled;
   boolean webServerStarted;
   boolean allowUpdatesOTA;
+  uint16_t targetVtotal;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -1312,8 +1330,11 @@ void set_vtotal(uint16_t vtotal) {
   // VS start: 961 / 1000 = (961/1000)
   // VS stop : 964 / 1000 = (241/250)
 
+  // VS stop - VB start must stay constant to avoid vertical wiggle
+  // VS stop - VS start must stay constant to maintain sync
   uint16_t v_blank_start_position = ((uint32_t) vtotal * 24) / 25;
   uint16_t v_blank_stop_position = vtotal;
+  // Offset by maxCorrection to prevent front porch from going negative
   uint16_t v_sync_start_position = ((uint32_t) vtotal * 961) / 1000;
   uint16_t v_sync_stop_position = ((uint32_t) vtotal * 241) / 250;
 
@@ -1354,225 +1375,199 @@ void set_vtotal(uint16_t vtotal) {
   regLow = ((regLow & 0x0f) | (uint8_t)(v_blank_stop_position << 4));
   writeOneByte(0x15, regHigh);
   writeOneByte(0x14, regLow);
-
-  // VB ST (memory) to v_blank_start_position, VB SP (memory): v_blank_stop_position - 2
-  // guide says: if vscale enabled, vb (memory) stop -=2, else keep it | scope readings look best with -= 2.
-  regLow = (uint8_t)v_blank_start_position;
-  regHigh = (uint8_t)(v_blank_start_position >> 8);
-  writeOneByte(0x07, regLow);
-  writeOneByte(0x08, regHigh);
-  readFromRegister(3, 0x08, 1, &regLow);
-  regLow = (regLow & 0x0f) | (uint8_t)(v_blank_stop_position - 2) << 4;
-  regHigh = (uint8_t)((v_blank_stop_position - 2) >> 4);
-  writeOneByte(0x08, regLow);
-  writeOneByte(0x09, regHigh);
 }
 
-void aquireSyncLock() {
-  long outputLength = 1;
-  long inputLength = 1;
-  long difference = 99999; // shortcut
-  long prev_difference;
-  uint8_t regLow, regHigh, readout;
-  uint16_t hbsp, htotal, backupHTotal, bestHTotal = 1;
+static uint16_t readHTotal(void) {
+  uint8_t low, high;
+  
+  readFromRegister(3, 0x02, 1, &high);
+  readFromRegister(3, 0x01, 1, &low);
+  return ((high & 0xf) << 8) | low;
+}
 
-  // test if we get the vsync signal (wire is connected, display output is working)
-  // this remembers a positive result via VSYNCconnected
-  if (rto->VSYNCconnected == false) {
-    if (pulseIn(vsyncInPin, HIGH, 100000) != 0) {
-      if  (pulseIn(vsyncInPin, LOW, 100000) != 0) {
-        rto->VSYNCconnected = true;
-        Serial.println(F("VSYNC wire connected :)"));
-      }
+static void writeHTotal(uint16_t val) {
+  uint8_t high;
+  readFromRegister(3, 0x02, 1, &high);
+  writeOneByte(0xF0, 3);
+  writeOneByte(0x02, (val >> 8) | (high & 0xf0));
+  writeOneByte(0x01, val & 0xff);
+}
+
+static void sampleVsyncPeriods(uint32_t* input, uint32_t *output)
+{
+  uint32_t inPeriod, outPeriod;
+  uint32_t inSum = 0;
+  uint32_t outSum = 0;
+
+  for (uint8_t i = 0; i < syncCompareSamples; ++i) {
+    while (!vsyncPeriodAndPhase(&inPeriod, &outPeriod, NULL));
+    inSum += inPeriod;
+    outSum += outPeriod;
+  }
+
+  *input = inSum / syncCompareSamples;
+  *output = outSum / syncCompareSamples;
+}
+
+// Determine if the output vsync period is larger than the input
+static bool outPeriodIsLarger(void) {
+  int8_t balance = 0;
+  uint32_t inPeriod, outPeriod;
+
+  while (balance > -syncCompareThresh && balance < syncCompareThresh)  {
+    sampleVsyncPeriods(&inPeriod, &outPeriod);
+    if (outPeriod > inPeriod)
+      balance++;
+    else if (outPeriod < inPeriod)
+      balance--;
+  }
+
+  return balance > 0;
+}
+
+// Find the largest htotal that makes output frame time less than the input.
+// This is done via binary search.
+static uint16_t findBestHTotal(void) {
+  uint16_t htotal = readHTotal();
+  uint16_t min = htotal - htotal / 100;
+  uint16_t max = htotal + htotal / 100;
+
+  Serial.print("Base htotal: "); Serial.println(htotal);
+
+  while (min < max) {
+    htotal = (max + min + 1) / 2;
+    Serial.print("Test htotal: "); Serial.print(htotal);
+    writeHTotal(htotal);
+    delay(100);
+    if (outPeriodIsLarger()) {
+      Serial.println(" (greater)");
+      max = htotal - 1;
+    } else {
+      Serial.println(" (lower)");
+      min = htotal;
     }
-    else {
-      Serial.println(F("VSYNC wire not connected"));
-      rto->VSYNCconnected = false;
-      rto->syncLockEnabled = false;
-      return;
-    }
   }
 
-  if (rto->DEBUGINconnected == false) {
-    if (pulseIn(debugInPin, HIGH, 100000) != 0) {
-      if  (pulseIn(debugInPin, LOW, 100000) != 0) {
-        rto->DEBUGINconnected = true;
-        Serial.println(F("Debug wire connected :)"));
-      }
-    }
-    else {
-      Serial.println(F("Debug wire not connected"));
-    }
-  }
+  Serial.print("Best htotal: "); Serial.println(min);
 
-  if (rto->DEBUGINconnected == false) {  // then use old vsync only method
-    writeOneByte(0xF0, 0);
-    readFromRegister(0x4f, 1, &readout);
-    writeOneByte(0x4f, readout | (1 << 7));
-    delay(2);
-  }
+  return min;
+}
 
-  long highTest1, highTest2;
-  long lowTest1, lowTest2;
+// Initialize sync locking
+void initSyncLock() {
+  // Set up two different vertical frame sizes
+  writeOneByte(0xF0, 3);
+  writeOneByte(0x21, (rto->targetVtotal + 0) >> 8);
+  writeOneByte(0x20, (rto->targetVtotal + 0) & 0xff);
+  writeOneByte(0x23, (rto->targetVtotal + 0) >> 8);
+  writeOneByte(0x22, (rto->targetVtotal + 0) & 0xff);
+  writeOneByte(0x1B, (1 << 0) | (2 << 2));
+  writeOneByte(0x1F, (1 << 0) | (1 << 4));
 
-  // input field time
-  noInterrupts();
-  if (rto->DEBUGINconnected == true) { // then use new method
-    highTest1 = pulseIn(debugInPin, HIGH, 90000);
-    highTest2 = pulseIn(debugInPin, HIGH, 90000);
-    lowTest1 = pulseIn(debugInPin, LOW, 90000);
-    lowTest2 = pulseIn(debugInPin, LOW, 90000);
-  }
-  else { // old method
-    highTest1 = pulseIn(vsyncInPin, HIGH, 90000);
-    highTest2 = pulseIn(vsyncInPin, HIGH, 90000);
-    lowTest1 = pulseIn(vsyncInPin, LOW, 90000);
-    lowTest2 = pulseIn(vsyncInPin, LOW, 90000);
-  }
-  interrupts();
+  // Adjust output horizontal sync timing so that the overall frame
+  // time is as close to the input as possible while still being less.
+  // Increasing the vertical frame size slightly should then push the
+  // output frame time to being larger than the input.
+  writeHTotal(findBestHTotal());
+ 
+  rto->syncLockReady = true;
+}
 
-  inputLength = ((highTest1 + highTest2) / 2);
-  inputLength += ((lowTest1 + lowTest2) / 2);
+// Sample vsync start and stop times (for two consecutive frames) from debug pin
+bool vsyncInputSample(unsigned long* start, unsigned long* stop) {
+    unsigned long timeoutStart = micros();
+  while (digitalRead(debugInPin))
+    if (micros() - timeoutStart >= syncTimeout)
+      return false;
+  while (!digitalRead(debugInPin))
+    if (micros() - timeoutStart >= syncTimeout)
+      return false;
+  *start = micros();
+  while (digitalRead(debugInPin))
+    if (micros() - timeoutStart >= syncTimeout)
+      return false;
+  while (!digitalRead(debugInPin))
+    if (micros() - timeoutStart >= syncTimeout)
+      return false;
+  while (digitalRead(debugInPin))
+    if (micros() - timeoutStart >= syncTimeout)
+      return false;
+  while (!digitalRead(debugInPin))
+    if (micros() - timeoutStart >= syncTimeout)
+      return false;
+  *stop = micros();
+  return true;
+}
 
-  if (rto->DEBUGINconnected == false) { // old method
-    writeOneByte(0xF0, 0);
-    readFromRegister(0x4f, 1, &readout);
-    writeOneByte(0x4f, readout & ~(1 << 7));
-    delay(2);
-  }
+// Sample vsync start and stop times from output vsync pin
+bool vsyncOutputSample(unsigned long* start, unsigned long* stop) {
+  unsigned long timeoutStart = micros();
+  while (digitalRead(vsyncInPin))
+    if (micros() - timeoutStart >= syncTimeout)
+      return false;
+  while (!digitalRead(vsyncInPin))
+    if (micros() - timeoutStart >= syncTimeout)
+      return false;
+  *start = micros();
+  while (digitalRead(vsyncInPin))
+    if (micros() - timeoutStart >= syncTimeout)
+      return false;
+  while (!digitalRead(vsyncInPin))
+    if (micros() - timeoutStart >= syncTimeout)
+      return false;
+  *stop = micros();
+  return true;  
+}
 
-  // current output field time
-  noInterrupts();
-  lowTest1 = pulseIn(vsyncInPin, LOW, 90000);
-  lowTest2 = pulseIn(vsyncInPin, LOW, 90000);
-  highTest1 = pulseIn(vsyncInPin, HIGH, 90000); // now these are short pulses
-  highTest2 = pulseIn(vsyncInPin, HIGH, 90000);
-  interrupts();
+// Sample input and output vsync periods and their phase difference in microseconds
+bool vsyncPeriodAndPhase(uint32_t* periodInput, uint32_t* periodOutput, int32_t* phase) {
+  unsigned long inStart, inStop, outStart, outStop, inPeriod, outPeriod, diff, gap;
 
-  long highPulse = ((highTest1 + highTest2) / 2);
-  long lowPulse = ((lowTest1 + lowTest2) / 2);
-  outputLength = lowPulse + highPulse;
+  if (!vsyncInputSample(&inStart, &inStop))
+    return false;
+  inPeriod = (inStop - inStart) / 2;
+  if (!vsyncOutputSample(&outStart, &outStop))
+    return false;
+  outPeriod = outStop - outStart;
+  diff = (outStart - inStart) % inPeriod;
+  if (periodInput)
+    *periodInput = inPeriod;
+  if (periodOutput)
+    *periodOutput = outPeriod;
+  if (phase)
+    *phase = (diff < inPeriod / 2) ? diff : diff - inPeriod;
+  return true;
+}
 
-  Serial.print(F("in field time: ")); Serial.println(inputLength);
-  Serial.print(F("out field time: ")); Serial.println(outputLength);
+// Perform vsync phase locking.  This is accomplished by measuring the period and
+// phase offset of the input and output vsync signals and adjusting the frame size
+// (and thus the output vsync frequency) to bring the phase offset closer to the
+// desired value.
+void doVsyncPhaseLock(void) {
+  uint32_t period;
+  int32_t phase;
+  int32_t target;
+  int16_t correction;
+  uint16_t frameSize;
 
-  // shortcut to exit if in and out are close
-  int inOutDiff = outputLength - inputLength;
-  if ( abs(inOutDiff) < 7) {
-    rto->syncLockFound = true;
+  if (!vsyncPeriodAndPhase(&period, NULL, &phase))
     return;
-  }
+  Serial.print("Phase offset: "); Serial.println(phase);
 
+  target = (syncTargetPhase * period) / 360;
+
+  if (phase > target)
+    correction = 0;
+  else
+    correction = syncCorrection;
+
+  Serial.print("Correction: "); Serial.println(correction);
+
+  // Apply correction
+  frameSize = (rto->targetVtotal + correction);
   writeOneByte(0xF0, 3);
-  readFromRegister(3, 0x01, 1, &regLow);
-  readFromRegister(3, 0x02, 1, &regHigh);
-  htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  backupHTotal = htotal;
-  Serial.print(F(" Start HTotal: ")); Serial.println(htotal);
-
-  // start looking at an htotal value at or slightly below anticipated target
-  htotal = ((uint32_t)htotal * inputLength) / outputLength;
-
-  uint8_t attempts = 40;
-  while (attempts-- > 0) {
-    writeOneByte(0xF0, 3);
-    regLow = (uint8_t)htotal;
-    readFromRegister(3, 0x02, 1, &regHigh);
-    regHigh = (regHigh & 0xf0) | (htotal >> 8);
-    writeOneByte(0x01, regLow);
-    writeOneByte(0x02, regHigh);
-    delay(1);
-    noInterrupts();
-    outputLength = pulseIn(vsyncInPin, LOW, 90000) + highPulse;
-    interrupts();
-    prev_difference = difference;
-    difference = (outputLength > inputLength) ? (outputLength - inputLength) : (inputLength - outputLength);
-    Serial.print(htotal); Serial.print(": "); Serial.println(difference);
-
-    if (difference == prev_difference) {
-      // best value is last one, exit
-      bestHTotal = htotal - 1;
-      break;
-    }
-    else if (difference < prev_difference) {
-      bestHTotal = htotal;
-    }
-    else {
-      // increasing again? we have the value, exit
-      break;
-    }
-
-    htotal += 1;
-  }
-
-  writeOneByte(0xF0, 3);
-  regLow = (uint8_t)bestHTotal;
-  readFromRegister(3, 0x02, 1, &regHigh);
-  regHigh = (regHigh & 0xf0) | (bestHTotal >> 8);
-  writeOneByte(0x01, regLow);
-  writeOneByte(0x02, regHigh);
-
-  // changing htotal shifts the canvas with in the frame. Correct this now.
-  // update: this doesn't work consistenly. need to figure out why and fix it.
-  //  int toShiftPixels = backupHTotal - bestHTotal;
-  //  if (toShiftPixels > 0 && toShiftPixels < 80) {
-  //    toShiftPixels = (backupHTotal / toShiftPixels) / 60; // seems to work okay
-  //    Serial.print("shifting "); Serial.print(toShiftPixels); Serial.println(" pixels left");
-  //    shiftHorizontal(toShiftPixels, true); // true = left
-  //  }
-  //  else if (toShiftPixels < 0 && toShiftPixels > -80) {
-  //    toShiftPixels = (backupHTotal / toShiftPixels) / 60; // seems to work okay
-  //    Serial.print("shifting "); Serial.print(-toShiftPixels); Serial.println(" pixels right");
-  //    shiftHorizontal(-toShiftPixels, false); // false = right
-  //  }
-
-  // HTotal might now be outside horizontal blank pulse
-  readFromRegister(3, 0x01, 1, &regLow);
-  readFromRegister(3, 0x02, 1, &regHigh);
-  htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  // safety
-  if (htotal > backupHTotal) {
-    if ((htotal - backupHTotal) > 400) { // increased from 30 to 400 (54mhz psx)
-      Serial.print("safety triggered upper "); Serial.println(htotal - backupHTotal);
-      regLow = (uint8_t)backupHTotal;
-      readFromRegister(3, 0x02, 1, &regHigh);
-      regHigh = (regHigh & 0xf0) | (backupHTotal >> 8);
-      writeOneByte(0x01, regLow);
-      writeOneByte(0x02, regHigh);
-      htotal = backupHTotal;
-    }
-  }
-  else if (htotal < backupHTotal) {
-    if ((backupHTotal - htotal) > 400) { // increased from 30 to 400 (54mhz psx)
-      Serial.print("safety triggered lower "); Serial.println(backupHTotal - htotal);
-      regLow = (uint8_t)backupHTotal;
-      readFromRegister(3, 0x02, 1, &regHigh);
-      regHigh = (regHigh & 0xf0) | (backupHTotal >> 8);
-      writeOneByte(0x01, regLow);
-      writeOneByte(0x02, regHigh);
-      htotal = backupHTotal;
-    }
-  }
-
-  readFromRegister(3, 0x11, 1, &regLow);
-  readFromRegister(3, 0x12, 1, &regHigh);
-  hbsp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
-
-  Serial.print(F(" End HTotal: ")); Serial.println(htotal);
-
-  if ( htotal <= hbsp  ) {
-    hbsp = htotal - 1;
-    hbsp &= 0xfffe;
-    regHigh = (uint8_t)(hbsp >> 4);
-    readFromRegister(3, 0x11, 1, &regLow);
-    regLow = (regLow & 0x0f) | ((uint8_t)(hbsp << 4));
-    writeOneByte(0x11, regLow);
-    writeOneByte(0x12, regHigh);
-    //setMemoryHblankStartPosition( Vds_hsync_rst - 8 );
-    //setMemoryHblankStopPosition( (Vds_hsync_rst  * (73.0f / 338.0f) + 2 ) );
-  }
-
-  rto->syncLockFound = true;
+  writeOneByte(0x21, frameSize >> 8);
+  writeOneByte(0x20, frameSize & 0xFF);
 }
 
 void enableDebugPort() {
@@ -1624,6 +1619,13 @@ void doPostPresetLoadSteps() {
   resetSyncLock();
   rto->modeDetectInReset = false;
   LEDOFF; // in case LED was on
+
+  // Grab target vtotal for preset
+  uint8_t regHigh, regLow;
+  readFromRegister(3, 0x02, 1, &regLow);
+  readFromRegister(3, 0x03, 1, &regHigh);
+  rto->targetVtotal = (regLow >> 4) | (regHigh << 4);
+
   Serial.println(F("post preset done"));
   //Serial.println(F("----"));
   //getVideoTimings();
@@ -1755,7 +1757,7 @@ void IFdown() {
 
 void resetSyncLock() {
   if (rto->syncLockEnabled) {
-    rto->syncLockFound = false;
+    rto->syncLockReady = false;
   }
 }
 
@@ -1975,10 +1977,8 @@ void setup() {
   rto->videoStandardInput = 0;
   rto->deinterlacerWasTurnedOff = false;
   rto->modeDetectInReset = false;
-  rto->syncLockFound = false;
   rto->webServerStarted = false;
-  rto->VSYNCconnected = false;
-  rto->DEBUGINconnected = false;
+  rto->syncLockReady = false;
   rto->IFdown = false;
   rto->printInfos = false;
   rto->sourceDisconnected = false;
@@ -2063,6 +2063,19 @@ void setup() {
     applyPresets(result);
     delay(1000); // at least 750ms required to become stable
   }
+
+  // prepare for synclock
+  result = getVideoMode();
+  timeout = 255;
+  while (result == 0 && --timeout > 0) {
+    if ((timeout % 5) == 0) Serial.print(".");
+    result = getVideoMode();
+    delay(1);
+  }
+  // sync should be stable now
+  if ((result != 0) && rto->syncLockEnabled == true && rto->syncLockReady == false && rto->videoStandardInput != 0) {
+    initSyncLock();
+  }
 #endif
 
 #if defined(ESP8266)
@@ -2105,6 +2118,7 @@ void loop() {
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastTimeMDWatchdog = millis();
   static unsigned long webServerStartDelay = millis();
+  static unsigned long lastVsyncLock = millis();
 
 #if defined(ESP8266) || defined(ESP32)
   if (rto->webServerEnabled && !rto->webServerStarted && ((millis() - webServerStartDelay) > 5000) ) {
@@ -2213,7 +2227,7 @@ void loop() {
         doPostPresetLoadSteps();
         break;
       case '.':
-        rto->syncLockFound = !rto->syncLockFound;
+        rto->syncLockReady = !rto->syncLockReady;
         break;
       case 'j':
         resetPLL(); resetPLLAD();
@@ -2533,6 +2547,7 @@ void loop() {
                 set_htotal(value);
               }
               else if (what.equals("vt")) {
+                rto->targetVtotal = value;
                 set_vtotal(value);
               }
               else if (what.equals("hbst")) {
@@ -2569,6 +2584,11 @@ void loop() {
     }
   }
   globalCommand = 0; // in case the web server had this set
+
+  if (rto->syncLockEnabled && rto->syncLockReady && millis() - lastVsyncLock > syncLockInterval) {
+    lastVsyncLock = millis();
+    doVsyncPhaseLock();
+  }
 
   // poll sync status continously
   if ((rto->sourceDisconnected == false) && (rto->syncWatcher == true) && ((millis() - lastTimeSyncWatcher) > 100)) {
@@ -2727,10 +2747,8 @@ void loop() {
   }
 
   // only run this when sync is stable!
-  if (rto->syncLockEnabled == true && rto->syncLockFound == false && getSyncStable() && rto->videoStandardInput != 0) {
-    aquireSyncLock();
-    delay(50);
-    setPhaseSP(); delay (10); setPhaseADC();
+  if (rto->syncLockEnabled == true && rto->syncLockReady == false && getSyncStable() && rto->videoStandardInput != 0) {
+    initSyncLock();
   }
 
   if (rto->sourceDisconnected == true) { // keep looking for new input
