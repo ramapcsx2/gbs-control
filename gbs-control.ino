@@ -116,9 +116,17 @@ void writeBytes(uint8_t slaveRegister, uint8_t* values, int numValues)
   writeBytes(GBS_ADDR, slaveRegister, values, numValues);
 }
 
+void copyBank(uint8_t* bank, const uint8_t* programArray, uint16_t* index)
+{
+  for (uint8_t x = 0; x < 16; ++x) {
+    bank[x] = pgm_read_byte(programArray + *index);
+    (*index)++;
+  }
+}
+
 void writeProgramArrayNew(const uint8_t* programArray)
 {
-  int index = 0;
+  uint16_t index = 0;
   uint8_t bank[16];
 
   // programs all valid registers (the register map has holes in it, so it's not straight forward)
@@ -157,45 +165,30 @@ void writeProgramArrayNew(const uint8_t* programArray)
           }
           writeBytes(0x40 + (j * 16), bank, 16);
         }
-        for (int x = 0; x <= 15; x++) {
-          bank[x] = pgm_read_byte(programArray + index);
-          index++;
-        }
+        copyBank(bank, programArray, &index);
         writeBytes(0x90, bank, 16);
         break;
       case 1:
         for (int j = 0; j <= 8; j++) { // 9 times
-          for (int x = 0; x <= 15; x++) {
-            bank[x] = pgm_read_byte(programArray + index);
-            index++;
-          }
+          copyBank(bank, programArray, &index);
           writeBytes(j * 16, bank, 16);
         }
         break;
       case 2:
         for (int j = 0; j <= 3; j++) { // 4 times
-          for (int x = 0; x <= 15; x++) {
-            bank[x] = pgm_read_byte(programArray + index);
-            index++;
-          }
+          copyBank(bank, programArray, &index);
           writeBytes(j * 16, bank, 16);
         }
         break;
       case 3:
         for (int j = 0; j <= 7; j++) { // 8 times
-          for (int x = 0; x <= 15; x++) {
-            bank[x] = pgm_read_byte(programArray + index);
-            index++;
-          }
+          copyBank(bank, programArray, &index);
           writeBytes(j * 16, bank, 16);
         }
         break;
       case 4:
         for (int j = 0; j <= 5; j++) { // 6 times
-          for (int x = 0; x <= 15; x++) {
-            bank[x] = pgm_read_byte(programArray + index);
-            index++;
-          }
+          copyBank(bank, programArray, &index);
           writeBytes(j * 16, bank, 16);
         }
         break;
