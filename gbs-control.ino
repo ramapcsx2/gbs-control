@@ -1786,7 +1786,7 @@ void setPhaseSP() {
   readout |= (1 << 7);
 
   writeOneByte(0xF0, 0);
-  uint16_t timeout = 3000;
+  uint16_t timeout = 5000;
   do {
     readFromRegister(0x10, 1, &complete);
     timeout--;
@@ -1817,7 +1817,7 @@ void setPhaseADC() {
   readout |= (1 << 7);
 
   writeOneByte(0xF0, 0);
-  uint16_t timeout = 3000;
+  uint16_t timeout = 5000;
   do {
     readFromRegister(0x10, 1, &complete);
     timeout--;

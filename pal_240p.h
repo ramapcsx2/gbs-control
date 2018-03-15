@@ -410,7 +410,7 @@ const uint8_t pal_240p[] PROGMEM = {
 0,
 0,
 0,
-102,
+51,
 0,
 0,
 0,
