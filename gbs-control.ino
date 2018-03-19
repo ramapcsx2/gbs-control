@@ -1534,11 +1534,13 @@ void aquireSyncLock() {
 
   // changing htotal shifts the canvas with in the frame. Correct this now.
   int toShiftPixels = backupHTotal - bestHTotal;
-  if (toShiftPixels >= 0 && toShiftPixels < 80) {
+  if (toShiftPixels > 0 && toShiftPixels < 80) {
+    toShiftPixels = (backupHTotal / toShiftPixels) / 60; // seems to work okay
     Serial.print("shifting "); Serial.print(toShiftPixels); Serial.println(" pixels left");
     shiftHorizontal(toShiftPixels, true); // true = left
   }
   else if (toShiftPixels < 0 && toShiftPixels > -80) {
+    toShiftPixels = (backupHTotal / toShiftPixels) / 60; // seems to work okay
     Serial.print("shifting "); Serial.print(-toShiftPixels); Serial.println(" pixels right");
     shiftHorizontal(-toShiftPixels, false); // false = right
   }
