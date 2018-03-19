@@ -22,6 +22,7 @@ extern "C" {
 #include <user_interface.h>
 }
 #define vsyncInPin D7
+#define debugInPin D5
 #define LEDON  digitalWrite(LED_BUILTIN, LOW) // active low
 #define LEDOFF digitalWrite(LED_BUILTIN, HIGH)
 
@@ -35,11 +36,13 @@ extern "C" {
 #define LEDON  digitalWrite(LED_BUILTIN, HIGH)
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW)
 #define vsyncInPin 27
+#define debugInPin 28 // ??
 
 #else // Arduino
 #define LEDON  digitalWrite(LED_BUILTIN, HIGH)
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW)
 #define vsyncInPin 10
+#define vsyncInPin 11 // ??
 #endif
 
 #if defined(ESP8266) || defined(ESP32)
@@ -64,6 +67,7 @@ struct runTimeOptions {
   boolean syncLockEnabled;
   boolean syncLockFound;
   boolean VSYNCconnected;
+  boolean DEBUGINconnected;
   boolean IFdown; // push button support example using an interrupt
   boolean printInfos;
   boolean sourceDisconnected;
@@ -1397,19 +1401,34 @@ void aquireSyncLock() {
     if (pulseIn(vsyncInPin, HIGH, 100000) != 0) {
       if  (pulseIn(vsyncInPin, LOW, 100000) != 0) {
         rto->VSYNCconnected = true;
+        Serial.println(F("VSYNC wire connected :)"));
       }
     }
     else {
-      Serial.println(F("VSYNC not connected"));
+      Serial.println(F("VSYNC wire not connected"));
       rto->VSYNCconnected = false;
       rto->syncLockEnabled = false;
       return;
     }
   }
 
-  writeOneByte(0xF0, 0);
-  readFromRegister(0x4f, 1, &readout);
-  writeOneByte(0x4f, readout | (1 << 7));
+  if (rto->DEBUGINconnected == false) {
+    if (pulseIn(debugInPin, HIGH, 100000) != 0) {
+      if  (pulseIn(debugInPin, LOW, 100000) != 0) {
+        rto->DEBUGINconnected = true;
+        Serial.println(F("Debug wire connected :)"));
+      }
+    }
+    else {
+      Serial.println(F("Debug wire not connected"));
+    }
+  }
+
+  if (rto->DEBUGINconnected == false) {  // then use old vsync only method
+    writeOneByte(0xF0, 0);
+    readFromRegister(0x4f, 1, &readout);
+    writeOneByte(0x4f, readout | (1 << 7));
+  }
   delay(2);
 
   long highTest1, highTest2;
@@ -1417,18 +1436,28 @@ void aquireSyncLock() {
 
   // input field time
   noInterrupts();
-  highTest1 = pulseIn(vsyncInPin, HIGH, 90000);
-  highTest2 = pulseIn(vsyncInPin, HIGH, 90000);
-  lowTest1 = pulseIn(vsyncInPin, LOW, 90000);
-  lowTest2 = pulseIn(vsyncInPin, LOW, 90000);
+  if (rto->DEBUGINconnected == true) { // then use new method
+    highTest1 = pulseIn(debugInPin, HIGH, 90000);
+    highTest2 = pulseIn(debugInPin, HIGH, 90000);
+    lowTest1 = pulseIn(debugInPin, LOW, 90000);
+    lowTest2 = pulseIn(debugInPin, LOW, 90000);
+  }
+  else { // old method
+    highTest1 = pulseIn(vsyncInPin, HIGH, 90000);
+    highTest2 = pulseIn(vsyncInPin, HIGH, 90000);
+    lowTest1 = pulseIn(vsyncInPin, LOW, 90000);
+    lowTest2 = pulseIn(vsyncInPin, LOW, 90000);
+  }
   interrupts();
 
   inputLength = ((highTest1 + highTest2) / 2);
   inputLength += ((lowTest1 + lowTest2) / 2);
 
-  writeOneByte(0xF0, 0);
-  readFromRegister(0x4f, 1, &readout);
-  writeOneByte(0x4f, readout & ~(1 << 7));
+  if (rto->DEBUGINconnected == false) { // old method
+    writeOneByte(0xF0, 0);
+    readFromRegister(0x4f, 1, &readout);
+    writeOneByte(0x4f, readout & ~(1 << 7));
+  }
   delay(2);
 
   // current output field time
@@ -1561,6 +1590,15 @@ void aquireSyncLock() {
 
   rto->syncLockFound = true;
 }
+
+void enableDebugPort() {
+  writeOneByte(0xf0, 0);
+  writeOneByte(0x48, 0x3f); //3f
+  writeOneByte(0x4D, 0x2a); //2a
+  writeOneByte(0xf0, 0x05);
+  writeOneByte(0x63, 0x0f);
+}
+
 void doPostPresetLoadSteps() {
   if (rto->inputIsYpBpR == true) {
     Serial.print("(YUV)");
@@ -1583,6 +1621,7 @@ void doPostPresetLoadSteps() {
   }
   //setParametersIF(); // it's sufficient to do this in syncwatcher
   setClampPosition();
+  enableDebugPort();
   resetPLL();
   enableVDS(); delay(10); // VDS has to be on before setPhaseADC() or setPhaseSP() !
   resetPLLAD();
@@ -1939,11 +1978,13 @@ void setup() {
   rto->modeDetectInReset = false;
   rto->syncLockFound = false;
   rto->VSYNCconnected = false;
+  rto->DEBUGINconnected = false;
   rto->IFdown = false;
   rto->printInfos = false;
   rto->sourceDisconnected = false;
 
   pinMode(vsyncInPin, INPUT);
+  pinMode(debugInPin, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   LEDON; // enable the LED, lets users know the board is starting up
 
