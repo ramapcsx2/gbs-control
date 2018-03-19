@@ -72,6 +72,7 @@ struct runTimeOptions {
   boolean printInfos;
   boolean sourceDisconnected;
   boolean webServerEnabled;
+  boolean webServerStarted;
   boolean allowUpdatesOTA;
 } rtos;
 struct runTimeOptions *rto = &rtos;
@@ -1593,7 +1594,7 @@ void aquireSyncLock() {
 
 void enableDebugPort() {
   writeOneByte(0xf0, 0);
-  writeOneByte(0x48, 0x3f); //3f
+  writeOneByte(0x48, 0xeb); //3f
   writeOneByte(0x4D, 0x2a); //2a
   writeOneByte(0xf0, 0x05);
   writeOneByte(0x63, 0x0f);
@@ -1623,9 +1624,8 @@ void doPostPresetLoadSteps() {
   setClampPosition();
   enableDebugPort();
   resetPLL();
-  enableVDS(); delay(10); // VDS has to be on before setPhaseADC() or setPhaseSP() !
-  resetPLLAD();
-  setPhaseSP(); delay (10); setPhaseADC();
+  enableVDS(); delay(10);
+  resetPLLAD(); delay(10);
   resetSyncLock();
   rto->modeDetectInReset = false;
   LEDOFF; // in case LED was on
@@ -1808,11 +1808,12 @@ void advancePhase() {
 }
 
 void setPhaseSP() {
-
   uint8_t readout = 0;
-  uint8_t complete = 0;
+  uint8_t debug_backup = 0;
 
   writeOneByte(0xF0, 5);
+  readFromRegister(0x63, 1, &debug_backup);
+  writeOneByte(0x63, 0x3d); // prep test bus, output clock (?)
   readFromRegister(0x19, 1, &readout);
   readout &= ~(1 << 7); // latch off
   writeOneByte(0x19, readout);
@@ -1820,30 +1821,27 @@ void setPhaseSP() {
   readout = rto->phaseSP << 1;
   readout |= (1 << 0);
   writeOneByte(0x19, readout); // write this first
-  // new phase is now ready. it will go in effect when the latch bit gets toggled
-  readFromRegister(0x19, 1, &readout);
-  readout |= (1 << 7);
+  readFromRegister(0x19, 1, &readout); // read out again
+  readout |= (1 << 7);  // latch is now primed. new phase will go in effect when readout is written
 
-  writeOneByte(0xF0, 0);
-  uint16_t timeout = 5000;
-  do {
-    readFromRegister(0x10, 1, &complete);
-    timeout--;
-  } while (((complete & 0x10) == 0) && timeout > 0);
-
-  writeOneByte(0xF0, 5);
-  writeOneByte(0x19, readout);
-  if (timeout == 0) {
-    Serial.println("timeout in setPhaseSP");
+  if (pulseIn(debugInPin, HIGH, 100000) != 0) {
+    if  (pulseIn(debugInPin, LOW, 100000) != 0) {
+      while (digitalRead(debugInPin) == 1);
+      while (digitalRead(debugInPin) == 0);
+    }
   }
+
+  writeOneByte(0x19, readout);
+  writeOneByte(0x63, debug_backup); // restore
 }
 
 void setPhaseADC() {
-
   uint8_t readout = 0;
-  uint8_t complete = 0;
+  uint8_t debug_backup = 0;
 
   writeOneByte(0xF0, 5);
+  readFromRegister(0x63, 1, &debug_backup);
+  writeOneByte(0x63, 0x3d); // prep test bus, output clock (?)
   readFromRegister(0x18, 1, &readout);
   readout &= ~(1 << 7); // latch off
   writeOneByte(0x18, readout);
@@ -1851,22 +1849,18 @@ void setPhaseADC() {
   readout = rto->phaseADC << 1;
   readout |= (1 << 0);
   writeOneByte(0x18, readout); // write this first
-  // new phase is now ready. it will go in effect when the latch bit gets toggled
-  readFromRegister(0x18, 1, &readout);
-  readout |= (1 << 7);
+  readFromRegister(0x18, 1, &readout); // read out again
+  readout |= (1 << 7); // latch is now primed. new phase will go in effect when readout is written
 
-  writeOneByte(0xF0, 0);
-  uint16_t timeout = 5000;
-  do {
-    readFromRegister(0x10, 1, &complete);
-    timeout--;
-  } while (((complete & 0x10) == 0) && timeout > 0);
-
-  writeOneByte(0xF0, 5);
-  writeOneByte(0x18, readout);
-  if (timeout == 0) {
-    Serial.println("timeout in setPhaseADC");
+  if (pulseIn(debugInPin, HIGH, 100000) != 0) {
+    if  (pulseIn(debugInPin, LOW, 100000) != 0) {
+      while (digitalRead(debugInPin) == 1);
+      while (digitalRead(debugInPin) == 0);
+    }
   }
+
+  writeOneByte(0x18, readout);
+  writeOneByte(0x63, debug_backup); // restore
 }
 
 void setClampPosition() {
@@ -1885,8 +1879,10 @@ void setClampPosition() {
 
     clampPositionStart = ((htotal - hpw) + 20) & 0xfff8;
     clampPositionStop = (htotal - 20) & 0xfff8;
-    Serial.print(" clampPositionStart: "); Serial.println(clampPositionStart);
-    Serial.print(" clampPositionStop: "); Serial.println(clampPositionStop);
+
+    //Serial.print(" clampPositionStart: "); Serial.println(clampPositionStart);
+    //Serial.print(" clampPositionStop: "); Serial.println(clampPositionStop);
+
     register_high = clampPositionStart >> 8;
     register_low = (uint8_t)clampPositionStart;
     writeOneByte(0xF0, 5);
@@ -1977,11 +1973,14 @@ void setup() {
   rto->deinterlacerWasTurnedOff = false;
   rto->modeDetectInReset = false;
   rto->syncLockFound = false;
+  rto->webServerStarted = false;
   rto->VSYNCconnected = false;
   rto->DEBUGINconnected = false;
   rto->IFdown = false;
   rto->printInfos = false;
   rto->sourceDisconnected = false;
+
+  globalCommand = 0; // web server uses this to issue commands
 
   pinMode(vsyncInPin, INPUT);
   pinMode(debugInPin, INPUT);
@@ -2062,26 +2061,12 @@ void setup() {
     applyPresets(result);
     delay(1000); // at least 750ms required to become stable
   }
-
-  // prepare for synclock
-  result = getVideoMode();
-  timeout = 255;
-  while (result == 0 && --timeout > 0) {
-    if ((timeout % 5) == 0) Serial.print(".");
-    result = getVideoMode();
-    delay(1);
-  }
-  // sync should be stable now
-  if ((result != 0) && rto->syncLockEnabled == true && rto->syncLockFound == false && rto->videoStandardInput != 0) {
-    aquireSyncLock();
-  }
 #endif
 
-  globalCommand = 0; // web server uses this to issue commands
 #if defined(ESP8266)
   if (rto->webServerEnabled) {
-    start_webserver();
-    WiFi.setOutputPower(12.0f); // float: min 0.0f, max 20.5f
+    //start_webserver(); // delay this (blocking) call to sometime later
+    //WiFi.setOutputPower(12.0f); // float: min 0.0f, max 20.5f
   }
   else {
     WiFi.disconnect();
@@ -2091,9 +2076,9 @@ void setup() {
   }
 #elif defined(ESP32)
   if (rto->webServerEnabled) {
-    start_webserver();
-    delay(50);
-    esp32_power();
+    //start_webserver();  // delay this (blocking) call to sometime later
+    //delay(50);
+    //esp32_power();
   }
   else {
     WiFi.disconnect();
@@ -2117,9 +2102,22 @@ void loop() {
   static uint16_t signalInputChangeCounter = 0;
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastTimeMDWatchdog = millis();
+  static unsigned long webServerStartDelay = millis();
 
 #if defined(ESP8266) || defined(ESP32)
-  if (rto->webServerEnabled) {
+  if (rto->webServerEnabled && !rto->webServerStarted && ((millis() - webServerStartDelay) > 5000) ) {
+#if defined(ESP8266)
+    start_webserver(); // delay this (blocking) call to sometime in loop()
+    WiFi.setOutputPower(12.0f); // float: min 0.0f, max 20.5f
+#elif defined(ESP32)
+    start_webserver();  // delay this (blocking) call to sometime in loop()
+    delay(50);
+    esp32_power();
+#endif
+    rto->webServerStarted = true;
+  }
+
+  if (rto->webServerEnabled && rto->webServerStarted) {
     handleWebClient();
     // if there's a control command from the server, globalCommand will now hold it.
     // process it in the parser, then reset to 0 at the end of the sketch.
@@ -2194,7 +2192,8 @@ void loop() {
         }
         break;
       case 'p':
-        //
+        fuzzySPWrite();
+        SyncProcessorOffOn();
         break;
       case 'k':
         {
@@ -2236,8 +2235,9 @@ void loop() {
         resetPLL(); resetPLLAD();
         break;
       case 'v':
-        fuzzySPWrite();
-        SyncProcessorOffOn();
+        rto->phaseSP += 4; rto->phaseSP &= 0x1f;
+        Serial.print("SP: "); Serial.println(rto->phaseSP);
+        setPhaseSP();
         break;
       case 'b':
         advancePhase(); resetPLLAD();
@@ -2735,6 +2735,8 @@ void loop() {
   // only run this when sync is stable!
   if (rto->syncLockEnabled == true && rto->syncLockFound == false && getSyncStable() && rto->videoStandardInput != 0) {
     aquireSyncLock();
+    delay(50);
+    setPhaseSP(); delay (10); setPhaseADC();
   }
 
   if (rto->sourceDisconnected == true) { // keep looking for new input
