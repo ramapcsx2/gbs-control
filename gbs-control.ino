@@ -382,7 +382,7 @@ void fuzzySPWrite() {
 
 void setParametersSP() {
   writeOneByte(0xF0, 5);
-  writeOneByte(0x20, 0x02); // was 0xd2 // keep jitter sync off, 0x02 is right (auto correct sog polarity, sog source = ADC)
+  writeOneByte(0x20, 0x12); // was 0xd2 // keep jitter sync on! (snes, check debug vsync)(auto correct sog polarity, sog source = ADC)
   // H active detect control
   writeOneByte(0x21, 0x1b); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20
   writeOneByte(0x22, 0x0f); // SP_L_DLT_REG       Sync pulse width different threshold (little than this as equal).
@@ -1429,8 +1429,8 @@ void aquireSyncLock() {
     writeOneByte(0xF0, 0);
     readFromRegister(0x4f, 1, &readout);
     writeOneByte(0x4f, readout | (1 << 7));
+    delay(2);
   }
-  delay(2);
 
   long highTest1, highTest2;
   long lowTest1, lowTest2;
@@ -1458,8 +1458,8 @@ void aquireSyncLock() {
     writeOneByte(0xF0, 0);
     readFromRegister(0x4f, 1, &readout);
     writeOneByte(0x4f, readout & ~(1 << 7));
+    delay(2);
   }
-  delay(2);
 
   // current output field time
   noInterrupts();
@@ -1965,7 +1965,7 @@ void setup() {
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
   rto->phaseADC = 16; // 0 to 31
-  rto->phaseSP = 10; // 0 to 31
+  rto->phaseSP = 0; // 0 to 31
   rto->samplingStart = 3; // holds S1_26
 
   // the following is just run time variables. don't change!
@@ -1988,6 +1988,7 @@ void setup() {
   pinMode(debugInPin, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   LEDON; // enable the LED, lets users know the board is starting up
+  delay(3000); // give the entire system some time to start up.
 
   // example for using the gbs8200 onboard buttons in an interrupt routine
   //pinMode(2, INPUT); // button for IFdown
@@ -2012,8 +2013,6 @@ void setup() {
     f.close();
   }
 #endif
-
-  delay(1000); // give the 5725 some time to start up. this adds to the Arduino bootloader delay.
 
   Wire.begin();
   // The i2c wire library sets pullup resistors on by default. Disable this so that 5V MCUs aren't trying to drive the 3.3V bus.
@@ -2638,7 +2637,7 @@ void loop() {
       boolean isValid = getSyncProcessorSignalValid();
       if (result > 0 && isValid) { // ensures this isn't an MD glitch
         applyPresets(result);
-        delay(600);
+        //delay(600);
         noSyncCounter = 0;
       }
       else if (result > 0 && !isValid) Serial.println(F("MD Glitch!"));
