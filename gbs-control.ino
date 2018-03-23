@@ -1659,7 +1659,7 @@ void applyPresets(byte result) {
   else if (result == 1) {
     Serial.println(F("NTSC timing "));
     if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(vclktest);
+      writeProgramArrayNew(ntsc_240p);
     }
     else if (uopt->presetPreference == 1) {
       writeProgramArrayNew(ntsc_feedbackclock);
@@ -1678,7 +1678,7 @@ void applyPresets(byte result) {
     Serial.println(F("HDTV timing "));
     // ntsc base
     if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(vclktest);
+      writeProgramArrayNew(ntsc_240p);
     }
     else if (uopt->presetPreference == 1) {
       writeProgramArrayNew(ntsc_feedbackclock);
@@ -2169,9 +2169,8 @@ void loop() {
         Serial.println(F("resetDigital()"));
         break;
       case 'y':
-        writeProgramArrayNew(vclktest);
-        rto->videoStandardInput = 1;
-        doPostPresetLoadSteps();
+        //writeProgramArrayNew(vclktest);
+        //doPostPresetLoadSteps();
         break;
       case 'p':
         fuzzySPWrite();
@@ -2339,7 +2338,6 @@ void loop() {
         moveHS(1, false);
         break;
       case '2':
-        //writeProgramArrayNew(vclktest);
         writeProgramArrayNew(pal_feedbackclock); // ModeLine "720x576@50" 27 720 732 795 864 576 581 586 625 -hsync -vsync
         doPostPresetLoadSteps();
         break;
@@ -2560,7 +2558,7 @@ void loop() {
   globalCommand = 0; // in case the web server had this set
 
   // poll sync status continously
-  if ((rto->sourceDisconnected == false) && (rto->syncWatcher == true) && ((millis() - lastTimeSyncWatcher) > 60)) {
+  if ((rto->sourceDisconnected == false) && (rto->syncWatcher == true) && ((millis() - lastTimeSyncWatcher) > 100)) {
     byte result = getVideoMode();
     boolean doChangeVideoMode = false;
 
@@ -2628,7 +2626,7 @@ void loop() {
     // ModeDetect can get stuck in the last mode when console is powered off
     if ((millis() - lastTimeMDWatchdog) > 3000) {
       if ( (rto->videoStandardInput > 0) && !getSyncProcessorSignalValid() && (rto->modeDetectInReset == false) ) {
-        delay(40);
+        delay(100);
         if (!getSyncProcessorSignalValid() && !getSyncProcessorSignalValid()) { // check some more times; avoids glitches
           Serial.println("MD stuck");
           resetModeDetect(); resetModeDetect();
