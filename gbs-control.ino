@@ -1659,7 +1659,7 @@ void applyPresets(byte result) {
   else if (result == 1) {
     Serial.println(F("NTSC timing "));
     if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(ntsc_240p);
+      writeProgramArrayNew(vclktest);
     }
     else if (uopt->presetPreference == 1) {
       writeProgramArrayNew(ntsc_feedbackclock);
@@ -1678,7 +1678,7 @@ void applyPresets(byte result) {
     Serial.println(F("HDTV timing "));
     // ntsc base
     if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(ntsc_240p);
+      writeProgramArrayNew(vclktest);
     }
     else if (uopt->presetPreference == 1) {
       writeProgramArrayNew(ntsc_feedbackclock);
@@ -1871,19 +1871,17 @@ void setClampPosition() {
   }
   else {
     uint8_t register_high, register_low;
-    uint16_t hpw, htotal, clampPositionStart, clampPositionStop;
+    uint16_t htotal, clampPositionStart, clampPositionStop;
 
     writeOneByte(0xF0, 0);
-    readFromRegister(0x1a, 1, &register_high); readFromRegister(0x19, 1, &register_low);
-    hpw = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
-    readFromRegister(0x18, 1, &register_high); readFromRegister(0x17, 1, &register_low);
-    htotal = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
+    readFromRegister(0x07, 1, &register_high); readFromRegister(0x06, 1, &register_low);
+    htotal = ((((uint16_t(register_high) & 0x0001)) << 8) | (uint16_t)register_low) * 4;
 
-    clampPositionStart = ((htotal - hpw) + 20) & 0xfff8;
-    clampPositionStop = (htotal - 20) & 0xfff8;
+    clampPositionStart = (htotal - 80) & 0xfff8;
+    clampPositionStop = (htotal - 50) & 0xfff8;
 
-    //Serial.print(" clampPositionStart: "); Serial.println(clampPositionStart);
-    //Serial.print(" clampPositionStop: "); Serial.println(clampPositionStop);
+    Serial.print(" clampPositionStart: "); Serial.println(clampPositionStart);
+    Serial.print(" clampPositionStop: "); Serial.println(clampPositionStop);
 
     register_high = clampPositionStart >> 8;
     register_low = (uint8_t)clampPositionStart;
@@ -2171,26 +2169,9 @@ void loop() {
         Serial.println(F("resetDigital()"));
         break;
       case 'y':
-        {
-          // EEPROM is wildly different on each chip
-
-          //          uint16_t address = 0;
-          //#if defined(ESP8266)
-          //          EEPROM.begin(1024); //ESP8266
-          //#endif
-          //          while (1) {
-          //            Serial.println(EEPROM.read(address), HEX);
-          //            address++;
-          //            if (address == EEPROM.length()) {
-          //              break;
-          //            }
-          //          }
-          //#if defined(ESP8266)
-          //          EEPROM.end(); //ESP8266
-          //#endif
-          Serial.println(F("----"));
-          //h:429 v:523 PLL:2 status:0 mode:1 ADC:7F hpw:158 htotal:1710 vtotal:259  Mega Drive NTSC
-        }
+        writeProgramArrayNew(vclktest);
+        rto->videoStandardInput = 1;
+        doPostPresetLoadSteps();
         break;
       case 'p':
         fuzzySPWrite();
@@ -2647,7 +2628,7 @@ void loop() {
     if ((millis() - lastTimeMDWatchdog) > 3000) {
       if ( (rto->videoStandardInput > 0) && !getSyncProcessorSignalValid() && (rto->modeDetectInReset == false) ) {
         delay(40);
-        if (!getSyncProcessorSignalValid()) { // check a second time; avoids glitches
+        if (!getSyncProcessorSignalValid() && !getSyncProcessorSignalValid()) { // check some more times; avoids glitches
           Serial.println("MD stuck");
           resetModeDetect(); resetModeDetect();
           delay(200);
