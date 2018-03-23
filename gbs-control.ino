@@ -2543,9 +2543,10 @@ void loop() {
         break;
       case 'x':
         rto->samplingStart++;
-        if (rto->samplingStart > 6) {
-          rto->samplingStart = 3;
-        }
+        // don't wrap samplingStart, some presets need it higher than a fixed "03" value
+        //        if (rto->samplingStart > 6) {
+        //          rto->samplingStart = 3;
+        //        }
         setSamplingStart(rto->samplingStart);
         Serial.print(F("sampling start: ")); Serial.println(rto->samplingStart);
         break;
