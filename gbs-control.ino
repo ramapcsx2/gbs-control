@@ -1951,7 +1951,7 @@ void setup() {
 #if defined(ESP32)
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
 #endif
-  Serial.begin(250000); // up from 57600
+  Serial.begin(230400); // set Serial Monitor to the same 230400 baud rate!
   Serial.setTimeout(10);
   Serial.println(F("starting"));
 
