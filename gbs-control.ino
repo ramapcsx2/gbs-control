@@ -42,7 +42,7 @@ extern "C" {
 #define LEDON  digitalWrite(LED_BUILTIN, HIGH)
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW)
 #define vsyncInPin 10
-#define vsyncInPin 11 // ??
+#define debugInPin 11 // ??
 #endif
 
 #if defined(ESP8266) || defined(ESP32)
