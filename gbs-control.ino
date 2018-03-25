@@ -1771,13 +1771,13 @@ boolean getSyncStable() {
 void setParametersIF() {
   uint16_t register_combined;
   uint8_t register_high, register_low;
-  writeOneByte(0xF0, 0);
+
   // get detected vlines (will be around 625 PAL / 525 NTSC)
+  writeOneByte(0xF0, 0);
   readFromRegister(0x08, 1, &register_high); readFromRegister(0x07, 1, &register_low);
   register_combined = (((uint16_t(register_high) & 0x000f)) << 7) | (((uint16_t)register_low & 0x00fe) >> 1);
 
   // update IF vertical blanking stop position
-  register_combined -= 1; // but leave 1 line as safety (black screen glitch protection)
   writeOneByte(0xF0, 1);
   writeOneByte(0x1e, (uint8_t)register_combined);
   writeOneByte(0x1f, (uint8_t)(register_combined >> 8));
@@ -2308,12 +2308,22 @@ void loop() {
         }
         break;
       case 'f':
-        Serial.println(F("show noise"));
-        writeOneByte(0xF0, 5);
-        writeOneByte(0x03, 1);
-        writeOneByte(0xF0, 3);
-        writeOneByte(0x44, 0xf8);
-        writeOneByte(0x45, 0xff);
+        {
+          static boolean adc_filter_40mhz = false;
+          Serial.print(F("ADC filter "));
+          if (!adc_filter_40mhz) {
+            Serial.println(F("off"));
+            writeOneByte(0xF0, 5);
+            writeOneByte(0x03, 0x01);
+            adc_filter_40mhz = true;
+          }
+          else {
+            Serial.println(F("on"));
+            writeOneByte(0xF0, 5);
+            writeOneByte(0x03, 0x31);
+            adc_filter_40mhz = false;
+          }
+        }
         break;
       case 'l':
         Serial.println(F("l - spOffOn"));
