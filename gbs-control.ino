@@ -382,6 +382,29 @@ void fuzzySPWrite() {
 
 void setParametersSP() {
   writeOneByte(0xF0, 5);
+
+  if (rto->videoStandardInput == 3) {
+    writeOneByte(0x00, 0xd0);
+    writeOneByte(0x16, 0x1f);
+    writeOneByte(0x37, 0x04); // need to work on this
+    writeOneByte(0x3b, 0x11);
+    writeOneByte(0x3f, 0x1b);
+    writeOneByte(0x40, 0x20);
+    writeOneByte(0x50, 0x00);
+  }
+  else if (rto->videoStandardInput == 4) {
+    writeOneByte(0x00, 0xd0);
+    writeOneByte(0x16, 0x1f);
+    writeOneByte(0x37, 0x04);
+    writeOneByte(0x3b, 0x11);
+    writeOneByte(0x3f, 0x58);
+    writeOneByte(0x40, 0x5b);
+    writeOneByte(0x50, 0x00);
+  }
+  else {
+    writeOneByte(0x37, 0x58); // need to work on this
+  }
+
   writeOneByte(0x20, 0x12); // was 0xd2 // keep jitter sync on! (snes, check debug vsync)(auto correct sog polarity, sog source = ADC)
   // H active detect control
   writeOneByte(0x21, 0x1b); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20
@@ -403,7 +426,7 @@ void setParametersSP() {
   // Sync separation control
   writeOneByte(0x35, 0xb0); // SP_DLT_REG [7:0]   Sync pulse width difference threshold  (tweak point) (b0 seems best from experiments. above, no difference)
   writeOneByte(0x36, 0x00); // SP_DLT_REG [11:8]
-  writeOneByte(0x37, 0x58); // SP_H_PULSE_IGNORE (tweak point) H pulse less than this will be ignored. (MD needs > 0x51) rgbhv: a
+
   writeOneByte(0x38, 0x07); // h coast pre (psx starts eq pulses around 4 hsyncs before vs pulse) rgbhv: 7
   writeOneByte(0x39, 0x03); // h coast post (psx stops eq pulses around 4 hsyncs after vs pulse) rgbhv: 12
   // note: the pre / post lines number probably depends on the vsync pulse delay, ie: sync stripper vsync delay
@@ -418,8 +441,8 @@ void setParametersSP() {
   // in RGB mode, should use sync tip clamping: s5s41s80 s5s43s90 s5s42s06 s5s44s06
   // in YUV mode, should use back porch clamping: s5s41s70 s5s43s98 s5s42s00 s5s44s00
   // tip: see clamp pulse in RGB signal with clamp start > clamp end (scope trigger on sync in, show one of the RGB lines)
-  writeOneByte(0x41, 0x70); writeOneByte(0x43, 0x98); // newer GBS boards seem to float the inputs more??  0x32 0x45
-  writeOneByte(0x44, 0x00); writeOneByte(0x42, 0x00); // 0xc0 0xc0
+  writeOneByte(0x41, 0x19); writeOneByte(0x43, 0x27); // 0x70, 0x98
+  writeOneByte(0x42, 0x00); writeOneByte(0x44, 0x00); // 0x00 0x05
 
   // 0x45 to 0x48 set a HS position just for Mode Detect. it's fine at start = 0 and stop = 1 or above
   // Update: This is the retiming module. It can be used for SP processing with t5t57t6
@@ -446,12 +469,17 @@ void setParametersSP() {
 
   //writeOneByte(0x55, 0x50); // auto coast off (on = d0, was default)  0xc0 rgbhv: 0 but 50 is fine
   //writeOneByte(0x56, 0x0d); // sog mode on, clamp source pixclk, no sync inversion (default was invert h sync?)  0x21 rgbhv: 36
-  writeOneByte(0x56, 0x05); // update: one of the new bits causes clamp glitches, check with checkerboard pattern
+  if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4) {
+    writeOneByte(0x56, 0x01); // 0x01 for 480p over component
+  }
+  else {
+    writeOneByte(0x56, 0x05); // update: one of the new bits causes clamp glitches, check with checkerboard pattern
+  }
   //writeOneByte(0x57, 0xc0); // 0xc0 rgbhv: 44 // set to 0x80 for retiming
 
   writeOneByte(0x58, 0x05); //rgbhv: 0
   writeOneByte(0x59, 0x00); //rgbhv: c0
-  writeOneByte(0x5a, 0x05); //rgbhv: 0
+  writeOneByte(0x5a, 0x01); //rgbhv: 0 // was 0x05 but 480p ps2 doesnt like it
   writeOneByte(0x5b, 0x00); //rgbhv: c8
   writeOneByte(0x5c, 0x06); //rgbhv: 0
   writeOneByte(0x5d, 0x00); //rgbhv: 0
@@ -534,6 +562,44 @@ void inputAndSyncDetect() {
     Serial.println(F("using RCA inputs"));
     rto->sourceDisconnected = false;
     applyYuvPatches();
+
+    // 480p timing check. First regular 240p
+    writeOneByte(0xF0, 5);
+    writeOneByte(0x00, 0xd8);
+    writeOneByte(0x16, 0x2f);
+    writeOneByte(0x37, 0x58);
+    writeOneByte(0x3f, 0x08);
+    writeOneByte(0x40, 0x0a);
+    writeOneByte(0x3b, 0x00);
+    resetPLL(); resetPLLAD();
+    SyncProcessorOffOn();
+
+    byte result = getVideoMode();
+    byte timeout = 255;
+    while (result == 0 && --timeout > 0) {
+      result = getVideoMode();
+      delay(2);
+    }
+    if (timeout == 0) { // failed. test HDTV!
+      writeOneByte(0xF0, 5);
+      writeOneByte(0x00, 0xd0);
+      writeOneByte(0x16, 0x1f);
+      writeOneByte(0x37, 0x04);
+      writeOneByte(0x3f, 0x1b);
+      writeOneByte(0x40, 0x20);
+      writeOneByte(0x3b, 0x11);
+      resetPLL(); resetPLLAD();
+      SyncProcessorOffOn();
+    }
+    result = getVideoMode();
+    timeout = 255;
+    while (result == 0 && --timeout > 0) {
+      result = getVideoMode();
+      delay(2);
+    }
+    if (timeout == 0) {
+      Serial.println(F("Component Input: no valid signal!"));
+    }
   }
   else if (syncFound && rto->inputIsYpBpR == false) {
     Serial.println(F("using RGBS inputs"));
@@ -901,6 +967,23 @@ void scaleHorizontal(uint16_t amountToAdd, bool subtracting) {
   writeOneByte(0x17, newHigh);
 }
 
+void scaleHorizontalAbsolute(uint16_t value) {
+  uint8_t high = 0x00;
+  uint8_t newHigh = 0x00;
+  uint8_t low = 0x00;
+  uint8_t newLow = 0x00;
+
+  readFromRegister(0x03, 0x16, 1, &low);
+  readFromRegister(0x17, 1, &high);
+
+  Serial.print(F("Scale Hor: ")); Serial.println(value);
+  newHigh = (high & 0xfc) | (uint8_t)( (value / 256) & 0x0003);
+  newLow = (uint8_t)(value & 0x00ff);
+
+  writeOneByte(0x16, newLow);
+  writeOneByte(0x17, newHigh);
+}
+
 void scaleHorizontalSmaller() {
   scaleHorizontal(1, false);
 }
@@ -1039,6 +1122,21 @@ void scaleVertical(uint16_t amountToAdd, bool subtracting) {
   newHigh = (uint8_t)(newValue >> 4);
   newLow = (low & 0x0f) | (((uint8_t)(newValue & 0x00ff)) << 4) ;
 
+  writeOneByte(0x17, newLow);
+  writeOneByte(0x18, newHigh);
+}
+
+void scaleVerticalAbsolute(uint16_t value) {
+  uint8_t high = 0x00;
+  uint8_t newHigh = 0x00;
+  uint8_t low = 0x00;
+  uint8_t newLow = 0x00;
+
+  readFromRegister(0x03, 0x18, 1, &high);
+  readFromRegister(0x03, 0x17, 1, &low);
+  Serial.print(F("Scale Vert: ")); Serial.println(value);
+  newHigh = (uint8_t)(value >> 4);
+  newLow = (low & 0x0f) | (((uint8_t)(value & 0x00ff)) << 4) ;
   writeOneByte(0x17, newLow);
   writeOneByte(0x18, newHigh);
 }
@@ -1608,6 +1706,18 @@ void doPostPresetLoadSteps() {
     applyYuvPatches();
     rto->currentLevelSOG = 12; // do this here, gets applied next line
   }
+  if (rto->videoStandardInput == 3) {
+    Serial.println(F("HDTV mode"));
+    scaleVerticalAbsolute(1023); // temporary
+    scaleHorizontalAbsolute(708); // temporary
+    shiftHorizontal(4 * 22, false);
+  }
+  if (rto->videoStandardInput == 4) {
+    Serial.println(F("HDTV mode"));
+    scaleVerticalAbsolute(1023); // temporary
+    scaleHorizontalAbsolute(573); // temporary
+    shiftHorizontal(4 * 22, false);
+  }
   setSOGLevel( rto->currentLevelSOG );
   resetDigital();
   delay(50);
@@ -1640,6 +1750,7 @@ void doPostPresetLoadSteps() {
 void applyPresets(byte result) {
   if (result == 2) {
     Serial.println(F("PAL timing "));
+    rto->videoStandardInput = 2;
     if (uopt->presetPreference == 0) {
       writeProgramArrayNew(pal_240p);
     }
@@ -1653,11 +1764,11 @@ void applyPresets(byte result) {
       writeProgramArrayNew(preset);
     }
 #endif
-    rto->videoStandardInput = 2;
     doPostPresetLoadSteps();
   }
   else if (result == 1) {
     Serial.println(F("NTSC timing "));
+    rto->videoStandardInput = 1;
     if (uopt->presetPreference == 0) {
       writeProgramArrayNew(ntsc_240p);
     }
@@ -1671,11 +1782,11 @@ void applyPresets(byte result) {
       writeProgramArrayNew(preset);
     }
 #endif
-    rto->videoStandardInput = 1;
     doPostPresetLoadSteps();
   }
   else if (result == 3) {
-    Serial.println(F("HDTV timing "));
+    Serial.println(F("NTSC HDTV timing "));
+    rto->videoStandardInput = 3;
     // ntsc base
     if (uopt->presetPreference == 0) {
       writeProgramArrayNew(ntsc_240p);
@@ -1690,17 +1801,36 @@ void applyPresets(byte result) {
       writeProgramArrayNew(preset);
     }
 #endif
-    // todo: and now? isn't there something missing? check with Wii
-    rto->videoStandardInput = 3;
+    // todo: and now? isn't there something missing? check with ps2 480p
+    doPostPresetLoadSteps();
+  }
+  else if (result == 4) {
+    Serial.println(F("PAL HDTV timing "));
+    rto->videoStandardInput = 4;
+    // pal base
+    if (uopt->presetPreference == 0) {
+      writeProgramArrayNew(pal_240p);
+    }
+    else if (uopt->presetPreference == 1) {
+      writeProgramArrayNew(pal_feedbackclock);
+    }
+#if defined(ESP8266) || defined(ESP32)
+    else if (uopt->presetPreference == 2 ) {
+      Serial.println(F("(custom)"));
+      uint8_t* preset = loadPresetFromSPIFFS(result);
+      writeProgramArrayNew(preset);
+    }
+#endif
+    // todo: and now? isn't there something missing? check with ps2 576p
     doPostPresetLoadSteps();
   }
   else {
     Serial.println(F("Unknown timing! "));
+    rto->videoStandardInput = 0; // mark as "no sync" for syncwatcher
     inputAndSyncDetect();
     setSOGLevel( random(0, 31) ); // try a random(min, max) sog level, hopefully find some sync
     resetModeDetect();
     delay(300); // and give MD some time
-    rto->videoStandardInput = 0; // mark as "no sync" for syncwatcher
   }
 }
 
@@ -1902,7 +2032,10 @@ void applyYuvPatches() {   // also does color mixing changes
   writeOneByte(0x03, readout | (1 << 1)); // midlevel clamp red
   readFromRegister(0x03, 1, &readout);
   writeOneByte(0x03, readout | (1 << 3)); // midlevel clamp blue
+
+  writeOneByte(0x50, 0x00);
   writeOneByte(0x56, 0x01); //sog mode on, clamp source 27mhz, no sync inversion, clamp manual off! (for yuv only, bit 2)
+
   writeOneByte(0x06, 0x3f); //adc R offset
   writeOneByte(0x07, 0x3f); //adc G offset
   writeOneByte(0x08, 0x3f); //adc B offset
@@ -1962,7 +2095,7 @@ void setup() {
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
-  rto->phaseADC = 16; // 0 to 31
+  rto->phaseADC = 0; // 0 to 31
   rto->phaseSP = 0; // 0 to 31
   rto->samplingStart = 3; // holds S1_26
 
@@ -2847,7 +2980,10 @@ uint8_t* loadPresetFromSPIFFS(byte result) {
     f = SPIFFS.open("/preset_pal.0", "r");
   }
   else if (result == 3) {
-    f = SPIFFS.open("/preset_ntsc.0", "r");
+    f = SPIFFS.open("/preset_ntsc_480p.0", "r");
+  }
+  else if (result == 4) {
+    f = SPIFFS.open("/preset_pal_576p.0", "r");
   }
 
   if (!f) {
@@ -2882,7 +3018,10 @@ void savePresetToSPIFFS() {
     f = SPIFFS.open("/preset_pal.0", "w");
   }
   else if (rto->videoStandardInput == 3) {
-    f = SPIFFS.open("/preset_ntsc.0", "w");
+    f = SPIFFS.open("/preset_ntsc_480p.0", "w");
+  }
+  else if (rto->videoStandardInput == 4) {
+    f = SPIFFS.open("/preset_pal_576p.0", "w");
   }
 
   if (!f) {
