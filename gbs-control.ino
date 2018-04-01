@@ -382,8 +382,7 @@ void fuzzySPWrite() {
 
 void setParametersSP() {
   writeOneByte(0xF0, 5);
-
-  if (rto->videoStandardInput == 3) {
+  if (rto->videoStandardInput == 3) { // HD YUV
     writeOneByte(0x00, 0xd0);
     writeOneByte(0x16, 0x1f);
     writeOneByte(0x37, 0x04); // need to work on this
@@ -392,7 +391,7 @@ void setParametersSP() {
     writeOneByte(0x40, 0x20);
     writeOneByte(0x50, 0x00);
   }
-  else if (rto->videoStandardInput == 4) {
+  else if (rto->videoStandardInput == 4) { // HD YUV
     writeOneByte(0x00, 0xd0);
     writeOneByte(0x16, 0x1f);
     writeOneByte(0x37, 0x04);
@@ -401,8 +400,9 @@ void setParametersSP() {
     writeOneByte(0x40, 0x5b);
     writeOneByte(0x50, 0x00);
   }
-  else {
+  else { // SD RGB
     writeOneByte(0x37, 0x58); // need to work on this
+    writeOneByte(0x50, 0x06); // check this as well (SD sources, no sync stripper)
   }
 
   writeOneByte(0x20, 0x12); // was 0xd2 // keep jitter sync on! (snes, check debug vsync)(auto correct sog polarity, sog source = ADC)
@@ -430,19 +430,14 @@ void setParametersSP() {
   writeOneByte(0x38, 0x07); // h coast pre (psx starts eq pulses around 4 hsyncs before vs pulse) rgbhv: 7
   writeOneByte(0x39, 0x03); // h coast post (psx stops eq pulses around 4 hsyncs after vs pulse) rgbhv: 12
   // note: the pre / post lines number probably depends on the vsync pulse delay, ie: sync stripper vsync delay
-
   writeOneByte(0x3a, 0x0a); // 0x0a rgbhv: 20
-  //writeOneByte(0x3f, 0x03); // 0x03
-  //writeOneByte(0x40, 0x0b); // 0x0b
 
   //writeOneByte(0x3e, 0x00); // problems with snes 239 line mode, use 0x00  0xc0 rgbhv: f0
 
-  // clamp position
-  // in RGB mode, should use sync tip clamping: s5s41s80 s5s43s90 s5s42s06 s5s44s06
-  // in YUV mode, should use back porch clamping: s5s41s70 s5s43s98 s5s42s00 s5s44s00
-  // tip: see clamp pulse in RGB signal with clamp start > clamp end (scope trigger on sync in, show one of the RGB lines)
-  writeOneByte(0x41, 0x19); writeOneByte(0x43, 0x27); // 0x70, 0x98
-  writeOneByte(0x42, 0x00); writeOneByte(0x44, 0x00); // 0x00 0x05
+  //writeOneByte(0x3f, 0x03); // 0x03
+  //writeOneByte(0x40, 0x0b); // 0x0b
+
+  setClampPosition(); // already done if gone thorugh syncwatcher or setup, but not manual modes
 
   // 0x45 to 0x48 set a HS position just for Mode Detect. it's fine at start = 0 and stop = 1 or above
   // Update: This is the retiming module. It can be used for SP processing with t5t57t6
@@ -1631,17 +1626,18 @@ void aquireSyncLock() {
   writeOneByte(0x02, regHigh);
 
   // changing htotal shifts the canvas with in the frame. Correct this now.
-  int toShiftPixels = backupHTotal - bestHTotal;
-  if (toShiftPixels > 0 && toShiftPixels < 80) {
-    toShiftPixels = (backupHTotal / toShiftPixels) / 60; // seems to work okay
-    Serial.print("shifting "); Serial.print(toShiftPixels); Serial.println(" pixels left");
-    shiftHorizontal(toShiftPixels, true); // true = left
-  }
-  else if (toShiftPixels < 0 && toShiftPixels > -80) {
-    toShiftPixels = (backupHTotal / toShiftPixels) / 60; // seems to work okay
-    Serial.print("shifting "); Serial.print(-toShiftPixels); Serial.println(" pixels right");
-    shiftHorizontal(-toShiftPixels, false); // false = right
-  }
+  // update: this doesn't work consistenly. need to figure out why and fix it.
+  //  int toShiftPixels = backupHTotal - bestHTotal;
+  //  if (toShiftPixels > 0 && toShiftPixels < 80) {
+  //    toShiftPixels = (backupHTotal / toShiftPixels) / 60; // seems to work okay
+  //    Serial.print("shifting "); Serial.print(toShiftPixels); Serial.println(" pixels left");
+  //    shiftHorizontal(toShiftPixels, true); // true = left
+  //  }
+  //  else if (toShiftPixels < 0 && toShiftPixels > -80) {
+  //    toShiftPixels = (backupHTotal / toShiftPixels) / 60; // seems to work okay
+  //    Serial.print("shifting "); Serial.print(-toShiftPixels); Serial.println(" pixels right");
+  //    shiftHorizontal(-toShiftPixels, false); // false = right
+  //  }
 
   // HTotal might now be outside horizontal blank pulse
   readFromRegister(3, 0x01, 1, &regLow);
@@ -1996,31 +1992,18 @@ void setPhaseADC() {
 }
 
 void setClampPosition() {
+  writeOneByte(0xF0, 5);
   if (rto->inputIsYpBpR) {
-    return;
+    // in YUV mode, should use back porch clamping: 14 clocks
+    writeOneByte(0x41, 0x19); writeOneByte(0x43, 0x27);
+    writeOneByte(0x42, 0x00); writeOneByte(0x44, 0x00);
   }
   else {
-    uint8_t register_high, register_low;
-    uint16_t htotal, clampPositionStart, clampPositionStop;
-
-    writeOneByte(0xF0, 0);
-    readFromRegister(0x07, 1, &register_high); readFromRegister(0x06, 1, &register_low);
-    htotal = ((((uint16_t(register_high) & 0x0001)) << 8) | (uint16_t)register_low) * 4;
-
-    clampPositionStart = (htotal - 80) & 0xfff8;
-    clampPositionStop = (htotal - 50) & 0xfff8;
-
-    Serial.print(" clampPositionStart: "); Serial.println(clampPositionStart);
-    Serial.print(" clampPositionStop: "); Serial.println(clampPositionStop);
-
-    register_high = clampPositionStart >> 8;
-    register_low = (uint8_t)clampPositionStart;
-    writeOneByte(0xF0, 5);
-    writeOneByte(0x41, register_low); writeOneByte(0x42, register_high);
-
-    register_high = clampPositionStop >> 8;
-    register_low = (uint8_t)clampPositionStop;
-    writeOneByte(0x43, register_low); writeOneByte(0x44, register_high);
+    // in RGB mode, (should use sync tip clamping?) use back porch clamping: 28 clocks
+    // tip: see clamp pulse in RGB signal with clamp start position beyond clamp end
+    // (scope trigger on sync in, other probe show one of the RGB lines, prefer green)
+    writeOneByte(0x41, 0x70); writeOneByte(0x43, 0x8c);
+    writeOneByte(0x42, 0x00); writeOneByte(0x44, 0x00);
   }
 }
 
