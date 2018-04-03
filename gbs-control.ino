@@ -1999,10 +1999,9 @@ void setClampPosition() {
     writeOneByte(0x42, 0x00); writeOneByte(0x44, 0x00);
   }
   else {
-    // in RGB mode, (should use sync tip clamping?) use back porch clamping: 28 clocks
-    // tip: see clamp pulse in RGB signal with clamp start position beyond clamp end
-    // (scope trigger on sync in, other probe show one of the RGB lines, prefer green)
-    writeOneByte(0x41, 0x70); writeOneByte(0x43, 0x8c);
+    // in RGB mode, (should use sync tip clamping?) use back porch clamping: 14 clocks
+    // tip: see clamp pulse in RGB signal: t5t56t7, scope trigger on hsync, measurement probe on one of the RGB lines
+    writeOneByte(0x41, 0x19); writeOneByte(0x43, 0x27); // same as YUV for now
     writeOneByte(0x42, 0x00); writeOneByte(0x44, 0x00);
   }
 }
@@ -2182,6 +2181,7 @@ void setup() {
   if (rto->webServerEnabled) {
     //start_webserver(); // delay this (blocking) call to sometime later
     //WiFi.setOutputPower(12.0f); // float: min 0.0f, max 20.5f
+    delay(750); // this delay helps with router reconnects on reset
   }
   else {
     WiFi.disconnect();
