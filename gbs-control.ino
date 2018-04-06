@@ -84,6 +84,7 @@ struct runTimeOptions {
   boolean deinterlacerWasTurnedOff;
   boolean modeDetectInReset;
   boolean syncLockEnabled;
+  boolean frameTimeLockEnabled;
   boolean syncLockReady;
   boolean IFdown; // push button support example using an interrupt
   boolean printInfos;
@@ -1386,7 +1387,7 @@ void set_vtotal(uint16_t vtotal) {
 
 static uint16_t readHTotal(void) {
   uint8_t low, high;
-  
+
   readFromRegister(3, 0x02, 1, &high);
   readFromRegister(3, 0x01, 1, &low);
   return ((high & 0xf) << 8) | low;
@@ -1423,6 +1424,7 @@ static bool outPeriodIsLarger(void) {
 
   while (balance > -syncCompareThresh && balance < syncCompareThresh)  {
     sampleVsyncPeriods(&inPeriod, &outPeriod);
+    delay(1); // ESP Watchdog
     if (outPeriod > inPeriod)
       balance++;
     else if (outPeriod < inPeriod)
@@ -1476,13 +1478,13 @@ void initSyncLock() {
   // Increasing the vertical frame size slightly should then push the
   // output frame time to being larger than the input.
   writeHTotal(findBestHTotal());
- 
+
   rto->syncLockReady = true;
 }
 
 // Sample vsync start and stop times (for two consecutive frames) from debug pin
 bool vsyncInputSample(unsigned long* start, unsigned long* stop) {
-    unsigned long timeoutStart = micros();
+  unsigned long timeoutStart = micros();
   while (digitalRead(debugInPin))
     if (micros() - timeoutStart >= syncTimeout)
       return false;
@@ -1523,7 +1525,7 @@ bool vsyncOutputSample(unsigned long* start, unsigned long* stop) {
     if (micros() - timeoutStart >= syncTimeout)
       return false;
   *stop = micros();
-  return true;  
+  return true;
 }
 
 // Sample input and output vsync periods and their phase difference in microseconds
@@ -1972,6 +1974,7 @@ void setup() {
   rto->webServerEnabled = true; // control gbs-control(:p) via web browser, only available on wifi boards. disable to conserve power.
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
+  rto->frameTimeLockEnabled = false; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
   rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
   rto->phaseADC = 0; // 0 to 31
   rto->phaseSP = 0; // 0 to 31
@@ -2077,6 +2080,29 @@ void setup() {
     if ((timeout % 5) == 0) Serial.print(".");
     result = getVideoMode();
     delay(1);
+  }
+
+  // check whether vsync in and debug in are connected and working
+  boolean VSYNCINconnected = false;
+  boolean DEBUGINconnected = false;
+  if (pulseIn(vsyncInPin, HIGH, 100000) != 0) {
+    VSYNCINconnected = true;
+    Serial.println(F("VSYNC-IN connected :)"));
+  }
+  else {
+    Serial.println(F("VSYNC-IN not connected!"));
+  }
+
+  if (pulseIn(debugInPin, HIGH, 100000) != 0) {
+    DEBUGINconnected = true;
+    Serial.println(F("DEBUG-IN wire connected :)"));
+  }
+  else {
+    Serial.println(F("DEBUG-IN not connected!"));
+  }
+
+  if (!(VSYNCINconnected && DEBUGINconnected)) {
+    rto->syncLockEnabled = false;
   }
   // sync should be stable now
   if ((result != 0) && rto->syncLockEnabled == true && rto->syncLockReady == false && rto->videoStandardInput != 0) {
@@ -2592,7 +2618,7 @@ void loop() {
   }
   globalCommand = 0; // in case the web server had this set
 
-  if (rto->syncLockEnabled && rto->syncLockReady && millis() - lastVsyncLock > syncLockInterval) {
+  if (rto->frameTimeLockEnabled && rto->syncLockEnabled && rto->syncLockReady && millis() - lastVsyncLock > syncLockInterval) {
     lastVsyncLock = millis();
     doVsyncPhaseLock();
   }
