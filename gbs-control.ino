@@ -401,7 +401,11 @@ void setParametersSP() {
     writeOneByte(0x50, 0x00);
   }
   else { // SD RGB
-    writeOneByte(0x37, 0x58); // need to work on this
+    // was 0x58, new GBS + MD requires 0x70
+    // base this off of hpw. value needs to be above smalles hpw seen
+    // remember hpw changes depending on sync signal flanks. new gbs is slower, too
+    // 0x37 can be lowest hpw + 1 but remember it can wander a little (heat, etc)
+    writeOneByte(0x37, 0x70);
     writeOneByte(0x50, 0x06); // check this as well (SD sources, no sync stripper)
   }
 
@@ -416,7 +420,7 @@ void setParametersSP() {
   writeOneByte(0x2a, 0x0f); // SP_PRD_EQ_THD      How many continue legal line as valid
   // V active detect control
   writeOneByte(0x2d, 0x04); // SP_VSYNC_TGL_THD   V sync toggle times threshold
-  writeOneByte(0x2e, 0x04); // SP_SYNC_WIDTH_DTHD V sync pulse width threshod // the 04 is a test
+  writeOneByte(0x2e, 0x00); // SP_SYNC_WIDTH_DTHD V sync pulse width threshod // the 04 is a test
   writeOneByte(0x2f, 0x04); // SP_V_PRD_EQ_THD    How many continue legal v sync as valid  0x04
   writeOneByte(0x31, 0x2f); // SP_VT_DLT_REG      V total different threshold
   // Timer value control
@@ -432,7 +436,7 @@ void setParametersSP() {
   // note: the pre / post lines number probably depends on the vsync pulse delay, ie: sync stripper vsync delay
   writeOneByte(0x3a, 0x0a); // 0x0a rgbhv: 20
 
-  //writeOneByte(0x3e, 0x00); // problems with snes 239 line mode, use 0x00  0xc0 rgbhv: f0
+  writeOneByte(0x3e, 0x30); // overflow protect on, subcoast (macrovision) off | 0xc0 rgbhv: f0 | in case of problems: back to 0x00
 
   //writeOneByte(0x3f, 0x03); // 0x03
   //writeOneByte(0x40, 0x0b); // 0x0b
@@ -455,7 +459,10 @@ void setParametersSP() {
   // appears start should be around 0x70, stop should be htotal - 0x70
   //writeOneByte(0x4e, 0x00); writeOneByte(0x4d, 0x70); //  | rgbhv: 0 0
   //writeOneByte(0x50, 0x06); // rgbhv: 0 // is 0x06 for comment below
-  writeOneByte(0x4f, 0x9a); // rgbhv: 0 // psx with 54mhz osc. > 0xa4 too much, 0xa0 barely ok, > 0x9a!
+
+  // rgbhv: 0 // psx with 54mhz osc. > 0xa4 too much, 0xa0 barely ok, > 0x9a!
+  // new gbs even lower: 0x84
+  writeOneByte(0x4f, 0x84);
 
   writeOneByte(0x51, 0x02); // 0x00 rgbhv: 2
   writeOneByte(0x52, 0x00); // 0xc0
@@ -2804,6 +2811,8 @@ void loop() {
     // status
     readFromRegister(0x05, 1, &register_high);
     Serial.print(" status:"); Serial.print(register_high, HEX);
+    readFromRegister(0x00, 1, &register_high);
+    Serial.print("+"); Serial.print(register_high, HEX);
 
     // video mode, according to MD
     Serial.print(" mode:"); Serial.print(getVideoMode(), HEX);
