@@ -60,7 +60,7 @@ extern "C" {
 // Sync lock sampling timeout in microseconds
 static const uint32_t syncTimeout = 200000;
 // Sync lock interval in milliseconds
-static const uint32_t syncLockInterval = 30 * 16; // Approximately every 30 frames
+static const uint32_t syncLockInterval = 150 * 16; // Approximately every 150 frames.
 // Sync correction in scanlines to apply when phase lags target
 static const int16_t syncCorrection = 2;
 // Target vsync phase offset (output trails input) in degrees
@@ -1561,7 +1561,7 @@ void doVsyncPhaseLock(void) {
 
   if (!vsyncPeriodAndPhase(&period, NULL, &phase))
     return;
-  Serial.print("Phase offset: "); Serial.println(phase);
+  //Serial.print("Phase offset: "); Serial.println(phase);
 
   target = (syncTargetPhase * period) / 360;
 
@@ -1570,7 +1570,7 @@ void doVsyncPhaseLock(void) {
   else
     correction = syncCorrection;
 
-  Serial.print("Correction: "); Serial.println(correction);
+  //Serial.print("Correction: "); Serial.println(correction);
 
   // Apply correction
   frameSize = (rto->targetVtotal + correction);
@@ -3111,12 +3111,12 @@ void handleWebClient()
             else if (HTTP_req[10] == '5') {
               //Frame Time Lock ON
               uopt->enableFrameTimeLock = 1;
-              savePresetToSPIFFS();
+              saveUserPrefs();
             }
             else if (HTTP_req[10] == '6') {
               //Frame Time Lock OFF
               uopt->enableFrameTimeLock = 0;
-              savePresetToSPIFFS();
+              saveUserPrefs();
             }
 
             // reset buffer index and all buffer elements to 0 (we don't care about the rest)
