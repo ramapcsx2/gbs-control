@@ -1530,7 +1530,7 @@ bool vsyncOutputSample(unsigned long* start, unsigned long* stop) {
 
 // Sample input and output vsync periods and their phase difference in microseconds
 bool vsyncPeriodAndPhase(uint32_t* periodInput, uint32_t* periodOutput, int32_t* phase) {
-  unsigned long inStart, inStop, outStart, outStop, inPeriod, outPeriod, diff, gap;
+  unsigned long inStart, inStop, outStart, outStop, inPeriod, outPeriod, diff;
 
   if (!vsyncInputSample(&inStart, &inStop))
     return false;
@@ -1961,8 +1961,14 @@ void esp32_power() {
 #endif
 
 void setup() {
+#if defined(ESP8266)
+  // immediately correct the hostname
+  //wifi_station_set_hostname("gbscontrol"); // direct SDK call
+  WiFi.hostname("gbscontrol"); // Arduino call
+#endif
 #if defined(ESP32)
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
+  WiFi.setHostname("gbscontrol");
 #endif
   Serial.begin(230400); // set Serial Monitor to the same 230400 baud rate!
   Serial.setTimeout(10);
@@ -2045,7 +2051,6 @@ void setup() {
   Wire.setClock(400000); // TV5725 supports 400kHz
   delay(2);
 
-#if 1 // #if 0 to go directly to loop()
   uint8_t temp = 0;
   writeOneByte(0xF0, 1);
   readFromRegister(0xF0, 1, &temp);
@@ -2078,15 +2083,6 @@ void setup() {
     delay(1000); // at least 750ms required to become stable
   }
 
-  // prepare for synclock
-  result = getVideoMode();
-  timeout = 255;
-  while (result == 0 && --timeout > 0) {
-    if ((timeout % 5) == 0) Serial.print(".");
-    result = getVideoMode();
-    delay(1);
-  }
-
   // check whether vsync in and debug in are connected and working
   boolean VSYNCINconnected = false;
   boolean DEBUGINconnected = false;
@@ -2100,7 +2096,7 @@ void setup() {
 
   if (pulseIn(debugInPin, HIGH, 100000) != 0) {
     DEBUGINconnected = true;
-    Serial.println(F("DEBUG-IN wire connected :)"));
+    Serial.println(F("DEBUG-IN connected :)"));
   }
   else {
     Serial.println(F("DEBUG-IN not connected!"));
@@ -2109,17 +2105,11 @@ void setup() {
   if (!(VSYNCINconnected && DEBUGINconnected)) {
     rto->syncLockEnabled = false;
   }
-  // sync should be stable now
-  if ((result != 0) && rto->syncLockEnabled == true && rto->syncLockReady == false && rto->videoStandardInput != 0) {
-    initSyncLock();
-  }
-#endif
 
 #if defined(ESP8266)
   if (rto->webServerEnabled) {
     //start_webserver(); // delay this (blocking) call to sometime later
     //WiFi.setOutputPower(12.0f); // float: min 0.0f, max 20.5f
-    delay(750); // this delay helps with router reconnects on reset
   }
   else {
     WiFi.disconnect();
@@ -2155,11 +2145,11 @@ void loop() {
   static uint16_t signalInputChangeCounter = 0;
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastTimeMDWatchdog = millis();
-  static unsigned long webServerStartDelay = millis();
   static unsigned long lastVsyncLock = millis();
 
 #if defined(ESP8266) || defined(ESP32)
-  if (rto->webServerEnabled && !rto->webServerStarted && ((millis() - webServerStartDelay) > 5000) ) {
+  static unsigned long webServerStartDelay = millis();
+  if (rto->webServerEnabled && !rto->webServerStarted && ((millis() - webServerStartDelay) > 15000) ) {
 #if defined(ESP8266)
     start_webserver(); // delay this (blocking) call to sometime in loop()
     WiFi.setOutputPower(12.0f); // float: min 0.0f, max 20.5f
@@ -2787,7 +2777,8 @@ void loop() {
   }
 
   // only run this when sync is stable!
-  if (rto->syncLockEnabled == true && rto->syncLockReady == false && getSyncStable() && rto->videoStandardInput != 0) {
+  if (rto->syncLockEnabled == true && rto->syncLockReady == false &&
+      getSyncStable() && rto->videoStandardInput != 0 && millis() - lastVsyncLock > syncLockInterval) {
     initSyncLock();
   }
 
@@ -2820,17 +2811,6 @@ const char HTML[] PROGMEM = "<head><link rel=\"icon\" href=\"data:,\"><style>htm
 void start_webserver()
 {
 #if defined(ESP8266)
-  WiFi.hostname("gbscontrol"); // not every router updates the old hostname though (mine doesn't)
-
-  // hostname fix: spoof MAC by increasing the last octet by 1
-  // Routers now see this as a new device and respect the hostname.
-  uint8_t macAddr[6];
-  Serial.print("orig. MAC: ");  Serial.println(WiFi.macAddress());
-  WiFi.macAddress(macAddr); // macAddr now holds the current device MAC
-  macAddr[5] += 1; // change last octet by 1
-  wifi_set_macaddr(STATION_IF, macAddr);
-  Serial.print("new MAC:   ");  Serial.println(WiFi.macAddress());
-
   WiFiManager wifiManager;
   wifiManager.setTimeout(180); // in seconds
   wifiManager.autoConnect(ap_ssid, ap_password);
