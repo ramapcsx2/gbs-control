@@ -65,8 +65,10 @@ static const uint32_t syncLockInterval = 100 * 16; // every 100 frames. // was 3
 static const int16_t syncCorrection = 2;
 // Target vsync phase offset (output trails input) in degrees
 static const uint32_t syncTargetPhase = 90;
-// Number of samples to average when comparing input and output vsync periods
-static const int8_t syncCompareSamples = 1; // was 2
+// Number of consistent best htotal results to get in a row before considering it valid
+static const uint8_t syncHtotalStable = 4;
+// Number of samples to average when determining best htotal
+static const uint8_t syncSamples = 2;
 
 // runTimeOptions holds system variables
 struct runTimeOptions {
@@ -1401,28 +1403,37 @@ static void sampleVsyncPeriods(uint32_t* input, uint32_t *output)
   uint32_t inSum = 0;
   uint32_t outSum = 0;
 
-  for (uint8_t i = 0; i < syncCompareSamples; ++i) {
+  for (uint8_t i = 0; i < syncSamples; ++i) {
     while (!vsyncPeriodAndPhase(&inPeriod, &outPeriod, NULL));
     inSum += inPeriod;
     outSum += outPeriod;
   }
 
-  *input = inSum / syncCompareSamples;
-  *output = outSum / syncCompareSamples;
+  *input = inSum / syncSamples;
+  *output = outSum / syncSamples;
 }
 
 // Find the largest htotal that makes output frame time less than the input.
 static uint16_t findBestHTotal(void) {
   uint16_t htotal = readHTotal();
   uint32_t inPeriod, outPeriod;
-  uint16_t bestHtotal;
-
-  sampleVsyncPeriods(&inPeriod, &outPeriod);
-  bestHtotal = (htotal * inPeriod) / outPeriod;
-  writeHTotal(bestHtotal);
-  resetPLL(); resetPLLAD(); // this helps with some corrections leaving garbage just within active video
+  uint16_t bestHtotal = 0;
+  uint16_t candHtotal;
+  uint8_t stable = 0;
 
   Serial.print("Base htotal: "); Serial.println(htotal);
+
+  while (stable < syncHtotalStable) {
+    sampleVsyncPeriods(&inPeriod, &outPeriod);
+    candHtotal = (htotal * inPeriod) / outPeriod;
+    Serial.print("Candidate htotal: "); Serial.println(candHtotal);
+    if (candHtotal == bestHtotal)
+      stable++;
+    else
+      stable = 1;
+    bestHtotal = candHtotal;
+  }
+
   Serial.print("Best htotal: "); Serial.println(bestHtotal);
   return bestHtotal;
 }
@@ -1447,6 +1458,7 @@ void initSyncLock() {
   // Increasing the vertical frame size slightly should then push the
   // output frame time to being larger than the input.
   writeHTotal(findBestHTotal());
+  resetPLL(); resetPLLAD(); // this helps with some corrections leaving garbage just within active video
 
   writeOneByte(0xF0, 5);
   writeOneByte(0x63, debugRegBackup);
@@ -1558,7 +1570,7 @@ void doVsyncPhaseLock(void) {
   else
     correction = syncCorrection;
 
-  //Serial.print("Correction: "); Serial.println(correction);
+  Serial.print("Correction: "); Serial.println(correction);
 
   // Apply correction
   frameSize = (rto->targetVtotal + correction);
