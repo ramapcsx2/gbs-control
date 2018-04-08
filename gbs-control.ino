@@ -729,7 +729,7 @@ boolean getSyncProcessorSignalValid() {
 
   readFromRegister(0x1a, 1, &register_high); readFromRegister(0x19, 1, &register_low);
   register_combined = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
-  if ( (register_combined < 180) && (register_combined > 5)) {
+  if ( (register_combined < 210) && (register_combined > 5)) { // Genesis can have huge hpw
     hpwOkay = true;
   }
   else {
