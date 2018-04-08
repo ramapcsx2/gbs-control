@@ -23,8 +23,8 @@ extern "C" {
 }
 #define vsyncInPin D7
 #define debugInPin D6
-#define LEDON  digitalWrite(LED_BUILTIN, LOW) // active low
-#define LEDOFF digitalWrite(LED_BUILTIN, HIGH)
+#define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, LOW); // active low
+#define LEDOFF digitalWrite(LED_BUILTIN, HIGH); pinMode(LED_BUILTIN, INPUT);
 
 #elif defined(ESP32)
 #include "soc/soc.h"
@@ -33,14 +33,14 @@ extern "C" {
 #include <esp_wifi.h>
 #include <WiFi.h>
 #include "SPIFFS.h"
-#define LEDON  digitalWrite(LED_BUILTIN, HIGH)
-#define LEDOFF digitalWrite(LED_BUILTIN, LOW)
+#define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, HIGH);
+#define LEDOFF digitalWrite(LED_BUILTIN, LOW); pinMode(LED_BUILTIN, INPUT);
 #define vsyncInPin 27
 #define debugInPin 28 // ??
 
 #else // Arduino
-#define LEDON  digitalWrite(LED_BUILTIN, HIGH)
-#define LEDOFF digitalWrite(LED_BUILTIN, LOW)
+#define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, HIGH);
+#define LEDOFF digitalWrite(LED_BUILTIN, LOW); pinMode(LED_BUILTIN, INPUT);
 #define vsyncInPin 10
 #define debugInPin 11 // ??
 #endif
@@ -65,10 +65,6 @@ static const uint32_t syncLockInterval = 100 * 16; // every 100 frames. // was 3
 static const int16_t syncCorrection = 2;
 // Target vsync phase offset (output trails input) in degrees
 static const uint32_t syncTargetPhase = 90;
-// Threshold at which comparison between input and output vsync period is considered
-// settled.  Comparisons are performed iteratively until one "wins" by this margin
-// over the other.  This overcomes problems with measurement jitter.
-static const int8_t syncCompareThresh = 3; // was 6
 // Number of samples to average when comparing input and output vsync periods
 static const int8_t syncCompareSamples = 1; // was 2
 
@@ -1417,49 +1413,24 @@ static void sampleVsyncPeriods(uint32_t* input, uint32_t *output)
   *output = outSum / syncCompareSamples;
 }
 
-// Determine if the output vsync period is larger than the input
-static bool outPeriodIsLarger(void) {
-  int8_t balance = 0;
-  uint32_t inPeriod, outPeriod;
-
-  while (balance > -syncCompareThresh && balance < syncCompareThresh)  {
-    sampleVsyncPeriods(&inPeriod, &outPeriod);
-    delay(1); // ESP Watchdog
-    if (outPeriod > inPeriod)
-      balance++;
-    else if (outPeriod < inPeriod)
-      balance--;
-  }
-
-  return balance > 0;
-}
-
 // Find the largest htotal that makes output frame time less than the input.
-// This is done via binary search.
 static uint16_t findBestHTotal(void) {
   uint16_t htotal = readHTotal();
-  uint16_t min = htotal - htotal / 100;
-  uint16_t max = htotal + htotal / 100;
+  uint32_t inPeriod, outPeriod;
+  uint16_t bestHtotal;
+
+  // htotal min calculation that avoids floating point maths
+  // htotal range is 0 .. 4095. as uint32_t the left shift range is 20 bits.
+  sampleVsyncPeriods(&inPeriod, &outPeriod);
+  bestHtotal = (((((uint32_t)htotal << 16) / outPeriod) * inPeriod) >> 16);
 
   Serial.print("Base htotal: "); Serial.println(htotal);
+  Serial.print("Best htotal: "); Serial.println(bestHtotal);
+  writeHTotal(bestHtotal);
 
-  while (min < max) {
-    htotal = (max + min + 1) / 2;
-    Serial.print("Test htotal: "); Serial.print(htotal);
-    writeHTotal(htotal);
-    delay(2);
-    if (outPeriodIsLarger()) {
-      Serial.println(" (greater)");
-      max = htotal - 1;
-    } else {
-      Serial.println(" (lower)");
-      min = htotal;
-    }
-  }
+  resetPLL(); resetPLLAD(); // this helps with some corrections leaving garbage just within active video
 
-  Serial.print("Best htotal: "); Serial.println(min);
-
-  return min;
+  return bestHtotal;
 }
 
 // Initialize sync locking
@@ -1627,7 +1598,6 @@ void doPostPresetLoadSteps() {
   resetPLLAD(); delay(10);
   resetSyncLock();
   rto->modeDetectInReset = false;
-  LEDOFF; // in case LED was on
 
   // Grab target vtotal for preset
   uint8_t regHigh, regLow;
@@ -2003,7 +1973,7 @@ void setup() {
   pinMode(vsyncInPin, INPUT);
   pinMode(debugInPin, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
-  LEDON; // enable the LED, lets users know the board is starting up
+  LEDON // enable the LED, lets users know the board is starting up
   delay(3000); // give the entire system some time to start up.
 
   // example for using the gbs8200 onboard buttons in an interrupt routine
@@ -2129,7 +2099,7 @@ void setup() {
   }
 #endif
   Serial.print(F("\nMCU: ")); Serial.println(F_CPU);
-  LEDOFF; // startup done, disable the LED
+  LEDOFF // startup done, disable the LED
 }
 
 void loop() {
