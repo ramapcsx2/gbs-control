@@ -1419,17 +1419,13 @@ static uint16_t findBestHTotal(void) {
   uint32_t inPeriod, outPeriod;
   uint16_t bestHtotal;
 
-  // htotal min calculation that avoids floating point maths
-  // htotal range is 0 .. 4095. as uint32_t the left shift range is 20 bits.
   sampleVsyncPeriods(&inPeriod, &outPeriod);
-  bestHtotal = (((((uint32_t)htotal << 16) / outPeriod) * inPeriod) >> 16);
+  bestHtotal = (htotal * inPeriod) / outPeriod;
+  writeHTotal(bestHtotal);
+  resetPLL(); resetPLLAD(); // this helps with some corrections leaving garbage just within active video
 
   Serial.print("Base htotal: "); Serial.println(htotal);
   Serial.print("Best htotal: "); Serial.println(bestHtotal);
-  writeHTotal(bestHtotal);
-
-  resetPLL(); resetPLLAD(); // this helps with some corrections leaving garbage just within active video
-
   return bestHtotal;
 }
 
@@ -1444,12 +1440,18 @@ void initSyncLock() {
   writeOneByte(0x1B, (1 << 0) | (2 << 2));
   writeOneByte(0x1F, (1 << 0) | (1 << 4));
 
+  uint8_t debugRegBackup;
+  writeOneByte(0xF0, 5);
+  readFromRegister(0x63, 1, &debugRegBackup);
+  writeOneByte(0x63, 0x0f);
   // Adjust output horizontal sync timing so that the overall frame
   // time is as close to the input as possible while still being less.
   // Increasing the vertical frame size slightly should then push the
   // output frame time to being larger than the input.
   writeHTotal(findBestHTotal());
 
+  writeOneByte(0xF0, 5);
+  writeOneByte(0x63, debugRegBackup);
   rto->syncLockReady = true;
 }
 
@@ -1502,12 +1504,21 @@ bool vsyncOutputSample(unsigned long* start, unsigned long* stop) {
 // Sample input and output vsync periods and their phase difference in microseconds
 bool vsyncPeriodAndPhase(uint32_t* periodInput, uint32_t* periodOutput, int32_t* phase) {
   unsigned long inStart, inStop, outStart, outStop, inPeriod, outPeriod, diff;
+  uint8_t debugRegBackup;
 
-  if (!vsyncInputSample(&inStart, &inStop))
+  writeOneByte(0xF0, 5);
+  readFromRegister(0x63, 1, &debugRegBackup);
+  writeOneByte(0x63, 0x0f);
+
+  if (!vsyncInputSample(&inStart, &inStop)) {
+    writeOneByte(0x63, debugRegBackup);
     return false;
+  }
   inPeriod = (inStop - inStart) / 2;
-  if (!vsyncOutputSample(&outStart, &outStop))
+  if (!vsyncOutputSample(&outStart, &outStop)) {
+    writeOneByte(0x63, debugRegBackup);
     return false;
+  }
   outPeriod = outStop - outStart;
   diff = (outStart - inStart) % inPeriod;
   if (periodInput)
@@ -1516,6 +1527,8 @@ bool vsyncPeriodAndPhase(uint32_t* periodInput, uint32_t* periodOutput, int32_t*
     *periodOutput = outPeriod;
   if (phase)
     *phase = (diff < inPeriod / 2) ? diff : diff - inPeriod;
+
+  writeOneByte(0x63, debugRegBackup);
   return true;
 }
 
