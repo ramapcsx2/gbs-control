@@ -60,7 +60,7 @@ extern "C" {
 // Sync lock sampling timeout in microseconds
 static const uint32_t syncTimeout = 200000;
 // Sync lock interval in milliseconds
-static const uint32_t syncLockInterval = 150 * 16; // Approximately every 150 frames.
+static const uint32_t syncLockInterval = 100 * 16; // every 100 frames. // was 30 * 16
 // Sync correction in scanlines to apply when phase lags target
 static const int16_t syncCorrection = 2;
 // Target vsync phase offset (output trails input) in degrees
@@ -68,9 +68,9 @@ static const uint32_t syncTargetPhase = 90;
 // Threshold at which comparison between input and output vsync period is considered
 // settled.  Comparisons are performed iteratively until one "wins" by this margin
 // over the other.  This overcomes problems with measurement jitter.
-static const int8_t syncCompareThresh = 6;
+static const int8_t syncCompareThresh = 3; // was 6
 // Number of samples to average when comparing input and output vsync periods
-static const int8_t syncCompareSamples = 2;
+static const int8_t syncCompareSamples = 1; // was 2
 
 // runTimeOptions holds system variables
 struct runTimeOptions {
@@ -1447,7 +1447,7 @@ static uint16_t findBestHTotal(void) {
     htotal = (max + min + 1) / 2;
     Serial.print("Test htotal: "); Serial.print(htotal);
     writeHTotal(htotal);
-    delay(100);
+    delay(2);
     if (outPeriodIsLarger()) {
       Serial.println(" (greater)");
       max = htotal - 1;
@@ -1561,7 +1561,7 @@ void doVsyncPhaseLock(void) {
 
   if (!vsyncPeriodAndPhase(&period, NULL, &phase))
     return;
-  //Serial.print("Phase offset: "); Serial.println(phase);
+  Serial.print("Phase offset: "); Serial.println(phase);
 
   target = (syncTargetPhase * period) / 360;
 
