@@ -22,7 +22,7 @@ extern "C" {
 #include <user_interface.h>
 }
 #define vsyncInPin D7
-#define debugInPin D5
+#define debugInPin D6
 #define LEDON  digitalWrite(LED_BUILTIN, LOW) // active low
 #define LEDOFF digitalWrite(LED_BUILTIN, HIGH)
 
