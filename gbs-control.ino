@@ -2074,29 +2074,6 @@ void setup() {
     delay(1000); // at least 750ms required to become stable
   }
 
-  // check whether vsync in and debug in are connected and working
-  boolean VSYNCINconnected = false;
-  boolean DEBUGINconnected = false;
-  if (pulseIn(vsyncInPin, HIGH, 100000) != 0) {
-    VSYNCINconnected = true;
-    Serial.println(F("VSYNC-IN connected :)"));
-  }
-  else {
-    Serial.println(F("VSYNC-IN not connected!"));
-  }
-
-  if (pulseIn(debugInPin, HIGH, 100000) != 0) {
-    DEBUGINconnected = true;
-    Serial.println(F("DEBUG-IN connected :)"));
-  }
-  else {
-    Serial.println(F("DEBUG-IN not connected!"));
-  }
-
-  if (!(VSYNCINconnected && DEBUGINconnected)) {
-    rto->syncLockEnabled = false;
-  }
-
 #if defined(ESP8266)
   if (rto->webServerEnabled) {
     //start_webserver(); // delay this (blocking) call to sometime later
