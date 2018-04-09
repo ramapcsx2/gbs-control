@@ -70,6 +70,8 @@ static const uint8_t syncHtotalStable = 4;
 // Number of samples to average when determining best htotal
 static const uint8_t syncSamples = 2;
 
+static int16_t syncLastCorrection = 0;
+
 // runTimeOptions holds system variables
 struct runTimeOptions {
   boolean inputIsYpBpR;
@@ -1421,19 +1423,11 @@ static uint16_t findBestHTotal(void) {
 
 // Initialize sync locking
 void initSyncLock() {
-  // Set up two different vertical frame sizes
-  writeOneByte(0xF0, 3);
-  writeOneByte(0x21, (rto->targetVtotal + 0) >> 8);
-  writeOneByte(0x20, (rto->targetVtotal + 0) & 0xff);
-  writeOneByte(0x23, (rto->targetVtotal + 0) >> 8);
-  writeOneByte(0x22, (rto->targetVtotal + 0) & 0xff);
-  writeOneByte(0x1B, (1 << 0) | (2 << 2));
-  writeOneByte(0x1F, (1 << 0) | (1 << 4)); // appears the higher VDS_FRAME_NO [3:0], the better it is able to correct
-
   uint8_t debugRegBackup;
   writeOneByte(0xF0, 5);
   readFromRegister(0x63, 1, &debugRegBackup);
   writeOneByte(0x63, 0x0f);
+
   // Adjust output horizontal sync timing so that the overall frame
   // time is as close to the input as possible while still being less.
   // Increasing the vertical frame size slightly should then push the
@@ -1523,6 +1517,33 @@ bool vsyncPeriodAndPhase(uint32_t* periodInput, uint32_t* periodOutput, int32_t*
   return true;
 }
 
+void adjustFrameSize(int16_t delta) {
+  uint8_t regLow, regMid, regHigh;
+  uint16_t vtotal, vsst, vssp;
+
+  readFromRegister(3, 0x02, 1, &regLow);
+  readFromRegister(3, 0x03, 1, &regHigh);
+  vtotal = ((((uint16_t)regHigh) & 0x007f) << 4) | ((((uint16_t)regLow) & 0x00f0) >> 4);
+  vtotal += delta;
+  writeOneByte(0x02, (regLow & 0x0f) | ((vtotal & 0x0f) << 4));
+  writeOneByte(0x03, (regHigh & 0x80) | (((vtotal >> 4) & 0x7f)));
+
+  readFromRegister(3, 0x0d, 1, &regLow);
+  readFromRegister(3, 0x0e, 1, &regMid);
+  readFromRegister(3, 0x0f, 1, &regHigh);
+  vsst = regLow | (((uint16_t) regMid & 0x07) << 8);
+  vssp = (regMid >> 4) | (((uint16_t) regHigh) << 4);
+  vsst += delta;
+  vssp += delta;
+  writeOneByte(0x0d, vsst);
+  writeOneByte(0x0e, (((vsst >> 8) & 0x07) | ((vssp << 4) & 0xf0)));
+  writeOneByte(0x0f, (regHigh & 0x80) | (((vssp >> 4) & 0x7f)));
+
+  Serial.print(F("vtotal: ")); Serial.println(vtotal);
+  Serial.print(F("vsst: ")); Serial.println(vsst);
+  Serial.print(F("vssp: ")); Serial.println(vssp);
+}
+
 // Perform vsync phase locking.  This is accomplished by measuring the period and
 // phase offset of the input and output vsync signals and adjusting the frame size
 // (and thus the output vsync frequency) to bring the phase offset closer to the
@@ -1553,11 +1574,8 @@ void doVsyncPhaseLock(void) {
 
   //Serial.print("Correction: "); Serial.println(correction);
 
-  // Apply correction
-  frameSize = (rto->targetVtotal + correction);
-  writeOneByte(0xF0, 3);
-  writeOneByte(0x21, frameSize >> 8);
-  writeOneByte(0x20, frameSize & 0xFF);
+  adjustFrameSize(correction - syncLastCorrection);
+  syncLastCorrection = correction;
 }
 
 void enableDebugPort() {
@@ -1592,6 +1610,9 @@ void resetRunTimeVariables() {
 }
 
 void doPostPresetLoadSteps() {
+  // Any sync correction we were applying is gone
+  syncLastCorrection = 0;
+
   if (rto->inputIsYpBpR == true) {
     Serial.print("(YUV)");
     applyYuvPatches();
@@ -2190,10 +2211,12 @@ void loop() {
         inputStage = 0; // reset this as well
         break;
       case 'd':
+        adjustFrameSize(-syncLastCorrection);
         for (int segment = 0; segment <= 5; segment++) {
           dumpRegisters(segment);
         }
         Serial.println("};");
+        adjustFrameSize(syncLastCorrection);
         break;
       case '+':
         Serial.println(F("shift hor. +"));
