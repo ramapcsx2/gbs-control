@@ -303,11 +303,11 @@ void setParametersSP() {
     writeOneByte(0x50, 0x00);
   }
   else { // SD RGB
-    // was 0x58, new GBS + MD requires 0x70
+    // was 0x58, new GBS + MD requires 0x70 //too much for old gbs > 0x6b
     // base this off of hpw. value needs to be above smalles hpw seen
     // remember hpw changes depending on sync signal flanks. new gbs is slower, too
     // 0x37 can be lowest hpw + 1 but remember it can wander a little (heat, etc)
-    writeOneByte(0x37, 0x70);
+    writeOneByte(0x37, 0x6b);
     writeOneByte(0x50, 0x06); // check this as well (SD sources, no sync stripper)
   }
 
@@ -1438,7 +1438,7 @@ void initSyncLock() {
   writeOneByte(0x23, (rto->targetVtotal + 0) >> 8);
   writeOneByte(0x22, (rto->targetVtotal + 0) & 0xff);
   writeOneByte(0x1B, (1 << 0) | (2 << 2));
-  writeOneByte(0x1F, (1 << 0) | (1 << 4));
+  writeOneByte(0x1F, /*(1 << 0) |*/ (1 << 4)); // VDS_FRAME_NO [3:0] was set to 2?
 
   uint8_t debugRegBackup;
   writeOneByte(0xF0, 5);
