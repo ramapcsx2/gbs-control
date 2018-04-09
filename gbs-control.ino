@@ -570,52 +570,50 @@ void readFromRegister(uint8_t reg, int bytesToRead, uint8_t* output)
   }
 }
 
+void printReg(uint8_t seg, uint8_t reg) {
+  uint8_t readout;
+  readFromRegister(reg, 1, &readout);
+  Serial.print(readout); Serial.print(", // s"); Serial.print(seg); Serial.print("_"); Serial.println(reg, HEX);
+}
+
 // dumps the current chip configuration in a format that's ready to use as new preset :)
 void dumpRegisters(byte segment)
 {
-  uint8_t readout = 0;
   if (segment > 5) return;
   writeOneByte(0xF0, segment);
 
   switch (segment) {
     case 0:
       for (int x = 0x40; x <= 0x5F; x++) {
-        readFromRegister(x, 1, &readout);
-        Serial.print(readout); Serial.println(",");
+        printReg(0, x);
       }
       for (int x = 0x90; x <= 0x9F; x++) {
-        readFromRegister(x, 1, &readout);
-        Serial.print(readout); Serial.println(",");
+        printReg(0, x);
       }
       break;
     case 1:
       for (int x = 0x0; x <= 0x8F; x++) {
-        readFromRegister(x, 1, &readout);
-        Serial.print(readout); Serial.println(",");
+        printReg(1, x);
       }
       break;
     case 2:
       for (int x = 0x0; x <= 0x3F; x++) {
-        readFromRegister(x, 1, &readout);
-        Serial.print(readout); Serial.println(",");
+        printReg(2, x);
       }
       break;
     case 3:
       for (int x = 0x0; x <= 0x7F; x++) {
-        readFromRegister(x, 1, &readout);
-        Serial.print(readout); Serial.println(",");
+        printReg(3, x);
       }
       break;
     case 4:
       for (int x = 0x0; x <= 0x5F; x++) {
-        readFromRegister(x, 1, &readout);
-        Serial.print(readout); Serial.println(",");
+        printReg(4, x);
       }
       break;
     case 5:
       for (int x = 0x0; x <= 0x6F; x++) {
-        readFromRegister(x, 1, &readout);
-        Serial.print(readout); Serial.println(",");
+        printReg(5, x);
       }
       break;
   }
