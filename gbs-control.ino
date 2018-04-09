@@ -1545,7 +1545,13 @@ void doVsyncPhaseLock(void) {
 
   if (!vsyncPeriodAndPhase(&period, NULL, &phase))
     return;
-  Serial.print("Phase offset: "); Serial.println(phase);
+
+  //Serial.print("Phase offset: "); Serial.println(phase);
+  // I still want this debug tool but it shouldn't spam when everything is fine
+  if (phase > 0 && phase < 2000) {
+    Serial.print(F("Phase not locked (yet): ")); Serial.println(phase);
+  }
+  // else phase is locked
 
   target = (syncTargetPhase * period) / 360;
 
@@ -1880,9 +1886,11 @@ void setClampPosition() {
     writeOneByte(0x42, 0x00); writeOneByte(0x44, 0x00);
   }
   else {
-    // in RGB mode, (should use sync tip clamping?) use back porch clamping: 14 clocks
+    // in RGB mode, (should use sync tip clamping?) use back porch clamping: 28 clocks
     // tip: see clamp pulse in RGB signal: t5t56t7, scope trigger on hsync, measurement probe on one of the RGB lines
-    writeOneByte(0x41, 0x19); writeOneByte(0x43, 0x27); // same as YUV for now
+    // move the clamp away from the sync pulse slightly (SNES 239 mode), but not too much to start disturbing Genesis
+    // Genesis starts having issues in the 0x78 range and above
+    writeOneByte(0x41, 0x40); writeOneByte(0x43, 0x5c);
     writeOneByte(0x42, 0x00); writeOneByte(0x44, 0x00);
   }
 }
