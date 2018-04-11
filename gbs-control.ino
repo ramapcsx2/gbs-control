@@ -36,7 +36,7 @@ extern "C" {
 #define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, HIGH);
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW); pinMode(LED_BUILTIN, INPUT);
 #define vsyncInPin 27
-#define debugInPin 28 // ??
+#define debugInPin 26
 
 #else // Arduino
 #define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, HIGH);
@@ -94,7 +94,7 @@ struct runTimeOptions *rto = &rtos;
 // userOptions holds user preferences / customizations
 struct userOptions {
   uint8_t presetPreference; // 0 - normal, 1 - feedback clock, 2 - customized
-  boolean enableFrameTimeLock;
+  uint8_t enableFrameTimeLock;
 } uopts;
 struct userOptions *uopt = &uopts;
 
@@ -1959,7 +1959,7 @@ void setup() {
 #endif
 #if defined(ESP32)
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
-  WiFi.setHostname("gbscontrol");
+  // ESP32 doesn't require hostname correction
 #endif
   Serial.begin(230400); // set Serial Monitor to the same 230400 baud rate!
   Serial.setTimeout(10);
@@ -1967,7 +1967,7 @@ void setup() {
 
   // user options // todo: save/load from EEPROM
   uopt->presetPreference = 0;
-  uopt->enableFrameTimeLock = false; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
+  uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
   // run time options
   rto->webServerEnabled = true; // control gbs-control(:p) via web browser, only available on wifi boards. disable to conserve power.
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
@@ -2003,7 +2003,12 @@ void setup() {
 
 #if defined(ESP8266) || defined(ESP32)
   // file system (web page, custom presets, ect)
+
+#if defined(ESP32)
+  if (!SPIFFS.begin(true)) { // true = format spiffs on first use / when mount fails
+#elif defined(ESP8266)
   if (!SPIFFS.begin()) {
+#endif
     Serial.println("SPIFFS Mount Failed");
   }
   // load userprefs.txt
@@ -2016,12 +2021,19 @@ void setup() {
     char result[2];
     result[0] = f.read();
     result[0] -= '0'; // file streams with their chars..
-    //Serial.print("result[0] = "); Serial.println((int)result[0]);
+    Serial.print("result[0] = "); Serial.println((int)result[0]);
     uopt->presetPreference = result[0];
+    //on a fresh MCU (ESP32):
+    //SPIFFS format: 1
+    //userprefs.txt open ok
+    //result[0] = 207
+    //result[1] = 207
+    if (uopt->presetPreference > 3) uopt->presetPreference = 0; // fresh spiffs ?
     result[1] = f.read();
     result[1] -= '0';
-    //Serial.print("result[1] = "); Serial.println((int)result[1]);
+    Serial.print("result[1] = "); Serial.println((int)result[1]);
     uopt->enableFrameTimeLock = result[1];
+    if (uopt->enableFrameTimeLock > 1) uopt->enableFrameTimeLock = 0; // fresh spiffs ?
     f.close();
   }
 #endif
