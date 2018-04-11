@@ -50,8 +50,12 @@ extern "C" {
 #include <ArduinoOTA.h>
 #endif
 
+#include "tv5725.h"
+
 // 7 bit GBS I2C Address
 #define GBS_ADDR 0x17
+
+typedef TV5725<GBS_ADDR> GBS;
 
 //
 // Sync locking tunables/magic numbers
