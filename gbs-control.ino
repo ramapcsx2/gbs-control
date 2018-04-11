@@ -116,29 +116,19 @@ void nopdelay(unsigned int times) {
     __asm__("nop\n\t");
 }
 
-void writeOneByte(uint8_t slaveRegister, uint8_t value)
+static uint8_t lastSegment = 0xFF;
+
+static inline void writeOneByte(uint8_t slaveRegister, uint8_t value)
 {
   writeBytes(slaveRegister, &value, 1);
 }
 
-void writeBytes(uint8_t slaveAddress, uint8_t slaveRegister, uint8_t* values, uint8_t numValues)
+static inline void writeBytes(uint8_t slaveRegister, uint8_t* values, uint8_t numValues)
 {
-  Wire.beginTransmission(slaveAddress);
-  Wire.write(slaveRegister);
-  int sentBytes = Wire.write(values, numValues);
-  Wire.endTransmission();
-
-  if (sentBytes != numValues) {
-    Serial.println(F("i2c error"));
-#if defined(ESP32)
-    Wire.reset();
-#endif
-  }
-}
-
-void writeBytes(uint8_t slaveRegister, uint8_t* values, int numValues)
-{
-  writeBytes(GBS_ADDR, slaveRegister, values, numValues);
+  if (slaveRegister == 0xF0 && numValues == 1)
+    lastSegment = *values;
+  else
+    GBS::write(lastSegment, slaveRegister, values, numValues);
 }
 
 void copyBank(uint8_t* bank, const uint8_t* programArray, uint16_t* index)
@@ -548,30 +538,15 @@ void zeroAll()
   }
 }
 
-void readFromRegister(uint8_t reg, int bytesToRead, uint8_t* output)
+static inline void readFromRegister(uint8_t segment, uint8_t reg, int bytesToRead, uint8_t* output)
 {
-  Wire.beginTransmission(GBS_ADDR);
-  if (!Wire.write(reg)) {
-    Serial.println(F("i2c error"));
-#if defined(ESP32)
-    Wire.reset();
-#endif
-  }
+  lastSegment = segment;
+  return readFromRegister(reg, bytesToRead, output);
+}
 
-  Wire.endTransmission();
-  Wire.requestFrom(GBS_ADDR, bytesToRead, true);
-  int rcvBytes = 0;
-  while (Wire.available())
-  {
-    output[rcvBytes++] =  Wire.read();
-  }
-
-  if (rcvBytes != bytesToRead) {
-    Serial.println(F("i2c error"));
-#if defined(ESP32)
-    Wire.reset();
-#endif
-  }
+static inline void readFromRegister(uint8_t reg, int bytesToRead, uint8_t* output)
+{
+  return GBS::read(lastSegment, reg, output, bytesToRead);
 }
 
 void printReg(uint8_t seg, uint8_t reg) {
@@ -1366,24 +1341,6 @@ void set_vtotal(uint16_t vtotal) {
   writeOneByte(0x14, regLow);
 }
 
-static uint16_t readHTotal(void) {
-  uint8_t low, high;
-
-  writeOneByte(0xF0, 3);
-  readFromRegister(0x02, 1, &high);
-  readFromRegister(0x01, 1, &low);
-  return ((high & 0xf) << 8) | low;
-}
-
-static void writeHTotal(uint16_t val) {
-  uint8_t high;
-
-  writeOneByte(0xF0, 3);
-  readFromRegister(0x02, 1, &high);
-  writeOneByte(0x02, (val >> 8) | (high & 0xf0));
-  writeOneByte(0x01, val & 0xff);
-}
-
 static void sampleVsyncPeriods(uint32_t* input, uint32_t *output)
 {
   uint32_t inPeriod, outPeriod;
@@ -1402,7 +1359,7 @@ static void sampleVsyncPeriods(uint32_t* input, uint32_t *output)
 
 // Find the largest htotal that makes output frame time less than the input.
 static uint16_t findBestHTotal(void) {
-  uint16_t htotal = readHTotal();
+  uint16_t htotal = GBS::VDS_HSYNC_RST::read();
   uint32_t inPeriod, outPeriod;
   uint16_t bestHtotal = 0;
   uint16_t candHtotal;
@@ -1436,7 +1393,7 @@ void initSyncLock() {
   // time is as close to the input as possible while still being less.
   // Increasing the vertical frame size slightly should then push the
   // output frame time to being larger than the input.
-  writeHTotal(findBestHTotal());
+  GBS::VDS_HSYNC_RST::write(findBestHTotal());
   resetPLL(); resetPLLAD(); // this helps with some corrections leaving garbage just within active video
 
   writeOneByte(0xF0, 5);
@@ -1522,26 +1479,15 @@ bool vsyncPeriodAndPhase(uint32_t* periodInput, uint32_t* periodOutput, int32_t*
 }
 
 void adjustFrameSize(int16_t delta) {
-  uint8_t regLow, regMid, regHigh;
   uint16_t vtotal, vsst, vssp;
 
-  readFromRegister(3, 0x02, 1, &regLow);
-  readFromRegister(3, 0x03, 1, &regHigh);
-  vtotal = ((((uint16_t)regHigh) & 0x007f) << 4) | ((((uint16_t)regLow) & 0x00f0) >> 4);
-  vtotal += delta;
-  writeOneByte(0x02, (regLow & 0x0f) | ((vtotal & 0x0f) << 4));
-  writeOneByte(0x03, (regHigh & 0x80) | (((vtotal >> 4) & 0x7f)));
+  vtotal = GBS::VDS_VSYNC_RST::read() + delta;
+  vsst = GBS::VDS_VS_ST::read() + delta;
+  vssp = GBS::VDS_VS_SP::read() + delta;
 
-  readFromRegister(3, 0x0d, 1, &regLow);
-  readFromRegister(3, 0x0e, 1, &regMid);
-  readFromRegister(3, 0x0f, 1, &regHigh);
-  vsst = regLow | (((uint16_t) regMid & 0x07) << 8);
-  vssp = (regMid >> 4) | (((uint16_t) regHigh) << 4);
-  vsst += delta;
-  vssp += delta;
-  writeOneByte(0x0d, vsst);
-  writeOneByte(0x0e, (((vsst >> 8) & 0x07) | ((vssp << 4) & 0xf0)));
-  writeOneByte(0x0f, (regHigh & 0x80) | (((vssp >> 4) & 0x7f)));
+  GBS::VDS_VSYNC_RST::write(vtotal);
+  GBS::VDS_VS_ST::write(vsst);
+  GBS::VDS_VS_SP::write(vssp);
 
   Serial.print(F("vtotal: ")); Serial.println(vtotal);
   Serial.print(F("vsst: ")); Serial.println(vsst);
