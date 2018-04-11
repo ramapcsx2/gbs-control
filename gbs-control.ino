@@ -1438,7 +1438,7 @@ void initSyncLock() {
   writeOneByte(0x23, (rto->targetVtotal + 0) >> 8);
   writeOneByte(0x22, (rto->targetVtotal + 0) & 0xff);
   writeOneByte(0x1B, (1 << 0) | (2 << 2));
-  writeOneByte(0x1F, /*(1 << 0) |*/ (1 << 4)); // VDS_FRAME_NO [3:0] was set to 2?
+  writeOneByte(0x1F, (1 << 0) | (1 << 4)); // appears the higher VDS_FRAME_NO [3:0], the better it is able to correct
 
   uint8_t debugRegBackup;
   writeOneByte(0xF0, 5);
@@ -1572,9 +1572,25 @@ void doVsyncPhaseLock(void) {
 void enableDebugPort() {
   writeOneByte(0xf0, 0);
   writeOneByte(0x48, 0xeb); //3f
-  writeOneByte(0x4D, 0x2a); //2a
+  writeOneByte(0x4D, 0x2a); //2a for SP test bus
   writeOneByte(0xf0, 0x05);
-  writeOneByte(0x63, 0x0f);
+  writeOneByte(0x63, 0x0f); // SP test bus signal select (vsync in, after SOG separation)
+
+  // prepare VDS test bus
+  uint8_t reg;
+  writeOneByte(0xf0, 0x03);
+  readFromRegister(0x50, 1, &reg);
+  writeOneByte(0x50, reg | (1 << 4)); // VDS test enable
+}
+
+void debugPortSetVDS() {
+  writeOneByte(0xf0, 0);
+  writeOneByte(0x4D, 0x22); // VDS
+}
+
+void debugPortSetSP() {
+  writeOneByte(0xf0, 0);
+  writeOneByte(0x4D, 0x2a); // SP
 }
 
 void doPostPresetLoadSteps() {
