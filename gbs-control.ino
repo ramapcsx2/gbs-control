@@ -1,3 +1,6 @@
+// Define this to get debug output on serial console
+#define DEBUG
+
 #include <Wire.h>
 //#include <EEPROM.h>
 #include "ntsc_240p.h"
@@ -49,6 +52,8 @@ extern "C" {
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #endif
+
+#include "debug.h"
 
 #include "tv5725.h"
 
@@ -1365,20 +1370,20 @@ static uint16_t findBestHTotal(void) {
   uint16_t candHtotal;
   uint8_t stable = 0;
 
-  Serial.print("Base htotal: "); Serial.println(htotal);
+  debugln("Base htotal: ", htotal);
 
   while (stable < syncHtotalStable) {
     sampleVsyncPeriods(&inPeriod, &outPeriod);
     candHtotal = (htotal * inPeriod) / outPeriod;
-    Serial.print("Candidate htotal: "); Serial.println(candHtotal);
+    debugln("Candidate htotal: ", candHtotal);
     if (candHtotal == bestHtotal)
       stable++;
     else
       stable = 1;
     bestHtotal = candHtotal;
   }
-
-  Serial.print("Best htotal: "); Serial.println(bestHtotal);
+  
+  debugln("Best htotal: ", bestHtotal);
   return bestHtotal;
 }
 
@@ -1489,9 +1494,9 @@ void adjustFrameSize(int16_t delta) {
   GBS::VDS_VS_ST::write(vsst);
   GBS::VDS_VS_SP::write(vssp);
 
-  Serial.print(F("vtotal: ")); Serial.println(vtotal);
-  Serial.print(F("vsst: ")); Serial.println(vsst);
-  Serial.print(F("vssp: ")); Serial.println(vssp);
+  debugln("vtotal: ", vtotal);
+  debugln("vsst: ", vsst);
+  debugln("vssp: ", vssp);
 }
 
 // Perform vsync phase locking.  This is accomplished by measuring the period and
@@ -1508,12 +1513,7 @@ void doVsyncPhaseLock(void) {
   if (!vsyncPeriodAndPhase(&period, NULL, &phase))
     return;
 
-  //Serial.print("Phase offset: "); Serial.println(phase);
-  // I still want this debug tool but it shouldn't spam when everything is fine
-  if (phase > 0 && phase < 2000) {
-    Serial.print(F("Phase not locked (yet): ")); Serial.println(phase);
-  }
-  // else phase is locked
+  debugln("Phase offset: ", phase);
 
   target = (syncTargetPhase * period) / 360;
 
@@ -1522,7 +1522,7 @@ void doVsyncPhaseLock(void) {
   else
     correction = syncCorrection;
 
-  //Serial.print("Correction: "); Serial.println(correction);
+  debugln("Correction: ", correction);
 
   adjustFrameSize(correction - syncLastCorrection);
   syncLastCorrection = correction;
