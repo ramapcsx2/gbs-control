@@ -1360,7 +1360,7 @@ void set_vtotal(uint16_t vtotal) {
 
 static uint16_t readHTotal(void) {
   uint8_t low, high;
-  
+
   writeOneByte(0xF0, 3);
   readFromRegister(0x02, 1, &high);
   readFromRegister(0x01, 1, &low);
@@ -1369,7 +1369,7 @@ static uint16_t readHTotal(void) {
 
 static void writeHTotal(uint16_t val) {
   uint8_t high;
-  
+
   writeOneByte(0xF0, 3);
   readFromRegister(0x02, 1, &high);
   writeOneByte(0x02, (val >> 8) | (high & 0xf0));
@@ -1948,12 +1948,9 @@ void esp32_power() {
 
   //rtc_clk_cpu_freq_set(RTC_CPU_FREQ_80M); // this call works but it's missing some sdk stuff, so the active wifi breaks
   Serial.print("wifi max tx power before: "); esp_wifi_get_max_tx_power(&power); Serial.println(power);
-  Serial.print("set esp_wifi_set_max_tx_power(15): "); Serial.println(esp_wifi_set_max_tx_power(15));
+  Serial.print("set esp_wifi_set_max_tx_power(20): "); Serial.println(esp_wifi_set_max_tx_power(20));
   Serial.print("wifi max tx power after : "); esp_wifi_get_max_tx_power(&power); Serial.println(power);
-  Serial.print("set wifi ps WIFI_PS_MODEM: "); Serial.println(esp_wifi_set_ps(WIFI_PS_MODEM));
-  Serial.print("btStarted before: "); Serial.println(btStarted());
-  Serial.print("set btStop: "); Serial.println(btStop());
-  Serial.print("btStarted after: "); Serial.println(btStarted());
+  //Serial.print("set wifi ps WIFI_PS_MODEM: "); Serial.println(esp_wifi_set_ps(WIFI_PS_MODEM));
 }
 #endif
 
@@ -2049,15 +2046,16 @@ void setup() {
 #if defined(ESP32)
   pinMode(SCL, OUTPUT_OPEN_DRAIN);
   pinMode(SDA, OUTPUT_OPEN_DRAIN);
-  delay(2);
+  //Wire.setClock(100000); // ESP32 I2C is unstable
 #elif defined(ESP8266)
   pinMode(SCL, OUTPUT_OPEN_DRAIN);
   pinMode(SDA, OUTPUT_OPEN_DRAIN);
+  Wire.setClock(400000); // TV5725 supports 400kHz
 #else
   digitalWrite(SCL, LOW);
   digitalWrite(SDA, LOW);
+  Wire.setClock(400000);
 #endif
-  Wire.setClock(400000); // TV5725 supports 400kHz
   delay(2);
 
   uint8_t temp = 0;
