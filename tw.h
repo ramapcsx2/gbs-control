@@ -88,7 +88,7 @@ void rawWrite(uint8_t addr, uint8_t reg, uint8_t const* input, uint8_t size)
 }
 
 template<uint8_t BitOffset, uint8_t BitWidth>
-RegValue<BitWidth, Signage::UNSIGNED>regRead(uint8_t addr, uint8_t offset) [[noinline]] {
+RegValue<BitWidth, Signage::UNSIGNED> regRead(uint8_t addr, uint8_t offset) {
   static const uint8_t ByteSize = (BitOffset + BitWidth + 7) / 8;
   RegValue<BitWidth, Signage::UNSIGNED> value;
   uint8_t data[ByteSize];
@@ -102,8 +102,14 @@ RegValue<BitWidth, Signage::UNSIGNED>regRead(uint8_t addr, uint8_t offset) [[noi
   return value;
 }
 
+// This silences a compiler warning because GCC can't tell that a negative result
+// only occurs when the if branch isn't taken
+static inline uint8_t rightShift(uint8_t size, uint8_t offset) {
+  return 8 * (size - 1) - offset;
+}
+
 template<uint8_t BitOffset, uint8_t BitWidth>
-void regWrite(uint8_t addr, uint8_t offset, RegValue<BitWidth, Signage::UNSIGNED> value) [[noinline]] {
+void regWrite(uint8_t addr, uint8_t offset, RegValue<BitWidth, Signage::UNSIGNED> value){
   static const uint8_t ByteSize = (BitOffset + BitWidth + 7) / 8;
   uint8_t data[ByteSize];
   if (BitOffset == 0 && BitWidth % 8 == 0)
@@ -111,16 +117,16 @@ void regWrite(uint8_t addr, uint8_t offset, RegValue<BitWidth, Signage::UNSIGNED
   else
     rawRead(addr, offset, data, ByteSize);
   if (ByteSize == 1) {
-    static const uint8_t mask = ((1 << BitWidth) - 1) << BitOffset;
-    data[0] = (data[0] & ~mask) | (value << BitOffset) & mask;
+    static const uint8_t mask = static_cast<uint8_t>(((1u << BitWidth) - 1) << BitOffset);
+    data[0] = (data[0] & ~mask) | ((value << BitOffset) & mask);
   } else {
-    static const uint8_t mask = 0xFF << BitOffset;
-    data[0] = (data[0] & ~mask) | (value << BitOffset) & mask;
+    static const uint8_t mask = static_cast<uint8_t>(0xFFu << BitOffset);
+    data[0] = (data[0] & ~mask) | ((value << BitOffset) & mask);
     for (uint8_t i = 1; i < ByteSize - 1; ++i) {
       data[i] = value >> (8 * i - BitOffset);
     }
     static const uint8_t mask2 = (1 << (BitWidth + BitOffset - (ByteSize - 1) * 8)) - 1;
-    data[ByteSize - 1] = (data[ByteSize - 1] & ~mask2) | (value >> (8 * (ByteSize - 1) - BitOffset));
+    data[ByteSize - 1] = (data[ByteSize - 1] & ~mask2) | (value >> rightShift(ByteSize, BitOffset));
   }
   rawWrite(addr, offset, data, ByteSize);
 }

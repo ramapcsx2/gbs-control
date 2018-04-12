@@ -1394,7 +1394,7 @@ static bool findBestHTotal(uint16_t& bestHtotal) {
 // Initialize sync locking
 void initSyncLock() {
   uint8_t debugRegBackup;
-  uint16_t bestHTotal;
+  uint16_t bestHTotal = 0;
 
   writeOneByte(0xF0, 5);
   readFromRegister(0x63, 1, &debugRegBackup);
@@ -1520,7 +1520,6 @@ bool doVsyncPhaseLock(void) {
   int32_t phase;
   int32_t target;
   int16_t correction;
-  uint16_t frameSize;
 
   if (!vsyncPeriodAndPhase(&period, NULL, &phase))
     return false;
