@@ -79,6 +79,8 @@ struct runTimeOptions {
   uint8_t phaseADC;
   uint8_t samplingStart;
   uint8_t currentLevelSOG;
+  uint16_t lowestHpw : 12; // 12 bits are enough to hold these
+  uint16_t highestHpw : 12;
   boolean deinterlacerWasTurnedOff;
   boolean modeDetectInReset;
   boolean syncLockEnabled;
@@ -305,11 +307,11 @@ void setParametersSP() {
     writeOneByte(0x50, 0x00);
   }
   else { // SD RGB
-    // was 0x58, new GBS + MD requires 0x70 //too much for old gbs > 0x6b
+    // was 0x58, new GBS + MD requires 0x70 //too much for old gbs > 0x6b // still too much > 0x62 (prefer LM1881 sync)
     // base this off of hpw. value needs to be above smalles hpw seen
     // remember hpw changes depending on sync signal flanks. new gbs is slower, too
     // 0x37 can be lowest hpw + 1 but remember it can wander a little (heat, etc)
-    writeOneByte(0x37, 0x6b);
+    writeOneByte(0x37, 0x62);
     writeOneByte(0x50, 0x06); // check this as well (SD sources, no sync stripper)
   }
 
@@ -1582,6 +1584,13 @@ void debugPortSetSP() {
   writeOneByte(0x4D, 0x2a); // SP
 }
 
+void resetRunTimeVariables() {
+  // reset information on the last source
+  rto->lowestHpw = 4095;
+  rto->highestHpw = 0;
+  // only information stuff for now. add more later
+}
+
 void doPostPresetLoadSteps() {
   if (rto->inputIsYpBpR == true) {
     Serial.print("(YUV)");
@@ -1601,6 +1610,7 @@ void doPostPresetLoadSteps() {
     shiftHorizontal(4 * 22, false);
   }
   setSOGLevel( rto->currentLevelSOG );
+  resetRunTimeVariables();
   resetDigital();
   delay(50);
   byte result = getVideoMode();
@@ -1982,6 +1992,8 @@ void setup() {
 
   // the following is just run time variables. don't change!
   rto->currentLevelSOG = 10;
+  rto->lowestHpw = 4095;
+  rto->highestHpw = 0;
   rto->inputIsYpBpR = false;
   rto->videoStandardInput = 0;
   rto->deinterlacerWasTurnedOff = false;
@@ -2052,21 +2064,13 @@ void setup() {
   pinMode(SDA, OUTPUT_OPEN_DRAIN);
   Wire.setClock(400000); // TV5725 supports 400kHz
 #else
-  digitalWrite(SCL, LOW);
-  digitalWrite(SDA, LOW);
   Wire.setClock(400000);
 #endif
-  delay(2);
+  digitalWrite(SCL, LOW); // hold SDA, SCL low for 1 sec,
+  digitalWrite(SDA, LOW); // can recover a stuck I2C bus
+  delay(1000);            // (if MCU was reset while in a transmission)
 
-  uint8_t temp = 0;
-  writeOneByte(0xF0, 1);
-  readFromRegister(0xF0, 1, &temp);
-  while (temp != 1) { // is the 5725 up yet?
-    writeOneByte(0xF0, 1);
-    readFromRegister(0xF0, 1, &temp);
-    Serial.println(F("5725 not responding"));
-    delay(500);
-  }
+  // removed blocking 5725 reponse check
 
   disableVDS();
   //zeroAll(); delay(5);
@@ -2318,6 +2322,8 @@ void loop() {
         break;
       case 'i':
         rto->printInfos = !rto->printInfos;
+        rto->lowestHpw = 4095;
+        rto->highestHpw = 0;
         break;
 #if defined(ESP8266) || defined(ESP32)
       case 'c':
@@ -2746,8 +2752,6 @@ void loop() {
     // status
     readFromRegister(0x05, 1, &register_high);
     Serial.print(" status:"); Serial.print(register_high, HEX);
-    readFromRegister(0x00, 1, &register_high);
-    Serial.print("+"); Serial.print(register_high, HEX);
 
     // video mode, according to MD
     Serial.print(" mode:"); Serial.print(getVideoMode(), HEX);
@@ -2757,9 +2761,6 @@ void loop() {
     Serial.print(" ADC:"); Serial.print(readout, HEX);
 
     writeOneByte(0xF0, 0);
-    readFromRegister(0x1a, 1, &register_high); readFromRegister(0x19, 1, &register_low);
-    register_combined = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
-    Serial.print(" hpw:"); Serial.print(register_combined); // horizontal pulse width
 
     readFromRegister(0x18, 1, &register_high); readFromRegister(0x17, 1, &register_low);
     register_combined = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
@@ -2768,6 +2769,15 @@ void loop() {
     readFromRegister(0x1c, 1, &register_high); readFromRegister(0x1b, 1, &register_low);
     register_combined = (((uint16_t(register_high) & 0x0007)) << 8) | (uint16_t)register_low;
     Serial.print(" vtotal:"); Serial.print(register_combined);
+
+    // print this last
+    readFromRegister(0x1a, 1, &register_high); readFromRegister(0x19, 1, &register_low);
+    register_combined = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
+    if (register_combined > rto->highestHpw) rto->highestHpw = register_combined;
+    if (register_combined < rto->lowestHpw) rto->lowestHpw = register_combined;
+    Serial.print(" hpw min:"); Serial.print(rto->lowestHpw);
+    Serial.print("|max:"); Serial.print(rto->highestHpw);
+    Serial.print("|cur:"); Serial.print(register_combined); // horizontal pulse width
 
     Serial.print("\n");
   } // end information mode
