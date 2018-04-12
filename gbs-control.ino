@@ -1515,7 +1515,7 @@ void adjustFrameSize(int16_t delta) {
 // phase offset of the input and output vsync signals and adjusting the frame size
 // (and thus the output vsync frequency) to bring the phase offset closer to the
 // desired value.
-void doVsyncPhaseLock(void) {
+bool doVsyncPhaseLock(void) {
   uint32_t period;
   int32_t phase;
   int32_t target;
@@ -1523,7 +1523,7 @@ void doVsyncPhaseLock(void) {
   uint16_t frameSize;
 
   if (!vsyncPeriodAndPhase(&period, NULL, &phase))
-    return;
+    return false;
 
   debugln("Phase offset: ", phase);
 
@@ -1538,6 +1538,8 @@ void doVsyncPhaseLock(void) {
 
   adjustFrameSize(correction - syncLastCorrection);
   syncLastCorrection = correction;
+
+  return true;
 }
 
 void enableDebugPort() {
@@ -2590,7 +2592,9 @@ void loop() {
 
   if (uopt->enableFrameTimeLock && rto->syncLockEnabled && rto->syncLockReady && millis() - lastVsyncLock > syncLockInterval) {
     lastVsyncLock = millis();
-    doVsyncPhaseLock();
+    if (!doVsyncPhaseLock()) {
+      resetModeDetect();
+    }
   }
 
   // poll sync status continously
