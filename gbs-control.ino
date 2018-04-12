@@ -540,12 +540,6 @@ void zeroAll()
   }
 }
 
-void readFromRegister(uint8_t segment, uint8_t reg, int bytesToRead, uint8_t* output)
-{
-  writeOneByte(0xF0, segment);
-  readFromRegister(reg, bytesToRead, output);
-}
-
 void readFromRegister(uint8_t reg, int bytesToRead, uint8_t* output)
 {
   Wire.beginTransmission(GBS_ADDR);
@@ -618,33 +612,6 @@ void dumpRegisters(byte segment)
         printReg(5, x);
       }
       break;
-  }
-}
-
-// required sections for reduced sets:
-// S0_40 - S0_59 "misc"
-// S1_00 - S1_2a "IF"
-// S3_00 - S3_74 "VDS"
-void dumpRegistersReduced()
-{
-  uint8_t readout = 0;
-
-  writeOneByte(0xF0, 0);
-  for (int x = 0x40; x <= 0x59; x++) {
-    readFromRegister(x, 1, &readout);
-    Serial.print(readout); Serial.println(",");
-  }
-
-  writeOneByte(0xF0, 1);
-  for (int x = 0x0; x <= 0x2a; x++) {
-    readFromRegister(x, 1, &readout);
-    Serial.print(readout); Serial.println(",");
-  }
-
-  writeOneByte(0xF0, 3);
-  for (int x = 0x0; x <= 0x74; x++) {
-    readFromRegister(x, 1, &readout);
-    Serial.print(readout); Serial.println(",");
   }
 }
 
@@ -793,7 +760,8 @@ void shiftHorizontal(uint16_t amountToAdd, bool subtracting) {
   uint16_t Vds_hb_sp = 0x0000;
 
   // get HRST
-  readFromRegister(0x03, 0x01, 1, &hrstLow);
+  writeOneByte(0xF0, 3);
+  readFromRegister(0x01, 1, &hrstLow);
   readFromRegister(0x02, 1, &hrstHigh);
   htotal = ( ( ((uint16_t)hrstHigh) & 0x000f) << 8) | (uint16_t)hrstLow;
 
@@ -852,7 +820,8 @@ void scaleHorizontal(uint16_t amountToAdd, bool subtracting) {
   uint8_t newLow = 0x00;
   uint16_t newValue = 0x0000;
 
-  readFromRegister(0x03, 0x16, 1, &low);
+  writeOneByte(0xF0, 3);
+  readFromRegister(0x16, 1, &low);
   readFromRegister(0x17, 1, &high);
 
   newValue = ( ( ((uint16_t)high) & 0x0003) * 256) + (uint16_t)low;
@@ -877,7 +846,8 @@ void scaleHorizontalAbsolute(uint16_t value) {
   uint8_t low = 0x00;
   uint8_t newLow = 0x00;
 
-  readFromRegister(0x03, 0x16, 1, &low);
+  writeOneByte(0xF0, 3);
+  readFromRegister(0x16, 1, &low);
   readFromRegister(0x17, 1, &high);
 
   Serial.print(F("Scale Hor: ")); Serial.println(value);
@@ -929,12 +899,12 @@ void moveVS(uint16_t amountToAdd, bool subtracting) {
 
   writeOneByte(0xf0, 3);
   // get VBST
-  readFromRegister(3, 0x13, 1, &regLow);
-  readFromRegister(3, 0x14, 1, &regHigh);
+  readFromRegister(0x13, 1, &regLow);
+  readFromRegister(0x14, 1, &regHigh);
   VDS_DIS_VB_ST = (((uint16_t)regHigh & 0x0007) << 8) | ((uint16_t)regLow) ;
   // get VBSP
-  readFromRegister(3, 0x14, 1, &regLow);
-  readFromRegister(3, 0x15, 1, &regHigh);
+  readFromRegister(0x14, 1, &regLow);
+  readFromRegister(0x15, 1, &regHigh);
   VDS_DIS_VB_SP = ((((uint16_t)regHigh & 0x007f) << 4) | ((uint16_t)regLow & 0x00f0) >> 4) ;
 
   readFromRegister(0x0d, 1, &regLow);
@@ -1012,8 +982,9 @@ void scaleVertical(uint16_t amountToAdd, bool subtracting) {
   uint8_t newLow = 0x00;
   uint16_t newValue = 0x0000;
 
-  readFromRegister(0x03, 0x18, 1, &high);
-  readFromRegister(0x03, 0x17, 1, &low);
+  writeOneByte(0xF0, 3);
+  readFromRegister(0x18, 1, &high);
+  readFromRegister(0x17, 1, &low);
   newValue = ( (((uint16_t)high) & 0x007f) << 4) | ( (((uint16_t)low) & 0x00f0) >> 4);
 
   if (subtracting && ((newValue - amountToAdd) > 0)) {
@@ -1036,8 +1007,9 @@ void scaleVerticalAbsolute(uint16_t value) {
   uint8_t low = 0x00;
   uint8_t newLow = 0x00;
 
-  readFromRegister(0x03, 0x18, 1, &high);
-  readFromRegister(0x03, 0x17, 1, &low);
+  writeOneByte(0xF0, 3);
+  readFromRegister(0x18, 1, &high);
+  readFromRegister(0x17, 1, &low);
   Serial.print(F("Scale Vert: ")); Serial.println(value);
   newHigh = (uint8_t)(value >> 4);
   newLow = (low & 0x0f) | (((uint8_t)(value & 0x00ff)) << 4) ;
@@ -1058,7 +1030,8 @@ void shiftVertical(uint16_t amountToAdd, bool subtracting) {
   uint16_t vbspValue;
 
   // get VRST
-  readFromRegister(0x03, 0x02, 1, &vrstLow);
+  writeOneByte(0xF0, 3);
+  readFromRegister(0x02, 1, &vrstLow);
   readFromRegister(0x03, 1, &vrstHigh);
   vrstValue = ( (((uint16_t)vrstHigh) & 0x007f) << 4) | ( (((uint16_t)vrstLow) & 0x00f0) >> 4);
 
@@ -1112,7 +1085,8 @@ void shiftVerticalDown() {
 void setMemoryHblankStartPosition(uint16_t value) {
   uint8_t regLow, regHigh;
   regLow = (uint8_t)value;
-  readFromRegister(3, 0x05, 1, &regHigh);
+  writeOneByte(0xF0, 3);
+  readFromRegister(0x05, 1, &regHigh);
   regHigh = (regHigh & 0xf0) | (uint8_t)((value & 0x0f00) >> 8);
   writeOneByte(0x04, regLow);
   writeOneByte(0x05, regHigh);
@@ -1120,7 +1094,8 @@ void setMemoryHblankStartPosition(uint16_t value) {
 
 void setMemoryHblankStopPosition(uint16_t value) {
   uint8_t regLow, regHigh;
-  readFromRegister(3, 0x05, 1, &regLow);
+  writeOneByte(0xF0, 3);
+  readFromRegister(0x05, 1, &regLow);
   regLow = (regLow & 0x0f) | (uint8_t)((value & 0x000f) << 4);
   regHigh = (uint8_t)((value & 0x0ff0) >> 4);
   writeOneByte(0x05, regLow);
@@ -1146,105 +1121,107 @@ void getVideoTimings() {
   uint16_t MD_pll_divider;
 
   // get HRST
-  readFromRegister(3, 0x01, 1, &regLow);
-  readFromRegister(3, 0x02, 1, &regHigh);
+  writeOneByte(0xF0, 3);
+  readFromRegister(0x01, 1, &regLow);
+  readFromRegister(0x02, 1, &regHigh);
   Vds_hsync_rst = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
   Serial.print(F("htotal: ")); Serial.println(Vds_hsync_rst);
 
   // get horizontal scale up
-  readFromRegister(3, 0x16, 1, &regLow);
-  readFromRegister(3, 0x17, 1, &regHigh);
+  readFromRegister(0x16, 1, &regLow);
+  readFromRegister(0x17, 1, &regHigh);
   VDS_HSCALE = (( ( ((uint16_t)regHigh) & 0x0003) << 8) | (uint16_t)regLow);
   Serial.print(F("VDS_HSCALE: ")); Serial.println(VDS_HSCALE);
 
   // get HS_ST
-  readFromRegister(3, 0x0a, 1, &regLow);
-  readFromRegister(3, 0x0b, 1, &regHigh);
+  readFromRegister(0x0a, 1, &regLow);
+  readFromRegister(0x0b, 1, &regHigh);
   VDS_HS_ST = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
   Serial.print(F("HS ST: ")); Serial.println(VDS_HS_ST);
 
   // get HS_SP
-  readFromRegister(3, 0x0b, 1, &regLow);
-  readFromRegister(3, 0x0c, 1, &regHigh);
+  readFromRegister(0x0b, 1, &regLow);
+  readFromRegister(0x0c, 1, &regHigh);
   VDS_HS_SP = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
   Serial.print(F("HS SP: ")); Serial.println(VDS_HS_SP);
 
   // get HBST
-  readFromRegister(3, 0x10, 1, &regLow);
-  readFromRegister(3, 0x11, 1, &regHigh);
+  readFromRegister(0x10, 1, &regLow);
+  readFromRegister(0x11, 1, &regHigh);
   vds_dis_hb_st = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
   Serial.print(F("HB ST (display): ")); Serial.println(vds_dis_hb_st);
 
   // get HBSP
-  readFromRegister(3, 0x11, 1, &regLow);
-  readFromRegister(3, 0x12, 1, &regHigh);
+  readFromRegister(0x11, 1, &regLow);
+  readFromRegister(0x12, 1, &regHigh);
   vds_dis_hb_sp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
   Serial.print(F("HB SP (display): ")); Serial.println(vds_dis_hb_sp);
 
   // get HBST(memory)
-  readFromRegister(3, 0x04, 1, &regLow);
-  readFromRegister(3, 0x05, 1, &regHigh);
+  readFromRegister(0x04, 1, &regLow);
+  readFromRegister(0x05, 1, &regHigh);
   vds_dis_hb_st = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
   Serial.print(F("HB ST (memory): ")); Serial.println(vds_dis_hb_st);
 
   // get HBSP(memory)
-  readFromRegister(3, 0x05, 1, &regLow);
-  readFromRegister(3, 0x06, 1, &regHigh);
+  readFromRegister(0x05, 1, &regLow);
+  readFromRegister(0x06, 1, &regHigh);
   vds_dis_hb_sp = ( (((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
   Serial.print(F("HB SP (memory): ")); Serial.println(vds_dis_hb_sp);
 
   Serial.println(F("----"));
   // get VRST
-  readFromRegister(3, 0x02, 1, &regLow);
-  readFromRegister(3, 0x03, 1, &regHigh);
+  readFromRegister(0x02, 1, &regLow);
+  readFromRegister(0x03, 1, &regHigh);
   Vds_vsync_rst = ( (((uint16_t)regHigh) & 0x007f) << 4) | ( (((uint16_t)regLow) & 0x00f0) >> 4);
   Serial.print(F("vtotal: ")); Serial.println(Vds_vsync_rst);
 
   // get vertical scale up
-  readFromRegister(3, 0x17, 1, &regLow);
-  readFromRegister(3, 0x18, 1, &regHigh);
+  readFromRegister(0x17, 1, &regLow);
+  readFromRegister(0x18, 1, &regHigh);
   VDS_VSCALE = ( (((uint16_t)regHigh) & 0x007f) << 4) | ( (((uint16_t)regLow) & 0x00f0) >> 4);
   Serial.print(F("VDS_VSCALE: ")); Serial.println(VDS_VSCALE);
 
   // get V Sync Start
-  readFromRegister(3, 0x0d, 1, &regLow);
-  readFromRegister(3, 0x0e, 1, &regHigh);
+  readFromRegister(0x0d, 1, &regLow);
+  readFromRegister(0x0e, 1, &regHigh);
   VDS_DIS_VS_ST = (((uint16_t)regHigh & 0x0007) << 8) | ((uint16_t)regLow) ;
   Serial.print(F("VS ST: ")); Serial.println(VDS_DIS_VS_ST);
 
   // get V Sync Stop
-  readFromRegister(3, 0x0e, 1, &regLow);
-  readFromRegister(3, 0x0f, 1, &regHigh);
+  readFromRegister(0x0e, 1, &regLow);
+  readFromRegister(0x0f, 1, &regHigh);
   VDS_DIS_VS_SP = ((((uint16_t)regHigh & 0x007f) << 4) | ((uint16_t)regLow & 0x00f0) >> 4) ;
   Serial.print(F("VS SP: ")); Serial.println(VDS_DIS_VS_SP);
 
   // get VBST
-  readFromRegister(3, 0x13, 1, &regLow);
-  readFromRegister(3, 0x14, 1, &regHigh);
+  readFromRegister(0x13, 1, &regLow);
+  readFromRegister(0x14, 1, &regHigh);
   VDS_DIS_VB_ST = (((uint16_t)regHigh & 0x0007) << 8) | ((uint16_t)regLow) ;
   Serial.print(F("VB ST (display): ")); Serial.println(VDS_DIS_VB_ST);
 
   // get VBSP
-  readFromRegister(3, 0x14, 1, &regLow);
-  readFromRegister(3, 0x15, 1, &regHigh);
+  readFromRegister(0x14, 1, &regLow);
+  readFromRegister(0x15, 1, &regHigh);
   VDS_DIS_VB_SP = ((((uint16_t)regHigh & 0x007f) << 4) | ((uint16_t)regLow & 0x00f0) >> 4) ;
   Serial.print(F("VB SP (display): ")); Serial.println(VDS_DIS_VB_SP);
 
   // get VBST (memory)
-  readFromRegister(3, 0x07, 1, &regLow);
-  readFromRegister(3, 0x08, 1, &regHigh);
+  readFromRegister(0x07, 1, &regLow);
+  readFromRegister(0x08, 1, &regHigh);
   VDS_DIS_VB_ST = (((uint16_t)regHigh & 0x0007) << 8) | ((uint16_t)regLow) ;
   Serial.print(F("VB ST (memory): ")); Serial.println(VDS_DIS_VB_ST);
 
   // get VBSP (memory)
-  readFromRegister(3, 0x08, 1, &regLow);
-  readFromRegister(3, 0x09, 1, &regHigh);
+  readFromRegister(0x08, 1, &regLow);
+  readFromRegister(0x09, 1, &regHigh);
   VDS_DIS_VB_SP = ((((uint16_t)regHigh & 0x007f) << 4) | ((uint16_t)regLow & 0x00f0) >> 4) ;
   Serial.print(F("VB SP (memory): ")); Serial.println(VDS_DIS_VB_SP);
 
   // get Pixel Clock -- MD[11:0] -- must be smaller than 4096 --
-  readFromRegister(5, 0x12, 1, &regLow);
-  readFromRegister(5, 0x13, 1, &regHigh);
+  writeOneByte(0xF0, 5);
+  readFromRegister(0x12, 1, &regLow);
+  readFromRegister(0x13, 1, &regHigh);
   MD_pll_divider = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
   Serial.print(F("PLLAD divider: ")); Serial.println(MD_pll_divider);
 }
@@ -1280,7 +1257,7 @@ void set_htotal(uint16_t htotal) {
 
   // write htotal
   regLow = (uint8_t)htotal;
-  readFromRegister(3, 0x02, 1, &regHigh);
+  readFromRegister(0x02, 1, &regHigh);
   regHigh = (regHigh & 0xf0) | (htotal >> 8);
   writeOneByte(0x01, regLow);
   writeOneByte(0x02, regHigh);
@@ -1292,7 +1269,7 @@ void set_htotal(uint16_t htotal) {
   writeOneByte(0x0b, regHigh);
 
   // HS SP
-  readFromRegister(3, 0x0b, 1, &regLow);
+  readFromRegister(0x0b, 1, &regLow);
   regLow = (regLow & 0x0f) | ((uint8_t)(h_sync_stop_position << 4));
   regHigh = (uint8_t)((h_sync_stop_position) >> 4);
   writeOneByte(0x0b, regLow);
@@ -1311,12 +1288,12 @@ void set_htotal(uint16_t htotal) {
 
   // HB SP
   regHigh = (uint8_t)(h_blank_stop_position >> 4);
-  readFromRegister(3, 0x11, 1, &regLow);
+  readFromRegister(0x11, 1, &regLow);
   regLow = (regLow & 0x0f) | ((uint8_t)(h_blank_stop_position << 4));
   writeOneByte(0x11, regLow);
   writeOneByte(0x12, regHigh);
   // HB SP(memory fetch)
-  readFromRegister(3, 0x05, 1, &regLow);
+  readFromRegister(0x05, 1, &regLow);
   regLow = (regLow & 0x0f) | ((uint8_t)(h_blank_memory_stop_position << 4));
   regHigh = (uint8_t)(h_blank_memory_stop_position >> 4);
   writeOneByte(0x05, regLow);
@@ -1345,7 +1322,7 @@ void set_vtotal(uint16_t vtotal) {
   // write vtotal
   writeOneByte(0xF0, 3);
   regHigh = (uint8_t)(vtotal >> 4);
-  readFromRegister(3, 0x02, 1, &regLow);
+  readFromRegister(0x02, 1, &regLow);
   regLow = ((regLow & 0x0f) | (uint8_t)(vtotal << 4));
   writeOneByte(0x03, regHigh);
   writeOneByte(0x02, regLow);
@@ -1360,8 +1337,8 @@ void set_vtotal(uint16_t vtotal) {
   regHigh = (uint8_t)((v_sync_start_position & 0x0700) >> 8);
   writeOneByte(0x0d, regLow); // vs mixed
   writeOneByte(0x0e, regHigh); // vs stop
-  readFromRegister(3, 0x0e, 1, &regLow);
-  readFromRegister(3, 0x0f, 1, &regHigh);
+  readFromRegister(0x0e, 1, &regLow);
+  readFromRegister(0x0f, 1, &regHigh);
   regLow = regLow | (uint8_t)(v_sync_stop_position << 4);
   regHigh = (uint8_t)(v_sync_stop_position >> 4);
   writeOneByte(0x0e, regLow); // vs mixed
@@ -1369,13 +1346,13 @@ void set_vtotal(uint16_t vtotal) {
 
   // VB ST
   regLow = (uint8_t)v_blank_start_position;
-  readFromRegister(3, 0x14, 1, &regHigh);
+  readFromRegister(0x14, 1, &regHigh);
   regHigh = (uint8_t)((regHigh & 0xf8) | (uint8_t)((v_blank_start_position & 0x0700) >> 8));
   writeOneByte(0x13, regLow);
   writeOneByte(0x14, regHigh);
   //VB SP
   regHigh = (uint8_t)(v_blank_stop_position >> 4);
-  readFromRegister(3, 0x14, 1, &regLow);
+  readFromRegister(0x14, 1, &regLow);
   regLow = ((regLow & 0x0f) | (uint8_t)(v_blank_stop_position << 4));
   writeOneByte(0x15, regHigh);
   writeOneByte(0x14, regLow);
@@ -1383,16 +1360,18 @@ void set_vtotal(uint16_t vtotal) {
 
 static uint16_t readHTotal(void) {
   uint8_t low, high;
-
-  readFromRegister(3, 0x02, 1, &high);
-  readFromRegister(3, 0x01, 1, &low);
+  
+  writeOneByte(0xF0, 3);
+  readFromRegister(0x02, 1, &high);
+  readFromRegister(0x01, 1, &low);
   return ((high & 0xf) << 8) | low;
 }
 
 static void writeHTotal(uint16_t val) {
   uint8_t high;
-  readFromRegister(3, 0x02, 1, &high);
+  
   writeOneByte(0xF0, 3);
+  readFromRegister(0x02, 1, &high);
   writeOneByte(0x02, (val >> 8) | (high & 0xf0));
   writeOneByte(0x01, val & 0xff);
 }
@@ -1570,7 +1549,7 @@ void doVsyncPhaseLock(void) {
   else
     correction = syncCorrection;
 
-  Serial.print("Correction: "); Serial.println(correction);
+  //Serial.print("Correction: "); Serial.println(correction);
 
   // Apply correction
   frameSize = (rto->targetVtotal + correction);
@@ -1646,8 +1625,9 @@ void doPostPresetLoadSteps() {
 
   // Grab target vtotal for preset
   uint8_t regHigh, regLow;
-  readFromRegister(3, 0x02, 1, &regLow);
-  readFromRegister(3, 0x03, 1, &regHigh);
+  writeOneByte(0xf0, 3);
+  readFromRegister(0x02, 1, &regLow);
+  readFromRegister(0x03, 1, &regHigh);
   rto->targetVtotal = (regLow >> 4) | (regHigh << 4);
 
   Serial.println(F("post preset done"));
@@ -2312,8 +2292,8 @@ void loop() {
           uint8_t regLow, regHigh;
           uint16_t htotal;
           writeOneByte(0xF0, 3);
-          readFromRegister(3, 0x01, 1, &regLow);
-          readFromRegister(3, 0x02, 1, &regHigh);
+          readFromRegister(0x01, 1, &regLow);
+          readFromRegister(0x02, 1, &regHigh);
           htotal = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
           htotal++;
           regLow = (uint8_t)(htotal);
