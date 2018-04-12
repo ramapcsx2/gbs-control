@@ -1346,34 +1346,37 @@ void set_vtotal(uint16_t vtotal) {
   writeOneByte(0x14, regLow);
 }
 
-static void sampleVsyncPeriods(uint32_t* input, uint32_t *output)
+static bool sampleVsyncPeriods(uint32_t* input, uint32_t *output)
 {
   uint32_t inPeriod, outPeriod;
   uint32_t inSum = 0;
   uint32_t outSum = 0;
 
   for (uint8_t i = 0; i < syncSamples; ++i) {
-    while (!vsyncPeriodAndPhase(&inPeriod, &outPeriod, NULL));
+    if (!vsyncPeriodAndPhase(&inPeriod, &outPeriod, NULL))
+      return false;
     inSum += inPeriod;
     outSum += outPeriod;
   }
 
   *input = inSum / syncSamples;
   *output = outSum / syncSamples;
+
+  return true;
 }
 
 // Find the largest htotal that makes output frame time less than the input.
-static uint16_t findBestHTotal(void) {
+static bool findBestHTotal(uint16_t& bestHtotal) {
   uint16_t htotal = GBS::VDS_HSYNC_RST::read();
   uint32_t inPeriod, outPeriod;
-  uint16_t bestHtotal = 0;
   uint16_t candHtotal;
   uint8_t stable = 0;
 
   debugln("Base htotal: ", htotal);
 
   while (stable < syncHtotalStable) {
-    sampleVsyncPeriods(&inPeriod, &outPeriod);
+    if (!sampleVsyncPeriods(&inPeriod, &outPeriod))
+      return false;
     candHtotal = (htotal * inPeriod) / outPeriod;
     debugln("Candidate htotal: ", candHtotal);
     if (candHtotal == bestHtotal)
@@ -1384,12 +1387,15 @@ static uint16_t findBestHTotal(void) {
   }
   
   debugln("Best htotal: ", bestHtotal);
-  return bestHtotal;
+
+  return true;
 }
 
 // Initialize sync locking
 void initSyncLock() {
   uint8_t debugRegBackup;
+  uint16_t bestHTotal;
+
   writeOneByte(0xF0, 5);
   readFromRegister(0x63, 1, &debugRegBackup);
   writeOneByte(0x63, 0x0f);
@@ -1398,7 +1404,13 @@ void initSyncLock() {
   // time is as close to the input as possible while still being less.
   // Increasing the vertical frame size slightly should then push the
   // output frame time to being larger than the input.
-  GBS::VDS_HSYNC_RST::write(findBestHTotal());
+  if (!findBestHTotal(bestHTotal)) {
+    writeOneByte(0xF0, 5);
+    writeOneByte(0x63, debugRegBackup);
+    return;
+  }
+
+  GBS::VDS_HSYNC_RST::write(bestHTotal);
   resetPLL(); resetPLLAD(); // this helps with some corrections leaving garbage just within active video
 
   writeOneByte(0xF0, 5);
