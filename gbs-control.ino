@@ -46,6 +46,13 @@ extern "C" {
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW); pinMode(LED_BUILTIN, INPUT);
 #define vsyncInPin 10
 #define debugInPin 11 // ??
+
+//#define HAVE_BUTTONS
+#define INPUT_PIN 9
+#define DOWN_PIN 8
+#define UP_PIN 7
+#define MENU_PIN 6
+
 #endif
 
 #if defined(ESP8266) || defined(ESP32)
@@ -109,7 +116,6 @@ struct runTimeOptions {
   boolean modeDetectInReset;
   boolean syncLockEnabled;
   boolean syncLockReady;
-  boolean IFdown; // push button support example using an interrupt
   boolean printInfos;
   boolean sourceDisconnected;
   boolean webServerEnabled;
@@ -1754,12 +1760,6 @@ void enableVDS() {
   writeOneByte(0x46, readout | (1 << 6));
 }
 
-// example for using the gbs8200 onboard buttons in an interrupt routine
-void IFdown() {
-  rto->IFdown = true;
-  delay(45); // debounce
-}
-
 void resetSyncLock() {
   if (rto->syncLockEnabled) {
     rto->syncLockReady = false;
@@ -1991,7 +1991,6 @@ void setup() {
   rto->modeDetectInReset = false;
   rto->webServerStarted = false;
   rto->syncLockReady = false;
-  rto->IFdown = false;
   rto->printInfos = false;
   rto->sourceDisconnected = false;
 
@@ -2353,6 +2352,9 @@ void loop() {
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastTimeMDWatchdog = millis();
   static unsigned long lastVsyncLock = millis();
+#ifdef HAVE_BUTTONS
+  static unsigned long lastButton = micros();
+#endif
 
 #if defined(ESP8266) || defined(ESP32)
   static unsigned long webServerStartDelay = millis();
@@ -2376,6 +2378,13 @@ void loop() {
 
   if (rto->allowUpdatesOTA) {
     ArduinoOTA.handle();
+  }
+#endif
+
+#ifdef HAVE_BUTTONS
+  if (micros() - lastButton > buttonPollInterval) {
+    lastButton = micros();
+    handleButtons();
   }
 #endif
 
@@ -2980,17 +2989,6 @@ void loop() {
 
     Serial.print("\n");
   } // end information mode
-
-  if (rto->IFdown == true) {
-    rto->IFdown = false;
-    writeOneByte(0xF0, 1);
-    readFromRegister(0x1e, 1, &readout);
-    //if (readout > 0) // just underflow
-    {
-      writeOneByte(0x1e, readout - 1);
-      Serial.println(readout - 1);
-    }
-  }
 
   // only run this when sync is stable!
   if (rto->syncLockEnabled == true && rto->syncLockReady == false &&
