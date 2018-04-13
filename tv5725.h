@@ -25,7 +25,7 @@ private:
    using UReg = Register<Seg, ByteOffset, BitOffset, BitWidth, tw::Signage::UNSIGNED>;
 
 public:
-  typedef UReg<0x03, 0x01, 0, 11> VDS_HSYNC_RST;
+  typedef UReg<0x03, 0x01, 0, 12> VDS_HSYNC_RST;
   typedef UReg<0x03, 0x02, 4, 11> VDS_VSYNC_RST;
   typedef UReg<0x03, 0x0d, 0, 11> VDS_VS_ST;
   typedef UReg<0x03, 0x0e, 4, 11> VDS_VS_SP;
