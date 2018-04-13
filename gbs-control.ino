@@ -1,3 +1,6 @@
+// Define this to get debug output on serial console
+#define DEBUG
+
 #include <Wire.h>
 //#include <EEPROM.h>
 #include "ntsc_240p.h"
@@ -50,8 +53,14 @@ extern "C" {
 #include <ArduinoOTA.h>
 #endif
 
+#include "debug.h"
+
+#include "tv5725.h"
+
 // 7 bit GBS I2C Address
 #define GBS_ADDR 0x17
+
+typedef TV5725<GBS_ADDR> GBS;
 
 //
 // Sync locking tunables/magic numbers
@@ -69,6 +78,8 @@ static const uint32_t syncTargetPhase = 90;
 static const uint8_t syncHtotalStable = 4;
 // Number of samples to average when determining best htotal
 static const uint8_t syncSamples = 2;
+
+static int16_t syncLastCorrection = 0;
 
 // runTimeOptions holds system variables
 struct runTimeOptions {
@@ -91,7 +102,6 @@ struct runTimeOptions {
   boolean webServerEnabled;
   boolean webServerStarted;
   boolean allowUpdatesOTA;
-  uint16_t targetVtotal;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -110,29 +120,19 @@ void nopdelay(unsigned int times) {
     __asm__("nop\n\t");
 }
 
-void writeOneByte(uint8_t slaveRegister, uint8_t value)
+static uint8_t lastSegment = 0xFF;
+
+static inline void writeOneByte(uint8_t slaveRegister, uint8_t value)
 {
   writeBytes(slaveRegister, &value, 1);
 }
 
-void writeBytes(uint8_t slaveAddress, uint8_t slaveRegister, uint8_t* values, uint8_t numValues)
+static inline void writeBytes(uint8_t slaveRegister, uint8_t* values, uint8_t numValues)
 {
-  Wire.beginTransmission(slaveAddress);
-  Wire.write(slaveRegister);
-  int sentBytes = Wire.write(values, numValues);
-  Wire.endTransmission();
-
-  if (sentBytes != numValues) {
-    Serial.println(F("i2c error"));
-#if defined(ESP32)
-    Wire.reset();
-#endif
-  }
-}
-
-void writeBytes(uint8_t slaveRegister, uint8_t* values, int numValues)
-{
-  writeBytes(GBS_ADDR, slaveRegister, values, numValues);
+  if (slaveRegister == 0xF0 && numValues == 1)
+    lastSegment = *values;
+  else
+    GBS::write(lastSegment, slaveRegister, values, numValues);
 }
 
 void copyBank(uint8_t* bank, const uint8_t* programArray, uint16_t* index)
@@ -542,30 +542,9 @@ void zeroAll()
   }
 }
 
-void readFromRegister(uint8_t reg, int bytesToRead, uint8_t* output)
+static inline void readFromRegister(uint8_t reg, int bytesToRead, uint8_t* output)
 {
-  Wire.beginTransmission(GBS_ADDR);
-  if (!Wire.write(reg)) {
-    Serial.println(F("i2c error"));
-#if defined(ESP32)
-    Wire.reset();
-#endif
-  }
-
-  Wire.endTransmission();
-  Wire.requestFrom(GBS_ADDR, bytesToRead, true);
-  int rcvBytes = 0;
-  while (Wire.available())
-  {
-    output[rcvBytes++] =  Wire.read();
-  }
-
-  if (rcvBytes != bytesToRead) {
-    Serial.println(F("i2c error"));
-#if defined(ESP32)
-    Wire.reset();
-#endif
-  }
+  return GBS::read(lastSegment, reg, output, bytesToRead);
 }
 
 void printReg(uint8_t seg, uint8_t reg) {
@@ -1360,85 +1339,71 @@ void set_vtotal(uint16_t vtotal) {
   writeOneByte(0x14, regLow);
 }
 
-static uint16_t readHTotal(void) {
-  uint8_t low, high;
-
-  writeOneByte(0xF0, 3);
-  readFromRegister(0x02, 1, &high);
-  readFromRegister(0x01, 1, &low);
-  return ((high & 0xf) << 8) | low;
-}
-
-static void writeHTotal(uint16_t val) {
-  uint8_t high;
-
-  writeOneByte(0xF0, 3);
-  readFromRegister(0x02, 1, &high);
-  writeOneByte(0x02, (val >> 8) | (high & 0xf0));
-  writeOneByte(0x01, val & 0xff);
-}
-
-static void sampleVsyncPeriods(uint32_t* input, uint32_t *output)
+static bool sampleVsyncPeriods(uint32_t* input, uint32_t *output)
 {
   uint32_t inPeriod, outPeriod;
   uint32_t inSum = 0;
   uint32_t outSum = 0;
 
   for (uint8_t i = 0; i < syncSamples; ++i) {
-    while (!vsyncPeriodAndPhase(&inPeriod, &outPeriod, NULL));
+    if (!vsyncPeriodAndPhase(&inPeriod, &outPeriod, NULL))
+      return false;
     inSum += inPeriod;
     outSum += outPeriod;
   }
 
   *input = inSum / syncSamples;
   *output = outSum / syncSamples;
+
+  return true;
 }
 
 // Find the largest htotal that makes output frame time less than the input.
-static uint16_t findBestHTotal(void) {
-  uint16_t htotal = readHTotal();
+static bool findBestHTotal(uint16_t& bestHtotal) {
+  uint16_t htotal = GBS::VDS_HSYNC_RST::read();
   uint32_t inPeriod, outPeriod;
-  uint16_t bestHtotal = 0;
   uint16_t candHtotal;
   uint8_t stable = 0;
 
-  Serial.print("Base htotal: "); Serial.println(htotal);
+  debugln("Base htotal: ", htotal);
 
   while (stable < syncHtotalStable) {
-    sampleVsyncPeriods(&inPeriod, &outPeriod);
+    if (!sampleVsyncPeriods(&inPeriod, &outPeriod))
+      return false;
     candHtotal = (htotal * inPeriod) / outPeriod;
-    Serial.print("Candidate htotal: "); Serial.println(candHtotal);
+    debugln("Candidate htotal: ", candHtotal);
     if (candHtotal == bestHtotal)
       stable++;
     else
       stable = 1;
     bestHtotal = candHtotal;
   }
+  
+  debugln("Best htotal: ", bestHtotal);
 
-  Serial.print("Best htotal: "); Serial.println(bestHtotal);
-  return bestHtotal;
+  return true;
 }
 
 // Initialize sync locking
 void initSyncLock() {
-  // Set up two different vertical frame sizes
-  writeOneByte(0xF0, 3);
-  writeOneByte(0x21, (rto->targetVtotal + 0) >> 8);
-  writeOneByte(0x20, (rto->targetVtotal + 0) & 0xff);
-  writeOneByte(0x23, (rto->targetVtotal + 0) >> 8);
-  writeOneByte(0x22, (rto->targetVtotal + 0) & 0xff);
-  writeOneByte(0x1B, (1 << 0) | (2 << 2));
-  writeOneByte(0x1F, (1 << 0) | (1 << 4)); // appears the higher VDS_FRAME_NO [3:0], the better it is able to correct
-
   uint8_t debugRegBackup;
+  uint16_t bestHTotal = 0;
+
   writeOneByte(0xF0, 5);
   readFromRegister(0x63, 1, &debugRegBackup);
   writeOneByte(0x63, 0x0f);
+
   // Adjust output horizontal sync timing so that the overall frame
   // time is as close to the input as possible while still being less.
   // Increasing the vertical frame size slightly should then push the
   // output frame time to being larger than the input.
-  writeHTotal(findBestHTotal());
+  if (!findBestHTotal(bestHTotal)) {
+    writeOneByte(0xF0, 5);
+    writeOneByte(0x63, debugRegBackup);
+    return;
+  }
+
+  GBS::VDS_HSYNC_RST::write(bestHTotal);
   resetPLL(); resetPLLAD(); // this helps with some corrections leaving garbage just within active video
 
   writeOneByte(0xF0, 5);
@@ -1523,26 +1488,36 @@ bool vsyncPeriodAndPhase(uint32_t* periodInput, uint32_t* periodOutput, int32_t*
   return true;
 }
 
+void adjustFrameSize(int16_t delta) {
+  uint16_t vtotal, vsst, vssp;
+
+  vtotal = GBS::VDS_VSYNC_RST::read() + delta;
+  vsst = GBS::VDS_VS_ST::read() + delta;
+  vssp = GBS::VDS_VS_SP::read() + delta;
+
+  GBS::VDS_VSYNC_RST::write(vtotal);
+  GBS::VDS_VS_ST::write(vsst);
+  GBS::VDS_VS_SP::write(vssp);
+
+  debugln("vtotal: ", vtotal);
+  debugln("vsst: ", vsst);
+  debugln("vssp: ", vssp);
+}
+
 // Perform vsync phase locking.  This is accomplished by measuring the period and
 // phase offset of the input and output vsync signals and adjusting the frame size
 // (and thus the output vsync frequency) to bring the phase offset closer to the
 // desired value.
-void doVsyncPhaseLock(void) {
+bool doVsyncPhaseLock(void) {
   uint32_t period;
   int32_t phase;
   int32_t target;
   int16_t correction;
-  uint16_t frameSize;
 
   if (!vsyncPeriodAndPhase(&period, NULL, &phase))
-    return;
+    return false;
 
-  //Serial.print("Phase offset: "); Serial.println(phase);
-  // I still want this debug tool but it shouldn't spam when everything is fine
-  if (phase > 0 && phase < 2000) {
-    Serial.print(F("Phase not locked (yet): ")); Serial.println(phase);
-  }
-  // else phase is locked
+  debugln("Phase offset: ", phase);
 
   target = (syncTargetPhase * period) / 360;
 
@@ -1551,13 +1526,12 @@ void doVsyncPhaseLock(void) {
   else
     correction = syncCorrection;
 
-  //Serial.print("Correction: "); Serial.println(correction);
+  debugln("Correction: ", correction);
 
-  // Apply correction
-  frameSize = (rto->targetVtotal + correction);
-  writeOneByte(0xF0, 3);
-  writeOneByte(0x21, frameSize >> 8);
-  writeOneByte(0x20, frameSize & 0xFF);
+  adjustFrameSize(correction - syncLastCorrection);
+  syncLastCorrection = correction;
+
+  return true;
 }
 
 void enableDebugPort() {
@@ -1592,6 +1566,9 @@ void resetRunTimeVariables() {
 }
 
 void doPostPresetLoadSteps() {
+  // Any sync correction we were applying is gone
+  syncLastCorrection = 0;
+
   if (rto->inputIsYpBpR == true) {
     Serial.print("(YUV)");
     applyYuvPatches();
@@ -1632,13 +1609,6 @@ void doPostPresetLoadSteps() {
   resetPLLAD(); delay(10);
   resetSyncLock();
   rto->modeDetectInReset = false;
-
-  // Grab target vtotal for preset
-  uint8_t regHigh, regLow;
-  writeOneByte(0xf0, 3);
-  readFromRegister(0x02, 1, &regLow);
-  readFromRegister(0x03, 1, &regHigh);
-  rto->targetVtotal = (regLow >> 4) | (regHigh << 4);
 
   Serial.println(F("post preset done"));
   //Serial.println(F("----"));
@@ -2094,29 +2064,6 @@ void setup() {
     delay(1000); // at least 750ms required to become stable
   }
 
-  // check whether vsync in and debug in are connected and working
-  boolean VSYNCINconnected = false;
-  boolean DEBUGINconnected = false;
-  if (pulseIn(vsyncInPin, HIGH, 100000) != 0) {
-    VSYNCINconnected = true;
-    Serial.println(F("VSYNC-IN connected :)"));
-  }
-  else {
-    Serial.println(F("VSYNC-IN not connected!"));
-  }
-
-  if (pulseIn(debugInPin, HIGH, 100000) != 0) {
-    DEBUGINconnected = true;
-    Serial.println(F("DEBUG-IN connected :)"));
-  }
-  else {
-    Serial.println(F("DEBUG-IN not connected!"));
-  }
-
-  if (!(VSYNCINconnected && DEBUGINconnected)) {
-    rto->syncLockEnabled = false;
-  }
-
 #if defined(ESP8266)
   if (rto->webServerEnabled) {
     //start_webserver(); // delay this (blocking) call to sometime later
@@ -2190,10 +2137,12 @@ void loop() {
         inputStage = 0; // reset this as well
         break;
       case 'd':
+        adjustFrameSize(-syncLastCorrection);
         for (int segment = 0; segment <= 5; segment++) {
           dumpRegisters(segment);
         }
         Serial.println("};");
+        adjustFrameSize(syncLastCorrection);
         break;
       case '+':
         Serial.println(F("shift hor. +"));
@@ -2588,7 +2537,6 @@ void loop() {
                 set_htotal(value);
               }
               else if (what.equals("vt")) {
-                rto->targetVtotal = value;
                 set_vtotal(value);
               }
               else if (what.equals("hbst")) {
@@ -2628,7 +2576,9 @@ void loop() {
 
   if (uopt->enableFrameTimeLock && rto->syncLockEnabled && rto->syncLockReady && millis() - lastVsyncLock > syncLockInterval) {
     lastVsyncLock = millis();
-    doVsyncPhaseLock();
+    if (!doVsyncPhaseLock()) {
+      resetModeDetect();
+    }
   }
 
   // poll sync status continously
