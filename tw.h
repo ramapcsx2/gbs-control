@@ -19,6 +19,17 @@ struct RegValue_ {
 };
 
 template<>
+struct RegValue_<1, Signage::UNSIGNED> {
+  typedef bool Type;
+};
+
+// Seriously?
+template<>
+struct RegValue_<1, Signage::SIGNED> {
+  typedef int8_t Type;
+};
+
+template<>
 struct RegValue_<8, Signage::UNSIGNED> {
   typedef uint8_t Type;
 };
@@ -198,9 +209,19 @@ public:
      detail::rawRead(Addr, offset, output, size);
    }
 
+   static uint8_t read(SegValue seg, uint8_t offset) {
+     uint8_t value;
+     read(seg, offset, &value, sizeof(value));
+     return value;
+   }
+
    static void write(SegValue seg, uint8_t offset, uint8_t const* input, uint8_t size) {
      setSeg(seg);
      detail::rawWrite(Addr, offset, input, size);
+   }
+
+   static void write(SegValue seg, uint8_t offset, uint8_t value) {
+     write(seg, offset, &value, sizeof(value));
    }
 };
 
