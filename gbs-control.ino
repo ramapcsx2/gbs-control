@@ -758,61 +758,38 @@ void resetModeDetect() {
 }
 
 void shiftHorizontal(uint16_t amountToAdd, bool subtracting) {
+  typedef GBS::Tie<GBS::VDS_HB_ST, GBS::VDS_HB_SP> Regs;
+  uint16_t hrst = GBS::VDS_HSYNC_RST::read();
+  uint16_t hbst = 0, hbsp = 0;
 
-  uint8_t hrstLow = 0x00;
-  uint8_t hrstHigh = 0x00;
-  uint16_t htotal = 0x0000;
-  uint8_t hbstLow = 0x00;
-  uint8_t hbstHigh = 0x00;
-  uint16_t Vds_hb_st = 0x0000;
-  uint8_t hbspLow = 0x00;
-  uint8_t hbspHigh = 0x00;
-  uint16_t Vds_hb_sp = 0x0000;
-
-  // get HRST
-  writeOneByte(0xF0, 3);
-  readFromRegister(0x01, 1, &hrstLow);
-  readFromRegister(0x02, 1, &hrstHigh);
-  htotal = ( ( ((uint16_t)hrstHigh) & 0x000f) << 8) | (uint16_t)hrstLow;
-
-  // get HBST
-  readFromRegister(0x04, 1, &hbstLow);
-  readFromRegister(0x05, 1, &hbstHigh);
-  Vds_hb_st = ( ( ((uint16_t)hbstHigh) & 0x000f) << 8) | (uint16_t)hbstLow;
-
-  // get HBSP
-  hbspLow = hbstHigh;
-  readFromRegister(0x06, 1, &hbspHigh);
-  Vds_hb_sp = ( ( ((uint16_t)hbspHigh) & 0x00ff) << 4) | ( (((uint16_t)hbspLow) & 0x00f0) >> 4);
+  Regs::read(hbst, hbsp);
 
   // Perform the addition/subtraction
   if (subtracting) {
-    Vds_hb_st -= amountToAdd;
-    Vds_hb_sp -= amountToAdd;
+    hbst -= amountToAdd;
+    hbsp -= amountToAdd;
   } else {
-    Vds_hb_st += amountToAdd;
-    Vds_hb_sp += amountToAdd;
+    hbst += amountToAdd;
+    hbsp += amountToAdd;
   }
 
   // handle the case where hbst or hbsp have been decremented below 0
-  if (Vds_hb_st & 0x8000) {
-    Vds_hb_st = htotal % 2 == 1 ? (htotal + Vds_hb_st) + 1 : (htotal + Vds_hb_st);
+  if (hbst & 0x8000) {
+    hbst = hrst % 2 == 1 ? (hrst + hbst) + 1 : (hrst + hbst);
   }
-  if (Vds_hb_sp & 0x8000) {
-    Vds_hb_sp = htotal % 2 == 1 ? (htotal + Vds_hb_sp) + 1 : (htotal + Vds_hb_sp);
-  }
-
-  // handle the case where hbst or hbsp have been incremented above htotal
-  if (Vds_hb_st > htotal) {
-    Vds_hb_st = htotal % 2 == 1 ? (Vds_hb_st - htotal) - 1 : (Vds_hb_st - htotal);
-  }
-  if (Vds_hb_sp > htotal) {
-    Vds_hb_sp = htotal % 2 == 1 ? (Vds_hb_sp - htotal) - 1 : (Vds_hb_sp - htotal);
+  if (hbsp & 0x8000) {
+    hbsp = hrst % 2 == 1 ? (hrst + hbsp) + 1 : (hrst + hbsp);
   }
 
-  writeOneByte(0x04, (uint8_t)(Vds_hb_st & 0x00ff));
-  writeOneByte(0x05, ((uint8_t)(Vds_hb_sp & 0x000f) << 4) | ((uint8_t)((Vds_hb_st & 0x0f00) >> 8)) );
-  writeOneByte(0x06, (uint8_t)((Vds_hb_sp & 0x0ff0) >> 4) );
+  // handle the case where hbst or hbsp have been incremented above hrst
+  if (hbst > hrst) {
+    hbst = hrst % 2 == 1 ? (hbst - hrst) - 1 : (hbst - hrst);
+  }
+  if (hbsp > hrst) {
+    hbsp = hrst % 2 == 1 ? (hbsp - hrst) - 1 : (hbsp - hrst);
+  }
+
+  Regs::write(hbst, hbsp);
 }
 
 void shiftHorizontalLeft() {
@@ -824,48 +801,16 @@ void shiftHorizontalRight() {
 }
 
 void scaleHorizontal(uint16_t amountToAdd, bool subtracting) {
-  uint8_t high = 0x00;
-  uint8_t newHigh = 0x00;
-  uint8_t low = 0x00;
-  uint8_t newLow = 0x00;
-  uint16_t newValue = 0x0000;
+  uint16_t hscale = GBS::VDS_HSCALE::read();
 
-  writeOneByte(0xF0, 3);
-  readFromRegister(0x16, 1, &low);
-  readFromRegister(0x17, 1, &high);
-
-  newValue = ( ( ((uint16_t)high) & 0x0003) * 256) + (uint16_t)low;
-
-  if (subtracting && ((newValue - amountToAdd) > 0)) {
-    newValue -= amountToAdd;
-  } else if ((newValue + amountToAdd) <= 1023) {
-    newValue += amountToAdd;
+  if (subtracting && (hscale - amountToAdd > 0)) {
+    hscale -= amountToAdd;
+  } else if (hscale + amountToAdd <= 1023) {
+    hscale += amountToAdd;
   }
 
-  Serial.print(F("Scale Hor: ")); Serial.println(newValue);
-  newHigh = (high & 0xfc) | (uint8_t)( (newValue / 256) & 0x0003);
-  newLow = (uint8_t)(newValue & 0x00ff);
-
-  writeOneByte(0x16, newLow);
-  writeOneByte(0x17, newHigh);
-}
-
-void scaleHorizontalAbsolute(uint16_t value) {
-  uint8_t high = 0x00;
-  uint8_t newHigh = 0x00;
-  uint8_t low = 0x00;
-  uint8_t newLow = 0x00;
-
-  writeOneByte(0xF0, 3);
-  readFromRegister(0x16, 1, &low);
-  readFromRegister(0x17, 1, &high);
-
-  Serial.print(F("Scale Hor: ")); Serial.println(value);
-  newHigh = (high & 0xfc) | (uint8_t)( (value / 256) & 0x0003);
-  newLow = (uint8_t)(value & 0x00ff);
-
-  writeOneByte(0x16, newLow);
-  writeOneByte(0x17, newHigh);
+  debugln("Scale Hor: ", hscale);
+  GBS::VDS_HSCALE::write(hscale);
 }
 
 void scaleHorizontalSmaller() {
@@ -986,82 +931,50 @@ void invertVS() {
 }
 
 void scaleVertical(uint16_t amountToAdd, bool subtracting) {
-  uint8_t high = 0x00;
-  uint8_t newHigh = 0x00;
-  uint8_t low = 0x00;
-  uint8_t newLow = 0x00;
-  uint16_t newValue = 0x0000;
+  uint16_t vscale = GBS::VDS_VSCALE::read();
 
-  writeOneByte(0xF0, 3);
-  readFromRegister(0x18, 1, &high);
-  readFromRegister(0x17, 1, &low);
-  newValue = ( (((uint16_t)high) & 0x007f) << 4) | ( (((uint16_t)low) & 0x00f0) >> 4);
-
-  if (subtracting && ((newValue - amountToAdd) > 0)) {
-    newValue -= amountToAdd;
-  } else if ((newValue + amountToAdd) <= 1023) {
-    newValue += amountToAdd;
+  if (subtracting && (vscale - amountToAdd > 0)) {
+    vscale -= amountToAdd;
+  } else if (vscale + amountToAdd <= 1023) {
+    vscale += amountToAdd;
   }
 
-  Serial.print(F("Scale Vert: ")); Serial.println(newValue);
-  newHigh = (uint8_t)(newValue >> 4);
-  newLow = (low & 0x0f) | (((uint8_t)(newValue & 0x00ff)) << 4) ;
-
-  writeOneByte(0x17, newLow);
-  writeOneByte(0x18, newHigh);
-}
-
-void scaleVerticalAbsolute(uint16_t value) {
-  uint8_t high = 0x00;
-  uint8_t newHigh = 0x00;
-  uint8_t low = 0x00;
-  uint8_t newLow = 0x00;
-
-  writeOneByte(0xF0, 3);
-  readFromRegister(0x18, 1, &high);
-  readFromRegister(0x17, 1, &low);
-  Serial.print(F("Scale Vert: ")); Serial.println(value);
-  newHigh = (uint8_t)(value >> 4);
-  newLow = (low & 0x0f) | (((uint8_t)(value & 0x00ff)) << 4) ;
-  writeOneByte(0x17, newLow);
-  writeOneByte(0x18, newHigh);
+  debugln("Scale Vert: ", vscale);
+  GBS::VDS_VSCALE::write(vscale);
 }
 
 void shiftVertical(uint16_t amountToAdd, bool subtracting) {
   typedef GBS::Tie<GBS::VDS_VB_ST, GBS::VDS_VB_SP> Regs;
-  uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
+  uint16_t vrst = GBS::VDS_VSYNC_RST::read();
   uint16_t vbst = 0, vbsp = 0;
 
-  // get VBST
   Regs::read(vbst, vbsp);
 
   if (subtracting) {
-    vbstValue -= amountToAdd;
-    vbspValue -= amountToAdd;
+    vbst -= amountToAdd;
+    vbsp -= amountToAdd;
   } else {
-    vbstValue += amountToAdd;
-    vbspValue += amountToAdd;
+    vbst += amountToAdd;
+    vbsp += amountToAdd;
   }
 
   // handle the case where hbst or hbsp have been decremented below 0
-  if (vbstValue & 0x8000) {
-    vbstValue = vrstValue + vbstValue;
+  if (vbst & 0x8000) {
+    vbst = vrst + vbst;
   }
-  if (vbspValue & 0x8000) {
-    vbspValue = vrstValue + vbspValue;
+  if (vbsp & 0x8000) {
+    vbsp = vrst + vbsp;
   }
 
   // handle the case where vbst or vbsp have been incremented above vrstValue
-  if (vbstValue > vrstValue) {
-    vbstValue = vbstValue - vrstValue;
+  if (vbst > vrst) {
+    vbst = vbst - vrst;
   }
-  if (vbspValue > vrstValue) {
-    vbspValue = vbspValue - vrstValue;
+  if (vbsp > vrst) {
+    vbsp = vbsp - vrst;
   }
 
-  writeOneByte(0x07, (uint8_t)(vbstValue & 0x00ff));
-  writeOneByte(0x08, ((uint8_t)(vbspValue & 0x000f) << 4) | ((uint8_t)((vbstValue & 0x0700) >> 8)) );
-  writeOneByte(0x09, (uint8_t)((vbspValue & 0x07f0) >> 4) );
+  Regs::write(vbst, vbsp);
 }
 
 void shiftVerticalUp() {
@@ -1577,14 +1490,14 @@ void doPostPresetLoadSteps() {
   }
   if (rto->videoStandardInput == 3) {
     Serial.println(F("HDTV mode"));
-    scaleVerticalAbsolute(1023); // temporary
-    scaleHorizontalAbsolute(708); // temporary
+    GBS::VDS_VSCALE::write(1023); // temporary
+    GBS::VDS_HSCALE::write(708); // temporary
     shiftHorizontal(4 * 22, false);
   }
   if (rto->videoStandardInput == 4) {
     Serial.println(F("HDTV mode"));
-    scaleVerticalAbsolute(1023); // temporary
-    scaleHorizontalAbsolute(573); // temporary
+    GBS::VDS_VSCALE::write(1023); // temporary
+    GBS::VDS_HSCALE::write(573); // temporary
     shiftHorizontal(4 * 22, false);
   }
   setSOGLevel( rto->currentLevelSOG );
