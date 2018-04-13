@@ -102,7 +102,6 @@ struct runTimeOptions {
   boolean webServerEnabled;
   boolean webServerStarted;
   boolean allowUpdatesOTA;
-  uint16_t targetVtotal;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -541,12 +540,6 @@ void zeroAll()
       writeBytes(z * 16, bank, 16);
     }
   }
-}
-
-static inline void readFromRegister(uint8_t segment, uint8_t reg, int bytesToRead, uint8_t* output)
-{
-  lastSegment = segment;
-  return readFromRegister(reg, bytesToRead, output);
 }
 
 static inline void readFromRegister(uint8_t reg, int bytesToRead, uint8_t* output)
@@ -1617,13 +1610,6 @@ void doPostPresetLoadSteps() {
   resetSyncLock();
   rto->modeDetectInReset = false;
 
-  // Grab target vtotal for preset
-  uint8_t regHigh, regLow;
-  writeOneByte(0xf0, 3);
-  readFromRegister(0x02, 1, &regLow);
-  readFromRegister(0x03, 1, &regHigh);
-  rto->targetVtotal = (regLow >> 4) | (regHigh << 4);
-
   Serial.println(F("post preset done"));
   //Serial.println(F("----"));
   //getVideoTimings();
@@ -2551,7 +2537,6 @@ void loop() {
                 set_htotal(value);
               }
               else if (what.equals("vt")) {
-                rto->targetVtotal = value;
                 set_vtotal(value);
               }
               else if (what.equals("hbst")) {
