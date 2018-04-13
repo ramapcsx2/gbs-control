@@ -1028,32 +1028,12 @@ void scaleVerticalAbsolute(uint16_t value) {
 }
 
 void shiftVertical(uint16_t amountToAdd, bool subtracting) {
-
-  uint8_t vrstLow;
-  uint8_t vrstHigh;
-  uint16_t vrstValue;
-  uint8_t vbstLow;
-  uint8_t vbstHigh;
-  uint16_t vbstValue;
-  uint8_t vbspLow;
-  uint8_t vbspHigh;
-  uint16_t vbspValue;
-
-  // get VRST
-  writeOneByte(0xF0, 3);
-  readFromRegister(0x02, 1, &vrstLow);
-  readFromRegister(0x03, 1, &vrstHigh);
-  vrstValue = ( (((uint16_t)vrstHigh) & 0x007f) << 4) | ( (((uint16_t)vrstLow) & 0x00f0) >> 4);
+  typedef GBS::Tie<GBS::VDS_VB_ST, GBS::VDS_VB_SP> Regs;
+  uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
+  uint16_t vbst = 0, vbsp = 0;
 
   // get VBST
-  readFromRegister(0x07, 1, &vbstLow);
-  readFromRegister(0x08, 1, &vbstHigh);
-  vbstValue = ( ( ((uint16_t)vbstHigh) & 0x0007) << 8) | (uint16_t)vbstLow;
-
-  // get VBSP
-  vbspLow = vbstHigh;
-  readFromRegister(0x09, 1, &vbspHigh);
-  vbspValue = ( ( ((uint16_t)vbspHigh) & 0x007f) << 4) | ( (((uint16_t)vbspLow) & 0x00f0) >> 4);
+  Regs::read(vbst, vbsp);
 
   if (subtracting) {
     vbstValue -= amountToAdd;
