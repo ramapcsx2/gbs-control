@@ -307,11 +307,12 @@ void setParametersSP() {
     writeOneByte(0x50, 0x00);
   }
   else { // SD RGB
-    // was 0x58, new GBS + MD requires 0x70 //too much for old gbs > 0x6b // still too much > 0x62 (prefer LM1881 sync)
+    // new GBS + MD requires 0x70
     // base this off of hpw. value needs to be above smalles hpw seen
     // remember hpw changes depending on sync signal flanks. new gbs is slower, too
-    // 0x37 can be lowest hpw + 1 but remember it can wander a little (heat, etc)
-    writeOneByte(0x37, 0x62);
+    // 0x37 has to be below the current average (real) hpw
+    // this also changes with different pll dividers (presets)
+    writeOneByte(0x37, 0x58);
     writeOneByte(0x50, 0x06); // check this as well (SD sources, no sync stripper)
   }
 
@@ -1378,7 +1379,7 @@ static bool findBestHTotal(uint16_t& bestHtotal) {
       stable = 1;
     bestHtotal = candHtotal;
   }
-  
+
   debugln("Best htotal: ", bestHtotal);
 
   return true;
@@ -1495,6 +1496,11 @@ void adjustFrameSize(int16_t delta) {
   vsst = GBS::VDS_VS_ST::read() + delta;
   vssp = GBS::VDS_VS_SP::read() + delta;
 
+  uint16_t currentLineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
+  uint16_t earlyFrameBoundary = vtotal / 4;
+  while (currentLineNumber > earlyFrameBoundary || currentLineNumber < 20) { // wait for next frame start + 20 lines for stability
+    lineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
+  }
   GBS::VDS_VSYNC_RST::write(vtotal);
   GBS::VDS_VS_ST::write(vsst);
   GBS::VDS_VS_SP::write(vssp);

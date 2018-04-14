@@ -29,6 +29,7 @@ public:
   typedef UReg<0x03, 0x02, 4, 11> VDS_VSYNC_RST;
   typedef UReg<0x03, 0x0d, 0, 11> VDS_VS_ST;
   typedef UReg<0x03, 0x0e, 4, 11> VDS_VS_SP;
+  typedef UReg<0x00, 0x11, 4, 11> STATUS_VDS_VERT_COUNT;
 };
 
 
