@@ -69,7 +69,7 @@ typedef TV5725<GBS_ADDR> GBS;
 // Sync lock sampling timeout in microseconds
 static const uint32_t syncTimeout = 200000;
 // Sync lock interval in milliseconds
-static const uint32_t syncLockInterval = 100 * 16; // every 100 frames. // was 30 * 16
+static const uint32_t syncLockInterval = 60 * 16; // every 60 frames. good range for this: 30 to 90
 // Sync correction in scanlines to apply when phase lags target
 static const int16_t syncCorrection = 2;
 // Target vsync phase offset (output trails input) in degrees
