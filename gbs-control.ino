@@ -1499,7 +1499,7 @@ void adjustFrameSize(int16_t delta) {
   uint16_t currentLineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
   uint16_t earlyFrameBoundary = vtotal / 4;
   while (currentLineNumber > earlyFrameBoundary || currentLineNumber < 20) { // wait for next frame start + 20 lines for stability
-    lineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
+    currentLineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
   }
   GBS::VDS_VSYNC_RST::write(vtotal);
   GBS::VDS_VS_ST::write(vsst);
