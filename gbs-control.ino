@@ -53,6 +53,8 @@ extern "C" {
 #include <ArduinoOTA.h>
 #endif
 
+#include "fastpin.h"
+
 #include "debug.h"
 
 #include "tv5725.h"
@@ -1415,23 +1417,23 @@ void initSyncLock() {
 // Sample vsync start and stop times (for two consecutive frames) from debug pin
 bool vsyncInputSample(unsigned long* start, unsigned long* stop) {
   unsigned long timeoutStart = micros();
-  while (digitalRead(debugInPin))
+  while (fastRead<debugInPin>())
     if (micros() - timeoutStart >= syncTimeout)
       return false;
-  while (!digitalRead(debugInPin))
+  while (!fastRead<debugInPin>())
     if (micros() - timeoutStart >= syncTimeout)
       return false;
   *start = micros();
-  while (digitalRead(debugInPin))
+  while (fastRead<debugInPin>())
     if (micros() - timeoutStart >= syncTimeout)
       return false;
-  while (!digitalRead(debugInPin))
+  while (!fastRead<debugInPin>())
     if (micros() - timeoutStart >= syncTimeout)
       return false;
-  while (digitalRead(debugInPin))
+  while (fastRead<debugInPin>())
     if (micros() - timeoutStart >= syncTimeout)
       return false;
-  while (!digitalRead(debugInPin))
+  while (!fastRead<debugInPin>())
     if (micros() - timeoutStart >= syncTimeout)
       return false;
   *stop = micros();
@@ -1441,17 +1443,17 @@ bool vsyncInputSample(unsigned long* start, unsigned long* stop) {
 // Sample vsync start and stop times from output vsync pin
 bool vsyncOutputSample(unsigned long* start, unsigned long* stop) {
   unsigned long timeoutStart = micros();
-  while (digitalRead(vsyncInPin))
+  while (fastRead<vsyncInPin>())
     if (micros() - timeoutStart >= syncTimeout)
       return false;
-  while (!digitalRead(vsyncInPin))
+  while (!fastRead<vsyncInPin>())
     if (micros() - timeoutStart >= syncTimeout)
       return false;
   *start = micros();
-  while (digitalRead(vsyncInPin))
+  while (fastRead<vsyncInPin>())
     if (micros() - timeoutStart >= syncTimeout)
       return false;
-  while (!digitalRead(vsyncInPin))
+  while (!fastRead<vsyncInPin>())
     if (micros() - timeoutStart >= syncTimeout)
       return false;
   *stop = micros();
@@ -1833,8 +1835,8 @@ void setPhaseSP() {
 
   if (pulseIn(debugInPin, HIGH, 100000) != 0) {
     if  (pulseIn(debugInPin, LOW, 100000) != 0) {
-      while (digitalRead(debugInPin) == 1);
-      while (digitalRead(debugInPin) == 0);
+      while (fastRead<debugInPin>() == 1);
+      while (fastRead<debugInPin>() == 0);
     }
   }
 
@@ -1861,8 +1863,8 @@ void setPhaseADC() {
 
   if (pulseIn(debugInPin, HIGH, 100000) != 0) {
     if  (pulseIn(debugInPin, LOW, 100000) != 0) {
-      while (digitalRead(debugInPin) == 1);
-      while (digitalRead(debugInPin) == 0);
+      while (fastRead<debugInPin>() == 1);
+      while (fastRead<debugInPin>() == 0);
     }
   }
 
