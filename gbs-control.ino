@@ -1852,7 +1852,7 @@ void setup() {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
   // ESP32 doesn't require hostname correction
 #endif
-  Serial.begin(230400); // set Serial Monitor to the same 230400 baud rate!
+  Serial.begin(115200); // set Arduino IDE Serial Monitor to the same 115200 bauds!
   Serial.setTimeout(10);
   Serial.println(F("starting"));
 
