@@ -29,6 +29,10 @@ extern "C" {
 #define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, LOW); // active low
 #define LEDOFF digitalWrite(LED_BUILTIN, HIGH); pinMode(LED_BUILTIN, INPUT);
 
+// fast ESP8266 digitalRead (21 cycles vs 77), *should* work with all possible input pins
+// but only "D7" and "D6" have been tested so far
+#define digitalRead(x) ((GPIO_REG_READ(GPIO_IN_ADDRESS) >> x) & 1)
+
 #elif defined(ESP32)
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
@@ -46,6 +50,16 @@ extern "C" {
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW); pinMode(LED_BUILTIN, INPUT);
 #define vsyncInPin 10
 #define debugInPin 11 // ??
+
+// fast sampling courtesy of https://masteringarduino.blogspot.de/2013/10/fastest-and-smallest-digitalread-and.html
+// this is a reduced set, enough to replace digitalRead with a much faster version
+#define pinOfPin(P)\
+  (((P)>=0&&(P)<8)?&PIND:(((P)>7&&(P)<14)?&PINB:&PINC)) // figure out the pins port (PINB, PINC, PIND)
+#define pinIndex(P)((uint8_t)(P>13?P-14:P&7))
+#define pinMask(P)((uint8_t)(1<<pinIndex(P)))
+#define isHigh(P)((*(pinOfPin(P))& pinMask(P))>0)
+#define digitalState(P)((uint8_t)isHigh(P))
+#define digitalRead(x) digitalState(x)  // don't digitalRead on an output pin please
 
 //#define HAVE_BUTTONS
 #define INPUT_PIN 9
