@@ -2,10 +2,8 @@
 #define DEBUG
 
 #include <Wire.h>
-//#include <EEPROM.h>
 #include "ntsc_240p.h"
 #include "pal_240p.h"
-#include "vclktest.h"
 #include "ntsc_feedbackclock.h"
 #include "pal_feedbackclock.h"
 #include "ofw_ypbpr.h"
@@ -52,7 +50,6 @@ extern "C" {
 #define DEBUG_IN_PIN 11 // ??
 
 #include "fastpin.h"
-
 #define digitalRead(x) fastRead<x>()
 
 //#define HAVE_BUTTONS
@@ -71,9 +68,6 @@ extern "C" {
 #include "debug.h"
 #include "tv5725.h"
 #include "framesync.h"
-
-// 7 bit GBS I2C Address
-#define GBS_ADDR 0x17
 
 typedef TV5725<GBS_ADDR> GBS;
 
@@ -143,12 +137,6 @@ struct userOptions {
 struct userOptions *uopt = &uopts;
 
 char globalCommand;
-
-// NOP 'times' MCU cycles, might be useful.
-void nopdelay(unsigned int times) {
-  while (times-- > 0)
-    __asm__("nop\n\t");
-}
 
 static uint8_t lastSegment = 0xFF;
 
@@ -267,16 +255,6 @@ void writeProgramArrayNew(const uint8_t* programArray)
   writeOneByte(0x82, 0x35); // MD H / V timer detect enable, auto detect enable
   writeOneByte(0x83, 0x10); // MD H / V unstable estimation lock value medium
 
-  // capture guard
-  //writeOneByte(0xF0, 4);
-  //writeOneByte(0x24, 0x00);
-  //writeOneByte(0x25, 0xb8); // 0a for pal
-  //writeOneByte(0x26, 0x03); // 04 for pal
-  // capture buffer start
-  //writeOneByte(0x31, 0x00); // 0x1f ntsc_240p
-  //writeOneByte(0x32, 0x00); // 0x28 ntsc_240p
-  //writeOneByte(0x33, 0x01);
-
   //update rto phase variables
   uint8_t readout = 0;
   writeOneByte(0xF0, 5);
@@ -296,24 +274,12 @@ void writeProgramArrayNew(const uint8_t* programArray)
   writeOneByte(0x46, 0x3f); // reset controls 1 // everything on except VDS display output
   writeOneByte(0x47, 0x17); // all on except HD bypass
 }
-//
-// required sections for reduced sets:
-// S0_40 - S0_59 "misc"
-// S1_00 - S1_2a "IF"
-// S3_00 - S3_74 "VDS"
-//
 
 void fuzzySPWrite() {
   writeOneByte(0xF0, 5);
   for (uint8_t reg = 0x21; reg <= 0x34; reg++) {
     writeOneByte(reg, random(0x00, 0xFF));
   }
-  //  for (uint8_t reg = 0x51; reg <= 0x54; reg++) {
-  //    writeOneByte(reg, random(0x00, 0xFF));
-  //  }
-  //  for (uint8_t reg = 0x49; reg <= 0x4c; reg++) {
-  //    writeOneByte(reg, random(0x00, 0xFF));
-  //  }
 }
 
 void setParametersSP() {
@@ -550,29 +516,6 @@ uint8_t getSingleByteFromPreset(const uint8_t* programArray, unsigned int offset
   return pgm_read_byte(programArray + offset);
 }
 
-void zeroAll()
-{
-  // turn processing units off first
-  writeOneByte(0xF0, 0);
-  writeOneByte(0x46, 0x00); // reset controls 1
-  writeOneByte(0x47, 0x00); // reset controls 2
-
-  // zero out entire register space
-  for (int y = 0; y < 6; y++)
-  {
-    writeOneByte(0xF0, (uint8_t)y );
-    for (int z = 0; z < 16; z++)
-    {
-      uint8_t bank[16];
-      for (int w = 0; w < 16; w++)
-      {
-        bank[w] = 0;
-      }
-      writeBytes(z * 16, bank, 16);
-    }
-  }
-}
-
 static inline void readFromRegister(uint8_t reg, int bytesToRead, uint8_t* output)
 {
   return GBS::read(lastSegment, reg, output, bytesToRead);
@@ -723,21 +666,15 @@ boolean getSyncProcessorSignalValid() {
   return returnValue;
 }
 
-void switchInputs() {
-  uint8_t readout = 0;
-  writeOneByte(0xF0, 5); readFromRegister(0x02, 1, &readout);
-  writeOneByte(0x02, (readout & ~(1 << 6)));
-}
-
 void SyncProcessorOffOn() {
   uint8_t readout = 0;
-  disableDeinterlacer(); delay(5); // hide the glitching
+  disableDeinterlacer();
   writeOneByte(0xF0, 0);
   readFromRegister(0x47, 1, &readout);
   writeOneByte(0x47, readout & ~(1 << 2));
   readFromRegister(0x47, 1, &readout);
   writeOneByte(0x47, readout | (1 << 2));
-  enableDeinterlacer();
+  delay(150); enableDeinterlacer();
 }
 
 void resetModeDetect() {
@@ -1343,9 +1280,6 @@ void doPostPresetLoadSteps() {
   rto->modeDetectInReset = false;
 
   Serial.println(F("post preset done"));
-  //Serial.println(F("----"));
-  //getVideoTimings();
-  //Serial.println(F("----"));
 }
 
 void applyPresets(byte result) {
@@ -1365,7 +1299,6 @@ void applyPresets(byte result) {
       writeProgramArrayNew(preset);
     }
 #endif
-    doPostPresetLoadSteps();
   }
   else if (result == 1) {
     Serial.println(F("NTSC timing "));
@@ -1383,7 +1316,6 @@ void applyPresets(byte result) {
       writeProgramArrayNew(preset);
     }
 #endif
-    doPostPresetLoadSteps();
   }
   else if (result == 3) {
     Serial.println(F("NTSC HDTV timing "));
@@ -1403,7 +1335,6 @@ void applyPresets(byte result) {
     }
 #endif
     // todo: and now? isn't there something missing? check with ps2 480p
-    doPostPresetLoadSteps();
   }
   else if (result == 4) {
     Serial.println(F("PAL HDTV timing "));
@@ -1423,7 +1354,6 @@ void applyPresets(byte result) {
     }
 #endif
     // todo: and now? isn't there something missing? check with ps2 576p
-    doPostPresetLoadSteps();
   }
   else {
     Serial.println(F("Unknown timing! "));
@@ -1432,7 +1362,10 @@ void applyPresets(byte result) {
     setSOGLevel( random(0, 31) ); // try a random(min, max) sog level, hopefully find some sync
     resetModeDetect();
     delay(300); // and give MD some time
+    return;
   }
+
+  doPostPresetLoadSteps();
 }
 
 void enableDeinterlacer() {
@@ -1642,21 +1575,10 @@ void applyRGBPatches() {
 #if defined(ESP32)
 void esp32_power() {
   int8_t power = 0;
-  //  esp_pm_config_esp32_t pm_config = {
-  //       .max_cpu_freq =RTC_CPU_FREQ_240M,
-  //       .min_cpu_freq = RTC_CPU_FREQ_XTAL,
-  //    };
-  //  esp_err_t ret;
-  //    if((ret = esp_pm_configure(&pm_config)) != ESP_OK) {
-  //        Serial.print("pm config error ");Serial.println(ret);
-  //    }
-  //    else Serial.println("okay!");
 
-  //rtc_clk_cpu_freq_set(RTC_CPU_FREQ_80M); // this call works but it's missing some sdk stuff, so the active wifi breaks
   Serial.print("wifi max tx power before: "); esp_wifi_get_max_tx_power(&power); Serial.println(power);
   Serial.print("set esp_wifi_set_max_tx_power(20): "); Serial.println(esp_wifi_set_max_tx_power(20));
   Serial.print("wifi max tx power after : "); esp_wifi_get_max_tx_power(&power); Serial.println(power);
-  //Serial.print("set wifi ps WIFI_PS_MODEM: "); Serial.println(esp_wifi_set_ps(WIFI_PS_MODEM));
 }
 #endif
 
@@ -1674,7 +1596,7 @@ void setup() {
   Serial.setTimeout(10);
   Serial.println(F("starting"));
 
-  // user options // todo: save/load from EEPROM
+  // user options // todo: could be stored in Arduino EEPROM. Other MCUs have SPIFFS
   uopt->presetPreference = 0;
   uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
   // run time options
@@ -1763,9 +1685,7 @@ void setup() {
   // removed blocking 5725 reponse check
 
   disableVDS();
-  //zeroAll(); delay(5);
   writeProgramArrayNew(minimal_startup); // bring the chip up for input detection
-  //writeProgramArraySection(ntsc_240p, 1); writeProgramArraySection(ntsc_240p, 5);
   resetDigital();
   delay(250);
   inputAndSyncDetect();
@@ -1785,23 +1705,14 @@ void setup() {
   }
 
 #if defined(ESP8266)
-  if (rto->webServerEnabled) {
-    //start_webserver(); // delay this (blocking) call to sometime later
-    //WiFi.setOutputPower(12.0f); // float: min 0.0f, max 20.5f
-  }
-  else {
+  if (!rto->webServerEnabled) {
     WiFi.disconnect();
     WiFi.mode(WIFI_OFF);
     WiFi.forceSleepBegin();
     delay(1);
   }
 #elif defined(ESP32)
-  if (rto->webServerEnabled) {
-    //start_webserver();  // delay this (blocking) call to sometime later
-    //delay(50);
-    //esp32_power();
-  }
-  else {
+  if (!rto->webServerEnabled) {
     WiFi.disconnect();
     WiFi.mode(WIFI_OFF);
   }
@@ -2130,7 +2041,7 @@ void loop() {
         Serial.println(F("resetDigital()"));
         break;
       case 'y':
-        //writeProgramArrayNew(vclktest);
+        //writeProgramArrayNew(rgbhv);
         //doPostPresetLoadSteps();
         break;
       case 'p':
@@ -2336,7 +2247,6 @@ void loop() {
         break;
       case '9':
         writeProgramArrayNew(ntsc_feedbackclock);
-        //writeProgramArrayNew(rgbhv);
         doPostPresetLoadSteps();
         break;
       case 'o':

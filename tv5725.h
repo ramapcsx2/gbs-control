@@ -3,6 +3,8 @@
 
 #include "tw.h"
 
+#define GBS_ADDR 0x17 // 7 bit GBS I2C Address
+
 namespace detail {
 struct TVAttrs {
   // Segment register at 0xf0, no bit offset, 8 bits, initial value assumed invalid
