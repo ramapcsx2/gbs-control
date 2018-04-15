@@ -1509,24 +1509,21 @@ bool vsyncPeriodAndPhase(uint32_t* periodInput, uint32_t* periodOutput, int32_t*
 }
 
 void adjustFrameSize(int16_t delta) {
-  uint16_t vtotal, vsst, vssp;
-
-  vtotal = GBS::VDS_VSYNC_RST::read() + delta;
-  vsst = GBS::VDS_VS_ST::read() + delta;
-  vssp = GBS::VDS_VS_SP::read() + delta;
-
+  typedef GBS::Tie<GBS::VDS_VSYNC_RST, GBS::VDS_VS_ST, GBS::VDS_VS_SP> Regs;
+  uint16_t vtotal = 0, vsst = 0, vssp = 0;
   uint16_t currentLineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
-  uint16_t earlyFrameBoundary = vtotal / 4;
-  while (currentLineNumber > earlyFrameBoundary || currentLineNumber < 20) { // wait for next frame start + 20 lines for stability
+  uint16_t earlyFrameBoundary;
+
+  Regs::read(vtotal, vsst, vssp);
+  earlyFrameBoundary = vtotal / 4;
+  vtotal += delta;
+  vsst += delta;
+  vssp += delta;
+  // wait for next frame start + 20 lines for stability
+  while (currentLineNumber > earlyFrameBoundary || currentLineNumber < 20) {
     currentLineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
   }
-  GBS::VDS_VSYNC_RST::write(vtotal);
-  GBS::VDS_VS_ST::write(vsst);
-  GBS::VDS_VS_SP::write(vssp);
-
-  debugln("vtotal: ", vtotal);
-  debugln("vsst: ", vsst);
-  debugln("vssp: ", vssp);
+  Regs::write(vtotal, vsst, vssp);
 }
 
 // Perform vsync phase locking.  This is accomplished by measuring the period and
