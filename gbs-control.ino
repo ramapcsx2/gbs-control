@@ -68,21 +68,9 @@ extern "C" {
 #include "debug.h"
 #include "tv5725.h"
 #include "framesync.h"
+#include "osd.h"
 
 typedef TV5725<GBS_ADDR> GBS;
-
-enum class MenuInput {
-  UP,
-  DOWN,
-  FORWARD,
-  BACK
-};
-
-enum class MenuState {
-  OFF,
-  MAIN,
-  ADJUST
-};
 
 //
 // Sync locking tunables/magic numbers
@@ -106,6 +94,18 @@ struct FrameSyncAttrs {
 };
 
 typedef FrameSyncManager<GBS, FrameSyncAttrs> FrameSync;
+
+struct MenuAttrs {
+  static const int8_t shiftDelta = 4;
+  static const int8_t scaleDelta = 4;
+  static const int16_t vertShiftRange = 300;
+  static const int16_t horizShiftRange = 400;
+  static const int16_t vertScaleRange = 100;
+  static const int16_t horizScaleRange = 130;
+  static const int16_t barLength = 100;
+};
+
+typedef MenuManager<GBS, MenuAttrs> Menu;
 
 // runTimeOptions holds system variables
 struct runTimeOptions {
@@ -1236,7 +1236,7 @@ void doPostPresetLoadSteps() {
   // Any sync correction we were applying is gone
   FrameSync::init();
   // Any menu corrections are gone
-  menuInit();
+  Menu::init();
 
   if (rto->inputIsYpBpR == true) {
     Serial.print("(YUV)");
@@ -1721,189 +1721,6 @@ void setup() {
   LEDOFF // startup done, disable the LED
 }
 
-static const struct {
-  int16_t min;
-  int16_t max;
-  uint8_t delta;
-} menuParams[GBS::OSD_ICON_COUNT] = {
-  {0, 0, 0},
-  {0, 0, 0},
-  {0, 0, 0},
-  {0, 0, 0},
-  { -100, 100, 4},
-  { -150, 150, 4},
-  { -100, 100, 4},
-  { -150, 150, 4}
-};
-
-static int16_t menuValues[GBS::OSD_ICON_COUNT];
-
-static const uint16_t menuBarLength = 100;
-
-static MenuState menuState = MenuState::OFF;
-static uint8_t menuIndex = 0;
-
-// Initialize basic OSD settings
-static void menuInit(void) {
-  memset(menuValues, 0, sizeof(menuValues));
-  GBS::OSD_SW_RESET::write(true);
-  GBS::OSD_MENU_BAR_FONT_FORCOR::write(GBS::OSD_COLOR_WHITE);
-  GBS::OSD_MENU_BAR_FONT_BGCOR::write(GBS::OSD_COLOR_BLACK);
-  GBS::OSD_MENU_BAR_BORD_COR::write(GBS::OSD_COLOR_BLUE);
-  GBS::OSD_MENU_SEL_FORCOR::write(GBS::OSD_COLOR_GREEN);
-  GBS::OSD_MENU_SEL_BGCOR::write(GBS::OSD_COLOR_MAGENTA);
-  GBS::OSD_YCBCR_RGB_FORMAT::write(GBS::OSD_FORMAT_RGB);
-  // FIXME: these don't seem to be pixel positions, so what are they?
-  GBS::OSD_MENU_HORI_START::write(500 >> 3);
-  GBS::OSD_MENU_VER_START::write(400 >> 3);
-  GBS::OSD_MENU_DISP_STYLE::write(GBS::OSD_MENU_DISP_STYLE_VERTICAL);
-  GBS::OSD_HORIZONTAL_ZOOM::write(GBS::OSD_ZOOM_3X);
-  GBS::OSD_VERTICAL_ZOOM::write(GBS::OSD_ZOOM_3X);
-  GBS::OSD_DISP_EN::write(false);
-  GBS::OSD_MENU_EN::write(false);
-  GBS::OSD_SW_RESET::write(false);
-}
-
-static void menuOn(void) {
-  GBS::OSD_COMMAND_FINISH::write(false);
-  GBS::OSD_MENU_ICON_SEL::write(GBS::osdIcon(menuIndex));
-  GBS::OSD_DISP_EN::write(true);
-  GBS::OSD_MENU_EN::write(true);
-  GBS::OSD_COMMAND_FINISH::write(true);
-}
-
-static void menuOff(void) {
-  GBS::OSD_COMMAND_FINISH::write(false);
-  GBS::OSD_DISP_EN::write(false);
-  GBS::OSD_MENU_EN::write(false);
-  GBS::OSD_COMMAND_FINISH::write(true);
-}
-
-static void menuMoveCursor(int8_t delta) {
-  menuIndex = (uint8_t) (menuIndex + delta) % GBS::OSD_ICON_COUNT;
-  GBS::OSD_COMMAND_FINISH::write(false);
-  GBS::OSD_MENU_ICON_SEL::write(GBS::osdIcon(menuIndex));
-  GBS::OSD_COMMAND_FINISH::write(true);
-}
-
-static void menuUpdateBar(void) {
-  uint16_t span = menuParams[menuIndex].max - menuParams[menuIndex].min;
-  uint16_t filled = menuValues[menuIndex] - menuParams[menuIndex].min;
-
-  GBS::OSD_BAR_LENGTH::write(menuBarLength);
-  GBS::OSD_BAR_FOREGROUND_VALUE::write((filled * menuBarLength) / span);
-}
-
-static bool menuEnter(void) {
-  if (menuParams[menuIndex].delta == 0)
-    return false;
-
-  GBS::OSD_COMMAND_FINISH::write(false);
-  GBS::OSD_MENU_MOD_SEL::write(GBS::osdIcon(menuIndex));
-  menuUpdateBar();
-  GBS::OSD_COMMAND_FINISH::write(true);
-
-  return true;
-}
-
-static void menuLeave(void) {
-  GBS::OSD_MENU_MOD_SEL::write(0);
-  // A reset is necessary to escape this state
-  GBS::OSD_SW_RESET::write(true);
-  GBS::OSD_SW_RESET::write(false);
-  menuOn();
-}
-
-static void menuApplyDelta(int8_t delta) {
-  if (menuValues[menuIndex] + delta < menuParams[menuIndex].min ||
-      menuValues[menuIndex] + delta > menuParams[menuIndex].max)
-    return;
-
-  menuValues[menuIndex] += delta;
-  GBS::OSD_COMMAND_FINISH::write(false);
-  menuUpdateBar();
-  GBS::OSD_COMMAND_FINISH::write(true);
-
-  switch (GBS::osdIcon(menuIndex)) {
-    case GBS::OSD_ICON_LEFT_RIGHT:
-      if (delta < 0)
-        shiftHorizontal(-delta, true);
-      else
-        shiftHorizontal(delta, false);
-      break;
-    case GBS::OSD_ICON_UP_DOWN:
-      if (delta < 0)
-        shiftVertical(-delta, true);
-      else
-        shiftVertical(delta, false);
-      break;
-    case GBS::OSD_ICON_HORIZONTAL_SIZE:
-      if (delta < 0)
-        scaleHorizontal(-delta, true);
-      else
-        scaleHorizontal(delta, false);
-      break;
-    case GBS::OSD_ICON_VERTICAL_SIZE:
-      if (delta < 0)
-        scaleVertical(-delta, false);
-      else
-        scaleVertical(delta, true);
-      break;
-  }
-}
-
-static void menuAdjustUp(void) {
-  menuApplyDelta(-menuParams[menuIndex].delta);
-}
-
-static void menuAdjustDown(void) {
-  menuApplyDelta(menuParams[menuIndex].delta);
-}
-
-void menuRun(MenuInput input) {
-  switch (menuState) {
-    case MenuState::OFF:
-      if (input == MenuInput::FORWARD) {
-        menuOn();
-        menuState = MenuState::MAIN;
-      }
-      break;
-    case MenuState::MAIN:
-      switch (input) {
-        case MenuInput::BACK:
-          menuOff();
-          menuState = MenuState::OFF;
-          break;
-        case MenuInput::UP:
-          menuMoveCursor(-1);
-          break;
-        case MenuInput::DOWN:
-          menuMoveCursor(1);
-          break;
-        case MenuInput::FORWARD:
-          if (menuEnter())
-            menuState = MenuState::ADJUST;
-      }
-      break;
-    case MenuState::ADJUST:
-      switch (input) {
-        case MenuInput::BACK:
-          menuLeave();
-          menuState = MenuState::MAIN;
-          break;
-        case MenuInput::UP:
-          menuAdjustUp();
-          break;
-        case MenuInput::DOWN:
-          menuAdjustDown();
-          break;
-        default:
-          break;
-      }
-      break;
-  }
-}
-
 #ifdef HAVE_BUTTONS
 #define INPUT_SHIFT 0
 #define DOWN_SHIFT 1
@@ -1939,13 +1756,13 @@ bool buttonDown(uint8_t pos) {
 void handleButtons(void) {
   debounceButtons();
   if (buttonDown(INPUT_SHIFT))
-    menuRun(MenuInput::BACK);
+    Menu::run(MenuInput::BACK);
   if (buttonDown(DOWN_SHIFT))
-    menuRun(MenuInput::DOWN);
+    Menu::run(MenuInput::DOWN);
   if (buttonDown(UP_SHIFT))
-    menuRun(MenuInput::UP);
+    Menu::run(MenuInput::UP);
   if (buttonDown(MENU_SHIFT))
-    menuRun(MenuInput::FORWARD);
+    Menu::run(MenuInput::FORWARD);
 }
 #endif
 
