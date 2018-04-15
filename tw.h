@@ -220,7 +220,7 @@ struct SegCompatible<SegValue, Reg> {
 
 template<class SegValue, class Reg1, class Reg2, class... Tail>
 struct SegCompatible<SegValue, Reg1, Reg2, Tail...> {
-    static const bool compatible = Reg1::segment == Reg2::segment && SegCompatible<Reg2, Tail...>::compatible;
+    static const bool compatible = Reg1::segment == Reg2::segment && SegCompatible<SegValue, Reg2, Tail...>::compatible;
     static constexpr SegValue segment = Reg1::segment;
 };
 
