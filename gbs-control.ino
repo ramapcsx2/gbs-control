@@ -744,6 +744,7 @@ void resetModeDetect() {
   //  writeOneByte(0x47, readout & ~(1 << 1));
   //  readFromRegister(0x47, 1, &readout);
   //  writeOneByte(0x47, readout | (1 << 1));
+  Serial.println(F("reset mode detect"));
 
   // try a softer approach
   writeOneByte(0xF0, 1);
@@ -1414,32 +1415,25 @@ static bool findBestHTotal(uint16_t& bestHtotal) {
 
 // Initialize sync locking
 void initSyncLock() {
-  uint8_t debugRegBackup;
   uint16_t bestHTotal = 0;
-
-  writeOneByte(0xF0, 5);
-  readFromRegister(0x63, 1, &debugRegBackup);
-  writeOneByte(0x63, 0x0f);
 
   // Adjust output horizontal sync timing so that the overall frame
   // time is as close to the input as possible while still being less.
   // Increasing the vertical frame size slightly should then push the
   // output frame time to being larger than the input.
   if (!findBestHTotal(bestHTotal)) {
-    writeOneByte(0xF0, 5);
-    writeOneByte(0x63, debugRegBackup);
     return;
   }
 
   GBS::VDS_HSYNC_RST::write(bestHTotal);
   resetPLL(); resetPLLAD(); // this helps with some corrections leaving garbage just within active video
 
-  writeOneByte(0xF0, 5);
-  writeOneByte(0x63, debugRegBackup);
   rto->syncLockReady = true;
 }
 
 // Sample vsync start and stop times (for two consecutive frames) from debug pin
+// A timeout prevents deadlocks in case of bad signals. The signal check is only required initially,
+// as VDS and Mode Detect (over the test bus) continue sending their signal unless they get reset.
 bool vsyncInputSample(unsigned long* start, unsigned long* stop) {
   unsigned long timeoutStart = micros();
   while (digitalRead(debugInPin))
@@ -1449,23 +1443,18 @@ bool vsyncInputSample(unsigned long* start, unsigned long* stop) {
     if (micros() - timeoutStart >= syncTimeout)
       return false;
   *start = micros();
-  while (digitalRead(debugInPin))
-    if (micros() - timeoutStart >= syncTimeout)
-      return false;
-  while (!digitalRead(debugInPin))
-    if (micros() - timeoutStart >= syncTimeout)
-      return false;
-  while (digitalRead(debugInPin))
-    if (micros() - timeoutStart >= syncTimeout)
-      return false;
-  while (!digitalRead(debugInPin))
-    if (micros() - timeoutStart >= syncTimeout)
-      return false;
+  while (digitalRead(debugInPin));
+  while (!digitalRead(debugInPin));
+  // sample twice
+  while (digitalRead(debugInPin));
+  while (!digitalRead(debugInPin));
   *stop = micros();
   return true;
 }
 
 // Sample vsync start and stop times from output vsync pin
+// A timeout prevents deadlocks in case of bad signals. The signal check is only required initially,
+// as VDS and Mode Detect (over the test bus) continue sending their signal unless they get reset.
 bool vsyncOutputSample(unsigned long* start, unsigned long* stop) {
   unsigned long timeoutStart = micros();
   while (digitalRead(vsyncInPin))
@@ -1475,12 +1464,8 @@ bool vsyncOutputSample(unsigned long* start, unsigned long* stop) {
     if (micros() - timeoutStart >= syncTimeout)
       return false;
   *start = micros();
-  while (digitalRead(vsyncInPin))
-    if (micros() - timeoutStart >= syncTimeout)
-      return false;
-  while (!digitalRead(vsyncInPin))
-    if (micros() - timeoutStart >= syncTimeout)
-      return false;
+  while (digitalRead(vsyncInPin));
+  while (!digitalRead(vsyncInPin));
   *stop = micros();
   return true;
 }
@@ -1488,19 +1473,12 @@ bool vsyncOutputSample(unsigned long* start, unsigned long* stop) {
 // Sample input and output vsync periods and their phase difference in microseconds
 bool vsyncPeriodAndPhase(uint32_t* periodInput, uint32_t* periodOutput, int32_t* phase) {
   unsigned long inStart, inStop, outStart, outStop, inPeriod, outPeriod, diff;
-  uint8_t debugRegBackup;
-
-  writeOneByte(0xF0, 5);
-  readFromRegister(0x63, 1, &debugRegBackup);
-  writeOneByte(0x63, 0x0f);
 
   if (!vsyncInputSample(&inStart, &inStop)) {
-    writeOneByte(0x63, debugRegBackup);
     return false;
   }
   inPeriod = (inStop - inStart) / 2;
   if (!vsyncOutputSample(&outStart, &outStop)) {
-    writeOneByte(0x63, debugRegBackup);
     return false;
   }
   outPeriod = outStop - outStart;
@@ -1512,7 +1490,18 @@ bool vsyncPeriodAndPhase(uint32_t* periodInput, uint32_t* periodOutput, int32_t*
   if (phase)
     *phase = (diff < inPeriod / 2) ? diff : diff - inPeriod;
 
-  writeOneByte(0x63, debugRegBackup);
+  // good for jitter tests
+  //  static uint32_t minseen = 100000, maxseen = 0;
+  //  static uint8_t initialHold = 22;
+  //  if (initialHold-- < 3) {
+  //    if (inPeriod < minseen) minseen = inPeriod;
+  //    if (inPeriod > maxseen) maxseen = inPeriod;
+  //    initialHold = 2;
+  //  }
+  //  Serial.print("inPeriod: "); Serial.print(inPeriod);
+  //  Serial.print(" min|max: "); Serial.print(minseen);
+  //  Serial.print("|"); Serial.println(maxseen);
+
   return true;
 }
 
@@ -2006,10 +1995,6 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   LEDON // enable the LED, lets users know the board is starting up
   delay(3000); // give the entire system some time to start up.
-
-  // example for using the gbs8200 onboard buttons in an interrupt routine
-  //pinMode(2, INPUT); // button for IFdown
-  //attachInterrupt(digitalPinToInterrupt(2), IFdown, FALLING);
 
 #if defined(ESP8266) || defined(ESP32)
   // file system (web page, custom presets, ect)
@@ -2838,10 +2823,13 @@ void loop() {
   globalCommand = 0; // in case the web server had this set
 
   if (uopt->enableFrameTimeLock && rto->syncLockEnabled && rto->syncLockReady && millis() - lastVsyncLock > syncLockInterval) {
+    uint8_t debugRegBackup; writeOneByte(0xF0, 5); readFromRegister(0x63, 1, &debugRegBackup);
+    writeOneByte(0x63, 0x0f);
     lastVsyncLock = millis();
     if (!doVsyncPhaseLock()) {
       resetModeDetect();
     }
+    writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
   }
 
   // poll sync status continously
@@ -2998,7 +2986,10 @@ void loop() {
   // only run this when sync is stable!
   if (rto->syncLockEnabled == true && rto->syncLockReady == false &&
       getSyncStable() && rto->videoStandardInput != 0 && millis() - lastVsyncLock > syncLockInterval) {
+    uint8_t debugRegBackup; writeOneByte(0xF0, 5); readFromRegister(0x63, 1, &debugRegBackup);
+    writeOneByte(0x63, 0x0f);
     initSyncLock();
+    writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
   }
 
   if (rto->sourceDisconnected == true) { // keep looking for new input
