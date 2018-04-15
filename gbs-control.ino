@@ -2116,10 +2116,10 @@ static const struct {
   {0, 0, 0},
   {0, 0, 0},
   {0, 0, 0},
-  {-100, 100, 4},
-  {-150, 150, 4},
-  {-100, 100, 4},
-  {-150, 150, 4}
+  { -100, 100, 4},
+  { -150, 150, 4},
+  { -100, 100, 4},
+  { -150, 150, 4}
 };
 
 static int16_t menuValues[GBS::OSD_ICON_COUNT];
@@ -2209,32 +2209,32 @@ static void menuApplyDelta(int8_t delta) {
   GBS::OSD_COMMAND_FINISH::write(false);
   menuUpdateBar();
   GBS::OSD_COMMAND_FINISH::write(true);
-  
+
   switch (GBS::osdIcon(menuIndex)) {
-  case GBS::OSD_ICON_LEFT_RIGHT:
-    if (delta < 0)
-      shiftHorizontal(-delta, true);
-    else
-      shiftHorizontal(delta, false);
-    break;
-  case GBS::OSD_ICON_UP_DOWN:
-    if (delta < 0)
-      shiftVertical(-delta, true);
-    else
-      shiftVertical(delta, false);
-    break;
-  case GBS::OSD_ICON_HORIZONTAL_SIZE:
-    if (delta < 0)
-      scaleHorizontal(-delta, true);
-    else
-      scaleHorizontal(delta, false);
-    break;
-  case GBS::OSD_ICON_VERTICAL_SIZE:
-    if (delta < 0)
-      scaleVertical(-delta, false);
-    else
-      scaleVertical(delta, true);
-    break;
+    case GBS::OSD_ICON_LEFT_RIGHT:
+      if (delta < 0)
+        shiftHorizontal(-delta, true);
+      else
+        shiftHorizontal(delta, false);
+      break;
+    case GBS::OSD_ICON_UP_DOWN:
+      if (delta < 0)
+        shiftVertical(-delta, true);
+      else
+        shiftVertical(delta, false);
+      break;
+    case GBS::OSD_ICON_HORIZONTAL_SIZE:
+      if (delta < 0)
+        scaleHorizontal(-delta, true);
+      else
+        scaleHorizontal(delta, false);
+      break;
+    case GBS::OSD_ICON_VERTICAL_SIZE:
+      if (delta < 0)
+        scaleVertical(-delta, false);
+      else
+        scaleVertical(delta, true);
+      break;
   }
 }
 
@@ -2248,45 +2248,45 @@ static void menuAdjustDown(void) {
 
 void menuRun(MenuInput input) {
   switch (menuState) {
-  case MenuState::OFF:
-    if (input == MenuInput::FORWARD) {
-      menuOn();
-      menuState = MenuState::MAIN;
-    }
-    break;
-  case MenuState::MAIN:
-    switch (input) {
-    case MenuInput::BACK:
-      menuOff();
-      menuState = MenuState::OFF;
+    case MenuState::OFF:
+      if (input == MenuInput::FORWARD) {
+        menuOn();
+        menuState = MenuState::MAIN;
+      }
       break;
-    case MenuInput::UP:
-      menuMoveCursor(-1);
+    case MenuState::MAIN:
+      switch (input) {
+        case MenuInput::BACK:
+          menuOff();
+          menuState = MenuState::OFF;
+          break;
+        case MenuInput::UP:
+          menuMoveCursor(-1);
+          break;
+        case MenuInput::DOWN:
+          menuMoveCursor(1);
+          break;
+        case MenuInput::FORWARD:
+          if (menuEnter())
+            menuState = MenuState::ADJUST;
+      }
       break;
-    case MenuInput::DOWN:
-      menuMoveCursor(1);
+    case MenuState::ADJUST:
+      switch (input) {
+        case MenuInput::BACK:
+          menuLeave();
+          menuState = MenuState::MAIN;
+          break;
+        case MenuInput::UP:
+          menuAdjustUp();
+          break;
+        case MenuInput::DOWN:
+          menuAdjustDown();
+          break;
+        default:
+          break;
+      }
       break;
-    case MenuInput::FORWARD:
-      if (menuEnter())
-        menuState = MenuState::ADJUST;
-    }
-    break;
-  case MenuState::ADJUST:
-  switch (input) {
-    case MenuInput::BACK:
-      menuLeave();
-      menuState = MenuState::MAIN;
-      break;
-    case MenuInput::UP:
-      menuAdjustUp();
-      break;
-    case MenuInput::DOWN:
-      menuAdjustDown();
-      break;
-    default:
-      break;
-    }
-    break;
   }
 }
 
