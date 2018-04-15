@@ -24,8 +24,8 @@ extern "C" void tcp_abort (struct tcp_pcb* pcb);
 extern "C" {
 #include <user_interface.h>
 }
-#define vsyncInPin D7
-#define debugInPin D6
+#define VSYNC_IN_PIN D7
+#define DEBUG_IN_PIN D6
 #define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, LOW); // active low
 #define LEDOFF digitalWrite(LED_BUILTIN, HIGH); pinMode(LED_BUILTIN, INPUT);
 
@@ -42,14 +42,14 @@ extern "C" {
 #include "SPIFFS.h"
 #define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, HIGH);
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW); pinMode(LED_BUILTIN, INPUT);
-#define vsyncInPin 27
-#define debugInPin 26
+#define VSYNC_IN_PIN 27
+#define DEBUG_IN_PIN 26
 
 #else // Arduino
 #define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, HIGH);
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW); pinMode(LED_BUILTIN, INPUT);
-#define vsyncInPin 10
-#define debugInPin 11 // ??
+#define VSYNC_IN_PIN 10
+#define DEBUG_IN_PIN 11 // ??
 
 #include "fastpin.h"
 
@@ -69,8 +69,8 @@ extern "C" {
 #endif
 
 #include "debug.h"
-
 #include "tv5725.h"
+#include "framesync.h"
 
 // 7 bit GBS I2C Address
 #define GBS_ADDR 0x17
@@ -94,20 +94,24 @@ enum class MenuState {
 // Sync locking tunables/magic numbers
 //
 
-// Sync lock sampling timeout in microseconds
-static const uint32_t syncTimeout = 200000;
-// Sync lock interval in milliseconds
-static const uint32_t syncLockInterval = 60 * 16; // every 60 frames. good range for this: 30 to 90
-// Sync correction in scanlines to apply when phase lags target
-static const int16_t syncCorrection = 2;
-// Target vsync phase offset (output trails input) in degrees
-static const uint32_t syncTargetPhase = 90;
-// Number of consistent best htotal results to get in a row before considering it valid
-static const uint8_t syncHtotalStable = 4;
-// Number of samples to average when determining best htotal
-static const uint8_t syncSamples = 2;
+struct FrameSyncAttrs {
+  static const uint8_t vsyncInPin = VSYNC_IN_PIN;
+  static const uint8_t debugInPin = DEBUG_IN_PIN;
+  // Sync lock sampling timeout in microseconds
+  static const uint32_t timeout = 200000;
+  // Sync lock interval in milliseconds
+  static const uint32_t lockInterval = 60 * 16; // every 60 frames. good range for this: 30 to 90
+  // Sync correction in scanlines to apply when phase lags target
+  static const int16_t correction = 2;
+  // Target vsync phase offset (output trails input) in degrees
+  static const uint32_t targetPhase = 90;
+  // Number of consistent best htotal results to get in a row before considering it valid
+  static const uint8_t htotalStable = 4;
+  // Number of samples to average when determining best htotal
+  static const uint8_t samples = 2;
+};
 
-static int16_t syncLastCorrection = 0;
+typedef FrameSyncManager<GBS, FrameSyncAttrs> FrameSync;
 
 // runTimeOptions holds system variables
 struct runTimeOptions {
@@ -123,7 +127,6 @@ struct runTimeOptions {
   boolean deinterlacerWasTurnedOff;
   boolean modeDetectInReset;
   boolean syncLockEnabled;
-  boolean syncLockReady;
   boolean printInfos;
   boolean sourceDisconnected;
   boolean webServerEnabled;
@@ -1261,191 +1264,6 @@ void set_vtotal(uint16_t vtotal) {
   writeOneByte(0x14, regLow);
 }
 
-static bool sampleVsyncPeriods(uint32_t* input, uint32_t *output)
-{
-  uint32_t inPeriod, outPeriod;
-  uint32_t inSum = 0;
-  uint32_t outSum = 0;
-
-  for (uint8_t i = 0; i < syncSamples; ++i) {
-    if (!vsyncPeriodAndPhase(&inPeriod, &outPeriod, NULL))
-      return false;
-    inSum += inPeriod;
-    outSum += outPeriod;
-  }
-
-  *input = inSum / syncSamples;
-  *output = outSum / syncSamples;
-
-  return true;
-}
-
-// Find the largest htotal that makes output frame time less than the input.
-static bool findBestHTotal(uint16_t& bestHtotal) {
-  uint16_t htotal = GBS::VDS_HSYNC_RST::read();
-  uint32_t inPeriod, outPeriod;
-  uint16_t candHtotal;
-  uint8_t stable = 0;
-
-  debugln("Base htotal: ", htotal);
-
-  while (stable < syncHtotalStable) {
-    if (!sampleVsyncPeriods(&inPeriod, &outPeriod))
-      return false;
-    candHtotal = (htotal * inPeriod) / outPeriod;
-    debugln("Candidate htotal: ", candHtotal);
-    if (candHtotal == bestHtotal)
-      stable++;
-    else
-      stable = 1;
-    bestHtotal = candHtotal;
-  }
-
-  debugln("Best htotal: ", bestHtotal);
-
-  return true;
-}
-
-// Initialize sync locking
-void initSyncLock() {
-  uint16_t bestHTotal = 0;
-
-  // Adjust output horizontal sync timing so that the overall frame
-  // time is as close to the input as possible while still being less.
-  // Increasing the vertical frame size slightly should then push the
-  // output frame time to being larger than the input.
-  if (!findBestHTotal(bestHTotal)) {
-    return;
-  }
-
-  GBS::VDS_HSYNC_RST::write(bestHTotal);
-  resetPLL(); resetPLLAD(); // this helps with some corrections leaving garbage just within active video
-
-  rto->syncLockReady = true;
-}
-
-// Sample vsync start and stop times (for two consecutive frames) from debug pin
-// A timeout prevents deadlocks in case of bad signals. The signal check is only required initially,
-// as VDS and Mode Detect (over the test bus) continue sending their signal unless they get reset.
-bool vsyncInputSample(unsigned long* start, unsigned long* stop) {
-  unsigned long timeoutStart = micros();
-  while (digitalRead(debugInPin))
-    if (micros() - timeoutStart >= syncTimeout)
-      return false;
-  while (!digitalRead(debugInPin))
-    if (micros() - timeoutStart >= syncTimeout)
-      return false;
-  *start = micros();
-  while (digitalRead(debugInPin));
-  while (!digitalRead(debugInPin));
-  // sample twice
-  while (digitalRead(debugInPin));
-  while (!digitalRead(debugInPin));
-  *stop = micros();
-  return true;
-}
-
-// Sample vsync start and stop times from output vsync pin
-// A timeout prevents deadlocks in case of bad signals. The signal check is only required initially,
-// as VDS and Mode Detect (over the test bus) continue sending their signal unless they get reset.
-bool vsyncOutputSample(unsigned long* start, unsigned long* stop) {
-  unsigned long timeoutStart = micros();
-  while (digitalRead(vsyncInPin))
-    if (micros() - timeoutStart >= syncTimeout)
-      return false;
-  while (!digitalRead(vsyncInPin))
-    if (micros() - timeoutStart >= syncTimeout)
-      return false;
-  *start = micros();
-  while (digitalRead(vsyncInPin));
-  while (!digitalRead(vsyncInPin));
-  *stop = micros();
-  return true;
-}
-
-// Sample input and output vsync periods and their phase difference in microseconds
-bool vsyncPeriodAndPhase(uint32_t* periodInput, uint32_t* periodOutput, int32_t* phase) {
-  unsigned long inStart, inStop, outStart, outStop, inPeriod, outPeriod, diff;
-
-  if (!vsyncInputSample(&inStart, &inStop)) {
-    return false;
-  }
-  inPeriod = (inStop - inStart) / 2;
-  if (!vsyncOutputSample(&outStart, &outStop)) {
-    return false;
-  }
-  outPeriod = outStop - outStart;
-  diff = (outStart - inStart) % inPeriod;
-  if (periodInput)
-    *periodInput = inPeriod;
-  if (periodOutput)
-    *periodOutput = outPeriod;
-  if (phase)
-    *phase = (diff < inPeriod / 2) ? diff : diff - inPeriod;
-
-  // good for jitter tests
-  //  static uint32_t minseen = 100000, maxseen = 0;
-  //  static uint8_t initialHold = 22;
-  //  if (initialHold-- < 3) {
-  //    if (inPeriod < minseen) minseen = inPeriod;
-  //    if (inPeriod > maxseen) maxseen = inPeriod;
-  //    initialHold = 2;
-  //  }
-  //  Serial.print("inPeriod: "); Serial.print(inPeriod);
-  //  Serial.print(" min|max: "); Serial.print(minseen);
-  //  Serial.print("|"); Serial.println(maxseen);
-
-  return true;
-}
-
-void adjustFrameSize(int16_t delta) {
-  typedef GBS::Tie<GBS::VDS_VSYNC_RST, GBS::VDS_VS_ST, GBS::VDS_VS_SP> Regs;
-  uint16_t vtotal = 0, vsst = 0, vssp = 0;
-  uint16_t currentLineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
-  uint16_t earlyFrameBoundary;
-
-  Regs::read(vtotal, vsst, vssp);
-  earlyFrameBoundary = vtotal / 4;
-  vtotal += delta;
-  vsst += delta;
-  vssp += delta;
-  // wait for next frame start + 20 lines for stability
-  while (currentLineNumber > earlyFrameBoundary || currentLineNumber < 20) {
-    currentLineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
-  }
-  Regs::write(vtotal, vsst, vssp);
-}
-
-// Perform vsync phase locking.  This is accomplished by measuring the period and
-// phase offset of the input and output vsync signals and adjusting the frame size
-// (and thus the output vsync frequency) to bring the phase offset closer to the
-// desired value.
-bool doVsyncPhaseLock(void) {
-  uint32_t period;
-  int32_t phase;
-  int32_t target;
-  int16_t correction;
-
-  if (!vsyncPeriodAndPhase(&period, NULL, &phase))
-    return false;
-
-  debugln("Phase offset: ", phase);
-
-  target = (syncTargetPhase * period) / 360;
-
-  if (phase > target)
-    correction = 0;
-  else
-    correction = syncCorrection;
-
-  debugln("Correction: ", correction);
-
-  adjustFrameSize(correction - syncLastCorrection);
-  syncLastCorrection = correction;
-
-  return true;
-}
-
 void enableDebugPort() {
   writeOneByte(0xf0, 0);
   writeOneByte(0x48, 0xeb); //3f
@@ -1479,7 +1297,7 @@ void resetRunTimeVariables() {
 
 void doPostPresetLoadSteps() {
   // Any sync correction we were applying is gone
-  syncLastCorrection = 0;
+  FrameSync::init();
   // Any menu corrections are gone
   menuInit();
 
@@ -1649,7 +1467,7 @@ void enableVDS() {
 
 void resetSyncLock() {
   if (rto->syncLockEnabled) {
-    rto->syncLockReady = false;
+    FrameSync::reset();
   }
 }
 
@@ -1733,10 +1551,10 @@ void setPhaseSP() {
   readFromRegister(0x19, 1, &readout); // read out again
   readout |= (1 << 7);  // latch is now primed. new phase will go in effect when readout is written
 
-  if (pulseIn(debugInPin, HIGH, 100000) != 0) {
-    if  (pulseIn(debugInPin, LOW, 100000) != 0) {
-      while (digitalRead(debugInPin) == 1);
-      while (digitalRead(debugInPin) == 0);
+  if (pulseIn(DEBUG_IN_PIN, HIGH, 100000) != 0) {
+    if (pulseIn(DEBUG_IN_PIN, LOW, 100000) != 0) {
+      while (digitalRead(DEBUG_IN_PIN) == 1);
+      while (digitalRead(DEBUG_IN_PIN) == 0);
     }
   }
 
@@ -1761,10 +1579,10 @@ void setPhaseADC() {
   readFromRegister(0x18, 1, &readout); // read out again
   readout |= (1 << 7); // latch is now primed. new phase will go in effect when readout is written
 
-  if (pulseIn(debugInPin, HIGH, 100000) != 0) {
-    if  (pulseIn(debugInPin, LOW, 100000) != 0) {
-      while (digitalRead(debugInPin) == 1);
-      while (digitalRead(debugInPin) == 0);
+  if (pulseIn(DEBUG_IN_PIN, HIGH, 100000) != 0) {
+    if (pulseIn(DEBUG_IN_PIN, LOW, 100000) != 0) {
+      while (digitalRead(DEBUG_IN_PIN) == 1);
+      while (digitalRead(DEBUG_IN_PIN) == 0);
     }
   }
 
@@ -1877,14 +1695,13 @@ void setup() {
   rto->deinterlacerWasTurnedOff = false;
   rto->modeDetectInReset = false;
   rto->webServerStarted = false;
-  rto->syncLockReady = false;
   rto->printInfos = false;
   rto->sourceDisconnected = false;
 
   globalCommand = 0; // web server uses this to issue commands
 
-  pinMode(vsyncInPin, INPUT);
-  pinMode(debugInPin, INPUT);
+  pinMode(VSYNC_IN_PIN, INPUT);
+  pinMode(DEBUG_IN_PIN, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   LEDON // enable the LED, lets users know the board is starting up
   delay(3000); // give the entire system some time to start up.
@@ -2278,12 +2095,10 @@ void loop() {
         inputStage = 0; // reset this as well
         break;
       case 'd':
-        adjustFrameSize(-syncLastCorrection);
         for (int segment = 0; segment <= 5; segment++) {
           dumpRegisters(segment);
         }
         Serial.println("};");
-        adjustFrameSize(syncLastCorrection);
         break;
       case '+':
         Serial.println(F("shift hor. +"));
@@ -2356,7 +2171,7 @@ void loop() {
         doPostPresetLoadSteps();
         break;
       case '.':
-        rto->syncLockReady = !rto->syncLockReady;
+        resetSyncLock();
         break;
       case 'j':
         resetPLL(); resetPLLAD();
@@ -2715,11 +2530,11 @@ void loop() {
   }
   globalCommand = 0; // in case the web server had this set
 
-  if (uopt->enableFrameTimeLock && rto->syncLockEnabled && rto->syncLockReady && millis() - lastVsyncLock > syncLockInterval) {
+  if (uopt->enableFrameTimeLock && rto->syncLockEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval) {
     uint8_t debugRegBackup; writeOneByte(0xF0, 5); readFromRegister(0x63, 1, &debugRegBackup);
     writeOneByte(0x63, 0x0f);
     lastVsyncLock = millis();
-    if (!doVsyncPhaseLock()) {
+    if (!FrameSync::run()) {
       resetModeDetect();
     }
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
@@ -2877,11 +2692,16 @@ void loop() {
   } // end information mode
 
   // only run this when sync is stable!
-  if (rto->syncLockEnabled == true && rto->syncLockReady == false &&
-      getSyncStable() && rto->videoStandardInput != 0 && millis() - lastVsyncLock > syncLockInterval) {
+  if (rto->syncLockEnabled == true && !FrameSync::ready() &&
+      getSyncStable() && rto->videoStandardInput != 0 && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval) {
     uint8_t debugRegBackup; writeOneByte(0xF0, 5); readFromRegister(0x63, 1, &debugRegBackup);
     writeOneByte(0x63, 0x0f);
-    initSyncLock();
+    if (FrameSync::init()) {
+      // this helps with some corrections leaving garbage just within
+      // active video
+      resetPLL();
+      resetPLLAD();
+    }
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
   }
 
