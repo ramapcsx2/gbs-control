@@ -22,8 +22,10 @@ extern "C" void tcp_abort (struct tcp_pcb* pcb);
 extern "C" {
 #include <user_interface.h>
 }
-#define VSYNC_IN_PIN D7
-#define DEBUG_IN_PIN D6
+#define VSYNC_IN_PIN D7 // "D1/ MOSI/D7" (Wemos D1) // D7 (Lolin)
+#define DEBUG_IN_PIN D6 // "D12/MISO/D6" (Wemos D1) // D6 (Lolin)
+// SCL = D1 (Lolin), D15 (Wemos D1) // ESP8266 Arduino default map: SCL
+// SDA = D2 (Lolin), D14 (Wemos D1) // ESP8266 Arduino default map: SDA
 #define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, LOW); // active low
 #define LEDOFF digitalWrite(LED_BUILTIN, HIGH); pinMode(LED_BUILTIN, INPUT);
 
@@ -262,13 +264,13 @@ void writeProgramArrayNew(const uint8_t* programArray)
   rto->phaseADC = ((readout & 0x3e) >> 1);
   readFromRegister(0x19, 1, &readout);
   rto->phaseSP = ((readout & 0x3e) >> 1);
-  Serial.println(rto->phaseADC); Serial.println(rto->phaseSP);
+  //Serial.println(rto->phaseADC); Serial.println(rto->phaseSP);
 
   //reset rto sampling start variable
   writeOneByte(0xF0, 1);
   readFromRegister(0x26, 1, &readout);
   rto->samplingStart = readout;
-  Serial.println(rto->samplingStart);
+  //Serial.println(rto->samplingStart);
 
   writeOneByte(0xF0, 0);
   writeOneByte(0x46, 0x3f); // reset controls 1 // everything on except VDS display output
@@ -344,7 +346,7 @@ void setParametersSP() {
   //writeOneByte(0x3f, 0x03); // 0x03
   //writeOneByte(0x40, 0x0b); // 0x0b
 
-  setClampPosition(); // already done if gone thorugh syncwatcher or setup, but not manual modes
+  setClampPosition(); // already done if gone thorugh syncwatcher, but not manual modes
 
   // 0x45 to 0x48 set a HS position just for Mode Detect. it's fine at start = 0 and stop = 1 or above
   // Update: This is the retiming module. It can be used for SP processing with t5t57t6
@@ -1265,11 +1267,13 @@ void doPostPresetLoadSteps() {
     result = getVideoMode();
     delay(2);
   }
-  if (timeout == 0) {
-    Serial.println(F("sync lost"));
-    rto->videoStandardInput = 0;
-    return;
-  }
+  // fixme
+  //  if (timeout == 0) {
+  //    Serial.println(F("sync lost"));
+  //    rto->videoStandardInput = 0;
+  //    return;
+  //  }
+
   //setParametersIF(); // it's sufficient to do this in syncwatcher
   setClampPosition();
   enableDebugPort();
@@ -1629,8 +1633,9 @@ void setup() {
   delay(3000); // give the entire system some time to start up.
 
 #if defined(ESP8266) || defined(ESP32)
+  // if you want simple wifi debug info
+  //Serial.setDebugOutput(true);
   // file system (web page, custom presets, ect)
-
 #if defined(ESP32)
   if (!SPIFFS.begin(true)) { // true = format spiffs on first use / when mount fails
 #elif defined(ESP8266)
@@ -1686,23 +1691,29 @@ void setup() {
 
   disableVDS();
   writeProgramArrayNew(minimal_startup); // bring the chip up for input detection
-  resetDigital();
-  delay(250);
-  inputAndSyncDetect();
-  delay(500);
+  rto->videoStandardInput = 0;
+  // next: disable ADC (power save), prep for detecting any source in loop()
 
-  byte result = getVideoMode();
-  byte timeout = 255;
-  while (result == 0 && --timeout > 0) {
-    if ((timeout % 5) == 0) Serial.print(".");
-    result = getVideoMode();
-    delay(1);
-  }
+  // fixme: fix current reliance on debug pin to tell if source is on (use test bus + status regs)
 
-  if (timeout > 0 && result != 0) {
-    applyPresets(result);
-    delay(1000); // at least 750ms required to become stable
-  }
+  //  writeProgramArrayNew(minimal_startup); // bring the chip up for input detection
+  //  resetDigital();
+  //  delay(250);
+  //  inputAndSyncDetect();
+  //  delay(500);
+  //
+  //  byte result = getVideoMode();
+  //  byte timeout = 255;
+  //  while (result == 0 && --timeout > 0) {
+  //    if ((timeout % 5) == 0) Serial.print(".");
+  //    result = getVideoMode();
+  //    delay(1);
+  //  }
+  //
+  //  if (timeout > 0 && result != 0) {
+  //    applyPresets(result);
+  //    delay(1000); // at least 750ms required to become stable
+  //  }
 
 #if defined(ESP8266)
   if (!rto->webServerEnabled) {
@@ -1786,10 +1797,10 @@ void loop() {
 
 #if defined(ESP8266) || defined(ESP32)
   static unsigned long webServerStartDelay = millis();
-  if (rto->webServerEnabled && !rto->webServerStarted && ((millis() - webServerStartDelay) > 15000) ) {
+  if (rto->webServerEnabled && !rto->webServerStarted && ((millis() - webServerStartDelay) > 12000) ) {
 #if defined(ESP8266)
     start_webserver(); // delay this (blocking) call to sometime in loop()
-    WiFi.setOutputPower(12.0f); // float: min 0.0f, max 20.5f
+    WiFi.setOutputPower(14.0f); // float: min 0.0f, max 20.5f
 #elif defined(ESP32)
     start_webserver();  // delay this (blocking) call to sometime in loop()
     delay(50);
@@ -2262,7 +2273,9 @@ void loop() {
     writeOneByte(0x63, 0x0f);
     lastVsyncLock = millis();
     if (!FrameSync::run()) {
-      resetModeDetect();
+      // fixme: remove resetModeDetect() when the test bus "source enabled" detection is implemented (see fixme in setup())
+      resetModeDetect();  // in case source got turned off, this will "remind" MD, which will in turn notify sync watcher
+      FrameSync::reset(); // in case run() failed because we lost a sync signal
     }
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
   }
@@ -2294,10 +2307,7 @@ void loop() {
     }
 
     // debug
-    if (noSyncCounter > 0 ) {
-      //Serial.print(signalInputChangeCounter);
-      //Serial.print(" ");
-      //Serial.println(noSyncCounter);
+    if (noSyncCounter > 0 && rto->videoStandardInput != 0) {
       if (noSyncCounter < 3) {
         Serial.print(".");
       }
@@ -2307,10 +2317,10 @@ void loop() {
     }
 
     if (noSyncCounter >= 80 ) { // ModeDetect reports nothing
-      Serial.println(F("No Sync!"));
+      Serial.println(F("No Sync"));
       disableVDS();
       inputAndSyncDetect();
-      setSOGLevel( random(0, 31) ); // try a random(min, max) sog level, hopefully find some sync
+      //setSOGLevel( random(0, 31) ); // try a random(min, max) sog level // fixme: do this in a better way!
       resetModeDetect();
       delay(300); // and give MD some time
       //rto->videoStandardInput = 0;
@@ -2334,6 +2344,7 @@ void loop() {
     }
 
     // ModeDetect can get stuck in the last mode when console is powered off
+    // fixme: replace with test bus method
     if ((millis() - lastTimeMDWatchdog) > 3000) {
       if ( (rto->videoStandardInput > 0) && !getSyncProcessorSignalValid() && (rto->modeDetectInReset == false) ) {
         delay(100);
@@ -2428,6 +2439,11 @@ void loop() {
       // active video
       resetPLL();
       resetPLLAD();
+    }
+    else {
+      // frame time lock failed, most likely due to missing wires
+      rto->syncLockEnabled = false;
+      debugln(F("sync lock failed, check debug + vsync wires!"));
     }
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
   }
@@ -2664,7 +2680,10 @@ void handleWebClient()
 
   WiFiClient client = webserver.available();
   if (client) {
-    //Serial.println("New client");
+    // slower, but might be more robust:
+    //client.setNoDelay(true);
+
+    Serial.println("New client");
     // an http request ends with a blank line
     boolean currentLineIsBlank = true;
     uint16_t client_timeout = 0;
@@ -2766,7 +2785,7 @@ void handleWebClient()
           // a text character was received from client
           currentLineIsBlank = false;
         }
-      } else {
+      } else { // bug! client connected but nothing "available", essentially waiting here for a long time for nothing to happen
 #if defined(ESP8266)
         if (client.status() == 4) {
           client_timeout++;
