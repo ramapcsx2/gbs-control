@@ -146,6 +146,9 @@ public:
   typedef UReg<0x01, 0x00, 6,  1> IF_PRGRSV_CNTRL;
   typedef UReg<0x01, 0x00, 7,  1> IF_HS_FLIP;
 
+  typedef UReg<0x01, 0x0e, 0, 11> IF_HSYNC_RST;
+  typedef UReg<0x01, 0x22, 0, 12> IF_LINE_SP;
+
   // VDS Registers
   typedef UReg<0x03, 0x00, 0,  1> VDS_SYNC_EN;
   typedef UReg<0x03, 0x00, 1,  1> VDS_FIELDAB_EN;
@@ -371,6 +374,10 @@ public:
   typedef UReg<0x00, 0x97, 0,  8> OSD_BAR_LENGTH;
   typedef UReg<0x00, 0x98, 0,  8> OSD_BAR_FOREGROUND_VALUE;
 
+  // ADC, SP Registers
+  typedef UReg<0x05, 0x37, 0,  8> SP_H_PULSE_IGNOR;
+
+  
   static const uint8_t OSD_ZOOM_1X = 0;
   static const uint8_t OSD_ZOOM_2X = 1;
   static const uint8_t OSD_ZOOM_3X = 2;

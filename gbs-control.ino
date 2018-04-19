@@ -120,8 +120,8 @@ struct runTimeOptions {
   uint8_t currentLevelSOG;
   uint16_t lowestHpw : 12; // 12 bits are enough to hold these
   uint16_t highestHpw : 12;
+  boolean avgHpwFound;
   boolean deinterlacerWasTurnedOff;
-  boolean modeDetectInReset;
   boolean syncLockEnabled;
   boolean printInfos;
   boolean sourceDisconnected;
@@ -250,8 +250,8 @@ void writeProgramArrayNew(const uint8_t* programArray)
   setParametersSP();
 
   writeOneByte(0xF0, 1);
-  writeOneByte(0x60, 0x81); // MD H unlock / lock
-  writeOneByte(0x61, 0x81); // MD V unlock / lock
+  writeOneByte(0x60, 0xA1); // MD H unlock / lock
+  writeOneByte(0x61, 0xA1); // MD V unlock / lock
   writeOneByte(0x80, 0xa9); // MD V nonsensical custom mode
   writeOneByte(0x81, 0x2e); // MD H nonsensical custom mode
   writeOneByte(0x82, 0x35); // MD H / V timer detect enable, auto detect enable
@@ -453,6 +453,8 @@ void inputAndSyncDetect() {
 
   if (!syncFound) {
     Serial.println(F("no input with sync found"));
+    resetModeDetect(); // ensure MD resets
+    SyncProcessorOffOn(); delay(50); // same for SP
     writeOneByte(0xF0, 0);
     byte a = 0;
     for (byte b = 0; b < 100; b++) {
@@ -575,8 +577,6 @@ void dumpRegisters(byte segment)
 void resetPLLAD() {
   uint8_t readout = 0;
   writeOneByte(0xF0, 5);
-  //readFromRegister(0x16, 1, &readout);
-  //writeOneByte(0x16, (readout & 0xf0)); // skew off
   readFromRegister(0x11, 1, &readout);
   readout &= ~(1 << 7); // latch off
   readout |= (1 << 0); // init vco voltage on
@@ -653,7 +653,7 @@ boolean getSyncProcessorSignalValid() {
 
   readFromRegister(0x1a, 1, &register_high); readFromRegister(0x19, 1, &register_low);
   register_combined = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
-  if ( (register_combined < 210) && (register_combined > 5)) { // Genesis can have huge hpw
+  if ( (register_combined < 260) && (register_combined > 5)) { // Genesis can have huge hpw
     hpwOkay = true;
   }
   else {
@@ -681,22 +681,22 @@ void SyncProcessorOffOn() {
 
 void resetModeDetect() {
   uint8_t readout = 0, backup = 0;
-  //  writeOneByte(0xF0, 0);
-  //  readFromRegister(0x47, 1, &readout);
-  //  writeOneByte(0x47, readout & ~(1 << 1));
-  //  readFromRegister(0x47, 1, &readout);
-  //  writeOneByte(0x47, readout | (1 << 1));
+  writeOneByte(0xF0, 0);
+  readFromRegister(0x47, 1, &readout);
+  writeOneByte(0x47, readout & ~(1 << 1));
+  readFromRegister(0x47, 1, &readout);
+  writeOneByte(0x47, readout | (1 << 1));
   Serial.println(F("reset mode detect"));
 
   // try a softer approach
-  writeOneByte(0xF0, 1);
-  readFromRegister(0x63, 1, &readout);
-  backup = readout;
-  writeOneByte(0x63, readout & ~(1 << 6));
-  writeOneByte(0x63, readout | (1 << 6));
-  writeOneByte(0x63, readout & ~(1 << 7));
-  writeOneByte(0x63, readout | (1 << 7));
-  writeOneByte(0x63, backup);
+  //  writeOneByte(0xF0, 1);
+  //  readFromRegister(0x63, 1, &readout);
+  //  backup = readout;
+  //  writeOneByte(0x63, readout & ~(1 << 6));
+  //  writeOneByte(0x63, readout | (1 << 6));
+  //  writeOneByte(0x63, readout & ~(1 << 7));
+  //  writeOneByte(0x63, readout | (1 << 7));
+  //  writeOneByte(0x63, backup);
 }
 
 void shiftHorizontal(uint16_t amountToAdd, bool subtracting) {
@@ -1231,7 +1231,8 @@ void resetRunTimeVariables() {
   // reset information on the last source
   rto->lowestHpw = 4095;
   rto->highestHpw = 0;
-  // only information stuff for now. add more later
+
+  rto->avgHpwFound = false;
 }
 
 void doPostPresetLoadSteps() {
@@ -1281,8 +1282,6 @@ void doPostPresetLoadSteps() {
   enableVDS(); delay(10);
   resetPLLAD(); delay(10);
   resetSyncLock();
-  rto->modeDetectInReset = false;
-
   Serial.println(F("post preset done"));
 }
 
@@ -1607,7 +1606,7 @@ void setup() {
   rto->webServerEnabled = true; // control gbs-control(:p) via web browser, only available on wifi boards. disable to conserve power.
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
-  rto->syncWatcher = true;  // continously checks the current sync status. issues resets if necessary
+  rto->syncWatcher = true;  // continously checks the current sync status. required for normal operation
   rto->phaseADC = 0; // 0 to 31
   rto->phaseSP = 0; // 0 to 31
   rto->samplingStart = 3; // holds S1_26
@@ -1616,10 +1615,10 @@ void setup() {
   rto->currentLevelSOG = 10;
   rto->lowestHpw = 4095;
   rto->highestHpw = 0;
+  rto->avgHpwFound = false;
   rto->inputIsYpBpR = false;
   rto->videoStandardInput = 0;
   rto->deinterlacerWasTurnedOff = false;
-  rto->modeDetectInReset = false;
   rto->webServerStarted = false;
   rto->printInfos = false;
   rto->sourceDisconnected = false;
@@ -1778,7 +1777,6 @@ void handleButtons(void) {
 #endif
 
 void loop() {
-  // reminder: static variables are initialized once, not every loop
   static uint8_t readout = 0;
   static uint8_t segment = 0;
   static uint8_t inputRegister = 0;
@@ -1787,9 +1785,7 @@ void loop() {
   static uint8_t register_low, register_high = 0;
   static uint16_t register_combined = 0;
   static uint16_t noSyncCounter = 0;
-  static uint16_t signalInputChangeCounter = 0;
   static unsigned long lastTimeSyncWatcher = millis();
-  static unsigned long lastTimeMDWatchdog = millis();
   static unsigned long lastVsyncLock = millis();
 #ifdef HAVE_BUTTONS
   static unsigned long lastButton = micros();
@@ -1868,9 +1864,31 @@ void loop() {
         enableVDS();
         Serial.println(F("resetDigital()"));
         break;
+      case 'Y':
+        //        {
+        //          uint16_t if_line_reset = GBS::IF_HSYNC_RST::read();
+        //          uint16_t if_line_stop = GBS::IF_LINE_SP::read();
+        //          debugln("if_line_reset: ", if_line_reset);
+        //          debugln("if_line_stop: ", if_line_stop);
+        //        }
+        break;
       case 'y':
-        //writeProgramArrayNew(rgbhv);
-        //doPostPresetLoadSteps();
+        {
+          //          uint16_t if_line_reset = GBS::IF_HSYNC_RST::read();
+          //          uint16_t if_line_stop = GBS::IF_LINE_SP::read();
+          //          if_line_reset += 1; if_line_stop += 1;
+          //          GBS::IF_HSYNC_RST::write(if_line_reset);
+          //          GBS::IF_LINE_SP::write(if_line_stop);
+          //          debugln("if_line_reset: ", if_line_reset);
+          //          debugln("if_line_stop: ", if_line_stop);
+
+          //writeProgramArrayNew(rgbhv);
+          //doPostPresetLoadSteps();
+        }
+        break;
+      case 'P':
+        GBS::IF_HSYNC_RST::write(1264);
+        GBS::IF_LINE_SP::write(1265);
         break;
       case 'p':
         fuzzySPWrite();
@@ -2280,97 +2298,122 @@ void loop() {
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
   }
 
-  // poll sync status continously
-  if ((rto->sourceDisconnected == false) && (rto->syncWatcher == true) && ((millis() - lastTimeSyncWatcher) > 100)) {
-    byte result = getVideoMode();
-    boolean doChangeVideoMode = false;
+  // syncwatcher polls SP status. when necessary, initiates adjustments or preset changes
+  if ((rto->sourceDisconnected == false) && (rto->syncWatcher == true) && ((millis() - lastTimeSyncWatcher) > 40)) {
 
+    // continous horizontal pulse width average that rejects too short / long pulses
+    // applies found value / 2 to SP_H_PULSE_IGNOR (S5_37)
+    // support sources that shorten pulses (Mega Drive)
+    // support different H-PLL dividers (hpw readout scales with the divider)
+    if (rto->videoStandardInput > 0) {
+      static const uint8_t HPW_SIZE = 10;
+      static uint16_t hpwHistory[HPW_SIZE] = {0};
+      static uint8_t hpwIndex = 0, lastvideoStandardInput = 0;
+      static uint16_t avgHpw = 50; // init to something reasonable
+
+      if (rto->avgHpwFound && (lastvideoStandardInput == rto->videoStandardInput)) {
+        uint16_t margin = avgHpw / 3;
+        uint16_t thisReading = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
+        // discard outliers (example: SP picked up an eq pulse)
+        if ((thisReading > (avgHpw - margin)) && (thisReading < (avgHpw + margin))) {
+          hpwHistory[hpwIndex] = thisReading;
+        }
+        else {
+          hpwHistory[hpwIndex] = avgHpw;
+        }
+        hpwIndex++;
+      }
+      else {
+        // establish new baseline
+        hpwIndex = 0;
+        while (hpwIndex < HPW_SIZE) {
+          uint32_t sum = 0;
+          for (uint16_t i = 0; i < 20; i++) {
+            sum += GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
+          }
+          hpwHistory[hpwIndex] = sum / 20;
+          hpwIndex++;
+        }
+        hpwIndex--; // overshot
+      }
+
+      if (hpwIndex == (HPW_SIZE - 1)) {
+        uint32_t sum = 0;
+        for (hpwIndex = 0; hpwIndex < HPW_SIZE; hpwIndex++) {
+          sum += hpwHistory[hpwIndex];
+        }
+        sum /= HPW_SIZE;
+        avgHpw = (uint16_t)sum;
+
+        uint8_t ignoreLength = (avgHpw / 2) + (avgHpw / 22); // a little more than half the hpw
+        //debugln("SP_H_PULSE_IGNOR: ", ignoreLength);
+
+        if (ignoreLength > 10 && ignoreLength < 140) {  // safety while this is new
+          GBS::SP_H_PULSE_IGNOR::write(ignoreLength);
+        }
+        else {
+          debugln(F("hpw ign warn: "), ignoreLength);
+        }
+        lastvideoStandardInput = rto->videoStandardInput;
+        rto->avgHpwFound = true;
+        hpwIndex = 0;
+      }
+    }
+
+    uint8_t signalInputChangeCounter = 0;
+    byte result = getVideoMode();
     if (result == 0) {
       noSyncCounter++;
-      signalInputChangeCounter = 0; // needs some field testing > seems to be fine!
+      if (rto->videoStandardInput != 0) {
+        if (noSyncCounter < 3) {
+          Serial.print(".");
+        }
+      }
     }
     else if (result != rto->videoStandardInput) { // ntsc/pal switch or similar
       noSyncCounter = 0;
-      signalInputChangeCounter++;
-    }
-    else if (noSyncCounter > 0) { // result is rto->videoStandardInput
-      noSyncCounter--;
-    }
-
-    // PAL PSX consoles have a quirky reset cycle. They will boot up in NTSC mode up until right before the logo shows.
-    // Avoiding constant mode switches would be good. Set signalInputChangeCounter to above 55 for that.
-    if (signalInputChangeCounter >= 3 ) { // video mode has changed
-      Serial.println(F("New Input!"));
-      rto->videoStandardInput = 0;
-      signalInputChangeCounter = 0;
-      doChangeVideoMode = true;
-    }
-
-    // debug
-    if (noSyncCounter > 0 && rto->videoStandardInput != 0) {
-      if (noSyncCounter < 3) {
-        Serial.print(".");
-      }
-      else if (noSyncCounter % 10 == 0) {
-        Serial.print(".");
+      byte test = 10;
+      byte changeToPreset = result;
+      while (--test > 0) {
+        delay(1);
+        result = getVideoMode();
+        if (changeToPreset == result) {
+          signalInputChangeCounter++;
+        }
       }
     }
+    else if (noSyncCounter > 0) { // last used mode reappeared
+      noSyncCounter = 0;
+    }
 
-    if (noSyncCounter >= 80 ) { // ModeDetect reports nothing
+    if (noSyncCounter >= 30) { // ModeDetect says signal lost
       Serial.println(F("No Sync"));
       disableVDS();
       inputAndSyncDetect();
       //setSOGLevel( random(0, 31) ); // try a random(min, max) sog level // fixme: do this in a better way!
       resetModeDetect();
       delay(300); // and give MD some time
-      //rto->videoStandardInput = 0;
-      signalInputChangeCounter = 0;
-      noSyncCounter = 60; // speed up sog change attempts by not zeroing this here
+      //if (getVideoMode() == 0)
+      rto->videoStandardInput = 0;
     }
 
-    if ( (doChangeVideoMode == true) && (rto->videoStandardInput == 0) ) {
-      byte temp = 250;
-      while (result == 0 && temp-- > 0) {
+    if (signalInputChangeCounter >= 8) { // video mode has changed
+      Serial.println(F("New Input"));
+      rto->videoStandardInput = 0;
+      byte timeout = 255;
+      while (result == 0 && --timeout > 0) {
         delay(1);
         result = getVideoMode();
       }
-      boolean isValid = getSyncProcessorSignalValid();
-      if (result > 0 && isValid) { // ensures this isn't an MD glitch
+      if (timeout > 0) {
         applyPresets(result);
-        //delay(600);
         noSyncCounter = 0;
       }
-      else if (result > 0 && !isValid) Serial.println(F("MD Glitch!"));
+      else Serial.println(F(" .. but lost it?"));
     }
 
     // ModeDetect can get stuck in the last mode when console is powered off
     // fixme: replace with test bus method
-    if ((millis() - lastTimeMDWatchdog) > 3000) {
-      if ( (rto->videoStandardInput > 0) && !getSyncProcessorSignalValid() && (rto->modeDetectInReset == false) ) {
-        delay(100);
-        if (!getSyncProcessorSignalValid() && !getSyncProcessorSignalValid()) { // check some more times; avoids glitches
-          Serial.println("MD stuck");
-          resetModeDetect(); resetModeDetect();
-          delay(200);
-          byte another_test = 0;
-          for ( byte i = 0; i < 10; i++) {
-            if (getVideoMode() == 0) { // due to resetModeDetect(), this now works
-              another_test++;
-            }
-          }
-
-          if (another_test > 7) {
-            disableVDS(); // pretty sure now that the source has been turned off
-            SyncProcessorOffOn();
-            rto->videoStandardInput = 0;
-            rto->modeDetectInReset = true;
-            inputAndSyncDetect();
-            //noSyncCounter = 60; // speed up sync detect attempts
-          }
-        }
-      }
-      lastTimeMDWatchdog = millis();
-    }
 
     setParametersIF(); // continously update, so offsets match when switching from progressive to interlaced modes
 
@@ -2479,6 +2522,7 @@ void start_webserver()
 #if defined(ESP8266)
   WiFiManager wifiManager;
   wifiManager.setTimeout(180); // in seconds
+  // fixme: when credentials are correct but the connect stalls, it can stay stuck here for setTimeout() seconds
   wifiManager.autoConnect(ap_ssid, ap_password);
   // The WiFiManager library will spawn an access point, waiting to be configured.
   // Once configured, it stores the credentials and restarts the board.

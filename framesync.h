@@ -134,10 +134,11 @@ private:
       debugln("Base htotal: ", htotal);
 
       while (stable < syncHtotalStable) {
+        yield();
         if (!sampleVsyncPeriods(&inPeriod, &outPeriod))
           return false;
         candHtotal = (htotal * inPeriod) / outPeriod;
-        debugln("Candidate htotal: ", candHtotal);
+//        debugln("Candidate htotal: ", candHtotal);
         if (candHtotal == bestHtotal)
           stable++;
         else
@@ -211,16 +212,16 @@ public:
       if (!vsyncPeriodAndPhase(&period, NULL, &phase))
         return false;
 
-      debugln("Phase offset: ", phase);
+//      debugln("Phase offset: ", phase);
 
-      target = (syncTargetPhase * period) / 360;
+      target = (syncTargetPhase * period) / 360; // -300 //debug
 
       if (phase > target)
         correction = 0;
       else
         correction = syncCorrection;
 
-      debugln("Correction: ", correction);
+//      debugln("Correction: ", correction);
 
       adjustFrameSize(correction - syncLastCorrection);
       syncLastCorrection = correction;
