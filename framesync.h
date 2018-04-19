@@ -133,6 +133,7 @@ private:
 
       debugln("Base htotal: ", htotal);
 
+      // todo: add timout
       while (stable < syncHtotalStable) {
         yield();
         if (!sampleVsyncPeriods(&inPeriod, &outPeriod))
@@ -214,7 +215,7 @@ public:
 
 //      debugln("Phase offset: ", phase);
 
-      target = (syncTargetPhase * period) / 360; // -300 //debug
+      target = (syncTargetPhase * period) / 360; // -300; //debug
 
       if (phase > target)
         correction = 0;

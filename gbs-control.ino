@@ -116,7 +116,6 @@ struct runTimeOptions {
   uint8_t videoStandardInput : 3; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 480p NTSC, 4 576p PAL
   uint8_t phaseSP;
   uint8_t phaseADC;
-  uint8_t samplingStart;
   uint8_t currentLevelSOG;
   uint16_t lowestHpw : 12; // 12 bits are enough to hold these
   uint16_t highestHpw : 12;
@@ -265,12 +264,6 @@ void writeProgramArrayNew(const uint8_t* programArray)
   readFromRegister(0x19, 1, &readout);
   rto->phaseSP = ((readout & 0x3e) >> 1);
   //Serial.println(rto->phaseADC); Serial.println(rto->phaseSP);
-
-  //reset rto sampling start variable
-  writeOneByte(0xF0, 1);
-  readFromRegister(0x26, 1, &readout);
-  rto->samplingStart = readout;
-  //Serial.println(rto->samplingStart);
 
   writeOneByte(0xF0, 0);
   writeOneByte(0x46, 0x3f); // reset controls 1 // everything on except VDS display output
@@ -680,7 +673,7 @@ void SyncProcessorOffOn() {
 }
 
 void resetModeDetect() {
-  uint8_t readout = 0, backup = 0;
+  uint8_t readout = 0; //, backup = 0;
   writeOneByte(0xF0, 0);
   readFromRegister(0x47, 1, &readout);
   writeOneByte(0x47, readout & ~(1 << 1));
@@ -1446,11 +1439,6 @@ void setParametersIF() {
   // IF vertical blanking start position should be in the loaded preset
 }
 
-void setSamplingStart(uint8_t samplingStart) {
-  writeOneByte(0xF0, 1);
-  writeOneByte(0x26, samplingStart);
-}
-
 void advancePhase() {
   uint8_t readout;
   writeOneByte(0xF0, 5);
@@ -1609,7 +1597,6 @@ void setup() {
   rto->syncWatcher = true;  // continously checks the current sync status. required for normal operation
   rto->phaseADC = 0; // 0 to 31
   rto->phaseSP = 0; // 0 to 31
-  rto->samplingStart = 3; // holds S1_26
 
   // the following is just run time variables. don't change!
   rto->currentLevelSOG = 10;
@@ -1874,21 +1861,20 @@ void loop() {
         break;
       case 'y':
         {
-          //          uint16_t if_line_reset = GBS::IF_HSYNC_RST::read();
-          //          uint16_t if_line_stop = GBS::IF_LINE_SP::read();
-          //          if_line_reset += 1; if_line_stop += 1;
-          //          GBS::IF_HSYNC_RST::write(if_line_reset);
-          //          GBS::IF_LINE_SP::write(if_line_stop);
-          //          debugln("if_line_reset: ", if_line_reset);
-          //          debugln("if_line_stop: ", if_line_stop);
+          uint16_t if_line_reset = GBS::IF_HSYNC_RST::read();
+          uint16_t if_line_stop = GBS::IF_LINE_SP::read();
+          if_line_reset += 1; if_line_stop += 1;
+          GBS::IF_HSYNC_RST::write(if_line_reset);
+          GBS::IF_LINE_SP::write(if_line_stop);
+          //debugln("if_line_reset: ", if_line_reset);
+          //debugln("if_line_stop: ", if_line_stop);
 
           //writeProgramArrayNew(rgbhv);
           //doPostPresetLoadSteps();
         }
         break;
       case 'P':
-        GBS::IF_HSYNC_RST::write(1264);
-        GBS::IF_LINE_SP::write(1265);
+        //
         break;
       case 'p':
         fuzzySPWrite();
@@ -1943,11 +1929,12 @@ void loop() {
         break;
       case 'n':
         {
-          writeOneByte(0xF0, 5);
-          readFromRegister(0x12, 1, &readout);
-          writeOneByte(0x12, readout + 1);
-          readFromRegister(0x12, 1, &readout);
-          Serial.print(F("PLL divider: ")); Serial.println(readout, HEX);
+          uint16_t pll_divider = GBS::PLLAD_MD::read();
+          pll_divider += 1;
+          GBS::PLLAD_MD::write(pll_divider);
+          GBS::IF_HSYNC_RST::write(pll_divider / 2);
+          GBS::IF_LINE_SP::write((pll_divider / 2) + 1);
+          Serial.print(F("PLL div: ")); Serial.println(pll_divider, HEX);
           resetPLLAD();
         }
         break;
@@ -2269,13 +2256,12 @@ void loop() {
         }
         break;
       case 'x':
-        rto->samplingStart++;
-        // don't wrap samplingStart, some presets need it higher than a fixed "03" value
-        //        if (rto->samplingStart > 6) {
-        //          rto->samplingStart = 3;
-        //        }
-        setSamplingStart(rto->samplingStart);
-        Serial.print(F("sampling start: ")); Serial.println(rto->samplingStart);
+        {
+          uint16_t if_hblank_scale_stop = GBS::IF_HBIN_SP::read();
+          if_hblank_scale_stop += 1;
+          GBS::IF_HBIN_SP::write(if_hblank_scale_stop);
+          Serial.print(F("sampling stop: ")); Serial.println(if_hblank_scale_stop);
+        }
         break;
       default:
         Serial.println(F("command not understood"));
@@ -2515,7 +2501,7 @@ const char* ap_password =  "qqqqqqqq";
 
 WiFiServer webserver(80);
 
-const char HTML[] PROGMEM = "<head><link rel=\"icon\" href=\"data:,\"><style>html{font-family: 'Droid Sans', sans-serif;}h1{position: relative; margin-left: -22px; /* 15px padding + 7px border ribbon shadow*/ margin-right: -22px; padding: 15px; background: #e5e5e5; background: linear-gradient(#f5f5f5, #e5e5e5); box-shadow: 0 -1px 0 rgba(255,255,255,.8) inset; text-shadow: 0 1px 0 #fff;}h1:before,h1:after{position: absolute; left: 0; bottom: -6px; content:''; border-top: 6px solid #555; border-left: 6px solid transparent;}h1:before{border-top: 6px solid #555; border-right: 6px solid transparent; border-left: none; left: auto; right: 0; bottom: -6px;}.button{background-color: #008CBA; /* Blue */ border: none; border-radius: 12px; color: white; padding: 15px 32px; text-align: center; text-decoration: none; display: inline-block; font-size: 28px; margin: 10px 10px; cursor: pointer; -webkit-transition-duration: 0.4s; /* Safari */ transition-duration: 0.4s; width: 440px; float: left;}.button:hover{background-color: #4CAF50;}.button a{color: white; text-decoration: none;}.button .tooltiptext{visibility: hidden; width: 100px; background-color: black; color: #fff; text-align: center; padding: 5px 0; border-radius: 6px; height: 12px; font-size: 10px; /* Position the tooltip */ position: absolute; z-index: 1; margin-left: 10px;}.button:hover .tooltiptext{visibility: visible;}br{clear: left;}h2{clear: left; padding-top: 10px;}</style><script>function loadDoc(link){var xhttp=new XMLHttpRequest(); xhttp.open(\"GET\", \"serial_\"+link, true); xhttp.send();} function loadUser(link){var xhttp=new XMLHttpRequest(); xhttp.open(\"GET\", \"user_\"+link, true); xhttp.send();}</script></head><body><h1>Load Presets</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('r')\">1280x960 PAL</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('2')\">720x576 PAL</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('e')\">1280x960 NTSC</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('9')\">640x480 NTSC</button><button class=\"button\" type=\"button\" onclick=\"loadUser('3')\">Custom Preset<span class=\"tooltiptext\">for current video mode</span></button><br><h1>Picture Control</h1><h2>Scaling</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('4')\">Vertical Larger</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('5')\">Vertical Smaller</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('z')\">Horizontal Larger</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('h')\">Horizontal Smaller</button><h2>Move Picture (Framebuffer)</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('*')\">Vertical Up</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('/')\">Vertical Down</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('-')\">Horizontal Left</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('+')\">Horizontal Right</button><h2>Move Picture (Blanking, Horizontal / Vertical Sync)</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('7')\">Move VS Up</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('6')\">Move VS Down</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('1')\">Move HS Left</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('0')\">Move HS Right</button><br><h1>En-/Disable</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('m')\">SyncWatcher</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('k')\">Passthrough</button><br><h1>Information</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('i')\">Print Infos</button><button class=\"button\" type=\"button\" onclick=\"loadDoc(',')\">Get Video Timings</button><br><h1>Internal</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('x')\">Sampling Offset++</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('o')\">Oversampling Ratio</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('E')\">ADC / SP Phase++</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('W')\">Set PhaseADC</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('Q')\">Set PhaseSP</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('f')\">Show Noise</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('a')\">HTotal++</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('n')\">PLL divider++</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('b')\">Advance Phase</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('c')\">Enable OTA</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('8')\">Invert Sync</button><br><h1>Reset</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('j')\">Reset PLL/PLLAD</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('q')\">Reset Chip</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('.')\">Reset SyncLock</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('l')\">Reset SyncProcessor</button><br><h1>Preferences</h1><button class=\"button\" type=\"button\" onclick=\"loadUser('0')\">Prefer Normal Preset</button><button class=\"button\" type=\"button\" onclick=\"loadUser('1')\">Prefer Feedback Preset</button><button class=\"button\" type=\"button\" onclick=\"loadUser('2')\">Prefer Custom Preset</button><button class=\"button\" type=\"button\" onclick=\"loadUser('4')\">save custom preset</button><button class=\"button\" type=\"button\" onclick=\"loadUser('5')\">Frame Time Lock ON</button><button class=\"button\" type=\"button\" onclick=\"loadUser('6')\">Frame Time Lock OFF (default)</button><button class=\"button\" type=\"button\" onclick=\"loadUser('7')\">Scanlines toggle (experimental)</button></body>";
+const char HTML[] PROGMEM = "<head><link rel=\"icon\" href=\"data:,\"><style>html{font-family: 'Droid Sans', sans-serif;}h1{position: relative; margin-left: -22px; /* 15px padding + 7px border ribbon shadow*/ margin-right: -22px; padding: 15px; background: #e5e5e5; background: linear-gradient(#f5f5f5, #e5e5e5); box-shadow: 0 -1px 0 rgba(255,255,255,.8) inset; text-shadow: 0 1px 0 #fff;}h1:before,h1:after{position: absolute; left: 0; bottom: -6px; content:''; border-top: 6px solid #555; border-left: 6px solid transparent;}h1:before{border-top: 6px solid #555; border-right: 6px solid transparent; border-left: none; left: auto; right: 0; bottom: -6px;}.button{background-color: #008CBA; /* Blue */ border: none; border-radius: 12px; color: white; padding: 15px 32px; text-align: center; text-decoration: none; display: inline-block; font-size: 28px; margin: 10px 10px; cursor: pointer; -webkit-transition-duration: 0.4s; /* Safari */ transition-duration: 0.4s; width: 440px; float: left;}.button:hover{background-color: #4CAF50;}.button a{color: white; text-decoration: none;}.button .tooltiptext{visibility: hidden; width: 100px; background-color: black; color: #fff; text-align: center; padding: 5px 0; border-radius: 6px; height: 12px; font-size: 10px; /* Position the tooltip */ position: absolute; z-index: 1; margin-left: 10px;}.button:hover .tooltiptext{visibility: visible;}br{clear: left;}h2{clear: left; padding-top: 10px;}</style><script>function loadDoc(link){var xhttp=new XMLHttpRequest(); xhttp.open(\"GET\", \"serial_\"+link, true); xhttp.send();} function loadUser(link){var xhttp=new XMLHttpRequest(); xhttp.open(\"GET\", \"user_\"+link, true); xhttp.send();}</script></head><body><h1>Load Presets</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('r')\">1280x960 PAL</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('2')\">720x576 PAL</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('e')\">1280x960 NTSC</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('9')\">640x480 NTSC</button><button class=\"button\" type=\"button\" onclick=\"loadUser('3')\">Custom Preset<span class=\"tooltiptext\">for current video mode</span></button><br><h1>Picture Control</h1><h2>Scaling</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('4')\">Vertical Larger</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('5')\">Vertical Smaller</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('z')\">Horizontal Larger</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('h')\">Horizontal Smaller</button><h2>Move Picture (Framebuffer)</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('*')\">Vertical Up</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('/')\">Vertical Down</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('-')\">Horizontal Left</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('+')\">Horizontal Right</button><h2>Move Picture (Blanking, Horizontal / Vertical Sync)</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('7')\">Move VS Up</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('6')\">Move VS Down</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('1')\">Move HS Left</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('0')\">Move HS Right</button><br><h1>En-/Disable</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('m')\">SyncWatcher</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('k')\">Passthrough</button><br><h1>Information</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('i')\">Print Infos</button><button class=\"button\" type=\"button\" onclick=\"loadDoc(',')\">Get Video Timings</button><br><h1>Internal</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('o')\">Oversampling Ratio</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('E')\">ADC / SP Phase++</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('W')\">Set PhaseADC</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('Q')\">Set PhaseSP</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('f')\">Show Noise</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('a')\">HTotal++</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('n')\">PLL divider++</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('b')\">Advance Phase</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('c')\">Enable OTA</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('8')\">Invert Sync</button><br><h1>Reset</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('j')\">Reset PLL/PLLAD</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('q')\">Reset Chip</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('.')\">Reset SyncLock</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('l')\">Reset SyncProcessor</button><br><h1>Preferences</h1><button class=\"button\" type=\"button\" onclick=\"loadUser('0')\">Prefer Normal Preset</button><button class=\"button\" type=\"button\" onclick=\"loadUser('1')\">Prefer Feedback Preset</button><button class=\"button\" type=\"button\" onclick=\"loadUser('2')\">Prefer Custom Preset</button><button class=\"button\" type=\"button\" onclick=\"loadUser('4')\">save custom preset</button><button class=\"button\" type=\"button\" onclick=\"loadUser('5')\">Frame Time Lock ON</button><button class=\"button\" type=\"button\" onclick=\"loadUser('6')\">Frame Time Lock OFF (default)</button><button class=\"button\" type=\"button\" onclick=\"loadUser('7')\">Scanlines toggle (experimental)</button></body>";
 
 void start_webserver()
 {
