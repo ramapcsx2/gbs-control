@@ -394,7 +394,7 @@ void setSOGLevel(uint8_t level) {
   reg_5_02 = (reg_5_02 & 0xc1) | (level << 1);
   writeOneByte(0x02, reg_5_02);
   rto->currentLevelSOG = level;
-  Serial.print(" SOG lvl "); Serial.println(rto->currentLevelSOG);
+  //Serial.print(" SOG lvl "); Serial.println(rto->currentLevelSOG);
 }
 
 void inputAndSyncDetect() {
@@ -413,8 +413,8 @@ void inputAndSyncDetect() {
   writeOneByte(0xF0, 5);
   writeOneByte(0x02, 0x15); // SOG on, slicer level 100mV, input 00 > R0/G0/B0/SOG0 as input (YUV)
   writeOneByte(0xF0, 0);
-  timeout = 6; // try this input a few times and look for a change
   readFromRegister(0x19, 1, &readout); // in hor. pulse width
+  timeout = 255;
   while (timeout-- > 0) {
     previous = readout;
     readFromRegister(0x19, 1, &readout);
@@ -423,6 +423,10 @@ void inputAndSyncDetect() {
       syncFound = true;
       break;
     }
+    if (timeout < 150) {
+      setSOGLevel(random(0, 31));
+      writeOneByte(0xF0, 0);
+    }
     delay(1);
   }
 
@@ -430,7 +434,7 @@ void inputAndSyncDetect() {
     writeOneByte(0xF0, 5);
     writeOneByte(0x02, 0x55); // SOG on, slicer level 100mV, input 01 > R1/G1/B1/SOG1 as input (RGBS)
     writeOneByte(0xF0, 0);
-    timeout = 6; // try this input a few times and look for a change
+    timeout = 255;
     readFromRegister(0x19, 1, &readout); // in hor. pulse width
     while (timeout-- > 0) {
       previous = readout;
@@ -439,6 +443,10 @@ void inputAndSyncDetect() {
         rto->inputIsYpBpR = 0;
         syncFound = true;
         break;
+      }
+      if (timeout < 150) {
+        setSOGLevel(random(0, 31));
+        writeOneByte(0xF0, 0);
       }
       delay(1);
     }
@@ -506,6 +514,7 @@ void inputAndSyncDetect() {
   else if (syncFound && rto->inputIsYpBpR == false) {
     Serial.println(F("using RGBS inputs"));
     rto->sourceDisconnected = false;
+    applyRGBPatches(); // basically resets SOG level to 10
   }
 }
 
@@ -679,7 +688,7 @@ void resetModeDetect() {
   writeOneByte(0x47, readout & ~(1 << 1));
   readFromRegister(0x47, 1, &readout);
   writeOneByte(0x47, readout | (1 << 1));
-  Serial.println(F("reset mode detect"));
+  Serial.println(F("-"));
 
   // try a softer approach
   //  writeOneByte(0xF0, 1);
@@ -1558,7 +1567,6 @@ void applyYuvPatches() {   // also does color mixing changes
 
 // undo yuvpatches if necessary
 void applyRGBPatches() {
-  //uint8_t readout;
   rto->currentLevelSOG = 10;
   setSOGLevel( rto->currentLevelSOG );
 }
@@ -1572,6 +1580,23 @@ void esp32_power() {
   Serial.print("wifi max tx power after : "); esp_wifi_get_max_tx_power(&power); Serial.println(power);
 }
 #endif
+
+void startWire() {
+  Wire.begin();
+  // The i2c wire library sets pullup resistors on by default. Disable this so that 5V MCUs aren't trying to drive the 3.3V bus.
+#if defined(ESP32)
+  pinMode(SCL, OUTPUT_OPEN_DRAIN);
+  pinMode(SDA, OUTPUT_OPEN_DRAIN);
+  //Wire.setClock(100000); // ESP32 I2C is unstable
+#elif defined(ESP8266)
+  pinMode(SCL, OUTPUT_OPEN_DRAIN);
+  pinMode(SDA, OUTPUT_OPEN_DRAIN);
+  Wire.setClock(400000); // TV5725 supports 400kHz
+#else
+  Wire.setClock(400000);
+#endif
+  delay(100);
+}
 
 void setup() {
 #if defined(ESP8266)
@@ -1616,7 +1641,7 @@ void setup() {
   pinMode(DEBUG_IN_PIN, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   LEDON // enable the LED, lets users know the board is starting up
-  delay(3000); // give the entire system some time to start up.
+  delay(1000); // give the entire system some time to start up.
 
 #if defined(ESP8266) || defined(ESP32)
   // if you want simple wifi debug info
@@ -1656,50 +1681,31 @@ void setup() {
   }
 #endif
 
-  Wire.begin();
-  // The i2c wire library sets pullup resistors on by default. Disable this so that 5V MCUs aren't trying to drive the 3.3V bus.
-#if defined(ESP32)
-  pinMode(SCL, OUTPUT_OPEN_DRAIN);
-  pinMode(SDA, OUTPUT_OPEN_DRAIN);
-  //Wire.setClock(100000); // ESP32 I2C is unstable
-#elif defined(ESP8266)
-  pinMode(SCL, OUTPUT_OPEN_DRAIN);
-  pinMode(SDA, OUTPUT_OPEN_DRAIN);
-  Wire.setClock(400000); // TV5725 supports 400kHz
-#else
-  Wire.setClock(400000);
-#endif
-  digitalWrite(SCL, LOW); // hold SDA, SCL low for 1 sec,
-  digitalWrite(SDA, LOW); // can recover a stuck I2C bus
-  delay(1000);            // (if MCU was reset while in a transmission)
+  startWire();
 
-  // removed blocking 5725 reponse check
+  // i2c test: read 5725 product id; if failed, reset bus
+  uint8_t test = 0;
+  writeOneByte(0xF0, 0);
+  readFromRegister(0x0c, 1, &test);
+  if (test == 0) { // stuck i2c or no contact with 5725
+    Serial.println(F("i2c recover"));
+    pinMode(SCL, INPUT); pinMode(SDA, INPUT);
+    delay(100);
+    pinMode(SCL, OUTPUT);
+    for (int i = 0; i < 10; i++) {
+      digitalWrite(SCL, HIGH); delayMicroseconds(5);
+      digitalWrite(SCL, LOW); delayMicroseconds(5);
+    }
+    pinMode(SCL, INPUT);
+    startWire();
+  }
+  // continue regardless
 
   disableVDS();
   writeProgramArrayNew(minimal_startup); // bring the chip up for input detection
   rto->videoStandardInput = 0;
   // next: disable ADC (power save), prep for detecting any source in loop()
-
   // fixme: fix current reliance on debug pin to tell if source is on (use test bus + status regs)
-
-  //  writeProgramArrayNew(minimal_startup); // bring the chip up for input detection
-  //  resetDigital();
-  //  delay(250);
-  //  inputAndSyncDetect();
-  //  delay(500);
-  //
-  //  byte result = getVideoMode();
-  //  byte timeout = 255;
-  //  while (result == 0 && --timeout > 0) {
-  //    if ((timeout % 5) == 0) Serial.print(".");
-  //    result = getVideoMode();
-  //    delay(1);
-  //  }
-  //
-  //  if (timeout > 0 && result != 0) {
-  //    applyPresets(result);
-  //    delay(1000); // at least 750ms required to become stable
-  //  }
 
 #if defined(ESP8266)
   if (!rto->webServerEnabled) {
@@ -1774,6 +1780,7 @@ void loop() {
   static uint16_t noSyncCounter = 0;
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastVsyncLock = millis();
+  static unsigned long lastSourceCheck = millis();
 #ifdef HAVE_BUTTONS
   static unsigned long lastButton = micros();
 #endif
@@ -2272,7 +2279,7 @@ void loop() {
   }
   globalCommand = 0; // in case the web server had this set
 
-  if (uopt->enableFrameTimeLock && rto->syncLockEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval) {
+  if ((rto->sourceDisconnected == false) && uopt->enableFrameTimeLock && rto->syncLockEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval) {
     uint8_t debugRegBackup; writeOneByte(0xF0, 5); readFromRegister(0x63, 1, &debugRegBackup);
     writeOneByte(0x63, 0x0f);
     lastVsyncLock = millis();
@@ -2373,13 +2380,10 @@ void loop() {
     }
 
     if (noSyncCounter >= 30) { // ModeDetect says signal lost
-      Serial.println(F("No Sync"));
       disableVDS();
       inputAndSyncDetect();
-      //setSOGLevel( random(0, 31) ); // try a random(min, max) sog level // fixme: do this in a better way!
       resetModeDetect();
       delay(300); // and give MD some time
-      //if (getVideoMode() == 0)
       rto->videoStandardInput = 0;
     }
 
@@ -2459,7 +2463,7 @@ void loop() {
   } // end information mode
 
   // only run this when sync is stable!
-  if (rto->syncLockEnabled == true && !FrameSync::ready() &&
+  if (rto->sourceDisconnected == false && rto->syncLockEnabled == true && !FrameSync::ready() &&
       getSyncStable() && rto->videoStandardInput != 0 && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval) {
     uint8_t debugRegBackup; writeOneByte(0xF0, 5); readFromRegister(0x63, 1, &debugRegBackup);
     writeOneByte(0x63, 0x0f);
@@ -2477,18 +2481,24 @@ void loop() {
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
   }
 
-  if (rto->sourceDisconnected == true) { // keep looking for new input
+  if (rto->sourceDisconnected == true && ((millis() - lastSourceCheck) > 10)) { // source is off; keep looking for new input
+    writeOneByte(0xF0, 5);
+    writeOneByte(0x02, 0x15); // YUV test
     writeOneByte(0xF0, 0);
     byte a = 0;
-    for (byte b = 0; b < 20; b++) {
+    for (byte b = 0; b < 120; b++) {
       readFromRegister(0x17, 1, &readout); // input htotal
       a += readout;
+      if (b == 60) {
+        writeOneByte(0xF0, 5);
+        writeOneByte(0x02, 0x55); // RGBS test
+        writeOneByte(0xF0, 0);
+      }
     }
-    if (a == 0) {
-      rto->sourceDisconnected = true;
-    } else {
+    if (a != 0) {
       rto->sourceDisconnected = false;
     }
+    lastSourceCheck = millis();
   }
 }
 
