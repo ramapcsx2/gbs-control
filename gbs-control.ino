@@ -249,8 +249,8 @@ void writeProgramArrayNew(const uint8_t* programArray)
   setParametersSP();
 
   writeOneByte(0xF0, 1);
-  writeOneByte(0x60, 0xA1); // MD H unlock / lock
-  writeOneByte(0x61, 0xA1); // MD V unlock / lock
+  writeOneByte(0x60, 0xA2); // MD H unlock / lock
+  writeOneByte(0x61, 0xA2); // MD V unlock / lock
   writeOneByte(0x80, 0xa9); // MD V nonsensical custom mode
   writeOneByte(0x81, 0x2e); // MD H nonsensical custom mode
   writeOneByte(0x82, 0x35); // MD H / V timer detect enable, auto detect enable
@@ -508,13 +508,15 @@ void inputAndSyncDetect() {
       delay(2);
     }
     if (timeout == 0) {
-      Serial.println(F("Component Input: no valid signal!"));
+      rto->sourceDisconnected = true;
+      applyRGBPatches(); // revert to base SP settings
+      Serial.println(F("source is off"));
     }
   }
   else if (syncFound && rto->inputIsYpBpR == false) {
     Serial.println(F("using RGBS inputs"));
     rto->sourceDisconnected = false;
-    applyRGBPatches(); // basically resets SOG level to 10
+    applyRGBPatches();
   }
 }
 
@@ -1413,7 +1415,6 @@ static byte getVideoMode() {
   writeOneByte(0xF0, 0);
   byte detectedMode = 0;
   readFromRegister(0x00, 1, &detectedMode);
-  //return detectedMode;
   if (detectedMode & 0x08) return 1; // ntsc
   if (detectedMode & 0x20) return 2; // pal
   if (detectedMode & 0x10) return 3; // hdtv ntsc progressive
@@ -1567,8 +1568,23 @@ void applyYuvPatches() {   // also does color mixing changes
 
 // undo yuvpatches if necessary
 void applyRGBPatches() {
+  uint8_t readout;
   rto->currentLevelSOG = 10;
   setSOGLevel( rto->currentLevelSOG );
+  writeOneByte(0xF0, 5);
+  readFromRegister(0x03, 1, &readout);
+  writeOneByte(0x03, readout & ~(1 << 1)); // midlevel clamp red
+  readFromRegister(0x03, 1, &readout);
+  writeOneByte(0x03, readout & ~(1 << 3)); // midlevel clamp blue
+
+  writeOneByte(0x00, 0xd8);
+  writeOneByte(0x3b, 0x00); // important
+  writeOneByte(0x56, 0x05);
+
+  writeOneByte(0xF0, 1);
+  readFromRegister(0x00, 1, &readout);
+  writeOneByte(0x00, readout & ~(1 << 1)); // rgb matrix bypass
+
 }
 
 #if defined(ESP32)

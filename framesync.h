@@ -5,7 +5,7 @@
 
 template <class GBS, class Attrs>
 class FrameSyncManager {
-private:
+  private:
     typedef typename GBS::STATUS_VDS_VERT_COUNT VERT_COUNT;
     typedef typename GBS::VDS_HSYNC_RST HSYNC_RST;
     typedef typename GBS::VDS_VSYNC_RST VSYNC_RST;
@@ -26,9 +26,8 @@ private:
 
     // Sample vsync start and stop times (for two consecutive frames)
     // from debug pin A timeout prevents deadlocks in case of bad
-    // signals. The signal check is only required initially, as VDS
-    // and Mode Detect (over the test bus) continue sending their
-    // signal unless they get reset.
+    // signals.
+    // Sources can disappear while in sampling, so keep the timeout.
     static bool vsyncInputSample(unsigned long *start, unsigned long *stop) {
       unsigned long timeoutStart = micros();
       while (digitalRead(debugInPin))
@@ -38,20 +37,26 @@ private:
         if (micros() - timeoutStart >= syncTimeout)
           return false;
       *start = micros();
-      while (digitalRead(debugInPin));
-      while (!digitalRead(debugInPin));
+      while (digitalRead(debugInPin))
+        if (micros() - timeoutStart >= syncTimeout)
+          return false;
+      while (!digitalRead(debugInPin))
+        if (micros() - timeoutStart >= syncTimeout)
+          return false;
       // sample twice
-      while (digitalRead(debugInPin));
-      while (!digitalRead(debugInPin));
+      while (digitalRead(debugInPin))
+        if (micros() - timeoutStart >= syncTimeout)
+          return false;
+      while (!digitalRead(debugInPin))
+        if (micros() - timeoutStart >= syncTimeout)
+          return false;
       *stop = micros();
       return true;
     }
 
     // Sample vsync start and stop times from output vsync pin A
-    // timeout prevents deadlocks in case of bad signals. The signal
-    // check is only required initially, as VDS and Mode Detect (over
-    // the test bus) continue sending their signal unless they get
-    // reset.
+    // timeout prevents deadlocks in case of bad signals.
+    // Sources can disappear while in sampling, so keep the timeout.
     static bool vsyncOutputSample(unsigned long *start, unsigned long *stop) {
       unsigned long timeoutStart = micros();
       while (digitalRead(vsyncInPin))
@@ -61,8 +66,12 @@ private:
         if (micros() - timeoutStart >= syncTimeout)
           return false;
       *start = micros();
-      while (digitalRead(vsyncInPin));
-      while (!digitalRead(vsyncInPin));
+      while (digitalRead(vsyncInPin))
+        if (micros() - timeoutStart >= syncTimeout)
+          return false;
+      while (!digitalRead(vsyncInPin))
+        if (micros() - timeoutStart >= syncTimeout)
+          return false;
       *stop = micros();
       return true;
     }
@@ -72,12 +81,13 @@ private:
     static bool vsyncPeriodAndPhase(uint32_t *periodInput,
                                     uint32_t *periodOutput, int32_t *phase) {
       unsigned long inStart, inStop, outStart, outStop, inPeriod, outPeriod,
-          diff;
+               diff;
 
       if (!vsyncInputSample(&inStart, &inStop)) {
         return false;
       }
       inPeriod = (inStop - inStart) / 2;
+      yield();
       if (!vsyncOutputSample(&outStart, &outStop)) {
         return false;
       }
@@ -133,13 +143,13 @@ private:
 
       debugln("Base htotal: ", htotal);
 
-      // todo: add timout
-      while (stable < syncHtotalStable) {
+      unsigned long timeout = millis();
+      while ((stable < syncHtotalStable) && (millis() - timeout) < 5000) {
         yield();
         if (!sampleVsyncPeriods(&inPeriod, &outPeriod))
           return false;
         candHtotal = (htotal * inPeriod) / outPeriod;
-//        debugln("Candidate htotal: ", candHtotal);
+        //        debugln("Candidate htotal: ", candHtotal);
         if (candHtotal == bestHtotal)
           stable++;
         else
@@ -155,7 +165,7 @@ private:
     static void adjustFrameSize(int16_t delta) {
       uint16_t vtotal = 0, vsst = 0, vssp = 0;
       uint16_t currentLineNumber, earlyFrameBoundary;
-
+      uint16_t timeout = 10; // this routine usually finishes on first or second attempt
       VRST_SST_SSP::read(vtotal, vsst, vssp);
       earlyFrameBoundary = vtotal / 4;
       vtotal += delta;
@@ -164,14 +174,14 @@ private:
       do {
         // wait for next frame start + 20 lines for stability
         currentLineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
-      } while (currentLineNumber > earlyFrameBoundary || currentLineNumber < 20);
+      } while ((currentLineNumber > earlyFrameBoundary || currentLineNumber < 20) && --timeout > 0);
       VRST_SST_SSP::write(vtotal, vsst, vssp);
     }
 
-public:
+  public:
     static void reset() {
-        syncLockReady = false;
-        syncLastCorrection = 0;
+      syncLockReady = false;
+      syncLastCorrection = 0;
     }
 
     // Initialize sync locking
@@ -213,7 +223,7 @@ public:
       if (!vsyncPeriodAndPhase(&period, NULL, &phase))
         return false;
 
-//      debugln("Phase offset: ", phase);
+      //      debugln("Phase offset: ", phase);
 
       target = (syncTargetPhase * period) / 360; // -300; //debug
 
@@ -222,7 +232,7 @@ public:
       else
         correction = syncCorrection;
 
-//      debugln("Correction: ", correction);
+      //      debugln("Correction: ", correction);
 
       adjustFrameSize(correction - syncLastCorrection);
       syncLastCorrection = correction;
