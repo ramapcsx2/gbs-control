@@ -118,7 +118,6 @@ struct runTimeOptions {
   uint8_t phaseADC;
   uint8_t currentLevelSOG;
   uint16_t lowestHpw : 12; // 12 bits are enough to hold these
-  uint16_t highestHpw : 12;
   boolean avgHpwFound;
   boolean deinterlacerWasTurnedOff;
   boolean syncLockEnabled;
@@ -620,56 +619,6 @@ void resetDigital() {
   writeOneByte(0x46, 0x3f); // all on except VDS (display enable)
   writeOneByte(0x47, 0x17); // all on except HD bypass
   Serial.println(F("resetDigital"));
-}
-
-// returns true when all SP parameters are reasonable
-// This needs to be extended for supporting more video modes.
-boolean getSyncProcessorSignalValid() {
-  uint8_t register_low, register_high = 0;
-  uint16_t register_combined = 0;
-  boolean returnValue = false;
-  boolean horizontalOkay = false;
-  boolean verticalOkay = false;
-  boolean hpwOkay = false;
-
-  writeOneByte(0xF0, 0);
-  readFromRegister(0x07, 1, &register_high); readFromRegister(0x06, 1, &register_low);
-  register_combined =   (((uint16_t)register_high & 0x0001) << 8) | (uint16_t)register_low;
-
-  // pal: 432, ntsc: 428, hdtv: 214?
-  if (register_combined > 422 && register_combined < 438) {
-    horizontalOkay = true;  // pal, ntsc 428-432
-  }
-  else if (register_combined > 205 && register_combined < 225) {
-    horizontalOkay = true;  // hdtv 214
-  }
-  //else Serial.println("hor bad");
-
-  readFromRegister(0x08, 1, &register_high); readFromRegister(0x07, 1, &register_low);
-  register_combined = (((uint16_t(register_high) & 0x000f)) << 7) | (((uint16_t)register_low & 0x00fe) >> 1);
-  if ((register_combined > 518 && register_combined < 530) && (horizontalOkay == true) ) {
-    verticalOkay = true;  // ntsc
-  }
-  else if ((register_combined > 620 && register_combined < 632) && (horizontalOkay == true) ) {
-    verticalOkay = true;  // pal
-  }
-  //else Serial.println("ver bad");
-
-  readFromRegister(0x1a, 1, &register_high); readFromRegister(0x19, 1, &register_low);
-  register_combined = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
-  if ( (register_combined < 260) && (register_combined > 5)) { // Genesis can have huge hpw
-    hpwOkay = true;
-  }
-  else {
-    //Serial.print("hpw bad: ");
-    //Serial.println(register_combined);
-  }
-
-  if ((horizontalOkay == true) && (verticalOkay == true) && (hpwOkay == true)) {
-    returnValue = true;
-  }
-
-  return returnValue;
 }
 
 void SyncProcessorOffOn() {
@@ -1234,12 +1183,12 @@ void debugPortSetSP() {
 void resetRunTimeVariables() {
   // reset information on the last source
   rto->lowestHpw = 4095;
-  rto->highestHpw = 0;
-
   rto->avgHpwFound = false;
 }
 
 void doPostPresetLoadSteps() {
+  // Re-detect whether timing wires are present
+  rto->syncLockEnabled = true;
   // Any sync correction we were applying is gone
   FrameSync::init();
   // Any menu corrections are gone
@@ -1272,12 +1221,6 @@ void doPostPresetLoadSteps() {
     result = getVideoMode();
     delay(2);
   }
-  // fixme
-  //  if (timeout == 0) {
-  //    Serial.println(F("sync lost"));
-  //    rto->videoStandardInput = 0;
-  //    return;
-  //  }
 
   //setParametersIF(); // it's sufficient to do this in syncwatcher
   setClampPosition();
@@ -1415,10 +1358,11 @@ static byte getVideoMode() {
   writeOneByte(0xF0, 0);
   byte detectedMode = 0;
   readFromRegister(0x00, 1, &detectedMode);
-  if (detectedMode & 0x08) return 1; // ntsc
-  if (detectedMode & 0x20) return 2; // pal
-  if (detectedMode & 0x10) return 3; // hdtv ntsc progressive
-  if (detectedMode & 0x40) return 4; // hdtv pal progressive
+  detectedMode &= 0x78; // ensure only one format bit is set
+  if (detectedMode == 0x08) return 1; // ntsc interlace
+  if (detectedMode == 0x20) return 2; // pal interlace
+  if (detectedMode == 0x10) return 3; // hdtv ntsc progressive
+  if (detectedMode == 0x40) return 4; // hdtv pal progressive
   return 0; // unknown mode
 }
 
@@ -1616,9 +1560,10 @@ void startWire() {
 
 void setup() {
 #if defined(ESP8266)
-  // immediately correct the hostname
+  // SDK enables WiFi and uses stored credentials to auto connect. This can't be turned off.
+  // Correct the hostname while it is still in CONNECTING state
   //wifi_station_set_hostname("gbscontrol"); // direct SDK call
-  WiFi.hostname("gbscontrol"); // Arduino call
+  WiFi.hostname("gbscontrol");
 #endif
 #if defined(ESP32)
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
@@ -1642,7 +1587,6 @@ void setup() {
   // the following is just run time variables. don't change!
   rto->currentLevelSOG = 10;
   rto->lowestHpw = 4095;
-  rto->highestHpw = 0;
   rto->avgHpwFound = false;
   rto->inputIsYpBpR = false;
   rto->videoStandardInput = 0;
@@ -1657,11 +1601,11 @@ void setup() {
   pinMode(DEBUG_IN_PIN, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   LEDON // enable the LED, lets users know the board is starting up
-  delay(1000); // give the entire system some time to start up.
+  delay(500); // give the entire system some time to start up.
 
 #if defined(ESP8266) || defined(ESP32)
   // if you want simple wifi debug info
-  //Serial.setDebugOutput(true);
+  Serial.setDebugOutput(true);
   // file system (web page, custom presets, ect)
 #if defined(ESP32)
   if (!SPIFFS.begin(true)) { // true = format spiffs on first use / when mount fails
@@ -1673,14 +1617,14 @@ void setup() {
   // load userprefs.txt
   File f = SPIFFS.open("/userprefs.txt", "r");
   if (!f) {
-    Serial.println("open userprefs.txt failed");
+    Serial.println("userprefs open failed");
   }
   else {
-    Serial.println("userprefs.txt open ok");
+    Serial.println("userprefs open ok");
     char result[2];
     result[0] = f.read();
     result[0] -= '0'; // file streams with their chars..
-    Serial.print("result[0] = "); Serial.println((int)result[0]);
+    //Serial.print("result[0] = "); Serial.println((int)result[0]);
     uopt->presetPreference = result[0];
     //on a fresh MCU (ESP32):
     //SPIFFS format: 1
@@ -1690,13 +1634,14 @@ void setup() {
     if (uopt->presetPreference > 3) uopt->presetPreference = 0; // fresh spiffs ?
     result[1] = f.read();
     result[1] -= '0';
-    Serial.print("result[1] = "); Serial.println((int)result[1]);
+    //Serial.print("result[1] = "); Serial.println((int)result[1]);
     uopt->enableFrameTimeLock = result[1];
     if (uopt->enableFrameTimeLock > 1) uopt->enableFrameTimeLock = 0; // fresh spiffs ?
     f.close();
   }
 #endif
-
+  delay(500); // give the entire system some time to start up.
+  
   startWire();
 
   // i2c test: read 5725 product id; if failed, reset bus
@@ -1720,8 +1665,6 @@ void setup() {
   disableVDS();
   writeProgramArrayNew(minimal_startup); // bring the chip up for input detection
   rto->videoStandardInput = 0;
-  // next: disable ADC (power save), prep for detecting any source in loop()
-  // fixme: fix current reliance on debug pin to tell if source is on (use test bus + status regs)
 
 #if defined(ESP8266)
   if (!rto->webServerEnabled) {
@@ -1803,7 +1746,7 @@ void loop() {
 
 #if defined(ESP8266) || defined(ESP32)
   static unsigned long webServerStartDelay = millis();
-  if (rto->webServerEnabled && !rto->webServerStarted && ((millis() - webServerStartDelay) > 12000) ) {
+  if (rto->webServerEnabled && !rto->webServerStarted && ((millis() - webServerStartDelay) > 8000) ) {
 #if defined(ESP8266)
     start_webserver(); // delay this (blocking) call to sometime in loop()
     WiFi.setOutputPower(14.0f); // float: min 0.0f, max 20.5f
@@ -1995,7 +1938,6 @@ void loop() {
       case 'i':
         rto->printInfos = !rto->printInfos;
         rto->lowestHpw = 4095;
-        rto->highestHpw = 0;
         break;
 #if defined(ESP8266) || defined(ESP32)
       case 'c':
@@ -2418,11 +2360,7 @@ void loop() {
       else Serial.println(F(" .. but lost it?"));
     }
 
-    // ModeDetect can get stuck in the last mode when console is powered off
-    // fixme: replace with test bus method
-
     setParametersIF(); // continously update, so offsets match when switching from progressive to interlaced modes
-
     lastTimeSyncWatcher = millis();
   }
 
@@ -2469,10 +2407,8 @@ void loop() {
     // print this last
     readFromRegister(0x1a, 1, &register_high); readFromRegister(0x19, 1, &register_low);
     register_combined = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
-    if (register_combined > rto->highestHpw) rto->highestHpw = register_combined;
     if (register_combined < rto->lowestHpw) rto->lowestHpw = register_combined;
     Serial.print(" hpw min:"); Serial.print(rto->lowestHpw);
-    Serial.print("|max:"); Serial.print(rto->highestHpw);
     Serial.print("|cur:"); Serial.print(register_combined); // horizontal pulse width
 
     Serial.print("\n");
