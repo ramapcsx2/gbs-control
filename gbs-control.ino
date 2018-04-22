@@ -305,7 +305,6 @@ void setParametersSP() {
     // this also changes with different pll dividers (presets)
     if (rto->inputIsYpBpR) { // it can be an SD signal over the green input (composite, for example)
       writeOneByte(0x3e, 0x10); // overflow protect on, subcoast (macrovision) ON
-
     }
     else {
       writeOneByte(0x37, 0x58);
@@ -409,9 +408,9 @@ void inputAndSyncDetect() {
   boolean syncFound = false;
 
   setParametersSP();
+  setSOGLevel(10);
 
-  writeOneByte(0xF0, 5);
-  writeOneByte(0x02, 0x15); // SOG on, slicer level 100mV, input 00 > R0/G0/B0/SOG0 as input (YUV)
+  GBS::ADC_INPUT_SEL::write(0); // YUV
   writeOneByte(0xF0, 0);
   readFromRegister(0x19, 1, &readout); // in hor. pulse width
   timeout = 255;
@@ -429,10 +428,9 @@ void inputAndSyncDetect() {
     }
     delay(1);
   }
-
+  setSOGLevel(10);
   if (syncFound == false) {
-    writeOneByte(0xF0, 5);
-    writeOneByte(0x02, 0x55); // SOG on, slicer level 100mV, input 01 > R1/G1/B1/SOG1 as input (RGBS)
+    GBS::ADC_INPUT_SEL::write(1); // RGBS
     writeOneByte(0xF0, 0);
     timeout = 255;
     readFromRegister(0x19, 1, &readout); // in hor. pulse width
@@ -451,11 +449,11 @@ void inputAndSyncDetect() {
       delay(1);
     }
   }
-
+  setSOGLevel(10);
   if (!syncFound) {
     Serial.println(F("no input with sync found"));
     resetModeDetect(); // ensure MD resets
-    SyncProcessorOffOn(); delay(50); // same for SP
+    SyncProcessorOffOn(); // same for SP
     writeOneByte(0xF0, 0);
     byte a = 0;
     for (byte b = 0; b < 100; b++) {
@@ -482,13 +480,14 @@ void inputAndSyncDetect() {
     writeOneByte(0x40, 0x0a);
     writeOneByte(0x3b, 0x00);
     resetPLL(); resetPLLAD();
+    resetModeDetect();
     SyncProcessorOffOn();
 
     byte result = getVideoMode();
     byte timeout = 255;
     while (result == 0 && --timeout > 0) {
       result = getVideoMode();
-      delay(2);
+      delay(4);
     }
     if (timeout == 0) { // failed. test HDTV!
       writeOneByte(0xF0, 5);
@@ -499,13 +498,14 @@ void inputAndSyncDetect() {
       writeOneByte(0x40, 0x20);
       writeOneByte(0x3b, 0x11);
       resetPLL(); resetPLLAD();
+      resetModeDetect();
       SyncProcessorOffOn();
     }
     result = getVideoMode();
     timeout = 255;
     while (result == 0 && --timeout > 0) {
       result = getVideoMode();
-      delay(2);
+      delay(4);
     }
     if (timeout == 0) {
       rto->sourceDisconnected = true;
@@ -630,7 +630,7 @@ void SyncProcessorOffOn() {
   writeOneByte(0x47, readout & ~(1 << 2));
   readFromRegister(0x47, 1, &readout);
   writeOneByte(0x47, readout | (1 << 2));
-  delay(150); enableDeinterlacer();
+  delay(200); enableDeinterlacer();
 }
 
 void resetModeDetect() {
@@ -640,7 +640,7 @@ void resetModeDetect() {
   writeOneByte(0x47, readout & ~(1 << 1));
   readFromRegister(0x47, 1, &readout);
   writeOneByte(0x47, readout | (1 << 1));
-  Serial.println(F("-"));
+  //Serial.println(F("-"));
 
   // try a softer approach
   //  writeOneByte(0xF0, 1);
@@ -1230,6 +1230,7 @@ void doPostPresetLoadSteps() {
   enableVDS(); delay(10);
   resetPLLAD(); delay(10);
   resetSyncLock();
+  delay(50); // stability
   Serial.println(F("post preset done"));
 }
 
@@ -2397,16 +2398,14 @@ void loop() {
   }
 
   if (rto->sourceDisconnected == true && ((millis() - lastSourceCheck) > 10)) { // source is off; keep looking for new input
-    writeOneByte(0xF0, 5);
-    writeOneByte(0x02, 0x15); // YUV test
+    GBS::ADC_INPUT_SEL::write(0); // YUV test
     writeOneByte(0xF0, 0);
     byte a = 0;
     for (byte b = 0; b < 120; b++) {
       readFromRegister(0x17, 1, &readout); // input htotal
       a += readout;
       if (b == 60) {
-        writeOneByte(0xF0, 5);
-        writeOneByte(0x02, 0x55); // RGBS test
+        GBS::ADC_INPUT_SEL::write(1); // RGBS test
         writeOneByte(0xF0, 0);
       }
     }
