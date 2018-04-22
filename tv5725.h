@@ -376,6 +376,14 @@ public:
   typedef UReg<0x00, 0x98, 0,  8> OSD_BAR_FOREGROUND_VALUE;
 
   // ADC, SP Registers
+  typedef UReg<0x05, 0x02, 0,  1> ADC_SOGEN;
+  typedef UReg<0x05, 0x02, 1,  5> ADC_SOGCTRL;
+  typedef UReg<0x05, 0x02, 6,  2> ADC_INPUT_SEL;
+  typedef UReg<0x05, 0x03, 0,  1> ADC_POWDZ;
+  typedef UReg<0x05, 0x03, 1,  1> ADC_RYSEL_R;
+  typedef UReg<0x05, 0x03, 2,  1> ADC_RYSEL_G;
+  typedef UReg<0x05, 0x03, 3,  1> ADC_RYSEL_B;
+  typedef UReg<0x05, 0x03, 4,  2> ADC_FLTR;
   typedef UReg<0x05, 0x12, 0, 12> PLLAD_MD;
   typedef UReg<0x05, 0x37, 0,  8> SP_H_PULSE_IGNOR;
 

@@ -121,6 +121,7 @@ struct runTimeOptions {
   boolean avgHpwFound;
   boolean deinterlacerWasTurnedOff;
   boolean syncLockEnabled;
+  uint8_t syncLockFailIgnore;
   boolean printInfos;
   boolean sourceDisconnected;
   boolean webServerEnabled;
@@ -283,18 +284,18 @@ void setParametersSP() {
     writeOneByte(0x16, 0x1f);
     writeOneByte(0x37, 0x04); // need to work on this
     writeOneByte(0x3b, 0x11);
+    writeOneByte(0x3e, 0x10); // overflow protect on, subcoast (macrovision) ON
     writeOneByte(0x3f, 0x1b);
     writeOneByte(0x40, 0x20);
-    writeOneByte(0x50, 0x00);
   }
   else if (rto->videoStandardInput == 4) { // HD YUV
     writeOneByte(0x00, 0xd0);
     writeOneByte(0x16, 0x1f);
     writeOneByte(0x37, 0x04);
     writeOneByte(0x3b, 0x11);
+    writeOneByte(0x3e, 0x10); // overflow protect on, subcoast (macrovision) ON
     writeOneByte(0x3f, 0x58);
     writeOneByte(0x40, 0x5b);
-    writeOneByte(0x50, 0x00);
   }
   else { // SD RGB
     // new GBS + MD requires 0x70
@@ -302,19 +303,26 @@ void setParametersSP() {
     // remember hpw changes depending on sync signal flanks. new gbs is slower, too
     // 0x37 has to be below the current average (real) hpw
     // this also changes with different pll dividers (presets)
-    writeOneByte(0x37, 0x58);
-    writeOneByte(0x50, 0x06); // check this as well (SD sources, no sync stripper)
+    if (rto->inputIsYpBpR) { // it can be an SD signal over the green input (composite, for example)
+      writeOneByte(0x3e, 0x10); // overflow protect on, subcoast (macrovision) ON
+
+    }
+    else {
+      writeOneByte(0x37, 0x58);
+      writeOneByte(0x3e, 0x30); // overflow protect on, subcoast (macrovision) OFF
+    }
   }
 
   writeOneByte(0x20, 0x12); // was 0xd2 // keep jitter sync on! (snes, check debug vsync)(auto correct sog polarity, sog source = ADC)
   // H active detect control
-  writeOneByte(0x21, 0x1b); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20
-  writeOneByte(0x22, 0x0f); // SP_L_DLT_REG       Sync pulse width different threshold (little than this as equal).
-  writeOneByte(0x24, 0x40); // SP_T_DLT_REG       H total width different threshold rgbhv: b // try reducing to 0x0b again
+  writeOneByte(0x21, 0x1b); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20 // 2
+  writeOneByte(0x22, 0x0f); // SP_L_DLT_REG       Sync pulse width different threshold (little than this as equal). // 7
+  writeOneByte(0x23, 0x02); // UNDOCUMENTED       // affects color auto clamp at > 0x24
+  writeOneByte(0x24, 0x40); // SP_T_DLT_REG       H total width different threshold rgbhv: b // // 8
   writeOneByte(0x25, 0x00); // SP_T_DLT_REG
   writeOneByte(0x26, 0x05); // SP_SYNC_PD_THD     H sync pulse width threshold // try increasing to ~ 0x50
   writeOneByte(0x27, 0x00); // SP_SYNC_PD_THD
-  writeOneByte(0x2a, 0x0f); // SP_PRD_EQ_THD      How many continue legal line as valid
+  writeOneByte(0x2a, 0x0f); // SP_PRD_EQ_THD      How many continue legal line as valid // 5
   // V active detect control
   writeOneByte(0x2d, 0x04); // SP_VSYNC_TGL_THD   V sync toggle times threshold
   writeOneByte(0x2e, 0x00); // SP_SYNC_WIDTH_DTHD V sync pulse width threshod // the 04 is a test
@@ -333,7 +341,7 @@ void setParametersSP() {
   // note: the pre / post lines number probably depends on the vsync pulse delay, ie: sync stripper vsync delay
   writeOneByte(0x3a, 0x0a); // 0x0a rgbhv: 20
 
-  writeOneByte(0x3e, 0x30); // overflow protect on, subcoast (macrovision) off | 0xc0 rgbhv: f0 | in case of problems: back to 0x00
+  //writeOneByte(0x3e, 0x30);
 
   //writeOneByte(0x3f, 0x03); // 0x03
   //writeOneByte(0x40, 0x0b); // 0x0b
@@ -353,13 +361,10 @@ void setParametersSP() {
 
   // h coast start / stop positions
   // try these values and t5t3et2 when using cvid sync / no sync stripper
-  // appears start should be around 0x70, stop should be htotal - 0x70
-  //writeOneByte(0x4e, 0x00); writeOneByte(0x4d, 0x70); //  | rgbhv: 0 0
-  //writeOneByte(0x50, 0x06); // rgbhv: 0 // is 0x06 for comment below
-
-  // rgbhv: 0 // psx with 54mhz osc. > 0xa4 too much, 0xa0 barely ok, > 0x9a!
-  // new gbs even lower: 0x84
-  writeOneByte(0x4f, 0x84);
+  writeOneByte(0x4d, 0x60); // rgbhv: 0 0 // was 0x20 to 0x70
+  writeOneByte(0x4e, 0x00);
+  writeOneByte(0x4f, 0xe0); // stop position may somehow be related to htotal or even vtotal. docs are confusing
+  writeOneByte(0x50, 0x05); // rgbhv: 0 // was 0x06
 
   writeOneByte(0x51, 0x02); // 0x00 rgbhv: 2
   writeOneByte(0x52, 0x00); // 0xc0
@@ -376,24 +381,20 @@ void setParametersSP() {
   }
   //writeOneByte(0x57, 0xc0); // 0xc0 rgbhv: 44 // set to 0x80 for retiming
 
-  writeOneByte(0x58, 0x05); //rgbhv: 0
-  writeOneByte(0x59, 0x00); //rgbhv: c0
-  writeOneByte(0x5a, 0x01); //rgbhv: 0 // was 0x05 but 480p ps2 doesnt like it
-  writeOneByte(0x5b, 0x00); //rgbhv: c8
-  writeOneByte(0x5c, 0x06); //rgbhv: 0
+  writeOneByte(0x58, 0x00); //rgbhv: 0
+  writeOneByte(0x59, 0x01); //rgbhv: c0
+  writeOneByte(0x5a, 0x00); //rgbhv: 0 // was 0x05 but 480p ps2 doesnt like it
+  writeOneByte(0x5b, 0x01); //rgbhv: c8
+  writeOneByte(0x5c, 0x05); //rgbhv: 0
   writeOneByte(0x5d, 0x00); //rgbhv: 0
 }
 
 // Sync detect resolution: 5bits; comparator voltage range 10mv~320mv.
-// -> 10mV per step; recommended 120mV = 0x59 / 0x19 (snes likes 100mV, fine.)
+// -> 10mV per step; if cables and source are to standard, use 100mV (level 10)
 void setSOGLevel(uint8_t level) {
-  uint8_t reg_5_02 = 0;
-  writeOneByte(0xF0, 5);
-  readFromRegister(0x02, 1, &reg_5_02);
-  reg_5_02 = (reg_5_02 & 0xc1) | (level << 1);
-  writeOneByte(0x02, reg_5_02);
+  GBS::ADC_SOGCTRL::write(level);
   rto->currentLevelSOG = level;
-  //Serial.print(" SOG lvl "); Serial.println(rto->currentLevelSOG);
+  //debugln("sog level: ", rto->currentLevelSOG);
 }
 
 void inputAndSyncDetect() {
@@ -1197,7 +1198,7 @@ void doPostPresetLoadSteps() {
   if (rto->inputIsYpBpR == true) {
     Serial.print("(YUV)");
     applyYuvPatches();
-    rto->currentLevelSOG = 12; // do this here, gets applied next line
+    rto->currentLevelSOG = 10;
   }
   if (rto->videoStandardInput == 3) {
     Serial.println(F("HDTV mode"));
@@ -1352,6 +1353,7 @@ void resetSyncLock() {
   if (rto->syncLockEnabled) {
     FrameSync::reset();
   }
+  rto->syncLockFailIgnore = 3;
 }
 
 static byte getVideoMode() {
@@ -1494,7 +1496,6 @@ void applyYuvPatches() {   // also does color mixing changes
   readFromRegister(0x03, 1, &readout);
   writeOneByte(0x03, readout | (1 << 3)); // midlevel clamp blue
 
-  writeOneByte(0x50, 0x00);
   writeOneByte(0x56, 0x01); //sog mode on, clamp source 27mhz, no sync inversion, clamp manual off! (for yuv only, bit 2)
 
   writeOneByte(0x06, 0x3f); //adc R offset
@@ -1528,18 +1529,7 @@ void applyRGBPatches() {
   writeOneByte(0xF0, 1);
   readFromRegister(0x00, 1, &readout);
   writeOneByte(0x00, readout & ~(1 << 1)); // rgb matrix bypass
-
 }
-
-#if defined(ESP32)
-void esp32_power() {
-  int8_t power = 0;
-
-  Serial.print("wifi max tx power before: "); esp_wifi_get_max_tx_power(&power); Serial.println(power);
-  Serial.print("set esp_wifi_set_max_tx_power(20): "); Serial.println(esp_wifi_set_max_tx_power(20));
-  Serial.print("wifi max tx power after : "); esp_wifi_get_max_tx_power(&power); Serial.println(power);
-}
-#endif
 
 void startWire() {
   Wire.begin();
@@ -1580,6 +1570,7 @@ void setup() {
   rto->webServerEnabled = true; // control gbs-control(:p) via web browser, only available on wifi boards. disable to conserve power.
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
+  rto->syncLockFailIgnore = 3; // allow syncLock to fail x-1 times in a row before giving up (sync glitch immunity)
   rto->syncWatcher = true;  // continously checks the current sync status. required for normal operation
   rto->phaseADC = 0; // 0 to 31
   rto->phaseSP = 0; // 0 to 31
@@ -1641,7 +1632,7 @@ void setup() {
   }
 #endif
   delay(500); // give the entire system some time to start up.
-  
+
   startWire();
 
   // i2c test: read 5725 product id; if failed, reset bus
@@ -1746,14 +1737,14 @@ void loop() {
 
 #if defined(ESP8266) || defined(ESP32)
   static unsigned long webServerStartDelay = millis();
-  if (rto->webServerEnabled && !rto->webServerStarted && ((millis() - webServerStartDelay) > 8000) ) {
+  if (rto->webServerEnabled && !rto->webServerStarted && ((millis() - webServerStartDelay) > 6000) ) {
 #if defined(ESP8266)
-    start_webserver(); // delay this (blocking) call to sometime in loop()
+    start_webserver();
     WiFi.setOutputPower(14.0f); // float: min 0.0f, max 20.5f
 #elif defined(ESP32)
-    start_webserver();  // delay this (blocking) call to sometime in loop()
+    start_webserver();
     delay(50);
-    esp32_power();
+    esp_wifi_set_max_tx_power(20);
 #endif
     rto->webServerStarted = true;
   }
@@ -1946,55 +1937,18 @@ void loop() {
         rto->allowUpdatesOTA = true;
         break;
 #endif
-#if defined(ESP32)
-      case 'U':
-        esp32_power();
-        break;
-#endif
       case 'u':
-        {
-          rto->webServerEnabled = !rto->webServerEnabled;
-          if (rto->webServerEnabled) {
-#if defined(ESP32)
-            start_webserver();
-            delay(50);
-            esp32_power();
-#elif defined(ESP8266)
-            start_webserver();
-#endif
-          }
-          else {
-            Serial.println(F("stopping web server"));
-#if defined(ESP8266)
-            //WiFi.disconnect(); // this should be called WiFi.disconnect___and_delete_settings_from_flash_justbytheway() (SDK bug)
-            //WiFi.persistent(false): https://github.com/esp8266/Arduino/blob/master/doc/esp8266wifi/generic-class.rst#persistent
-            WiFi.mode(WIFI_OFF); delay(100);
-            WiFi.forceSleepBegin(); delay(100);
-#elif defined(ESP32)
-            //WiFi.mode(WIFI_STA);
-            //WiFi.disconnect(); // same SDK bug? Just turn WiFi off
-            WiFi.mode(WIFI_OFF); delay(100);
-#endif
-            // else Arduino, Do nothing
-          }
-        }
+        //
         break;
       case 'f':
-        {
-          static boolean adc_filter_40mhz = false;
-          Serial.print(F("ADC filter "));
-          if (!adc_filter_40mhz) {
-            Serial.println(F("off"));
-            writeOneByte(0xF0, 5);
-            writeOneByte(0x03, 0x01);
-            adc_filter_40mhz = true;
-          }
-          else {
-            Serial.println(F("on"));
-            writeOneByte(0xF0, 5);
-            writeOneByte(0x03, 0x31);
-            adc_filter_40mhz = false;
-          }
+        Serial.print(F("ADC filter "));
+        if (GBS::ADC_FLTR::read() > 0) {
+          GBS::ADC_FLTR::write(0);
+          Serial.println(F("off"));
+        }
+        else {
+          GBS::ADC_FLTR::write(3);
+          Serial.println(F("on"));
         }
         break;
       case 'l':
@@ -2196,7 +2150,7 @@ void loop() {
             }
             value = Serial.parseInt();
             if (value < 4096) {
-              Serial.print(F("\nset ")); Serial.print(what); Serial.print(" "); Serial.println(value);
+              Serial.print(F("set ")); Serial.print(what); Serial.print(" "); Serial.println(value);
               if (what.equals("ht")) {
                 set_htotal(value);
               }
@@ -2242,9 +2196,16 @@ void loop() {
     writeOneByte(0x63, 0x0f);
     lastVsyncLock = millis();
     if (!FrameSync::run()) {
-      // fixme: remove resetModeDetect() when the test bus "source enabled" detection is implemented (see fixme in setup())
-      resetModeDetect();  // in case source got turned off, this will "remind" MD, which will in turn notify sync watcher
-      FrameSync::reset(); // in case run() failed because we lost a sync signal
+      if (rto->syncLockFailIgnore-- == 0) {
+        resetModeDetect();  // in case source got turned off, this will "remind" MD to update
+        SyncProcessorOffOn(); // sometimes MD reset isn't enough
+        delay(100);
+        FrameSync::reset(); // in case run() failed because we lost a sync signal
+        //debugln("fs timeout");
+      }
+    }
+    else if (rto->syncLockFailIgnore > 0) {
+      rto->syncLockFailIgnore = 3;
     }
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
   }
@@ -2297,6 +2258,7 @@ void loop() {
         avgHpw = (uint16_t)sum;
 
         uint8_t ignoreLength = (avgHpw / 2) + (avgHpw / 22); // a little more than half the hpw
+        rto->avgHpwFound = true;
         //debugln("SP_H_PULSE_IGNOR: ", ignoreLength);
 
         if (ignoreLength > 10 && ignoreLength < 140) {  // safety while this is new
@@ -2304,9 +2266,9 @@ void loop() {
         }
         else {
           debugln(F("hpw ign warn: "), ignoreLength);
+          rto->avgHpwFound = false;
         }
         lastvideoStandardInput = rto->videoStandardInput;
-        rto->avgHpwFound = true;
         hpwIndex = 0;
       }
     }
@@ -2326,7 +2288,7 @@ void loop() {
       byte test = 10;
       byte changeToPreset = result;
       while (--test > 0) {
-        delay(1);
+        delay(8);
         result = getVideoMode();
         if (changeToPreset == result) {
           signalInputChangeCounter++;
@@ -2337,7 +2299,7 @@ void loop() {
       noSyncCounter = 0;
     }
 
-    if (noSyncCounter >= 30) { // ModeDetect says signal lost
+    if (noSyncCounter >= 60) { // ModeDetect says signal lost
       disableVDS();
       inputAndSyncDetect();
       resetModeDetect();
@@ -2424,8 +2386,9 @@ void loop() {
       // active video
       resetPLL();
       resetPLLAD();
+      rto->syncLockFailIgnore = 3;
     }
-    else {
+    else if (rto->syncLockFailIgnore-- == 0) {
       // frame time lock failed, most likely due to missing wires
       rto->syncLockEnabled = false;
       debugln(F("sync lock failed, check debug + vsync wires!"));
