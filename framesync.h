@@ -159,6 +159,19 @@ class FrameSyncManager {
 
       debugln("Best htotal: ", bestHtotal);
 
+      if (bestHtotal < htotal) { // image is right shifted and may run into hb memory borders (snes)
+        uint16_t newVDS_HB_SP = 0;
+        uint16_t downPercent = (bestHtotal * 1000) / htotal;
+        uint16_t VDS_HB_SP = GBS::VDS_HB_SP::read();
+        newVDS_HB_SP = (VDS_HB_SP * downPercent) / 1000;
+        newVDS_HB_SP = (newVDS_HB_SP + 1) & 0xFFFE; // small correction upwards, round to even number
+        newVDS_HB_SP &= 0xFFFE;
+        GBS::VDS_HB_SP::write(newVDS_HB_SP);
+        //debugln("downPercent: ", downPercent);
+        //debugln("old VDS_HB_SP: ", VDS_HB_SP);
+        //debugln("new VDS_HB_SP: ", newVDS_HB_SP);
+      }
+
       return true;
     }
 
