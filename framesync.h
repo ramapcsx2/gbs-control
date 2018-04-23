@@ -219,6 +219,10 @@ class FrameSyncManager {
       return syncLockReady;
     }
 
+    static int16_t getSyncLastCorrection() {
+      return syncLastCorrection;
+    }
+
     // Perform vsync phase locking.  This is accomplished by measuring
     // the period and phase offset of the input and output vsync
     // signals and adjusting the frame size (and thus the output vsync

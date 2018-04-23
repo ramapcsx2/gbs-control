@@ -122,6 +122,7 @@ struct runTimeOptions {
   boolean deinterlacerWasTurnedOff;
   boolean syncLockEnabled;
   uint8_t syncLockFailIgnore;
+  uint8_t currentSyncProcessorMode : 2; //HD or SD, not used yet
   boolean printInfos;
   boolean sourceDisconnected;
   boolean webServerEnabled;
@@ -282,27 +283,27 @@ void setParametersSP() {
   if (rto->videoStandardInput == 3) { // HD YUV
     writeOneByte(0x00, 0xd0);
     writeOneByte(0x16, 0x1f);
-    writeOneByte(0x37, 0x04); // need to work on this
+    writeOneByte(0x37, 0x20); // need to work on this
     writeOneByte(0x3b, 0x11);
     writeOneByte(0x3e, 0x10); // overflow protect on, subcoast (macrovision) ON
     writeOneByte(0x3f, 0x1b);
     writeOneByte(0x40, 0x20);
+    writeOneByte(0x50, 0x03);
   }
   else if (rto->videoStandardInput == 4) { // HD YUV
     writeOneByte(0x00, 0xd0);
     writeOneByte(0x16, 0x1f);
-    writeOneByte(0x37, 0x04);
+    writeOneByte(0x37, 0x20);
     writeOneByte(0x3b, 0x11);
     writeOneByte(0x3e, 0x10); // overflow protect on, subcoast (macrovision) ON
     writeOneByte(0x3f, 0x58);
-    writeOneByte(0x40, 0x5b);
+    writeOneByte(0x50, 0x03);
+  }
+  else if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
+    writeOneByte(0x50, 0x06);
+    writeOneByte(0x37, 0x58);
   }
   else { // SD RGB
-    // new GBS + MD requires 0x70
-    // base this off of hpw. value needs to be above smalles hpw seen
-    // remember hpw changes depending on sync signal flanks. new gbs is slower, too
-    // 0x37 has to be below the current average (real) hpw
-    // this also changes with different pll dividers (presets)
     if (rto->inputIsYpBpR) { // it can be an SD signal over the green input (composite, for example)
       writeOneByte(0x3e, 0x10); // overflow protect on, subcoast (macrovision) ON
     }
@@ -358,12 +359,12 @@ void setParametersSP() {
   writeOneByte(0x4b, 0x44); // 0x34 rgbhv: 50
   writeOneByte(0x4c, 0x00); // 0xc0
 
-  // h coast start / stop positions
-  // try these values and t5t3et2 when using cvid sync / no sync stripper
-  writeOneByte(0x4d, 0x60); // rgbhv: 0 0 // was 0x20 to 0x70
+  // macrovision h coast start / stop positions
+  // t5t3et2 toggles the feature itself
+  writeOneByte(0x4d, 0x30); // rgbhv: 0 0 // was 0x20 to 0x70
   writeOneByte(0x4e, 0x00);
-  writeOneByte(0x4f, 0xe0); // stop position may somehow be related to htotal or even vtotal. docs are confusing
-  writeOneByte(0x50, 0x05); // rgbhv: 0 // was 0x06
+  writeOneByte(0x4f, 0x00); // stop position may somehow be related to htotal or even vtotal. docs are confusing
+  //writeOneByte(0x50, 0x06); // rgbhv: 0
 
   writeOneByte(0x51, 0x02); // 0x00 rgbhv: 2
   writeOneByte(0x52, 0x00); // 0xc0
@@ -372,20 +373,18 @@ void setParametersSP() {
 
   //writeOneByte(0x55, 0x50); // auto coast off (on = d0, was default)  0xc0 rgbhv: 0 but 50 is fine
   //writeOneByte(0x56, 0x0d); // sog mode on, clamp source pixclk, no sync inversion (default was invert h sync?)  0x21 rgbhv: 36
-  if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4) {
-    writeOneByte(0x56, 0x01); // 0x01 for 480p over component
-  }
-  else {
-    writeOneByte(0x56, 0x05); // update: one of the new bits causes clamp glitches, check with checkerboard pattern
-  }
+
+  writeOneByte(0x56, 0x01); // always auto clamp
+
   //writeOneByte(0x57, 0xc0); // 0xc0 rgbhv: 44 // set to 0x80 for retiming
 
+  // these regs seem to be shifted in the docs. doc 0x58 is actually 0x59 etc
   writeOneByte(0x58, 0x00); //rgbhv: 0
-  writeOneByte(0x59, 0x01); //rgbhv: c0
+  writeOneByte(0x59, 0x10); //rgbhv: c0
   writeOneByte(0x5a, 0x00); //rgbhv: 0 // was 0x05 but 480p ps2 doesnt like it
-  writeOneByte(0x5b, 0x01); //rgbhv: c8
-  writeOneByte(0x5c, 0x05); //rgbhv: 0
-  writeOneByte(0x5d, 0x00); //rgbhv: 0
+  writeOneByte(0x5b, 0x02); //rgbhv: c8
+  writeOneByte(0x5c, 0x00); //rgbhv: 0
+  writeOneByte(0x5d, 0x02); //rgbhv: 0
 }
 
 // Sync detect resolution: 5bits; comparator voltage range 10mv~320mv.
@@ -396,18 +395,42 @@ void setSOGLevel(uint8_t level) {
   //debugln("sog level: ", rto->currentLevelSOG);
 }
 
+void syncProcessorModeSD() {
+  writeOneByte(0xF0, 5);
+  writeOneByte(0x00, 0xd8);
+  writeOneByte(0x16, 0x2f);
+  writeOneByte(0x37, 0x58);
+  writeOneByte(0x3b, 0x00);
+  writeOneByte(0x3e, 0x10); // could also be 0x30 but 0x10 is compatible
+  writeOneByte(0x50, 0x06);
+  writeOneByte(0x56, 0x01); // could also be 0x05 but 0x01 is compatible
+  rto->currentSyncProcessorMode = 0;
+  rto->avgHpwFound = 0;
+}
+
+void syncProcessorModeHD() {
+  writeOneByte(0xF0, 5);
+  writeOneByte(0x00, 0xd0);
+  writeOneByte(0x16, 0x1f);
+  writeOneByte(0x37, 0x20);
+  writeOneByte(0x3b, 0x11);
+  writeOneByte(0x3e, 0x10);
+  writeOneByte(0x50, 0x03);
+  writeOneByte(0x56, 0x01);
+  rto->currentSyncProcessorMode = 1;
+  rto->avgHpwFound = 0;
+}
+
 void inputAndSyncDetect() {
   // GBS boards have 2 potential sync sources:
-  // - 3 plug RCA connector
+  // - RCA connectors
   // - VGA input / 5 pin RGBS header / 8 pin VGA header (all 3 are shared electrically)
-  // This routine finds the input that has a sync signal, then stores the result for global use.
-  // Note: It is assumed that the 5725 has a preset loaded!
+  // This routine finds an input with a sync signal.
   uint8_t readout = 0;
   uint8_t previous = 0;
   byte timeout = 0;
   boolean syncFound = false;
 
-  setParametersSP();
   setSOGLevel(10);
 
   GBS::ADC_INPUT_SEL::write(0); // YUV
@@ -426,7 +449,7 @@ void inputAndSyncDetect() {
       setSOGLevel(random(0, 31));
       writeOneByte(0xF0, 0);
     }
-    delay(1);
+    //delay(1);
   }
   setSOGLevel(10);
   if (syncFound == false) {
@@ -446,7 +469,7 @@ void inputAndSyncDetect() {
         setSOGLevel(random(0, 31));
         writeOneByte(0xF0, 0);
       }
-      delay(1);
+      //delay(1);
     }
   }
   setSOGLevel(10);
@@ -470,42 +493,41 @@ void inputAndSyncDetect() {
     Serial.println(F("using RCA inputs"));
     rto->sourceDisconnected = false;
     applyYuvPatches();
-
-    // 480p timing check. First regular 240p
-    writeOneByte(0xF0, 5);
-    writeOneByte(0x00, 0xd8);
-    writeOneByte(0x16, 0x2f);
-    writeOneByte(0x37, 0x58);
-    writeOneByte(0x3f, 0x08);
-    writeOneByte(0x40, 0x0a);
-    writeOneByte(0x3b, 0x00);
+    byte result = getVideoMode();
+    byte timeout = 255;
+    while (result == 0 && --timeout > 0) {  // first check
+      result = getVideoMode();
+    }
+    if (timeout != 0) {
+      debugln(F("1st check worked!"));
+      return;
+    }
+    // 480p timing check: regular 240p
+    syncProcessorModeSD();
     resetPLL(); resetPLLAD();
     resetModeDetect();
     SyncProcessorOffOn();
-
-    byte result = getVideoMode();
-    byte timeout = 255;
-    while (result == 0 && --timeout > 0) {
-      result = getVideoMode();
-      delay(4);
-    }
-    if (timeout == 0) { // failed. test HDTV!
-      writeOneByte(0xF0, 5);
-      writeOneByte(0x00, 0xd0);
-      writeOneByte(0x16, 0x1f);
-      writeOneByte(0x37, 0x04);
-      writeOneByte(0x3f, 0x1b);
-      writeOneByte(0x40, 0x20);
-      writeOneByte(0x3b, 0x11);
-      resetPLL(); resetPLLAD();
-      resetModeDetect();
-      SyncProcessorOffOn();
-    }
-    result = getVideoMode();
     timeout = 255;
+    result = getVideoMode();
+    while (result == 0 && --timeout > 0) {  // first check
+      result = getVideoMode();
+      delay(1);
+    }
+    if (timeout != 0) {
+      debugln(F("SD check worked!"));
+      return;
+    }
+
+    debugln(F("SD check fail, try HD"));
+    syncProcessorModeHD();
+    resetPLL(); resetPLLAD();
+    resetModeDetect();
+    SyncProcessorOffOn();
+    timeout = 255;
+    result = getVideoMode();
     while (result == 0 && --timeout > 0) {
       result = getVideoMode();
-      delay(4);
+      delay(1);
     }
     if (timeout == 0) {
       rto->sourceDisconnected = true;
@@ -841,36 +863,38 @@ void scaleVertical(uint16_t amountToAdd, bool subtracting) {
 
 void shiftVertical(uint16_t amountToAdd, bool subtracting) {
   typedef GBS::Tie<GBS::VDS_VB_ST, GBS::VDS_VB_SP> Regs;
-  uint16_t vrst = GBS::VDS_VSYNC_RST::read();
+  uint16_t vrst = GBS::VDS_VSYNC_RST::read() - FrameSync::getSyncLastCorrection();
   uint16_t vbst = 0, vbsp = 0;
+  int16_t newVbst = 0, newVbsp = 0;
 
   Regs::read(vbst, vbsp);
+  newVbst = vbst; newVbsp = vbsp;
 
   if (subtracting) {
-    vbst -= amountToAdd;
-    vbsp -= amountToAdd;
+    newVbst -= amountToAdd;
+    newVbsp -= amountToAdd;
   } else {
-    vbst += amountToAdd;
-    vbsp += amountToAdd;
+    newVbst += amountToAdd;
+    newVbsp += amountToAdd;
   }
 
   // handle the case where hbst or hbsp have been decremented below 0
-  if (vbst & 0x8000) {
-    vbst = vrst + vbst;
+  if (newVbst < 0) {
+    newVbst = vrst + newVbst;
   }
-  if (vbsp & 0x8000) {
-    vbsp = vrst + vbsp;
+  if (newVbsp < 0) {
+    newVbsp = vrst + newVbsp;
   }
 
   // handle the case where vbst or vbsp have been incremented above vrstValue
-  if (vbst > vrst) {
-    vbst = vbst - vrst;
+  if (newVbst > vrst) {
+    newVbst = newVbst - vrst;
   }
-  if (vbsp > vrst) {
-    vbsp = vbsp - vrst;
+  if (newVbsp > vrst) {
+    newVbsp = newVbsp - vrst;
   }
 
-  Regs::write(vbst, vbsp);
+  Regs::write(newVbst, newVbsp);
 }
 
 void shiftVerticalUp() {
@@ -1185,6 +1209,7 @@ void resetRunTimeVariables() {
   // reset information on the last source
   rto->lowestHpw = 4095;
   rto->avgHpwFound = false;
+  rto->currentSyncProcessorMode = 0;
 }
 
 void doPostPresetLoadSteps() {
@@ -1497,8 +1522,6 @@ void applyYuvPatches() {   // also does color mixing changes
   readFromRegister(0x03, 1, &readout);
   writeOneByte(0x03, readout | (1 << 3)); // midlevel clamp blue
 
-  writeOneByte(0x56, 0x01); //sog mode on, clamp source 27mhz, no sync inversion, clamp manual off! (for yuv only, bit 2)
-
   writeOneByte(0x06, 0x3f); //adc R offset
   writeOneByte(0x07, 0x3f); //adc G offset
   writeOneByte(0x08, 0x3f); //adc B offset
@@ -1582,6 +1605,7 @@ void setup() {
   rto->avgHpwFound = false;
   rto->inputIsYpBpR = false;
   rto->videoStandardInput = 0;
+  rto->currentSyncProcessorMode = 0;
   rto->deinterlacerWasTurnedOff = false;
   rto->webServerStarted = false;
   rto->printInfos = false;
@@ -2218,7 +2242,7 @@ void loop() {
     // applies found value / 2 to SP_H_PULSE_IGNOR (S5_37)
     // support sources that shorten pulses (Mega Drive)
     // support different H-PLL dividers (hpw readout scales with the divider)
-    if (rto->videoStandardInput > 0) {
+    if (rto->videoStandardInput > 0 && rto->videoStandardInput < 3) { // only for SD modes
       static const uint8_t HPW_SIZE = 10;
       static uint16_t hpwHistory[HPW_SIZE] = {0};
       static uint8_t hpwIndex = 0, lastvideoStandardInput = 0;
@@ -2300,14 +2324,6 @@ void loop() {
       noSyncCounter = 0;
     }
 
-    if (noSyncCounter >= 60) { // ModeDetect says signal lost
-      disableVDS();
-      inputAndSyncDetect();
-      resetModeDetect();
-      delay(300); // and give MD some time
-      rto->videoStandardInput = 0;
-    }
-
     if (signalInputChangeCounter >= 8) { // video mode has changed
       Serial.println(F("New Input"));
       rto->videoStandardInput = 0;
@@ -2318,9 +2334,18 @@ void loop() {
       }
       if (timeout > 0) {
         applyPresets(result);
-        noSyncCounter = 0;
       }
       else Serial.println(F(" .. but lost it?"));
+      noSyncCounter = 0;
+      signalInputChangeCounter = 0;
+    }
+
+    if (noSyncCounter >= 60) { // ModeDetect says signal lost
+      disableVDS();
+      inputAndSyncDetect();
+      rto->videoStandardInput = 0;
+      signalInputChangeCounter = 0;
+      noSyncCounter = 0;
     }
 
     setParametersIF(); // continously update, so offsets match when switching from progressive to interlaced modes
