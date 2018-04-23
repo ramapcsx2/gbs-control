@@ -1963,9 +1963,24 @@ void loop() {
         break;
 #endif
       case 'u':
-        //
+      //
+      case 'f': {
+          static boolean toggle = 0;
+          Serial.print(F("hor. peaking "));
+          //Serial.println(GBS::VDS_PK_Y_H_BYPS::read());  // template engine bug?: always returns 1
+          if (toggle == 0) {
+            GBS::VDS_PK_Y_H_BYPS::write(0);
+            Serial.println(F("on"));
+            toggle = 1;
+          }
+          else {
+            GBS::VDS_PK_Y_H_BYPS::write(1);
+            Serial.println(F("off"));
+            toggle = 0;
+          }
+        }
         break;
-      case 'f':
+      case 'F':
         Serial.print(F("ADC filter "));
         if (GBS::ADC_FLTR::read() > 0) {
           GBS::ADC_FLTR::write(0);
