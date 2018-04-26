@@ -8,7 +8,6 @@
 #include "pal_feedbackclock.h"
 #include "ofw_ypbpr.h"
 #include "rgbhv.h"
-#include "minimal_startup.h"
 
 #if defined(ESP8266)
 #include <ESP8266WiFi.h>
@@ -850,10 +849,10 @@ void shiftVertical(uint16_t amountToAdd, bool subtracting) {
   }
 
   // handle the case where vbst or vbsp have been incremented above vrstValue
-  if (newVbst > vrst) {
+  if (newVbst > (int16_t)vrst) {
     newVbst = newVbst - vrst;
   }
-  if (newVbsp > vrst) {
+  if (newVbsp > (int16_t)vrst) {
     newVbsp = newVbsp - vrst;
   }
 
@@ -1653,7 +1652,6 @@ void setup() {
   // continue regardless
 
   disableVDS();
-  //writeProgramArrayNew(minimal_startup); // bring the chip up for input detection
   writeProgramArrayNew(ntsc_240p); // bring the chip up for input detection
   enableDebugPort(); // post preset should do this but may fail. make sure debug is on
   rto->videoStandardInput = 0;

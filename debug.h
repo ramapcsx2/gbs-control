@@ -3,9 +3,9 @@
 
 template<class Param>
 class Hex {
-public:
-   Param value;
-   Hex(Param value): value(value) {}
+  public:
+    Param value;
+    Hex(Param value): value(value) {}
 };
 
 #ifndef DEBUG
