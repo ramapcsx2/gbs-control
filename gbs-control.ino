@@ -286,7 +286,7 @@ void setParametersSP() {
   if (rto->videoStandardInput == 3) { // HD YUV
     writeOneByte(0x00, 0xd0);
     writeOneByte(0x16, 0x1f);
-    writeOneByte(0x37, 0x20); // need to work on this
+    //writeOneByte(0x37, 0x20); // need to work on this
     writeOneByte(0x3b, 0x11);
     writeOneByte(0x3e, 0x10); // overflow protect on, subcoast (macrovision) ON
     writeOneByte(0x3f, 0x1b);
@@ -296,10 +296,11 @@ void setParametersSP() {
   else if (rto->videoStandardInput == 4) { // HD YUV
     writeOneByte(0x00, 0xd0);
     writeOneByte(0x16, 0x1f);
-    writeOneByte(0x37, 0x20);
+    //writeOneByte(0x37, 0x20);
     writeOneByte(0x3b, 0x11);
     writeOneByte(0x3e, 0x10); // overflow protect on, subcoast (macrovision) ON
     writeOneByte(0x3f, 0x58);
+    //writeOneByte(0x40, 0x5a); // is this missing?
     writeOneByte(0x50, 0x03);
   }
   else if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
@@ -311,7 +312,6 @@ void setParametersSP() {
       writeOneByte(0x3e, 0x10); // overflow protect on, subcoast (macrovision) ON
     }
     else {
-      writeOneByte(0x37, 0x58);
       writeOneByte(0x3e, 0x30); // overflow protect on, subcoast (macrovision) OFF
     }
   }
@@ -336,11 +336,11 @@ void setParametersSP() {
   writeOneByte(0x34, 0x03); // SP_V_TIMER_VAL     V timer for V detect       (?typical vtotal: 259. times 2 for 518. ntsc 525 - 518 = 7. so 0x08?)
 
   // Sync separation control
-  writeOneByte(0x35, 0xb0); // SP_DLT_REG [7:0]   Sync pulse width difference threshold  (tweak point) (b0 seems best from experiments. above, no difference)
+  writeOneByte(0x35, 0x15); // SP_DLT_REG [7:0]   Sync pulse width difference threshold  (tweak point)
   writeOneByte(0x36, 0x00); // SP_DLT_REG [11:8]
 
-  writeOneByte(0x38, 0x07); // h coast pre (psx starts eq pulses around 4 hsyncs before vs pulse) rgbhv: 7
-  writeOneByte(0x39, 0x03); // h coast post (psx stops eq pulses around 4 hsyncs after vs pulse) rgbhv: 12
+  writeOneByte(0x38, 0x03); // h coast pre (psx starts eq pulses around 4 hsyncs before vs pulse) rgbhv: 7
+  writeOneByte(0x39, 0x07); // h coast post (psx stops eq pulses around 4 hsyncs after vs pulse) rgbhv: 12
   // note: the pre / post lines number probably depends on the vsync pulse delay, ie: sync stripper vsync delay
   writeOneByte(0x3a, 0x0a); // 0x0a rgbhv: 20
 
@@ -428,7 +428,7 @@ void syncProcessorModeHD() {
   rto->avgHpwFound = 0;
 }
 
-void goLowPower() {
+void goLowPowerWithInputDetection() {
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC (output)
 }
 
@@ -489,7 +489,7 @@ void inputAndSyncDetect() {
     if (!getSyncStable()) {
       rto->sourceDisconnected = true;
       Serial.println(F("source is off"));
-      goLowPower();
+      goLowPowerWithInputDetection();
     }
   }
   else if (syncFound && rto->inputIsYpBpR == true) {
@@ -1659,6 +1659,7 @@ void setup() {
   // is there an active input?
   inputAndSyncDetect();
   syncProcessorModeSD(); // default
+  goLowPowerWithInputDetection();
 
 #if defined(ESP8266)
   if (!rto->webServerEnabled) {
@@ -1941,7 +1942,7 @@ void loop() {
         break;
 #endif
       case 'u':
-        goLowPower();
+        goLowPowerWithInputDetection();
         break;
       case 'f': {
           static boolean toggle = 0;
