@@ -136,6 +136,9 @@ public:
   typedef UReg<0x00, 0x19, 0, 12> STATUS_SYNC_PROC_HLOW_LEN;
   typedef UReg<0x00, 0x1B, 0, 11> STATUS_SYNC_PROC_VTOTAL;
 
+  // Miscellaneous Registers
+  typedef UReg<0x00, 0x44, 0,  1> DAC_RGBS_PWDNZ;
+  
   // IF Registers
   typedef UReg<0x01, 0x00, 0,  1> IF_IN_DREG_BYPS;
   typedef UReg<0x01, 0x00, 1,  1> IF_MATRIX_BYPS;
