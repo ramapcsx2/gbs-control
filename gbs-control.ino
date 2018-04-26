@@ -438,7 +438,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
   writeOneByte(0xF0, 0);
   long timeout = millis();
   // first check if currently active input has sync. if so > early return
-  while (readout == 0 && millis() - timeout < 10) {
+  while (readout == 0 && millis() - timeout < 50) {
     yield();
     readFromRegister(0x2f, 1, &readout);
     if (readout != 0) {
@@ -448,16 +448,17 @@ uint8_t detectAndSwitchToActiveInput() { // if any
   // full test needed
   GBS::ADC_INPUT_SEL::write(1); // RGBS test
   timeout = millis();
-  while (readout == 0 && millis() - timeout < 200) {
-    yield();
+  // detecting a signal can be instant or take up to 500ms in case the channel changed
+  while (readout == 0 && millis() - timeout < 700) {
+    delay(2);
     readFromRegister(0x2f, 1, &readout);
   }
   if (readout == 0) {
     GBS::ADC_INPUT_SEL::write(0); // YUV test
     writeOneByte(0xF0, 0);
     timeout = millis();
-    while (readout == 0 && millis() - timeout < 200) {
-      yield();
+    while (readout == 0 && millis() - timeout < 700) {
+      delay(2);
       readFromRegister(0x2f, 1, &readout);
     }
     if (readout != 0) {
