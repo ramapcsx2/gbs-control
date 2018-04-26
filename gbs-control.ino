@@ -2232,7 +2232,11 @@ void loop() {
 
   // syncwatcher polls SP status. when necessary, initiates adjustments or preset changes
   if ((rto->sourceDisconnected == false) && (rto->syncWatcher == true) && ((millis() - lastTimeSyncWatcher) > 40)) {
-
+    uint8_t debugRegBackup;
+    writeOneByte(0xF0, 5);
+    readFromRegister(0x63, 1, &debugRegBackup);
+    writeOneByte(0x63, 0x0f);
+    
     // continous horizontal pulse width average that rejects too short / long pulses
     // applies found value / 2 to SP_H_PULSE_IGNOR (S5_37)
     // support sources that shorten pulses (Mega Drive)
@@ -2369,6 +2373,7 @@ void loop() {
 
     if (rto->videoStandardInput > 0) setParametersIF(); // continously update, so offsets match when inputs switch progressive / interlaced
 
+    writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
     lastTimeSyncWatcher = millis();
   }
 
