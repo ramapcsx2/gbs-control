@@ -2,6 +2,8 @@
 #define FRAMESYNC_H_
 
 #include "debug.h"
+extern void debugPortSetSP();
+extern void debugPortSetVDS();
 
 template <class GBS, class Attrs>
 class FrameSyncManager {
@@ -14,7 +16,7 @@ class FrameSyncManager {
     typedef typename GBS::template Tie<VSYNC_RST, VSST, VSSP> VRST_SST_SSP;
 
     static const uint8_t debugInPin = Attrs::debugInPin;
-    static const uint8_t vsyncInPin = Attrs::vsyncInPin;
+    //static const uint8_t vsyncInPin = Attrs::vsyncInPin;
     static const uint32_t syncTimeout = Attrs::timeout;
     static const int16_t syncCorrection = Attrs::correction;
     static const uint32_t syncTargetPhase = Attrs::targetPhase;
@@ -59,17 +61,17 @@ class FrameSyncManager {
     // Sources can disappear while in sampling, so keep the timeout.
     static bool vsyncOutputSample(unsigned long *start, unsigned long *stop) {
       unsigned long timeoutStart = micros();
-      while (digitalRead(vsyncInPin))
+      while (digitalRead(debugInPin))
         if (micros() - timeoutStart >= syncTimeout)
           return false;
-      while (!digitalRead(vsyncInPin))
+      while (!digitalRead(debugInPin))
         if (micros() - timeoutStart >= syncTimeout)
           return false;
       *start = micros();
-      while (digitalRead(vsyncInPin))
+      while (digitalRead(debugInPin))
         if (micros() - timeoutStart >= syncTimeout)
           return false;
-      while (!digitalRead(vsyncInPin))
+      while (!digitalRead(debugInPin))
         if (micros() - timeoutStart >= syncTimeout)
           return false;
       *stop = micros();
@@ -82,15 +84,18 @@ class FrameSyncManager {
                                     uint32_t *periodOutput, int32_t *phase) {
       unsigned long inStart, inStop, outStart, outStop, inPeriod, outPeriod,
                diff;
-
+      debugPortSetSP();
       if (!vsyncInputSample(&inStart, &inStop)) {
         return false;
       }
       inPeriod = (inStop - inStart) / 2;
+      debugPortSetVDS();
       yield();
       if (!vsyncOutputSample(&outStart, &outStop)) {
+        debugPortSetSP();
         return false;
       }
+      debugPortSetSP();
       outPeriod = outStop - outStart;
       diff = (outStart - inStart) % inPeriod;
       if (periodInput)

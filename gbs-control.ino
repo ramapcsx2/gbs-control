@@ -21,7 +21,7 @@ extern "C" void tcp_abort (struct tcp_pcb* pcb);
 extern "C" {
 #include <user_interface.h>
 }
-#define VSYNC_IN_PIN D7 // "D1/ MOSI/D7" (Wemos D1) // D7 (Lolin)
+//#define VSYNC_IN_PIN D7 // "D1/ MOSI/D7" (Wemos D1) // D7 (Lolin) // not required anymore
 #define DEBUG_IN_PIN D6 // "D12/MISO/D6" (Wemos D1) // D6 (Lolin)
 // SCL = D1 (Lolin), D15 (Wemos D1) // ESP8266 Arduino default map: SCL
 // SDA = D2 (Lolin), D14 (Wemos D1) // ESP8266 Arduino default map: SDA
@@ -41,13 +41,13 @@ extern "C" {
 #include "SPIFFS.h"
 #define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, HIGH);
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW); pinMode(LED_BUILTIN, INPUT);
-#define VSYNC_IN_PIN 27
+//#define VSYNC_IN_PIN 27 // not required anymore
 #define DEBUG_IN_PIN 26
 
 #else // Arduino
 #define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, HIGH);
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW); pinMode(LED_BUILTIN, INPUT);
-#define VSYNC_IN_PIN 10
+//#define VSYNC_IN_PIN 10 // not required anymore
 #define DEBUG_IN_PIN 11 // ??
 
 #include "fastpin.h"
@@ -78,7 +78,7 @@ typedef TV5725<GBS_ADDR> GBS;
 //
 
 struct FrameSyncAttrs {
-  static const uint8_t vsyncInPin = VSYNC_IN_PIN;
+  //static const uint8_t vsyncInPin = VSYNC_IN_PIN;
   static const uint8_t debugInPin = DEBUG_IN_PIN;
   // Sync lock sampling timeout in microseconds
   static const uint32_t timeout = 200000;
@@ -268,10 +268,6 @@ void writeProgramArrayNew(const uint8_t* programArray)
   readFromRegister(0x19, 1, &readout);
   rto->phaseSP = ((readout & 0x3e) >> 1);
   //Serial.println(rto->phaseADC); Serial.println(rto->phaseSP);
-
-  writeOneByte(0xF0, 0);
-  writeOneByte(0x46, 0x3f); // reset controls 1 // everything on except VDS display output
-  writeOneByte(0x47, 0x17); // all on except HD bypass
 }
 
 void fuzzySPWrite() {
@@ -452,7 +448,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
   // full test needed
   GBS::ADC_INPUT_SEL::write(1); // RGBS test
   timeout = millis();
-  while (readout == 0 && millis() - timeout < 500) {
+  while (readout == 0 && millis() - timeout < 200) {
     yield();
     readFromRegister(0x2f, 1, &readout);
   }
@@ -460,7 +456,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
     GBS::ADC_INPUT_SEL::write(0); // YUV test
     writeOneByte(0xF0, 0);
     timeout = millis();
-    while (readout == 0 && millis() - timeout < 500) {
+    while (readout == 0 && millis() - timeout < 200) {
       yield();
       readFromRegister(0x2f, 1, &readout);
     }
@@ -1207,13 +1203,6 @@ void doPostPresetLoadSteps() {
   setSOGLevel( rto->currentLevelSOG );
   resetRunTimeVariables();
   resetDigital();
-  delay(50);
-  byte result = getVideoMode();
-  byte timeout = 255;
-  while (result == 0 && --timeout > 0) {
-    result = getVideoMode();
-    delay(2);
-  }
 
   //setParametersIF(); // it's sufficient to do this in syncwatcher
   setClampPosition();
@@ -1586,7 +1575,6 @@ void setup() {
 
   globalCommand = 0; // web server uses this to issue commands
 
-  pinMode(VSYNC_IN_PIN, INPUT);
   pinMode(DEBUG_IN_PIN, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   LEDON // enable the LED, lets users know the board is starting up
@@ -1655,7 +1643,7 @@ void setup() {
   writeProgramArrayNew(ntsc_240p); // bring the chip up for input detection
   enableDebugPort(); // post preset should do this but may fail. make sure debug is on
   rto->videoStandardInput = 0;
-
+  resetDigital();
   // is there an active input?
   inputAndSyncDetect();
   syncProcessorModeSD(); // default
@@ -2219,7 +2207,6 @@ void loop() {
     lastVsyncLock = millis();
     if (!FrameSync::run()) {
       if (rto->syncLockFailIgnore-- == 0) {
-        resetDigital();
         FrameSync::reset(); // in case run() failed because we lost a sync signal
         //debugln("fs timeout");
       }
@@ -2236,7 +2223,7 @@ void loop() {
     writeOneByte(0xF0, 5);
     readFromRegister(0x63, 1, &debugRegBackup);
     writeOneByte(0x63, 0x0f);
-    
+
     // continous horizontal pulse width average that rejects too short / long pulses
     // applies found value / 2 to SP_H_PULSE_IGNOR (S5_37)
     // support sources that shorten pulses (Mega Drive)
@@ -2327,10 +2314,10 @@ void loop() {
         rto->videoStandardInput = 0;
         byte timeout = 255;
         while (thisVideoMode == 0 && --timeout > 0) {
-          delay(1);
           thisVideoMode = getVideoMode();
         }
         if (timeout > 0) {
+          disableVDS();
           applyPresets(thisVideoMode);
         }
         else Serial.println(F(" .. but lost it?"));
@@ -2437,23 +2424,17 @@ void loop() {
     uint8_t debugRegBackup; writeOneByte(0xF0, 5); readFromRegister(0x63, 1, &debugRegBackup);
     writeOneByte(0x63, 0x0f);
     if (FrameSync::init()) {
-      // this helps with some corrections leaving garbage just within
-      // active video
-      resetPLL();
-      resetPLLAD();
       rto->syncLockFailIgnore = 2;
     }
     else if (rto->syncLockFailIgnore-- == 0) {
       // frame time lock failed, most likely due to missing wires
       rto->syncLockEnabled = false;
       debugln(F("sync lock failed, check debug + vsync wires!"));
-      resetDigital();
     }
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
   }
 
-  if (rto->sourceDisconnected == true && ((millis() - lastSourceCheck) > 100)) { // source is off; keep looking for new input
-    //inputAndSyncDetect();
+  if (rto->sourceDisconnected == true && ((millis() - lastSourceCheck) > 500)) { // source is off; keep looking for new input
     detectAndSwitchToActiveInput();
     lastSourceCheck = millis();
   }
