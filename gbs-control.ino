@@ -1800,12 +1800,15 @@ void loop() {
         Serial.println(F("resetDigital()"));
         break;
       case 'D':
-        {
-          uint16_t amount = GBS::VDS_HSYNC_RST::read() / 3;
-          shiftHorizontal(amount, false);
-          amount = GBS::VDS_VSYNC_RST::read() / 6;
-          shiftVertical(amount, false);
-        }
+        // debug stuff:
+        //shift h / v blanking into good view
+        shiftHorizontal(GBS::VDS_HSYNC_RST::read() / 3, false);
+        shiftVertical(GBS::VDS_VSYNC_RST::read() / 6, false);
+        // enable peaking
+        GBS::VDS_PK_Y_H_BYPS::write(0);
+        // enhance!
+        GBS::VDS_Y_GAIN::write(0xff);
+        GBS::VDS_Y_OFST::write(0x10);
         break;
       case 'Y':
         //        {
