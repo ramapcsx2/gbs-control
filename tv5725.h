@@ -389,6 +389,8 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x03, 4,  2> ADC_FLTR;
     typedef UReg<0x05, 0x12, 0, 12> PLLAD_MD;
     typedef UReg<0x05, 0x37, 0,  8> SP_H_PULSE_IGNOR;
+    typedef UReg<0x05, 0x41, 0,  12> SP_CS_CLP_ST;
+    typedef UReg<0x05, 0x43, 0,  12> SP_CS_CLP_SP;
 
 
     static const uint8_t OSD_ZOOM_1X = 0;

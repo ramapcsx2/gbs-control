@@ -345,7 +345,7 @@ void setParametersSP() {
   //writeOneByte(0x3f, 0x03); // 0x03
   //writeOneByte(0x40, 0x0b); // 0x0b
 
-  setClampPosition(); // already done if gone thorugh syncwatcher, but not manual modes
+  setInitialClampPosition(); // already done if gone thorugh syncwatcher, but not manual modes
 
   // 0x45 to 0x48 set a HS position just for Mode Detect. it's fine at start = 0 and stop = 1 or above
   // Update: This is the retiming module. It can be used for SP processing with t5t57t6
@@ -395,7 +395,7 @@ void setSOGLevel(uint8_t level) {
 }
 
 void syncProcessorModeSD() {
-  setClampPosition();
+  setInitialClampPosition();
   writeOneByte(0xF0, 5);
   writeOneByte(0x00, 0xd8);
   writeOneByte(0x16, 0x2f);
@@ -410,7 +410,7 @@ void syncProcessorModeSD() {
 }
 
 void syncProcessorModeHD() {
-  setClampPosition();
+  setInitialClampPosition();
   writeOneByte(0xF0, 5);
   writeOneByte(0x00, 0xd0);
   writeOneByte(0x16, 0x1f);
@@ -1204,14 +1204,21 @@ void doPostPresetLoadSteps() {
   resetDigital();
 
   //setParametersIF(); // it's sufficient to do this in syncwatcher
-  setClampPosition();
+  //setInitialClampPosition(); // already done
   enableDebugPort();
   resetPLL();
   enableVDS(); delay(10);
   resetPLLAD(); delay(10);
   resetSyncLock();
+
+  long timeout = millis();
+  while (getVideoMode() == 0 && millis() - timeout < 500); // stability
+  if (rto->inputIsYpBpR == false) { // RGBS mode?
+    updateClampPosition();  // set sync tip clamping
+    timeout = millis();
+    while (getVideoMode() == 0 && millis() - timeout < 250);
+  }
   Serial.println(F("post preset done"));
-  delay(250); // stability
 }
 
 void applyPresets(byte result) {
@@ -1352,8 +1359,6 @@ static byte getVideoMode() {
 boolean getSyncStable() {
   uint8_t readout = 0;
   writeOneByte(0xF0, 0);
-  //readFromRegister(0x05, 1, &readout);
-  //if (!(readout & 0x04) && !(readout & 0x08)) { // H + V sync both stable
   readFromRegister(0x2f, 1, &readout); // use test bus result, test bus set to S5_63 = 0x0f
   if (readout != 0) { // vsync interval. 0 = must be off!
     return true;
@@ -1453,7 +1458,13 @@ void setPhaseADC() {
   writeOneByte(0x63, debug_backup); // restore
 }
 
-void setClampPosition() {
+void updateClampPosition() {
+  uint16_t inHlength = GBS::HPERIOD_IF::read() * 4;
+  GBS::SP_CS_CLP_SP::write(inHlength - 8);
+  GBS::SP_CS_CLP_ST::write(inHlength - 88);
+}
+
+void setInitialClampPosition() {
   writeOneByte(0xF0, 5);
   if (rto->inputIsYpBpR) {
     // in YUV mode, should use back porch clamping: 14 clocks
@@ -1809,6 +1820,9 @@ void loop() {
         // enhance!
         GBS::VDS_Y_GAIN::write(0xff);
         GBS::VDS_Y_OFST::write(0x10);
+        break;
+      case 'C':
+        updateClampPosition();
         break;
       case 'Y':
         //        {
