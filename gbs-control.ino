@@ -249,8 +249,8 @@ void writeProgramArrayNew(const uint8_t* programArray)
   setParametersSP();
 
   writeOneByte(0xF0, 1);
-  writeOneByte(0x60, 0x22); // MD H unlock / lock
-  writeOneByte(0x61, 0x22); // MD V unlock / lock
+  writeOneByte(0x60, 0x62); // MD H unlock / lock
+  writeOneByte(0x61, 0x62); // MD V unlock / lock
   writeOneByte(0x62, 0x20); // error range
   writeOneByte(0x80, 0xa9); // MD V nonsensical custom mode
   writeOneByte(0x81, 0x2e); // MD H nonsensical custom mode
@@ -476,10 +476,8 @@ uint8_t detectAndSwitchToActiveInput() { // if any
 }
 
 void inputAndSyncDetect() {
-  boolean syncFound = false;
-
   setSOGLevel(10);
-  syncFound = detectAndSwitchToActiveInput();
+  boolean syncFound = detectAndSwitchToActiveInput();
 
   if (!syncFound) {
     Serial.println(F("no input with sync found"));
@@ -1801,6 +1799,14 @@ void loop() {
         enableVDS();
         Serial.println(F("resetDigital()"));
         break;
+      case 'D':
+        {
+          uint16_t amount = GBS::VDS_HSYNC_RST::read() / 3;
+          shiftHorizontal(amount, false);
+          amount = GBS::VDS_VSYNC_RST::read() / 6;
+          shiftVertical(amount, false);
+        }
+        break;
       case 'Y':
         //        {
         //          uint16_t if_line_reset = GBS::IF_HSYNC_RST::read();
@@ -2303,8 +2309,8 @@ void loop() {
       byte changeToPreset = thisVideoMode;
       uint8_t signalInputChangeCounter = 0;
 
+      // this first test may not be necessary. snes switched without issue (1_60, 1_61 = 0x62)
       while (--test > 0) { // what's the new preset?
-        delay(1);
         thisVideoMode = getVideoMode();
         if (changeToPreset == thisVideoMode) {
           signalInputChangeCounter++;
@@ -2324,6 +2330,7 @@ void loop() {
         else Serial.println(F(" .. but lost it?"));
         noSyncCounter = 0;
       }
+      //else Serial.print(F("x"));
     }
     else if (getSyncStable() && thisVideoMode != 0) { // last used mode reappeared
       noSyncCounter = 0;
@@ -2332,7 +2339,7 @@ void loop() {
 
     if (noSyncCounter >= 25) { // ModeDetect says signal lost
       delay(8);
-      if (noSyncCounter == 25 || noSyncCounter == 45) {
+      if (noSyncCounter == 25 || noSyncCounter == 55) {
         if (rto->currentSyncProcessorMode == 0) { // is in SD
           Serial.println(F("try HD"));
           disableDeinterlacer();
@@ -2350,7 +2357,7 @@ void loop() {
         }
       }
 
-      if (noSyncCounter >= 65) {
+      if (noSyncCounter >= 160) { // was 65. wait for an SD2SNES long reset cycle
         disableVDS();
         resetDigital();
         rto->videoStandardInput = 0;
