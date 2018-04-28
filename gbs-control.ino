@@ -424,54 +424,76 @@ void syncProcessorModeHD() {
   rto->avgHpwFound = 0;
 }
 
+// in operation: t5t04t1 for 10% lower power on ADC
+// also: s0s40s1c for 5% (lower memclock of 108mhz)
+// for some reason: t0t45t2 t0t45t4 (enable SDAC, output max voltage) 5% lower  done in presets
+// t0t4ft4 clock out should be off
+// s4s01s20 (was 30) faster latency // unstable at 108mhz
+// both phase controls off saves some power 506ma > 493ma
+// oversample ratio can save 10% at 1x
+// t3t24t3 VDS_TAP6_BYPS on can save 2%
+
+// Generally, the ADC has to stay enabled to perform SOG separation and thus "see" a source.
+// It is possible to run in low power mode.
 void goLowPowerWithInputDetection() {
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC (output)
+  //pll648
+  GBS::PLL_VCORST::write(1); //t0t43t5 // PLL_VCORST reset vco voltage //10%
+  GBS::PLL_CKIS::write(1); // pll input from "input clock" (which is off)
+  GBS::PLL_MS::write(1); // memory clock 81mhz
+  writeOneByte(0xF0, 0); writeOneByte(0x49, 0x00); //pad control pull down/up transistors on
+  // pllad
+  GBS::PLLAD_VCORST::write(1); // initial control voltage on
+  GBS::PLLAD_LEN::write(0); // lock off
+  GBS::PLLAD_TEST::write(0); // test clock off
+  GBS::PLLAD_PDZ::write(0); // power down
+  // phase control units
+  GBS::PA_ADC_BYPSZ::write(0);
+  GBS::PA_SP_BYPSZ::write(0);
+  // low power test mode on
+  GBS::ADC_TEST::write(2);
 }
 
 // GBS boards have 2 potential sync sources:
 // - RCA connectors
 // - VGA input / 5 pin RGBS header / 8 pin VGA header (all 3 are shared electrically)
-// If there is an active sync signal, this routine switches to that input.
+// This routine looks for sync on the currently active input. If it finds it, the input is returned.
+// If it doesn't find sync, it switches the input and returns 0, so that an active input will be found eventually.
+// This is done this way to not block the control MCU with active searching for sync.
 uint8_t detectAndSwitchToActiveInput() { // if any
-  uint8_t readout = 0;
+  uint8_t readout;
+  uint8_t returnValue;
 
+  writeOneByte(0xF0, 5);
+  readFromRegister(0x02, 1, &readout);
+  returnValue = (readout & 0xc0) >> 6;
   writeOneByte(0xF0, 0);
+  readout = 0;
+
   long timeout = millis();
-  // first check if currently active input has sync. if so > early return
-  while (readout == 0 && millis() - timeout < 50) {
+  while (readout == 0 && millis() - timeout < 100) {
     yield();
     readFromRegister(0x2f, 1, &readout);
     if (readout != 0) {
-      return rto->inputIsYpBpR == 1 ? 2 : 1;
-    }
-  }
-  // full test needed
-  GBS::ADC_INPUT_SEL::write(1); // RGBS test
-  timeout = millis();
-  // detecting a signal can be instant or take up to 500ms in case the channel changed
-  while (readout == 0 && millis() - timeout < 700) {
-    delay(2);
-    readFromRegister(0x2f, 1, &readout);
-  }
-  if (readout == 0) {
-    GBS::ADC_INPUT_SEL::write(0); // YUV test
-    writeOneByte(0xF0, 0);
-    timeout = millis();
-    while (readout == 0 && millis() - timeout < 700) {
-      delay(2);
-      readFromRegister(0x2f, 1, &readout);
-    }
-    if (readout != 0) {
-      rto->inputIsYpBpR = 1;
       rto->sourceDisconnected = false;
-      return 2;
+      if (returnValue == 1) {
+        rto->inputIsYpBpR = 0;
+        return 1;
+      }
+      else if (returnValue == 0) {
+        rto->inputIsYpBpR = 1;
+        return 2;
+      }
     }
   }
-  else {
-    rto->inputIsYpBpR = 0;
-    rto->sourceDisconnected = false;
-    return 1;
+
+  if (returnValue == 1) {
+    GBS::ADC_INPUT_SEL::write(0); // RGBS test
   }
+  else if (returnValue == 0) {
+    GBS::ADC_INPUT_SEL::write(1); // YUV test
+  }
+
   return 0;
 }
 
@@ -2039,7 +2061,7 @@ void loop() {
           if (OSRSwitch == 0) {
             Serial.println("OSR 1x"); // oversampling ratio
             writeOneByte(0xF0, 5);
-            writeOneByte(0x16, 0xa0);
+            writeOneByte(0x16, 0xaf);
             writeOneByte(0x00, 0xc0);
             writeOneByte(0x1f, 0x07);
             resetPLL(); resetPLLAD();
@@ -2459,7 +2481,7 @@ void loop() {
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
   }
 
-  if (rto->sourceDisconnected == true && ((millis() - lastSourceCheck) > 500)) { // source is off; keep looking for new input
+  if (rto->sourceDisconnected == true && ((millis() - lastSourceCheck) > 750)) { // source is off; keep looking for new input
     detectAndSwitchToActiveInput();
     lastSourceCheck = millis();
   }

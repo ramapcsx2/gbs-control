@@ -137,6 +137,9 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x1B, 0, 11> STATUS_SYNC_PROC_VTOTAL;
 
     // Miscellaneous Registers
+    typedef UReg<0x00, 0x40, 0,  1> PLL_CKIS;
+    typedef UReg<0x00, 0x40, 4,  3> PLL_MS;
+    typedef UReg<0x00, 0x43, 4,  1> PLL_VCORST;
     typedef UReg<0x00, 0x44, 0,  1> DAC_RGBS_PWDNZ;
 
     // IF Registers
@@ -387,7 +390,18 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x03, 2,  1> ADC_RYSEL_G;
     typedef UReg<0x05, 0x03, 3,  1> ADC_RYSEL_B;
     typedef UReg<0x05, 0x03, 4,  2> ADC_FLTR;
+    typedef UReg<0x05, 0x0C, 1,  4> ADC_TEST;
+    typedef UReg<0x05, 0x11, 0,  1> PLLAD_VCORST;
+    typedef UReg<0x05, 0x11, 1,  1> PLLAD_LEN;
+    typedef UReg<0x05, 0x11, 2,  1> PLLAD_TEST;
+    typedef UReg<0x05, 0x11, 3,  1> PLLAD_TS;
+    typedef UReg<0x05, 0x11, 4,  1> PLLAD_PDZ;
+    typedef UReg<0x05, 0x11, 5,  1> PLLAD_FS;
+    typedef UReg<0x05, 0x11, 6,  1> PLLAD_BPS;
+    typedef UReg<0x05, 0x11, 7,  1> PLLAD_LAT;
     typedef UReg<0x05, 0x12, 0, 12> PLLAD_MD;
+    typedef UReg<0x05, 0x18, 0,  1> PA_ADC_BYPSZ;
+    typedef UReg<0x05, 0x19, 0,  1> PA_SP_BYPSZ;
     typedef UReg<0x05, 0x37, 0,  8> SP_H_PULSE_IGNOR;
     typedef UReg<0x05, 0x41, 0,  12> SP_CS_CLP_ST;
     typedef UReg<0x05, 0x43, 0,  12> SP_CS_CLP_SP;
