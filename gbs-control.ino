@@ -885,23 +885,19 @@ void shiftVerticalDown() {
 }
 
 void setMemoryHblankStartPosition(uint16_t value) {
-  uint8_t regLow, regHigh;
-  regLow = (uint8_t)value;
-  writeOneByte(0xF0, 3);
-  readFromRegister(0x05, 1, &regHigh);
-  regHigh = (regHigh & 0xf0) | (uint8_t)((value & 0x0f00) >> 8);
-  writeOneByte(0x04, regLow);
-  writeOneByte(0x05, regHigh);
+  GBS::VDS_HB_ST::write(value);
 }
 
 void setMemoryHblankStopPosition(uint16_t value) {
-  uint8_t regLow, regHigh;
-  writeOneByte(0xF0, 3);
-  readFromRegister(0x05, 1, &regLow);
-  regLow = (regLow & 0x0f) | (uint8_t)((value & 0x000f) << 4);
-  regHigh = (uint8_t)((value & 0x0ff0) >> 4);
-  writeOneByte(0x05, regLow);
-  writeOneByte(0x06, regHigh);
+  GBS::VDS_HB_SP::write(value);
+}
+
+void setMemoryVblankStartPosition(uint16_t value) {
+  GBS::VDS_VB_ST::write(value);
+}
+
+void setMemoryVblankStopPosition(uint16_t value) {
+  GBS::VDS_VB_SP::write(value);
 }
 
 void getVideoTimings() {
@@ -1240,6 +1236,8 @@ void doPostPresetLoadSteps() {
     timeout = millis();
     while (getVideoMode() == 0 && millis() - timeout < 250);
   }
+  setPhaseADC();
+  //setPhaseSP();
   Serial.println(F("post preset done"));
 }
 
@@ -2217,6 +2215,12 @@ void loop() {
               else if (what.equals("hbsp")) {
                 setMemoryHblankStopPosition(value);
               }
+              else if (what.equals("vbst")) {
+                setMemoryVblankStartPosition(value);
+              }
+              else if (what.equals("vbsp")) {
+                setMemoryVblankStopPosition(value);
+              }
               else if (what.equals("sog")) {
                 setSOGLevel(value);
               }
@@ -2348,8 +2352,9 @@ void loop() {
       byte changeToPreset = thisVideoMode;
       uint8_t signalInputChangeCounter = 0;
 
-      // this first test may not be necessary. snes switched without issue (1_60, 1_61 = 0x62)
+      // this first test is necessary with "dirty" sync (CVid)
       while (--test > 0) { // what's the new preset?
+        delay(4);
         thisVideoMode = getVideoMode();
         if (changeToPreset == thisVideoMode) {
           signalInputChangeCounter++;
