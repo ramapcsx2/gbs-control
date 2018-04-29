@@ -280,23 +280,11 @@ void fuzzySPWrite() {
 void setParametersSP() {
   writeOneByte(0xF0, 5);
   if (rto->videoStandardInput == 3) { // HD YUV
-    writeOneByte(0x00, 0xd0);
-    writeOneByte(0x16, 0x1f);
-    //writeOneByte(0x37, 0x20); // need to work on this
-    writeOneByte(0x3b, 0x11);
     writeOneByte(0x3e, 0x10); // overflow protect on, subcoast (macrovision) ON
-    writeOneByte(0x3f, 0x1b);
-    writeOneByte(0x40, 0x20);
     writeOneByte(0x50, 0x03);
   }
   else if (rto->videoStandardInput == 4) { // HD YUV
-    writeOneByte(0x00, 0xd0);
-    writeOneByte(0x16, 0x1f);
-    //writeOneByte(0x37, 0x20);
-    writeOneByte(0x3b, 0x11);
     writeOneByte(0x3e, 0x10); // overflow protect on, subcoast (macrovision) ON
-    writeOneByte(0x3f, 0x58);
-    //writeOneByte(0x40, 0x5a); // is this missing?
     writeOneByte(0x50, 0x03);
   }
   else if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
@@ -397,14 +385,12 @@ void setSOGLevel(uint8_t level) {
 void syncProcessorModeSD() {
   setInitialClampPosition();
   writeOneByte(0xF0, 5);
-  writeOneByte(0x00, 0xd8);
-  writeOneByte(0x16, 0x2f);
   writeOneByte(0x33, 0x28);
   writeOneByte(0x37, 0x58);
-  writeOneByte(0x3b, 0x00);
   writeOneByte(0x3e, 0x10); // could also be 0x30 but 0x10 is compatible
   writeOneByte(0x50, 0x06);
   writeOneByte(0x56, 0x01); // could also be 0x05 but 0x01 is compatible
+
   rto->currentSyncProcessorMode = 0;
   rto->avgHpwFound = 0;
 }
@@ -412,14 +398,12 @@ void syncProcessorModeSD() {
 void syncProcessorModeHD() {
   setInitialClampPosition();
   writeOneByte(0xF0, 5);
-  writeOneByte(0x00, 0xd0);
-  writeOneByte(0x16, 0x1f);
   writeOneByte(0x33, 0x1a); // too short for SD ntsc mode. enables detecting HD > SD switches when all else fails
-  writeOneByte(0x37, 0x20);
-  writeOneByte(0x3b, 0x11);
+  writeOneByte(0x37, 0x10);
   writeOneByte(0x3e, 0x10);
   writeOneByte(0x50, 0x03);
   writeOneByte(0x56, 0x01);
+
   rto->currentSyncProcessorMode = 1;
   rto->avgHpwFound = 0;
 }
@@ -916,7 +900,6 @@ void getVideoTimings() {
   uint16_t VDS_DIS_VB_SP;
   uint16_t VDS_DIS_VS_ST;
   uint16_t VDS_DIS_VS_SP;
-  uint16_t MD_pll_divider;
 
   // get HRST
   writeOneByte(0xF0, 3);
@@ -1015,13 +998,6 @@ void getVideoTimings() {
   readFromRegister(0x09, 1, &regHigh);
   VDS_DIS_VB_SP = ((((uint16_t)regHigh & 0x007f) << 4) | ((uint16_t)regLow & 0x00f0) >> 4) ;
   Serial.print(F("VB SP (memory): ")); Serial.println(VDS_DIS_VB_SP);
-
-  // get Pixel Clock -- MD[11:0] -- must be smaller than 4096 --
-  writeOneByte(0xF0, 5);
-  readFromRegister(0x12, 1, &regLow);
-  readFromRegister(0x13, 1, &regHigh);
-  MD_pll_divider = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  Serial.print(F("PLLAD divider: ")); Serial.println(MD_pll_divider);
 }
 
 //s0s41s85 wht 1800 wvt 1200 | pal 1280x???
@@ -1199,19 +1175,24 @@ void doPostPresetLoadSteps() {
     applyYuvPatches();
     rto->currentLevelSOG = 10;
   }
-  if (rto->videoStandardInput == 3) {
+  if (rto->videoStandardInput >= 3) {
     Serial.println(F("HDTV mode"));
-    GBS::VDS_VSCALE::write(1023); // temporary
-    GBS::VDS_HSCALE::write(708); // temporary
-    shiftHorizontal(4 * 22, false);
     syncProcessorModeHD();
-  }
-  else if (rto->videoStandardInput == 4) {
-    Serial.println(F("HDTV mode"));
-    GBS::VDS_VSCALE::write(1023); // temporary
-    GBS::VDS_HSCALE::write(573); // temporary
-    shiftHorizontal(4 * 22, false);
-    syncProcessorModeHD();
+    writeOneByte(0xF0, 1); // also set IF parameters
+    writeOneByte(0x0b, 0xc0); // fixme: just so it works
+    writeOneByte(0x0c, 0x07); // linedouble off, fixme: other params?
+    writeOneByte(0x26, 0x10); // scale down stop blank position behaves differently in HD, fix to 0x10
+
+    writeOneByte(0xF0, 5);
+    uint8_t whereToPutThis;
+    readFromRegister(0x40, 1, &whereToPutThis);
+    writeOneByte(0x40, whereToPutThis + 0x10); // recovered sync position
+
+    uint16_t pll_divider = GBS::PLLAD_MD::read() / 2;
+    GBS::PLLAD_MD::write(pll_divider); // note: minimum seems to be exactly 0x400
+    GBS::IF_HSYNC_RST::write(pll_divider);
+    GBS::IF_LINE_SP::write(pll_divider);
+    GBS::PLLAD_FS::write(0); // high gain should be off for low range pll
   }
   else {
     Serial.println(F("SD mode"));
@@ -1925,8 +1906,8 @@ void loop() {
           uint16_t pll_divider = GBS::PLLAD_MD::read();
           pll_divider += 1;
           GBS::PLLAD_MD::write(pll_divider);
-          GBS::IF_HSYNC_RST::write(pll_divider / 2);
-          GBS::IF_LINE_SP::write((pll_divider / 2) + 1);
+          GBS::IF_HSYNC_RST::write(pll_divider / (rto->currentSyncProcessorMode == 1 ? 1 : 2)); // half of pll_divider, but in linedouble mode only
+          GBS::IF_LINE_SP::write((pll_divider / (rto->currentSyncProcessorMode == 1 ? 1 : 2)) + 1); // same, +1
           Serial.print(F("PLL div: ")); Serial.println(pll_divider, HEX);
           resetPLLAD();
         }
