@@ -22,17 +22,6 @@ struct RegValue_ {
 };
 
 template<>
-struct RegValue_<1, Signage::UNSIGNED> {
-  typedef bool Type;
-};
-
-// Seriously?
-template<>
-struct RegValue_<1, Signage::SIGNED> {
-  typedef int8_t Type;
-};
-
-template<>
 struct RegValue_<8, Signage::UNSIGNED> {
   typedef uint8_t Type;
 };
