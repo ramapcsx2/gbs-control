@@ -157,6 +157,9 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x22, 0, 12> IF_LINE_SP;
     typedef UReg<0x01, 0x26, 0, 12> IF_HBIN_SP;
 
+    // Deinterlacer / Scaledown registers
+    typedef UReg<0x02, 0x17, 0,  4> MADPT_Y_DELAY;
+    
     // VDS Registers
     typedef UReg<0x03, 0x00, 0,  1> VDS_SYNC_EN;
     typedef UReg<0x03, 0x00, 1,  1> VDS_FIELDAB_EN;
