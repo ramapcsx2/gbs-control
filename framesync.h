@@ -171,8 +171,8 @@ class FrameSyncManager {
       newVDS_HB_SP = (newVDS_HB_SP + 15) & 0xFFF0; // round towards multiple of 16
       GBS::VDS_HB_SP::write(newVDS_HB_SP);
       
-      Serial.print(F("HB_SP preset: ")); Serial.print(VDS_HB_SP);
-      Serial.print(F(" adjusted: ")); Serial.println(newVDS_HB_SP);
+      Serial.print("HB_SP preset: "); Serial.print(VDS_HB_SP);
+      Serial.print(" adjusted: "); Serial.println(newVDS_HB_SP);
       return true;
     }
 
