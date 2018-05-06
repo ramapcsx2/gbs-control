@@ -735,43 +735,27 @@ void moveHS(uint16_t amountToAdd, bool subtracting) {
 }
 
 void moveVS(uint16_t amountToAdd, bool subtracting) {
-  uint8_t regHigh, regLow;
-  uint16_t newST, newSP, VDS_DIS_VB_ST, VDS_DIS_VB_SP;
-
-  writeOneByte(0xf0, 3);
-  // get VBST
-  readFromRegister(0x13, 1, &regLow);
-  readFromRegister(0x14, 1, &regHigh);
-  VDS_DIS_VB_ST = (((uint16_t)regHigh & 0x0007) << 8) | ((uint16_t)regLow) ;
-  // get VBSP
-  readFromRegister(0x14, 1, &regLow);
-  readFromRegister(0x15, 1, &regHigh);
-  VDS_DIS_VB_SP = ((((uint16_t)regHigh & 0x007f) << 4) | ((uint16_t)regLow & 0x00f0) >> 4) ;
-
-  readFromRegister(0x0d, 1, &regLow);
-  readFromRegister(0x0e, 1, &regHigh);
-  newST = ( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow;
-  readFromRegister(0x0e, 1, &regLow);
-  readFromRegister(0x0f, 1, &regHigh);
-  newSP = ( (((uint16_t)regHigh) & 0x00ff) << 4) | ( (((uint16_t)regLow) & 0x00f0) >> 4);
+  uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
+  uint16_t VDS_DIS_VB_ST = GBS::VDS_DIS_VB_ST::read();
+  uint16_t newVDS_VS_ST = GBS::VDS_VS_ST::read();
+  uint16_t newVDS_VS_SP = GBS::VDS_VS_SP::read();
 
   if (subtracting) {
-    if ((newST - amountToAdd) > VDS_DIS_VB_ST) {
-      newST -= amountToAdd;
-      newSP -= amountToAdd;
+    if ((newVDS_VS_ST - amountToAdd) > VDS_DIS_VB_ST) {
+      newVDS_VS_ST -= amountToAdd;
+      newVDS_VS_SP -= amountToAdd;
     } else Serial.println(F("limit"));
   } else {
-    if ((newSP + amountToAdd) < VDS_DIS_VB_SP) {
-      newST += amountToAdd;
-      newSP += amountToAdd;
+    if ((newVDS_VS_SP + amountToAdd) < vtotal) {
+      newVDS_VS_ST += amountToAdd;
+      newVDS_VS_SP += amountToAdd;
     } else Serial.println(F("limit"));
   }
-  Serial.print("VSST: "); Serial.print(newST);
-  Serial.print(" VSSP: "); Serial.println(newSP);
+  Serial.print("VSST: "); Serial.print(newVDS_VS_ST);
+  Serial.print(" VSSP: "); Serial.println(newVDS_VS_SP);
 
-  writeOneByte(0x0d, (uint8_t)(newST & 0x00ff));
-  writeOneByte(0x0e, ((uint8_t)(newSP & 0x000f) << 4) | ((uint8_t)((newST & 0x0f00) >> 8)) );
-  writeOneByte(0x0f, (uint8_t)((newSP & 0x0ff0) >> 4) );
+  GBS::VDS_VS_ST::write(newVDS_VS_ST);
+  GBS::VDS_VS_SP::write(newVDS_VS_SP);
 }
 
 void invertHS() {
@@ -879,6 +863,14 @@ void setMemoryHblankStartPosition(uint16_t value) {
 
 void setMemoryHblankStopPosition(uint16_t value) {
   GBS::VDS_HB_SP::write(value);
+}
+
+void setDisplayHblankStartPosition(uint16_t value) {
+  GBS::VDS_DIS_HB_ST::write(value);
+}
+
+void setDisplayHblankStopPosition(uint16_t value) {
+  GBS::VDS_DIS_HB_SP::write(value);
 }
 
 void setMemoryVblankStartPosition(uint16_t value) {
@@ -2198,7 +2190,7 @@ void loop() {
           uint16_t value = 0;
           if (inputStage == 1) {
             String what = Serial.readStringUntil(' ');
-            if (what.length() > 4) {
+            if (what.length() > 5) {
               Serial.println(F("abort"));
               inputStage = 0;
               break;
@@ -2217,6 +2209,12 @@ void loop() {
               }
               else if (what.equals("hbsp")) {
                 setMemoryHblankStopPosition(value);
+              }
+              else if (what.equals("hbstd")) {
+                setDisplayHblankStartPosition(value);
+              }
+              else if (what.equals("hbspd")) {
+                setDisplayHblankStopPosition(value);
               }
               else if (what.equals("vbst")) {
                 setMemoryVblankStartPosition(value);
