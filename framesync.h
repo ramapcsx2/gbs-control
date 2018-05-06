@@ -2,8 +2,6 @@
 #define FRAMESYNC_H_
 
 #include "debug.h"
-extern void debugPortSetSP();
-extern void debugPortSetVDS();
 
 template <class GBS, class Attrs>
 class FrameSyncManager {
@@ -84,18 +82,19 @@ class FrameSyncManager {
                                     uint32_t *periodOutput, int32_t *phase) {
       unsigned long inStart, inStop, outStart, outStop, inPeriod, outPeriod,
                diff;
-      debugPortSetSP();
+
+      GBS::TEST_BUS_SEL::write(10);
       if (!vsyncInputSample(&inStart, &inStop)) {
         return false;
       }
       inPeriod = (inStop - inStart) / 2;
-      debugPortSetVDS();
-      yield();
+
+      GBS::TEST_BUS_SEL::write(2);
       if (!vsyncOutputSample(&outStart, &outStop)) {
-        debugPortSetSP();
+        GBS::TEST_BUS_SEL::write(10);
         return false;
       }
-      debugPortSetSP();
+      GBS::TEST_BUS_SEL::write(10);
       outPeriod = outStop - outStart;
       diff = (outStart - inStart) % inPeriod;
       if (periodInput)
@@ -140,13 +139,19 @@ class FrameSyncManager {
 
     // Find the largest htotal that makes output frame time less than
     // the input.
+    // todo:
+    //Base htotal: 0
+    //Best htotal: 0
+    //Guru Meditation Error: Core  1 panic'ed (IntegerDivideByZero)
+    //. Exception was unhandled.
+
     static bool findBestHTotal(uint16_t &bestHtotal) {
       uint16_t htotal = HSYNC_RST::read();
       uint32_t inPeriod, outPeriod;
       uint16_t candHtotal;
       uint8_t stable = 0;
 
-      debugln("Base htotal: ", htotal);
+      Serial.print("Base htotal: "); Serial.println(htotal);
 
       unsigned long timeout = millis();
       while ((stable < syncHtotalStable) && (millis() - timeout) < 5000) {
@@ -154,21 +159,21 @@ class FrameSyncManager {
         if (!sampleVsyncPeriods(&inPeriod, &outPeriod))
           return false;
         candHtotal = (htotal * inPeriod) / outPeriod;
-        //        debugln("Candidate htotal: ", candHtotal);
+        Serial.print("Candidate htotal: "); Serial.println(candHtotal);
+        
         if (candHtotal == bestHtotal)
           stable++;
         else
           stable = 1;
         bestHtotal = candHtotal;
       }
-
-      debugln("Best htotal: ", bestHtotal);
+      Serial.print("Best htotal: "); Serial.println(bestHtotal);
       
       uint16_t newVDS_HB_SP = 0;
       uint16_t VDS_HB_SP = GBS::VDS_HB_SP::read();
       uint16_t upPercent = (bestHtotal * 1000) / htotal;
       newVDS_HB_SP = (VDS_HB_SP * upPercent) / 1000;
-      newVDS_HB_SP = (newVDS_HB_SP + 15) & 0xFFF0; // round towards multiple of 16
+      newVDS_HB_SP = (newVDS_HB_SP + 3) & 0xFFFC; // round towards multiple of 4
       GBS::VDS_HB_SP::write(newVDS_HB_SP);
       
       Serial.print("HB_SP preset: "); Serial.print(VDS_HB_SP);
@@ -241,7 +246,7 @@ class FrameSyncManager {
       if (!vsyncPeriodAndPhase(&period, NULL, &phase))
         return false;
 
-      //      debugln("Phase offset: ", phase);
+      //Serial.print("Phase offset: "); Serial.println(phase);
 
       target = (syncTargetPhase * period) / 360; // -300; //debug
 
@@ -250,7 +255,7 @@ class FrameSyncManager {
       else
         correction = syncCorrection;
 
-      //      debugln("Correction: ", correction);
+      //Serial.print("Correction: "); Serial.println(correction);
 
       adjustFrameSize(correction - syncLastCorrection);
       syncLastCorrection = correction;

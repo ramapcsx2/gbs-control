@@ -76,7 +76,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x05, 4,  1> STATUS_IF_INP_SW;
 
     typedef UReg<0x00, 0x06, 0,  9> HPERIOD_IF;
-    typedef UReg<0x00, 0x08, 1, 11> VPERIOD_IF;
+    typedef UReg<0x00, 0x07, 1, 11> VPERIOD_IF;
 
     typedef UReg<0x00, 0x09, 6,  1> STATUS_MISC_PLL648_LOCK;
     typedef UReg<0x00, 0x09, 7,  1> STATUS_MISC_PLLAD_LOCK;
@@ -141,6 +141,8 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x40, 4,  3> PLL_MS;
     typedef UReg<0x00, 0x43, 4,  1> PLL_VCORST;
     typedef UReg<0x00, 0x44, 0,  1> DAC_RGBS_PWDNZ;
+    typedef UReg<0x00, 0x49, 2,  1> PAD_SYNC_OUT_ENZ;
+    typedef UReg<0x00, 0x4D, 0,  5> TEST_BUS_SEL;
 
     // IF Registers
     typedef UReg<0x01, 0x00, 0,  1> IF_IN_DREG_BYPS;
@@ -154,6 +156,10 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
 
     typedef UReg<0x01, 0x0c, 0,  1> IF_LD_RAM_BYPS;
     typedef UReg<0x01, 0x0e, 0, 11> IF_HSYNC_RST;
+    typedef UReg<0x01, 0x18, 0, 11> IF_HB_ST2;
+    typedef UReg<0x01, 0x1a, 0, 11> IF_HB_SP2;
+    typedef UReg<0x01, 0x1c, 0, 11> IF_VB_ST;
+    typedef UReg<0x01, 0x1e, 0, 11> IF_VB_SP;
     typedef UReg<0x01, 0x22, 0, 12> IF_LINE_SP;
     typedef UReg<0x01, 0x26, 0, 12> IF_HBIN_SP;
 
@@ -394,6 +400,8 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x03, 2,  1> ADC_RYSEL_G;
     typedef UReg<0x05, 0x03, 3,  1> ADC_RYSEL_B;
     typedef UReg<0x05, 0x03, 4,  2> ADC_FLTR;
+    typedef UReg<0x05, 0x04, 0,  2> ADC_TR_RSEL;
+    typedef UReg<0x05, 0x04, 2,  3> ADC_TR_ISEL;
     typedef UReg<0x05, 0x0C, 1,  4> ADC_TEST;
     typedef UReg<0x05, 0x11, 0,  1> PLLAD_VCORST;
     typedef UReg<0x05, 0x11, 1,  1> PLLAD_LEN;
@@ -404,11 +412,18 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x11, 6,  1> PLLAD_BPS;
     typedef UReg<0x05, 0x11, 7,  1> PLLAD_LAT;
     typedef UReg<0x05, 0x12, 0, 12> PLLAD_MD;
+    typedef UReg<0x05, 0x16, 4,  2> PLLAD_KS;
+    typedef UReg<0x05, 0x16, 6,  2> PLLAD_CKOS;
     typedef UReg<0x05, 0x18, 0,  1> PA_ADC_BYPSZ;
+    typedef UReg<0x05, 0x18, 1,  5> PA_SP_S;
+    typedef UReg<0x05, 0x18, 6,  1> PA_SP_LOCKOFF;
+    typedef UReg<0x05, 0x18, 7,  1> PA_ADC_LAT;
     typedef UReg<0x05, 0x19, 0,  1> PA_SP_BYPSZ;
+    typedef UReg<0x05, 0x19, 7,  1> PA_SP_LAT;
     typedef UReg<0x05, 0x37, 0,  8> SP_H_PULSE_IGNOR;
     typedef UReg<0x05, 0x3B, 0,  3> SP_SDCS_VSST_REG_H;
-    typedef UReg<0x05, 0x3B, 5,  3> SP_SDCS_VSSP_REG_H;
+    typedef UReg<0x05, 0x3B, 4,  3> SP_SDCS_VSSP_REG_H;
+    typedef UReg<0x05, 0x3E, 1,  1> SP_HD_MODE;
     typedef UReg<0x05, 0x3F, 0,  8> SP_SDCS_VSST_REG_L;
     typedef UReg<0x05, 0x40, 0,  8> SP_SDCS_VSSP_REG_L;
     typedef UReg<0x05, 0x41, 0, 12> SP_CS_CLP_ST;
