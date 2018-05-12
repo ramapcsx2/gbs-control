@@ -282,7 +282,7 @@ void setParametersSP() {
     writeOneByte(0x3e, 0x00);
     writeOneByte(0x50, 0x06);
     writeOneByte(0x37, 0x58);
-    GBS::IF_VB_SP::write(66);
+    GBS::IF_VB_SP::write(56);
     GBS::IF_VB_ST::write(0);
     GBS::SP_HD_MODE::write(0);
     writeOneByte(0x38, 0x02); // h coast pre
@@ -1237,7 +1237,7 @@ void doPostPresetLoadSteps() {
   // lower power on ADC
   // GBS::ADC_TR_RSEL::write(2);
   timeout = millis();
-  while (getVideoMode() == 0 && millis() - timeout < 500) Serial.println("_"); // stability
+  while (getVideoMode() == 0 && millis() - timeout < 500); // stability
   if (rto->inputIsYpBpR == false) { // RGBS mode?
     updateClampPosition();  // set sync tip clamping
     timeout = millis();
@@ -1865,10 +1865,10 @@ void loop() {
         //doPostPresetLoadSteps();
         break;
       case 'P':
-        //
+        moveVS(1, true);
         break;
       case 'p':
-        //
+        moveVS(1, false);
         break;
       case 'k':
         {
@@ -1935,8 +1935,10 @@ void loop() {
 
             GBS::IF_HSYNC_RST::write(line_length / ((rto->currentSyncProcessorMode == 1 ? 1 : 2))); // half of pll_divider, but in linedouble mode only
             GBS::IF_LINE_SP::write((line_length / ((rto->currentSyncProcessorMode == 1 ? 1 : 2))) + 1); // same, +1
-            Serial.print(F("PLL div: ")); Serial.print(pll_divider);
+            Serial.print(F("PLL div: ")); Serial.print(pll_divider, HEX);
             Serial.print(F(" line_length: ")); Serial.println(line_length);
+            // IF S0_18/19 need to be line lenth - 1
+            GBS::IF_HB_ST2::write((line_length / ((rto->currentSyncProcessorMode == 1 ? 1 : 2))) - 1);
             resetPLLAD();
           }
         }
@@ -2388,10 +2390,12 @@ void loop() {
     Serial.print("v:"); Serial.print(register_combined);
 
     // PLLAD and PLL648 lock indicators
+    Serial.print(" PLL:");
     readFromRegister(0x09, 1, &register_high);
-    register_low = (register_high & 0x80) ? 1 : 0;
-    register_low |= (register_high & 0x40) ? 2 : 0;
-    Serial.print(" PLL:"); Serial.print(register_low);
+    if ((register_high & 0x40) == 0x40) Serial.print("|_");
+    else Serial.print("  ");
+    if ((register_high & 0x80) == 0x80) Serial.print("_|");
+    else Serial.print("  ");
 
     // status
     readFromRegister(0x00, 1, &register_high);
