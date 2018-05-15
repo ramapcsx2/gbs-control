@@ -226,7 +226,7 @@ void writeProgramArrayNew(const uint8_t* programArray)
         }
         // blank out VDS PIP registers, otherwise they can end up uninitialized
         for (int x = 0; x <= 15; x++) {
-          writeOneByte(0x80+x, 0x00);
+          writeOneByte(0x80 + x, 0x00);
         }
         break;
       case 4:
@@ -2783,7 +2783,20 @@ void handleWebClient()
               uint8_t reg;
               writeOneByte(0xF0, 2);
               readFromRegister(0x16, 1, &reg);
-              writeOneByte(0x16, reg ^ (1 << 7));
+              if ((reg & 0x80) == 0x80) {
+                writeOneByte(0x16, reg ^ (1 << 7));
+                writeOneByte(0xF0, 5);
+                writeOneByte(0x09, 0x4f); writeOneByte(0x0a, 0x4f); writeOneByte(0x0b, 0x4f); // more ADC gain
+                writeOneByte(0xF0, 3);
+                writeOneByte(0x35, 0xa0); // more luma gain
+              }
+              else {
+                writeOneByte(0x16, reg ^ (1 << 7));
+                writeOneByte(0xF0, 5);
+                writeOneByte(0x09, 0x7f); writeOneByte(0x0a, 0x7f); writeOneByte(0x0b, 0x7f);
+                writeOneByte(0xF0, 3);
+                writeOneByte(0x35, 0x80);
+              }
             }
             else if (HTTP_req[10] == '9') {
               uopt->presetPreference = 3; // prefer 720p preset
