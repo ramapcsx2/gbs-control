@@ -224,6 +224,10 @@ void writeProgramArrayNew(const uint8_t* programArray)
           copyBank(bank, programArray, &index);
           writeBytes(j * 16, bank, 16);
         }
+        // blank out VDS PIP registers, otherwise they can end up uninitialized
+        for (int x = 0; x <= 15; x++) {
+          writeOneByte(0x80+x, 0x00);
+        }
         break;
       case 4:
         for (int j = 0; j <= 5; j++) { // 6 times
