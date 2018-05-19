@@ -60,7 +60,7 @@ const uint8_t pal_240p[] PROGMEM = {
 0, // s1_A
 80, // s1_B
 106, // s1_C
-16, // s1_D
+8, // s1_D
 59, // s1_E
 4, // s1_F
 0, // s1_10
