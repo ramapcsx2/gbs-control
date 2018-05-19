@@ -257,20 +257,18 @@ void setParametersSP() {
   if (rto->videoStandardInput == 3) { // ED YUV 60
     writeOneByte(0x3e, 0x10); // overflow protect on, subcoast (macrovision) ON
     writeOneByte(0x50, 0x03);
-    GBS::IF_VB_SP::write(32);
     GBS::IF_VB_ST::write(0);
     GBS::SP_HD_MODE::write(1);
-    GBS::IF_HB_ST2::write(1032);
-    GBS::IF_HB_SP2::write(136); // todo: IF_HB may depend on the presets htotal
+    GBS::IF_HB_SP2::write(136); // todo: (s1_1a) position depends on preset
     writeOneByte(0x38, 0x04); // h coast pre
     writeOneByte(0x39, 0x07); // h coast post
   }
   else if (rto->videoStandardInput == 4) { // ED YUV 50
     writeOneByte(0x3e, 0x10); // overflow protect on, subcoast (macrovision) ON
     writeOneByte(0x50, 0x03);
-    GBS::IF_VB_SP::write(66);
     GBS::IF_VB_ST::write(0);
     GBS::SP_HD_MODE::write(1);
+    GBS::IF_HB_SP2::write(180); // todo: (s1_1a) position depends on preset
     writeOneByte(0x38, 0x02); // h coast pre
     writeOneByte(0x39, 0x06); // h coast post
   }
@@ -278,7 +276,6 @@ void setParametersSP() {
     writeOneByte(0x3e, 0x00); // 0x00 = overflow protect OFF, subcoast (macrovision) ON (SNES 239 mode VS ps2 ntsc i mode)
     writeOneByte(0x50, 0x06);
     writeOneByte(0x37, 0x20);
-    GBS::IF_VB_SP::write(25); // 25 = optimal for SNES; Genesis would like to see 37
     GBS::IF_VB_ST::write(0);
     GBS::SP_HD_MODE::write(0);
     writeOneByte(0x38, 0x04); // h coast pre
@@ -288,7 +285,6 @@ void setParametersSP() {
     writeOneByte(0x3e, 0x00);
     writeOneByte(0x50, 0x06);
     writeOneByte(0x37, 0x58);
-    GBS::IF_VB_SP::write(56);
     GBS::IF_VB_ST::write(0);
     GBS::SP_HD_MODE::write(0);
     writeOneByte(0x38, 0x02); // h coast pre
@@ -298,15 +294,13 @@ void setParametersSP() {
     writeOneByte(0x3e, 0x30);
     writeOneByte(0x50, 0x03);
     writeOneByte(0x37, 0x04);
-    GBS::IF_VB_SP::write(16);
     GBS::IF_VB_ST::write(0);
     GBS::SP_HD_MODE::write(1);
+    GBS::IF_HB_SP2::write(216); // todo: (s1_1a) position depends on preset
     writeOneByte(0x38, 0x03); // h coast pre
     writeOneByte(0x39, 0x07); // h coast post
     GBS::PLLAD_FS::write(1); // high gain
     GBS::VDS_VSCALE::write(804);
-    GBS::IF_HB_ST2::write(1072);
-    GBS::IF_HB_SP2::write(224);
   }
   else { // SD RGB
     if (rto->inputIsYpBpR) { // it can be an SD signal over the green input (composite, for example)
@@ -885,6 +879,14 @@ void setMemoryVblankStartPosition(uint16_t value) {
 
 void setMemoryVblankStopPosition(uint16_t value) {
   GBS::VDS_VB_SP::write(value);
+}
+
+void setDisplayVblankStartPosition(uint16_t value) {
+  GBS::VDS_DIS_VB_ST::write(value);
+}
+
+void setDisplayVblankStopPosition(uint16_t value) {
+  GBS::VDS_DIS_VB_SP::write(value);
 }
 
 void getVideoTimings() {
@@ -1717,6 +1719,8 @@ void setup() {
   }
 #endif
   Serial.print(F("\nMCU: ")); Serial.println(F_CPU);
+
+  Serial.print(F("active FTL: ")); Serial.println(uopt->enableFrameTimeLock);
   LEDOFF // startup done, disable the LED
 }
 
@@ -1859,7 +1863,7 @@ void loop() {
         //shift h / v blanking into good view
         if (GBS::VDS_PK_Y_H_BYPS::read() == 1) { // a bit crummy, should be replaced with a dummy reg bit
           shiftHorizontal(500, false);
-          shiftVertical(300, false);
+          shiftVertical(260, false);
           // enable peaking
           GBS::VDS_PK_Y_H_BYPS::write(0);
           // enhance!
@@ -1868,7 +1872,7 @@ void loop() {
         }
         else {
           shiftHorizontal(500, true);
-          shiftVertical(300, true);
+          shiftVertical(260, true);
           GBS::VDS_PK_Y_H_BYPS::write(1);
           // enhance!
           GBS::VDS_Y_GAIN::write(0x80);
@@ -1957,12 +1961,15 @@ void loop() {
               line_length /= 2;
             }
 
-            GBS::IF_HSYNC_RST::write(line_length / ((rto->currentSyncProcessorMode == 1 ? 1 : 2))); // half of pll_divider, but in linedouble mode only
-            GBS::IF_LINE_SP::write((line_length / ((rto->currentSyncProcessorMode == 1 ? 1 : 2))) + 1); // same, +1
+            line_length = line_length / ((rto->currentSyncProcessorMode == 1 ? 1 : 2)); // half of pll_divider, but in linedouble mode only
+            line_length -= ((line_length + GBS::IF_HB_SP2::read()) / 50); // avoid green artefact on left side
+            GBS::IF_HSYNC_RST::write(line_length);
+            GBS::IF_LINE_SP::write(line_length + 1); // line_length +1
             Serial.print(F("PLL div: ")); Serial.print(pll_divider, HEX);
             Serial.print(F(" line_length: ")); Serial.println(line_length);
             // IF S0_18/19 need to be line lenth - 1
-            GBS::IF_HB_ST2::write((line_length / ((rto->currentSyncProcessorMode == 1 ? 1 : 2))) - 1);
+            // update: but this makes any slight adjustments a pain. also, it doesn't seem to affect picture quality
+            //GBS::IF_HB_ST2::write((line_length / ((rto->currentSyncProcessorMode == 1 ? 1 : 2))) - 1);
             resetPLLAD();
           }
         }
@@ -2257,6 +2264,12 @@ void loop() {
               }
               else if (what.equals("vbsp")) {
                 setMemoryVblankStopPosition(value);
+              }
+              else if (what.equals("vbstd")) {
+                setDisplayVblankStartPosition(value);
+              }
+              else if (what.equals("vbspd")) {
+                setDisplayVblankStopPosition(value);
               }
               else if (what.equals("sog")) {
                 setSOGLevel(value);

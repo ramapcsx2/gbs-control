@@ -151,33 +151,21 @@ class FrameSyncManager {
       uint16_t candHtotal;
       uint8_t stable = 0;
 
-      Serial.print("Base htotal: "); Serial.println(htotal);
-
       unsigned long timeout = millis();
       while ((stable < syncHtotalStable) && (millis() - timeout) < 5000) {
         yield();
         if (!sampleVsyncPeriods(&inPeriod, &outPeriod))
           return false;
         candHtotal = (htotal * inPeriod) / outPeriod;
-        Serial.print("Candidate htotal: "); Serial.println(candHtotal);
-        
+        //Serial.print("Candidate htotal: "); Serial.println(candHtotal);
+
         if (candHtotal == bestHtotal)
           stable++;
         else
           stable = 1;
         bestHtotal = candHtotal;
       }
-      Serial.print("Best htotal: "); Serial.println(bestHtotal);
-      
-      uint16_t newVDS_HB_SP = 0;
-      uint16_t VDS_HB_SP = GBS::VDS_HB_SP::read();
-      uint16_t upPercent = (bestHtotal * 1000) / htotal;
-      newVDS_HB_SP = (VDS_HB_SP * upPercent) / 1000;
-      newVDS_HB_SP = (newVDS_HB_SP + 3) & 0xFFFC; // round towards multiple of 4
-      GBS::VDS_HB_SP::write(newVDS_HB_SP);
-      
-      Serial.print("HB_SP preset: "); Serial.print(VDS_HB_SP);
-      Serial.print(" adjusted: "); Serial.println(newVDS_HB_SP);
+
       return true;
     }
 
@@ -216,7 +204,20 @@ class FrameSyncManager {
         return false;
       }
 
+      // set best Htotal and related VDS parameters
+      uint16_t hTotal = HSYNC_RST::read();
+      int diffHTotal = bestHTotal - hTotal;
+      GBS::VDS_HB_SP::write( GBS::VDS_HB_SP::read() + diffHTotal );
+      GBS::VDS_HB_ST::write( GBS::VDS_HB_ST::read() + diffHTotal );
       HSYNC_RST::write(bestHTotal);
+      GBS::VDS_DIS_HB_ST::write( GBS::VDS_DIS_HB_ST::read() + diffHTotal );
+      GBS::VDS_DIS_HB_SP::write( GBS::VDS_DIS_HB_SP::read() + diffHTotal );
+      GBS::VDS_HS_ST::write( GBS::VDS_HS_ST::read() + diffHTotal );
+      GBS::VDS_HS_SP::write( GBS::VDS_HS_SP::read() + diffHTotal );
+      Serial.print("Base: "); Serial.print(hTotal);
+      Serial.print(" Best: "); Serial.print(bestHTotal);
+      Serial.print(" Diff: "); Serial.println(diffHTotal);
+
       syncLockReady = true;
       return true;
     }
