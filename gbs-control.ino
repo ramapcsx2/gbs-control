@@ -278,7 +278,7 @@ void setParametersSP() {
     writeOneByte(0x37, 0x20);
     GBS::IF_VB_ST::write(0);
     GBS::SP_HD_MODE::write(0);
-    writeOneByte(0x38, 0x04); // h coast pre
+    writeOneByte(0x38, 0x03); // h coast pre
     writeOneByte(0x39, 0x07); // h coast post
   }
   else if (rto->videoStandardInput == 2) { // PAL 50
@@ -395,8 +395,8 @@ void syncProcessorModeSD() {
   writeOneByte(0xF0, 5);
   writeOneByte(0x33, 0x28);
   writeOneByte(0x37, 0x58);
-  writeOneByte(0x38, 0x03); // snes 239 test
-  writeOneByte(0x3e, 0x10); // fixme: psx pal>ntsc requires 0x10, but snes 239 mode hates it
+  writeOneByte(0x38, 0x03);
+  writeOneByte(0x3e, 0x30); // psx pal>ntsc requires 0x10 (or 0x30). Check if this works with SNES 239 mode!
   writeOneByte(0x50, 0x06);
   writeOneByte(0x56, 0x01); // could also be 0x05 but 0x01 is compatible
 
@@ -1962,11 +1962,11 @@ void loop() {
             }
 
             line_length = line_length / ((rto->currentSyncProcessorMode == 1 ? 1 : 2)); // half of pll_divider, but in linedouble mode only
-            
+
             line_length -= ((line_length + GBS::IF_HB_SP2::read()) / 50); // avoid green artefact on left side
             //GBS::IF_INI_ST::write(8); // ensure correct offset
             //line_length -= (GBS::IF_INI_ST::read() / 2); // avoid green artefact on left side
-            
+
             GBS::IF_HSYNC_RST::write(line_length);
             GBS::IF_LINE_SP::write(line_length + 1); // line_length +1
             Serial.print(F("PLL div: ")); Serial.print(pll_divider, HEX);
