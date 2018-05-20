@@ -155,6 +155,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x00, 7,  1> IF_HS_FLIP;
 
     typedef UReg<0x01, 0x0c, 0,  1> IF_LD_RAM_BYPS;
+    typedef UReg<0x01, 0x0c, 5, 11> IF_INI_ST;
     typedef UReg<0x01, 0x0e, 0, 11> IF_HSYNC_RST;
     typedef UReg<0x01, 0x18, 0, 11> IF_HB_ST2;
     typedef UReg<0x01, 0x1a, 0, 11> IF_HB_SP2;

@@ -1962,7 +1962,11 @@ void loop() {
             }
 
             line_length = line_length / ((rto->currentSyncProcessorMode == 1 ? 1 : 2)); // half of pll_divider, but in linedouble mode only
+            
             line_length -= ((line_length + GBS::IF_HB_SP2::read()) / 50); // avoid green artefact on left side
+            //GBS::IF_INI_ST::write(8); // ensure correct offset
+            //line_length -= (GBS::IF_INI_ST::read() / 2); // avoid green artefact on left side
+            
             GBS::IF_HSYNC_RST::write(line_length);
             GBS::IF_LINE_SP::write(line_length + 1); // line_length +1
             Serial.print(F("PLL div: ")); Serial.print(pll_divider, HEX);
