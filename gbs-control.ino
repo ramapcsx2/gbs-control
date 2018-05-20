@@ -847,14 +847,15 @@ void shiftVertical(uint16_t amountToAdd, bool subtracting) {
   }
 
   Regs::write(newVbst, newVbsp);
+  Serial.print(F("VSST: ")); Serial.print(newVbst); Serial.print(F(" VSSP: ")); Serial.println(newVbsp);
 }
 
 void shiftVerticalUp() {
-  shiftVertical(4, true);
+  shiftVertical(1, true);
 }
 
 void shiftVerticalDown() {
-  shiftVertical(4, false);
+  shiftVertical(1, false);
 }
 
 void setMemoryHblankStartPosition(uint16_t value) {
@@ -1838,11 +1839,9 @@ void loop() {
         shiftHorizontalLeft();
         break;
       case '*':
-        Serial.println(F("shift vert. +"));
         shiftVerticalUp();
         break;
       case '/':
-        Serial.println(F("shift vert. -"));
         shiftVerticalDown();
         break;
       case 'z':
@@ -2803,9 +2802,12 @@ void handleWebClient()
               if ((reg & 0x80) == 0x80) {
                 writeOneByte(0x16, reg ^ (1 << 7));
                 writeOneByte(0xF0, 5);
-                writeOneByte(0x09, 0x4f); writeOneByte(0x0a, 0x4f); writeOneByte(0x0b, 0x4f); // more ADC gain
+                writeOneByte(0x09, 0x5f); writeOneByte(0x0a, 0x5f); writeOneByte(0x0b, 0x5f); // more ADC gain
                 writeOneByte(0xF0, 3);
-                writeOneByte(0x35, 0xa0); // more luma gain
+                writeOneByte(0x35, 0xd0); // more luma gain
+                writeOneByte(0xF0, 2);
+                writeOneByte(0x27, 0x28); // set up VIIR filter (no need to undo later)
+                writeOneByte(0x26, 0x00);
               }
               else {
                 writeOneByte(0x16, reg ^ (1 << 7));
@@ -2813,6 +2815,8 @@ void handleWebClient()
                 writeOneByte(0x09, 0x7f); writeOneByte(0x0a, 0x7f); writeOneByte(0x0b, 0x7f);
                 writeOneByte(0xF0, 3);
                 writeOneByte(0x35, 0x80);
+                writeOneByte(0xF0, 2);
+                writeOneByte(0x26, 0x40); // disables VIIR filter
               }
             }
             else if (HTTP_req[10] == '9') {
