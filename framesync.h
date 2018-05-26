@@ -208,7 +208,7 @@ class FrameSyncManager {
       uint16_t hTotal = HSYNC_RST::read();
       int diffHTotal = bestHTotal - hTotal;
       GBS::VDS_HB_SP::write( GBS::VDS_HB_SP::read() + diffHTotal );
-      GBS::VDS_HB_ST::write( GBS::VDS_HB_ST::read() + diffHTotal );
+      GBS::VDS_HB_ST::write( (GBS::VDS_DIS_HB_ST::read() + diffHTotal) - 1 ); //GBS::VDS_HB_ST::write( GBS::VDS_HB_ST::read() + diffHTotal );
       HSYNC_RST::write(bestHTotal);
       GBS::VDS_DIS_HB_ST::write( GBS::VDS_DIS_HB_ST::read() + diffHTotal );
       GBS::VDS_DIS_HB_SP::write( GBS::VDS_DIS_HB_SP::read() + diffHTotal );
