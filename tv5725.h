@@ -415,6 +415,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x12, 0, 12> PLLAD_MD;
     typedef UReg<0x05, 0x16, 4,  2> PLLAD_KS;
     typedef UReg<0x05, 0x16, 6,  2> PLLAD_CKOS;
+    typedef UReg<0x05, 0x17, 0,  3> PLLAD_ICP;
     typedef UReg<0x05, 0x18, 0,  1> PA_ADC_BYPSZ;
     typedef UReg<0x05, 0x18, 1,  5> PA_SP_S;
     typedef UReg<0x05, 0x18, 6,  1> PA_SP_LOCKOFF;
