@@ -341,7 +341,7 @@ void setParametersSP() {
   GBS::SP_SDCS_VSSP_REG_H::write(0);
   GBS::SP_SDCS_VSSP_REG_L::write(1); // VSSP 1
 
-  writeOneByte(0x3e, 0x10); // TEST
+  writeOneByte(0x3e, 0x10); // seems to be good for permanent use now
 
   // 0x45 to 0x48 set a HS position just for Mode Detect. it's fine at start = 0 and stop = 1 or above
   // Update: This is the retiming module. It can be used for SP processing with t5t57t6
@@ -356,9 +356,9 @@ void setParametersSP() {
 
   // macrovision h coast start / stop positions
   // t5t3et2 toggles the feature itself
-  writeOneByte(0x4d, 0x30); // rgbhv: 0 0 // was 0x20 to 0x70
-  writeOneByte(0x4e, 0x00);
-  writeOneByte(0x4f, 0x00); // stop position may somehow be related to htotal or even vtotal. docs are confusing
+  //writeOneByte(0x4d, 0x30); // rgbhv: 0 0 // was 0x20 to 0x70
+  //writeOneByte(0x4e, 0x00);
+  //writeOneByte(0x4f, 0x00);
   //writeOneByte(0x50, 0x06); // rgbhv: 0
 
   writeOneByte(0x51, 0x02); // 0x00 rgbhv: 2
@@ -395,9 +395,6 @@ void syncProcessorModeSD() {
   writeOneByte(0xF0, 5);
   writeOneByte(0x37, 0x58);
   writeOneByte(0x38, 0x03);
-  //writeOneByte(0x3e, 0x30); // psx pal>ntsc requires 0x10 (or 0x30). Check if this works with SNES 239 mode!
-  //writeOneByte(0x3e, 0x10); // TEST
-  //writeOneByte(0x50, 0x06);
   writeOneByte(0x56, 0x01); // could also be 0x05 but 0x01 is compatible
 
   rto->currentSyncProcessorMode = 0;
@@ -408,9 +405,6 @@ void syncProcessorModeHD() {
   writeOneByte(0xF0, 5);
   writeOneByte(0x37, 0x04);
   writeOneByte(0x38, 0x04); // snes 239 test
-  //writeOneByte(0x3e, 0x30); //writeOneByte(0x3e, 0x10);
-  //writeOneByte(0x3e, 0x10); // TEST
-  //writeOneByte(0x50, 0x03);
   writeOneByte(0x56, 0x01);
 
   rto->currentSyncProcessorMode = 1;
@@ -1197,7 +1191,6 @@ void doPostPresetLoadSteps() {
     GBS::PLLAD_MD::write(pll_divider); // note: minimum seems to be exactly 0x400
     GBS::IF_HSYNC_RST::write(pll_divider);
     GBS::IF_LINE_SP::write(pll_divider);
-    if (rto->videoStandardInput != 5) GBS::PLLAD_FS::write(0); // high gain should be off for low range pll
   }
   else {
     Serial.println(F("SD mode"));
@@ -1806,8 +1799,6 @@ void loop() {
   static uint8_t inputRegister = 0;
   static uint8_t inputToogleBit = 0;
   static uint8_t inputStage = 0;
-  static uint8_t register_low, register_high = 0;
-  static uint16_t register_combined = 0;
   static uint16_t noSyncCounter = 0;
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastVsyncLock = millis();
@@ -2003,10 +1994,8 @@ void loop() {
             }
 
             line_length = line_length / ((rto->currentSyncProcessorMode == 1 ? 1 : 2)); // half of pll_divider, but in linedouble mode only
-
-            line_length -= ((line_length + GBS::IF_HB_SP2::read()) / 50); // avoid green artefact on left side
-            //GBS::IF_INI_ST::write(8); // ensure correct offset
-            //line_length -= (GBS::IF_INI_ST::read() / 2); // avoid green artefact on left side
+            line_length -= (GBS::IF_HB_SP2::read() / 2);
+            line_length += (GBS::IF_INI_ST::read() / 2);
 
             GBS::IF_HSYNC_RST::write(line_length);
             GBS::IF_LINE_SP::write(line_length + 1); // line_length +1
@@ -2452,10 +2441,10 @@ void loop() {
 
   if (rto->printInfos == true) { // information mode
     writeOneByte(0xF0, 0);
-    readFromRegister(0x00, 1, &register_high);
-    uint8_t stat0 = register_high;
-    readFromRegister(0x05, 1, &register_high);
-    uint8_t stat5 = register_high;
+    readFromRegister(0x00, 1, &readout);
+    uint8_t stat0 = readout;
+    readFromRegister(0x05, 1, &readout);
+    uint8_t stat5 = readout;
     uint8_t video_mode = getVideoMode();
     uint16_t HPERIOD_IF = GBS::HPERIOD_IF::read();
     uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read();
