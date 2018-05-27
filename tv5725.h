@@ -135,6 +135,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x17, 0, 12> STATUS_SYNC_PROC_HTOTAL;
     typedef UReg<0x00, 0x19, 0, 12> STATUS_SYNC_PROC_HLOW_LEN;
     typedef UReg<0x00, 0x1B, 0, 11> STATUS_SYNC_PROC_VTOTAL;
+    typedef UReg<0x00, 0x2E, 0, 16> TEST_BUS;
 
     // Miscellaneous Registers
     typedef UReg<0x00, 0x40, 0,  1> PLL_CKIS;
@@ -486,5 +487,3 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
 
 
 #endif
-
-

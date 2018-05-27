@@ -116,7 +116,6 @@ struct runTimeOptions {
   uint8_t phaseSP;
   uint8_t phaseADC;
   uint8_t currentLevelSOG;
-  uint16_t lowestHpw : 12; // 12 bits are enough to hold these
   boolean deinterlacerWasTurnedOff;
   boolean syncLockEnabled;
   uint8_t syncLockFailIgnore;
@@ -313,7 +312,7 @@ void setParametersSP() {
   writeOneByte(0xF0, 5); // just making sure
   writeOneByte(0x20, 0x12); // was 0xd2 // keep jitter sync on! (snes, check debug vsync)(auto correct sog polarity, sog source = ADC)
   // H active detect control
-  writeOneByte(0x21, 0x16); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20 // keep this very low
+  writeOneByte(0x21, 0x02); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20 // keep this very low
   writeOneByte(0x22, 0x10); // SP_L_DLT_REG       Sync pulse width different threshold (little than this as equal). // 7
   writeOneByte(0x23, 0x00); // UNDOCUMENTED       range from 0x00 to at least 0x1d
   writeOneByte(0x24, 0x40); // SP_T_DLT_REG       H total width different threshold rgbhv: b // range from 0x02 upwards
@@ -328,7 +327,7 @@ void setParametersSP() {
   writeOneByte(0x2f, 0x04); // SP_V_PRD_EQ_THD    How many continue legal v sync as valid  0x04
   writeOneByte(0x31, 0x2f); // SP_VT_DLT_REG      V total different threshold
   // Timer value control
-  writeOneByte(0x33, 0x30); // SP_H_TIMER_VAL     H timer value for h detect (was 0x28) // range from 0x1e to 0xff(?)
+  writeOneByte(0x33, 0x10); // SP_H_TIMER_VAL     H timer value for h detect (was 0x28) // coupled with 5_21 // test bus 5_63 to 0x25 and scope dbg pin
   writeOneByte(0x34, 0x03); // SP_V_TIMER_VAL     V timer for V detect // no effect seen
   // Sync separation control
   writeOneByte(0x35, 0x15); // SP_DLT_REG [7:0]   Sync pulse width difference threshold  (tweak point)
@@ -394,7 +393,6 @@ void setSOGLevel(uint8_t level) {
 void syncProcessorModeSD() {
   setInitialClampPosition();
   writeOneByte(0xF0, 5);
-  writeOneByte(0x33, 0x28);
   writeOneByte(0x37, 0x58);
   writeOneByte(0x38, 0x03);
   //writeOneByte(0x3e, 0x30); // psx pal>ntsc requires 0x10 (or 0x30). Check if this works with SNES 239 mode!
@@ -408,7 +406,6 @@ void syncProcessorModeSD() {
 void syncProcessorModeHD() {
   setInitialClampPosition();
   writeOneByte(0xF0, 5);
-  writeOneByte(0x33, 0x18); // too short for SD ntsc mode. enables detecting HD > SD switches when all else fails
   writeOneByte(0x37, 0x04);
   writeOneByte(0x38, 0x04); // snes 239 test
   //writeOneByte(0x3e, 0x30); //writeOneByte(0x3e, 0x10);
@@ -1148,7 +1145,6 @@ void debugPortSetSP() {
 
 void resetRunTimeVariables() {
   // reset information on the last source
-  rto->lowestHpw = 4095;
 }
 
 void doPostPresetLoadSteps() {
@@ -1655,7 +1651,6 @@ void setup() {
 
   // the following is just run time variables. don't change!
   rto->currentLevelSOG = 10;
-  rto->lowestHpw = 4095;
   rto->inputIsYpBpR = false;
   rto->videoStandardInput = 0;
   rto->currentSyncProcessorMode = 0;
@@ -2057,7 +2052,6 @@ void loop() {
         break;
       case 'i':
         rto->printInfos = !rto->printInfos;
-        rto->lowestHpw = 4095;
         break;
 #if defined(ESP8266) || defined(ESP32)
       case 'c':
@@ -2458,52 +2452,33 @@ void loop() {
 
   if (rto->printInfos == true) { // information mode
     writeOneByte(0xF0, 0);
-
-    //horizontal pixels:
-    readFromRegister(0x07, 1, &register_high); readFromRegister(0x06, 1, &register_low);
-    register_combined =   (((uint16_t)register_high & 0x0001) << 8) | (uint16_t)register_low;
-    Serial.print("h:"); Serial.print(register_combined); Serial.print(" ");
-
-    //vertical line number:
-    readFromRegister(0x08, 1, &register_high); readFromRegister(0x07, 1, &register_low);
-    register_combined = (((uint16_t(register_high) & 0x000f)) << 7) | (((uint16_t)register_low & 0x00fe) >> 1);
-    Serial.print("v:"); Serial.print(register_combined);
-
-    // PLLAD and PLL648 lock indicators
-    Serial.print(" PLL:");
-    readFromRegister(0x09, 1, &register_high);
-    if ((register_high & 0x40) == 0x40) Serial.print("|_");
-    else Serial.print("  ");
-    if ((register_high & 0x80) == 0x80) Serial.print("_|");
-    else Serial.print("  ");
-
-    // status
     readFromRegister(0x00, 1, &register_high);
-    Serial.print(" stat:"); Serial.print(register_high, HEX);
+    uint8_t stat0 = register_high;
     readFromRegister(0x05, 1, &register_high);
-    Serial.print(register_high, HEX);
-    readFromRegister(0x2f, 1, &register_high);
-    Serial.print(" deb:"); Serial.print(register_high, HEX);
-    readFromRegister(0x2e, 1, &register_high);
-    Serial.print(register_high, HEX);
-    // video mode, according to MD
-    Serial.print(" m:"); Serial.print(getVideoMode(), HEX);
+    uint8_t stat5 = register_high;
+    uint8_t video_mode = getVideoMode();
+    uint16_t HPERIOD_IF = GBS::HPERIOD_IF::read();
+    uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read();
+    uint16_t TEST_BUS = GBS::TEST_BUS::read();
+    uint16_t STATUS_SYNC_PROC_HTOTAL = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+    uint16_t STATUS_SYNC_PROC_VTOTAL = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+    uint16_t STATUS_SYNC_PROC_HLOW_LEN = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
+    boolean STATUS_MISC_PLL648_LOCK = GBS::STATUS_MISC_PLL648_LOCK::read();
+    boolean STATUS_MISC_PLLAD_LOCK = GBS::STATUS_MISC_PLLAD_LOCK::read();
 
-    readFromRegister(0x18, 1, &register_high); readFromRegister(0x17, 1, &register_low);
-    register_combined = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
-    Serial.print(" ht:"); Serial.print(register_combined);
-
-    readFromRegister(0x1c, 1, &register_high); readFromRegister(0x1b, 1, &register_low);
-    register_combined = (((uint16_t(register_high) & 0x0007)) << 8) | (uint16_t)register_low;
-    Serial.print(" vt:"); Serial.print(register_combined);
-
-    // print this last
-    readFromRegister(0x1a, 1, &register_high); readFromRegister(0x19, 1, &register_low);
-    register_combined = (((uint16_t(register_high) & 0x000f)) << 8) | (uint16_t)register_low;
-    if (register_combined < rto->lowestHpw) rto->lowestHpw = register_combined;
-    Serial.print(" hpw min:"); Serial.print(rto->lowestHpw);
-    Serial.print("|cur:"); Serial.print(register_combined); // horizontal pulse width
-
+    Serial.print("h:"); Serial.print(HPERIOD_IF); Serial.print(" ");
+    Serial.print("v:"); Serial.print(VPERIOD_IF);
+    Serial.print(" PLL:");
+    if (STATUS_MISC_PLL648_LOCK) Serial.print("|_");
+    else Serial.print("  ");
+    if (STATUS_MISC_PLLAD_LOCK) Serial.print("_|");
+    else Serial.print("  ");
+    Serial.print(" stat:"); Serial.print(stat0, HEX); Serial.print(stat5, HEX);
+    Serial.print(" deb:"); Serial.print(TEST_BUS, HEX);
+    Serial.print(" m:"); Serial.print(video_mode);
+    Serial.print(" ht:"); Serial.print(STATUS_SYNC_PROC_HTOTAL);
+    Serial.print(" vt:"); Serial.print(STATUS_SYNC_PROC_VTOTAL);
+    Serial.print(" hpw:"); Serial.print(STATUS_SYNC_PROC_HLOW_LEN);
     Serial.print("\n");
   } // end information mode
 
