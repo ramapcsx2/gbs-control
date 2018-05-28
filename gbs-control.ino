@@ -116,6 +116,7 @@ struct runTimeOptions {
   uint8_t phaseSP;
   uint8_t phaseADC;
   uint8_t currentLevelSOG;
+  uint16_t currentSyncPulseIgnoreValue;
   boolean deinterlacerWasTurnedOff;
   boolean syncLockEnabled;
   uint8_t syncLockFailIgnore;
@@ -258,7 +259,7 @@ void setParametersSP() {
     GBS::IF_VB_ST::write(0);
     GBS::SP_HD_MODE::write(1);
     GBS::IF_HB_SP2::write(136); // todo: (s1_1a) position depends on preset
-    writeOneByte(0x37, 0x04);
+    rto->currentSyncPulseIgnoreValue = 0x04;
     writeOneByte(0x38, 0x04); // h coast pre
     writeOneByte(0x39, 0x07); // h coast post
   }
@@ -266,26 +267,26 @@ void setParametersSP() {
     GBS::IF_VB_ST::write(0);
     GBS::SP_HD_MODE::write(1);
     GBS::IF_HB_SP2::write(180); // todo: (s1_1a) position depends on preset
-    writeOneByte(0x37, 0x04);
+    rto->currentSyncPulseIgnoreValue = 0x04;
     writeOneByte(0x38, 0x02); // h coast pre
     writeOneByte(0x39, 0x06); // h coast post
   }
   else if (rto->videoStandardInput == 1) { // NTSC 60
-    writeOneByte(0x37, 0x20);
+    rto->currentSyncPulseIgnoreValue = 0x58;
     GBS::IF_VB_ST::write(0);
     GBS::SP_HD_MODE::write(0);
     writeOneByte(0x38, 0x03); // h coast pre
     writeOneByte(0x39, 0x07); // h coast post
   }
   else if (rto->videoStandardInput == 2) { // PAL 50
-    writeOneByte(0x37, 0x58);
+    rto->currentSyncPulseIgnoreValue = 0x58;
     GBS::IF_VB_ST::write(0);
     GBS::SP_HD_MODE::write(0);
     writeOneByte(0x38, 0x02); // h coast pre
     writeOneByte(0x39, 0x06); // h coast post
   }
   else if (rto->videoStandardInput == 5) { // 720p
-    writeOneByte(0x37, 0x04);
+    rto->currentSyncPulseIgnoreValue = 0x04;
     GBS::IF_VB_ST::write(0);
     GBS::IF_VB_SP::write(0x10); // v. position
     GBS::SP_HD_MODE::write(1);
@@ -297,7 +298,7 @@ void setParametersSP() {
     GBS::VDS_VSCALE::write(804);
   }
   else if (rto->videoStandardInput == 6) { // 1080p/i
-    writeOneByte(0x37, 0x04);
+    rto->currentSyncPulseIgnoreValue = 0x04;
     GBS::IF_VB_ST::write(0);
     GBS::IF_VB_SP::write(0x10); // v. position
     GBS::SP_HD_MODE::write(1);
@@ -333,6 +334,7 @@ void setParametersSP() {
   writeOneByte(0x35, 0x15); // SP_DLT_REG [7:0]   Sync pulse width difference threshold  (tweak point)
   writeOneByte(0x36, 0x00); // SP_DLT_REG [11:8]
 
+  writeOneByte(0x37, rto->currentSyncPulseIgnoreValue);
   writeOneByte(0x3a, 0x04); // was 0x0a // range depends on source vtiming, from 0x03 to xxx, some good effect at lower levels
 
   setInitialClampPosition(); // already done if gone thorugh syncwatcher, but not manual modes
@@ -393,7 +395,8 @@ void setSOGLevel(uint8_t level) {
 void syncProcessorModeSD() {
   setInitialClampPosition();
   writeOneByte(0xF0, 5);
-  writeOneByte(0x37, 0x58);
+  rto->currentSyncPulseIgnoreValue = 0x58;
+  writeOneByte(0x37, rto->currentSyncPulseIgnoreValue);
   writeOneByte(0x38, 0x03);
   writeOneByte(0x56, 0x01); // could also be 0x05 but 0x01 is compatible
 
@@ -403,7 +406,8 @@ void syncProcessorModeSD() {
 void syncProcessorModeHD() {
   setInitialClampPosition();
   writeOneByte(0xF0, 5);
-  writeOneByte(0x37, 0x04);
+  rto->currentSyncPulseIgnoreValue = 0x04;
+  writeOneByte(0x37, rto->currentSyncPulseIgnoreValue);
   writeOneByte(0x38, 0x04); // snes 239 test
   writeOneByte(0x56, 0x01);
 
@@ -1644,6 +1648,7 @@ void setup() {
 
   // the following is just run time variables. don't change!
   rto->currentLevelSOG = 10;
+  rto->currentSyncPulseIgnoreValue = 0x58;
   rto->inputIsYpBpR = false;
   rto->videoStandardInput = 0;
   rto->currentSyncProcessorMode = 0;
@@ -2354,6 +2359,8 @@ void loop() {
 
   // syncwatcher polls SP status. when necessary, initiates adjustments or preset changes
   if ((rto->sourceDisconnected == false) && (rto->syncWatcher == true) && ((millis() - lastTimeSyncWatcher) > 40)) {
+    static uint16_t syncPulseHistory [20] = {0};
+    static uint8_t syncPulseHistoryIndex = 0;
     uint8_t debugRegBackup;
     writeOneByte(0xF0, 5);
     readFromRegister(0x63, 1, &debugRegBackup);
@@ -2396,6 +2403,7 @@ void loop() {
           setPhaseADC();
           setPhaseSP();
           delay(50);
+          syncPulseHistoryIndex = 0;
         }
         else {
           Serial.println(F(" .. but lost it?"));
@@ -2406,6 +2414,26 @@ void loop() {
     else if (getSyncStable() && newVideoMode != 0) { // last used mode reappeared
       noSyncCounter = 0;
       if (rto->deinterlacerWasTurnedOff) enableDeinterlacer();
+      // source is stable, this is a good time to do running hpw sampling to determine correct SP_H_PULSE_IGNOR (S5_37)
+      // goal is to prevent eq and serration pulses present in NTSC/PAL video counting towards vlines
+      // todo: sanity check the sort!
+      syncPulseHistory[syncPulseHistoryIndex++] = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
+      if (syncPulseHistoryIndex == 19) {
+        syncPulseHistoryIndex = 0;
+        for (uint8_t i = 0; i < 20; i++) {
+          for (uint8_t o = 0; o < (20 - (i + 1)); o++) {
+            if (syncPulseHistory[o] > syncPulseHistory[o + 1]) {
+              uint16_t t = syncPulseHistory[o];
+              syncPulseHistory[o] = syncPulseHistory[o + 1];
+              syncPulseHistory[o + 1] = t;
+            }
+          }
+        }
+        if (rto->currentSyncProcessorMode == 0) { // is in SD; HD mode doesn't need this
+          rto->currentSyncPulseIgnoreValue = (syncPulseHistory[9] / 2) + 4;
+          GBS::SP_H_PULSE_IGNOR::write(rto->currentSyncPulseIgnoreValue);
+        }
+      }
     }
 
     if (noSyncCounter >= 50) { // signal lost
@@ -2454,6 +2482,7 @@ void loop() {
     uint16_t STATUS_SYNC_PROC_HLOW_LEN = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
     boolean STATUS_MISC_PLL648_LOCK = GBS::STATUS_MISC_PLL648_LOCK::read();
     boolean STATUS_MISC_PLLAD_LOCK = GBS::STATUS_MISC_PLLAD_LOCK::read();
+    uint16_t SP_H_PULSE_IGNOR = GBS::SP_H_PULSE_IGNOR::read();
 
     Serial.print("h:"); Serial.print(HPERIOD_IF); Serial.print(" ");
     Serial.print("v:"); Serial.print(VPERIOD_IF);
@@ -2462,6 +2491,7 @@ void loop() {
     else Serial.print("  ");
     if (STATUS_MISC_PLLAD_LOCK) Serial.print("_|");
     else Serial.print("  ");
+    Serial.print(" ign:"); Serial.print(SP_H_PULSE_IGNOR, HEX);
     Serial.print(" stat:"); Serial.print(stat0, HEX); Serial.print(stat5, HEX);
     Serial.print(" deb:"); Serial.print(TEST_BUS, HEX);
     Serial.print(" m:"); Serial.print(video_mode);
