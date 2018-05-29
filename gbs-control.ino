@@ -12,7 +12,7 @@
 #include "rgbhv.h"
 #include "ofw_RGBS.h"
 
-#if defined(ESP8266)
+#if defined(ESP8266)  // select WeMos D1 R2 & mini in IDE for NodeMCU! (otherwise LED_BUILTIN is mapped to D0 / does not work)
 #include <ESP8266WiFi.h>
 #include "FS.h"
 #include <DNSServer.h>
@@ -24,7 +24,7 @@ extern "C" void tcp_abort (struct tcp_pcb* pcb);
 extern "C" {
 #include <user_interface.h>
 }
-#define DEBUG_IN_PIN D6 // "D12/MISO/D6" (Wemos D1) // D6 (Lolin)
+#define DEBUG_IN_PIN D6 // marked "D12/MISO/D6" (Wemos D1) or D6 (Lolin NodeMCU)
 // SCL = D1 (Lolin), D15 (Wemos D1) // ESP8266 Arduino default map: SCL
 // SDA = D2 (Lolin), D14 (Wemos D1) // ESP8266 Arduino default map: SDA
 #define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, LOW); // active low
@@ -174,6 +174,7 @@ void writeProgramArrayNew(const uint8_t* programArray)
 
   // 498 = s5_12, 499 = s5_13
   writeOneByte(0xF0, 5);
+  GBS::ADC_TR_RSEL::write(0); // reset ADC test resistor reg before initializing
   writeOneByte(0x11, 0x11); // Initial VCO control voltage
   writeOneByte(0x13, getSingleByteFromPreset(programArray, 499)); // load PLLAD divider high bits first (tvp7002 manual)
   writeOneByte(0x12, getSingleByteFromPreset(programArray, 498));
@@ -243,6 +244,9 @@ void writeProgramArrayNew(const uint8_t* programArray)
             if (index == 482) { // s5_02 bit 6+7 = input selector (only bit 6 is relevant)
               if (rto->inputIsYpBpR)bitClear(bank[x], 6);
               else bitSet(bank[x], 6);
+            }
+            if (index == 484) { // s5_04 ADC test resistor / current register
+              bank[x] = 0;      // always reset to 0
             }
             index++;
           }
@@ -1020,12 +1024,12 @@ void set_htotal(uint16_t htotal) {
   uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
   int diffHTotal = htotal - orig_htotal;
 
-  uint16_t h_blank_start_position = htotal - 1;
-  uint16_t h_blank_stop_position =  GBS::VDS_DIS_HB_SP::read() + diffHTotal;
-  uint16_t center_blank = ((h_blank_stop_position / 2) * 3) / 4; // a bit to the left
+  uint16_t h_blank_display_start_position = htotal - 1;
+  uint16_t h_blank_display_stop_position =  GBS::VDS_DIS_HB_SP::read() + diffHTotal;
+  uint16_t center_blank = ((h_blank_display_stop_position / 2) * 3) / 4; // a bit to the left
   uint16_t h_sync_start_position =  center_blank - (center_blank / 2);
   uint16_t h_sync_stop_position =   center_blank + (center_blank / 2);
-  uint16_t h_blank_memory_start_position = h_blank_start_position - 1;
+  uint16_t h_blank_memory_start_position = h_blank_display_start_position - 1;
   uint16_t h_blank_memory_stop_position =  GBS::VDS_HB_SP::read() + diffHTotal; // have to rely on currently loaded preset, see below
 
   // h_blank_memory_stop_position is nearly impossible to calculate. too many factors in it..
@@ -1052,11 +1056,10 @@ void set_htotal(uint16_t htotal) {
   GBS::VDS_HSYNC_RST::write(htotal);
   GBS::VDS_HS_ST::write( h_sync_start_position );
   GBS::VDS_HS_SP::write( h_sync_stop_position );
-  GBS::VDS_DIS_HB_ST::write( h_blank_start_position );
-  GBS::VDS_DIS_HB_SP::write( h_blank_stop_position );
+  GBS::VDS_DIS_HB_ST::write( h_blank_display_start_position );
+  GBS::VDS_DIS_HB_SP::write( h_blank_display_stop_position );
   GBS::VDS_HB_ST::write( h_blank_memory_start_position );
   GBS::VDS_HB_SP::write( h_blank_memory_stop_position );
-  getVideoTimings();
 }
 
 void set_vtotal(uint16_t vtotal) {
@@ -1200,6 +1203,7 @@ void doPostPresetLoadSteps() {
     Serial.println(F("SD mode"));
     syncProcessorModeSD();
   }
+  GBS::ADC_TR_RSEL::write(2); // ADC resistor on, lowers power consumption, gives better sync stability, no drawbacks noticed
   setSOGLevel( rto->currentLevelSOG );
   resetRunTimeVariables();
   resetDigital();
@@ -1221,8 +1225,7 @@ void doPostPresetLoadSteps() {
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
   }
   resetPLLAD();
-  // lower power on ADC
-  // GBS::ADC_TR_RSEL::write(2);
+
   timeout = millis();
   while (getVideoMode() == 0 && millis() - timeout < 500); // stability
   if (1 /*rto->inputIsYpBpR == false*/) {
@@ -1881,7 +1884,6 @@ void loop() {
       case 'q':
         resetDigital();
         enableVDS();
-        Serial.println(F("resetDigital()"));
         break;
       case 'D':
         // debug stuff:
@@ -2081,15 +2083,26 @@ void loop() {
           Serial.println(F("on"));
         }
         break;
+      case 'L':
+        {
+          Serial.println(F("LED toggle"));
+          static boolean led_toggle = 0;
+          if (led_toggle) {
+            LEDOFF
+            led_toggle = 0;
+          }
+          else {
+            LEDON
+            led_toggle = 1;
+          }
+        }
+        break;
       case 'l':
         Serial.println(F("l - spOffOn"));
         SyncProcessorOffOn();
         break;
-      case 'Q':
-        uopt->enableFrameTimeLock = !uopt->enableFrameTimeLock;
-        break;
       case 'W':
-        //
+        uopt->enableFrameTimeLock = !uopt->enableFrameTimeLock;
         break;
       case 'E':
         rto->phaseADC += 1; rto->phaseADC &= 0x1f;

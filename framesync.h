@@ -207,19 +207,20 @@ class FrameSyncManager {
       uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
       int diffHTotal = bestHTotal - orig_htotal;
       
-      uint16_t h_blank_start_position = bestHTotal - 1;
-      uint16_t h_blank_stop_position =  GBS::VDS_DIS_HB_SP::read() + diffHTotal;
-      uint16_t center_blank = ((h_blank_stop_position / 2) * 3) / 4; // a bit to the left
-      uint16_t h_sync_start_position =  center_blank - (center_blank / 2);
+      uint16_t h_blank_display_start_position = bestHTotal - 1;
+      uint16_t h_blank_display_stop_position =  GBS::VDS_DIS_HB_SP::read() + diffHTotal;
+      uint16_t center_blank = ((h_blank_display_stop_position / 2) * 3) / 4; // a bit to the left
+      //uint16_t h_sync_start_position =  center_blank - (center_blank / 2);
+      uint16_t h_sync_start_position =  bestHTotal / 28; // test with HDMI board suggests this is better
       uint16_t h_sync_stop_position =   center_blank + (center_blank / 2);
-      uint16_t h_blank_memory_start_position = h_blank_start_position - 1;
+      uint16_t h_blank_memory_start_position = h_blank_display_start_position - 1;
       uint16_t h_blank_memory_stop_position =  GBS::VDS_HB_SP::read() + diffHTotal; // have to rely on currently loaded preset, see below
 
       GBS::VDS_HSYNC_RST::write(bestHTotal);
       GBS::VDS_HS_ST::write( h_sync_start_position );
       GBS::VDS_HS_SP::write( h_sync_stop_position );
-      GBS::VDS_DIS_HB_ST::write( h_blank_start_position );
-      GBS::VDS_DIS_HB_SP::write( h_blank_stop_position );
+      GBS::VDS_DIS_HB_ST::write( h_blank_display_start_position );
+      GBS::VDS_DIS_HB_SP::write( h_blank_display_stop_position );
       GBS::VDS_HB_ST::write( h_blank_memory_start_position );
       GBS::VDS_HB_SP::write( h_blank_memory_stop_position );
       Serial.print("Base: "); Serial.print(orig_htotal);
