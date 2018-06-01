@@ -1203,7 +1203,6 @@ void doPostPresetLoadSteps() {
     Serial.println(F("SD mode"));
     syncProcessorModeSD();
   }
-  GBS::ADC_TR_RSEL::write(2); // ADC resistor on, lowers power consumption, gives better sync stability, no drawbacks noticed
   setSOGLevel( rto->currentLevelSOG );
   resetRunTimeVariables();
   resetDigital();
@@ -1239,6 +1238,13 @@ void doPostPresetLoadSteps() {
 
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   GBS::PAD_SYNC_OUT_ENZ::write(0); // display goes on
+  delay(300); // stabilize
+  GBS::ADC_TR_RSEL::write(2);
+  // notes on ADC_TR_RSEL:
+  // ADC resistor on, lowers power consumption, gives better sync stability
+  // It looks like the ADC power has to be stable and at 3.3V when enabling this
+  // If it's not (like when powered by NodeMCU adapter via USB > only 2.9V), then colors are bad.
+  // I want to keep this in the code for its benefits but need to watch user reports.
   Serial.println(F("post preset done"));
 }
 
