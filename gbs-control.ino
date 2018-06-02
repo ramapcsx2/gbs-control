@@ -2525,6 +2525,7 @@ void handleType1Command() {
     globalCommand = server.arg("plain").charAt(0);
     Serial.print("globalCommand: "); Serial.println(globalCommand);
   }
+  server.send(200, "text/plain", "");
 }
 
 void handleType2Command() {
@@ -2604,6 +2605,7 @@ void handleType2Command() {
         break;
     }
   }
+  server.send(200, "text/plain", "");
 }
 
 void start_webserver()
@@ -2626,7 +2628,7 @@ void start_webserver()
   server.on("/", handleRoot);
   server.on("/serial_", handleType1Command);
   server.on("/user_", handleType2Command);
-  
+
   persWM.setConnectNonBlock(true);
   persWM.begin();
   server.begin();
