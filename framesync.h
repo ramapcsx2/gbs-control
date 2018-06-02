@@ -1,8 +1,6 @@
 #ifndef FRAMESYNC_H_
 #define FRAMESYNC_H_
 
-#include "debug.h"
-
 template <class GBS, class Attrs>
 class FrameSyncManager {
   private:

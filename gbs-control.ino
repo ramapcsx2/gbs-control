@@ -1,6 +1,3 @@
-// Define this to get debug output on serial console
-#define DEBUG
-
 #include <Wire.h>
 #include "ntsc_240p.h"
 #include "pal_240p.h"
@@ -55,7 +52,6 @@ extern "C" {
 #include <ArduinoOTA.h>
 #endif
 
-#include "debug.h"
 #include "tv5725.h"
 #include "framesync.h"
 #include "osd.h"
@@ -382,7 +378,7 @@ void setParametersSP() {
 void setSOGLevel(uint8_t level) {
   GBS::ADC_SOGCTRL::write(level);
   rto->currentLevelSOG = level;
-  //debugln("sog level: ", rto->currentLevelSOG);
+  //Serial.print("sog level: "); Serial.println(rto->currentLevelSOG);
 }
 
 void syncProcessorModeSD() {
@@ -689,7 +685,7 @@ void scaleHorizontal(uint16_t amountToAdd, bool subtracting) {
     hscale += amountToAdd;
   }
 
-  debugln("Scale Hor: ", hscale);
+  Serial.print("Scale Hor: "); Serial.println(hscale);
   GBS::VDS_HSCALE::write(hscale);
 }
 
@@ -803,7 +799,7 @@ void scaleVertical(uint16_t amountToAdd, bool subtracting) {
     vscale += amountToAdd;
   }
 
-  debugln("Scale Vert: ", vscale);
+  Serial.print("Scale Vert: "); Serial.println(vscale);
   GBS::VDS_VSCALE::write(vscale);
 }
 
@@ -2335,7 +2331,6 @@ void loop() {
     if (!FrameSync::run()) {
       if (rto->syncLockFailIgnore-- == 0) {
         FrameSync::reset(); // in case run() failed because we lost a sync signal
-        //debugln("fs timeout");
       }
     }
     else if (rto->syncLockFailIgnore > 0) {
