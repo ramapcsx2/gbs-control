@@ -34,17 +34,6 @@ extern "C" {
 // but only "D7" and "D6" have been tested so far
 #define digitalRead(x) ((GPIO_REG_READ(GPIO_IN_ADDRESS) >> x) & 1)
 
-#elif defined(ESP32)
-#include "soc/soc.h"
-#include "soc/rtc_cntl_reg.h"
-#include <esp_pm.h>
-#include <esp_wifi.h>
-#include <WiFi.h>
-#include "SPIFFS.h"
-#define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, HIGH);
-#define LEDOFF digitalWrite(LED_BUILTIN, LOW); pinMode(LED_BUILTIN, INPUT);
-#define DEBUG_IN_PIN 26
-
 #else // Arduino
 #define LEDON  pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, HIGH);
 #define LEDOFF digitalWrite(LED_BUILTIN, LOW); pinMode(LED_BUILTIN, INPUT);
@@ -61,7 +50,7 @@ extern "C" {
 
 #endif
 
-#if defined(ESP8266) || defined(ESP32)
+#if defined(ESP8266)
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #endif
@@ -1262,7 +1251,7 @@ void applyPresets(byte result) {
     else if (uopt->presetPreference == 3) {
       writeProgramArrayNew(pal_1280x720);
     }
-#if defined(ESP8266) || defined(ESP32)
+#if defined(ESP8266)
     else if (uopt->presetPreference == 2 ) {
       Serial.println(F("(custom)"));
       uint8_t* preset = loadPresetFromSPIFFS(result);
@@ -1282,7 +1271,7 @@ void applyPresets(byte result) {
     else if (uopt->presetPreference == 3) {
       writeProgramArrayNew(ntsc_1280x720);
     }
-#if defined(ESP8266) || defined(ESP32)
+#if defined(ESP8266)
     else if (uopt->presetPreference == 2 ) {
       Serial.println(F("(custom)"));
       uint8_t* preset = loadPresetFromSPIFFS(result);
@@ -1303,7 +1292,7 @@ void applyPresets(byte result) {
     else if (uopt->presetPreference == 3) {
       writeProgramArrayNew(ntsc_1280x720);
     }
-#if defined(ESP8266) || defined(ESP32)
+#if defined(ESP8266)
     else if (uopt->presetPreference == 2 ) {
       Serial.println(F("(custom)"));
       uint8_t* preset = loadPresetFromSPIFFS(result);
@@ -1324,7 +1313,7 @@ void applyPresets(byte result) {
     else if (uopt->presetPreference == 3) {
       writeProgramArrayNew(pal_1280x720);
     }
-#if defined(ESP8266) || defined(ESP32)
+#if defined(ESP8266)
     else if (uopt->presetPreference == 2 ) {
       Serial.println(F("(custom)"));
       uint8_t* preset = loadPresetFromSPIFFS(result);
@@ -1344,7 +1333,7 @@ void applyPresets(byte result) {
     else if (uopt->presetPreference == 3) {
       writeProgramArrayNew(ntsc_1280x720);
     }
-#if defined(ESP8266) || defined(ESP32)
+#if defined(ESP8266)
     else if (uopt->presetPreference == 2 ) {
       Serial.println(F("(custom)"));
       uint8_t* preset = loadPresetFromSPIFFS(result);
@@ -1364,7 +1353,7 @@ void applyPresets(byte result) {
     else if (uopt->presetPreference == 3) {
       writeProgramArrayNew(ntsc_1280x720);
     }
-#if defined(ESP8266) || defined(ESP32)
+#if defined(ESP8266)
     else if (uopt->presetPreference == 2 ) {
       Serial.println(F("(custom)"));
       uint8_t* preset = loadPresetFromSPIFFS(result);
@@ -1615,15 +1604,13 @@ void applyRGBPatches() {
 void startWire() {
   Wire.begin();
   // The i2c wire library sets pullup resistors on by default. Disable this so that 5V MCUs aren't trying to drive the 3.3V bus.
-#if defined(ESP32)
-  pinMode(SCL, OUTPUT_OPEN_DRAIN);
-  pinMode(SDA, OUTPUT_OPEN_DRAIN);
-  //Wire.setClock(100000); // ESP32 I2C is unstable
-#elif defined(ESP8266)
+#if defined(ESP8266)
   pinMode(SCL, OUTPUT_OPEN_DRAIN);
   pinMode(SDA, OUTPUT_OPEN_DRAIN);
   Wire.setClock(400000); // TV5725 supports 400kHz
 #else
+  digitalWrite(SCL, LOW);
+  digitalWrite(SDA, LOW);
   Wire.setClock(400000);
 #endif
   delay(100);
@@ -1635,10 +1622,6 @@ void setup() {
   // Correct the hostname while it is still in CONNECTING state
   //wifi_station_set_hostname("gbscontrol"); // direct SDK call
   WiFi.hostname("gbscontrol");
-#endif
-#if defined(ESP32)
-  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
-  // ESP32 doesn't require hostname correction
 #endif
   Serial.begin(115200); // set Arduino IDE Serial Monitor to the same 115200 bauds!
   Serial.setTimeout(10);
@@ -1674,15 +1657,10 @@ void setup() {
   LEDON // enable the LED, lets users know the board is starting up
   delay(500); // give the entire system some time to start up.
 
-#if defined(ESP8266) || defined(ESP32)
-  // if you want simple wifi debug info
-  Serial.setDebugOutput(true);
+#if defined(ESP8266)
+  Serial.setDebugOutput(true); // if you want simple wifi debug info
   // file system (web page, custom presets, ect)
-#if defined(ESP32)
-  if (!SPIFFS.begin(true)) { // true = format spiffs on first use / when mount fails
-#elif defined(ESP8266)
   if (!SPIFFS.begin()) {
-#endif
     Serial.println("SPIFFS Mount Failed");
   }
   // load userprefs.txt
@@ -1697,7 +1675,7 @@ void setup() {
     result[0] -= '0'; // file streams with their chars..
     //Serial.print("presetPreference = "); Serial.println((int)result[0]);
     uopt->presetPreference = result[0];
-    //on a fresh MCU (ESP32):
+    //on a fresh MCU:
     //SPIFFS format: 1
     //userprefs.txt open ok
     //result[0] = 207
@@ -1750,11 +1728,6 @@ void setup() {
     WiFi.mode(WIFI_OFF);
     WiFi.forceSleepBegin();
     delay(1);
-  }
-#elif defined(ESP32)
-  if (!rto->webServerEnabled) {
-    WiFi.disconnect();
-    WiFi.mode(WIFI_OFF);
   }
 #endif
   Serial.print(F("\nMCU: ")); Serial.println(F_CPU);
@@ -1822,17 +1795,11 @@ void loop() {
   static unsigned long lastButton = micros();
 #endif
 
-#if defined(ESP8266) || defined(ESP32)
+#if defined(ESP8266)
   static unsigned long webServerStartDelay = millis();
   if (rto->webServerEnabled && !rto->webServerStarted && ((millis() - webServerStartDelay) > 6000) ) {
-#if defined(ESP8266)
     start_webserver();
     WiFi.setOutputPower(10.0f); // float: min 0.0f, max 20.5f
-#elif defined(ESP32)
-    start_webserver();
-    delay(50);
-    esp_wifi_set_max_tx_power(20);
-#endif
     rto->webServerStarted = true;
   }
 
@@ -2056,7 +2023,7 @@ void loop() {
       case 'i':
         rto->printInfos = !rto->printInfos;
         break;
-#if defined(ESP8266) || defined(ESP32)
+#if defined(ESP8266)
       case 'c':
         Serial.println(F("OTA Updates enabled"));
         initUpdateOTA();
@@ -2545,7 +2512,7 @@ void loop() {
 
 
 
-#if defined(ESP8266) || defined(ESP32)
+#if defined(ESP8266)
 
 const char* ap_ssid = "gbscontrol";
 const char* ap_password =  "qqqqqqqq";
@@ -2556,7 +2523,6 @@ const char HTML[] PROGMEM = "<head><link rel=\"icon\" href=\"data:,\"><style>htm
 
 void start_webserver()
 {
-#if defined(ESP8266)
   WiFiManager wifiManager;
   wifiManager.setTimeout(180); // in seconds
   // fixme: when credentials are correct but the connect stalls, it can stay stuck here for setTimeout() seconds
@@ -2567,11 +2533,6 @@ void start_webserver()
   // Option: A timeout closes the configuration AP after 180 seconds, resuming gbs-control (but without any web server)
   Serial.print("dnsIP: "); Serial.println(WiFi.dnsIP());
   Serial.print("hostname: "); Serial.println(WiFi.hostname());
-#elif defined(ESP32)
-  WiFi.softAP(ap_ssid, ap_password);
-  Serial.print("starting web server on: ");
-  Serial.println(WiFi.softAPIP());
-#endif
 
   WiFi.persistent(false); // this hopefully prevents repeated flash writes (SDK bug)
   // new WiFiManager library should improve this, update once it's out.
@@ -2889,14 +2850,12 @@ void handleWebClient()
           currentLineIsBlank = false;
         }
       } else { // bug! client connected but nothing "available", essentially waiting here for a long time for nothing to happen
-#if defined(ESP8266)
         if (client.status() == 4) {
           client_timeout++;
         }
         else {
           Serial.print("client status: "); Serial.println(client.status());
         }
-#endif
         if (client_timeout > 10000) {
           //Serial.println("This socket's dead, Jim");
           break;
