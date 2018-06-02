@@ -1,0 +1,28 @@
+#######################################
+# Syntax Coloring Map For PersWiFiManager Library
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+PersWiFiManager	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+attemptConnection	KEYWORD2
+setupWiFiHandlers	KEYWORD2
+begin	KEYWORD2
+getApSsid	KEYWORD2
+setApCredentials	KEYWORD2
+handleWiFi	KEYWORD2
+setConnectNonBlock	KEYWORD2
+startApMode KEYWORD2
+onConnect KEYWORD2
+onAp  KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################

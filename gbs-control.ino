@@ -14,7 +14,14 @@
 #include "FS.h"
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
-#include <WiFiManager.h> // install WiFiManager library by tzapu first!
+#include "PersWiFiManager.h"
+
+const char* ap_ssid = "gbscontrol";
+const char* ap_password =  "qqqqqqqq";
+ESP8266WebServer server(80);
+DNSServer dnsServer;
+PersWiFiManager persWM(server, dnsServer);
+
 struct tcp_pcb;
 extern struct tcp_pcb* tcp_tw_pcbs;
 extern "C" void tcp_abort (struct tcp_pcb* pcb);
@@ -1720,7 +1727,7 @@ void setup() {
 
 #if defined(ESP8266)
   if (!rto->webServerEnabled) {
-    WiFi.disconnect();
+    //WiFi.disconnect(); // deletes credentials
     WiFi.mode(WIFI_OFF);
     WiFi.forceSleepBegin();
     delay(1);
@@ -1800,7 +1807,9 @@ void loop() {
   }
 
   if (rto->webServerEnabled && rto->webServerStarted) {
-    handleWebClient();
+    persWM.handleWiFi();
+    dnsServer.processNextRequest();
+    server.handleClient();
     // if there's a control command from the server, globalCommand will now hold it.
     // process it in the parser, then reset to 0 at the end of the sketch.
   }
@@ -2505,34 +2514,122 @@ void loop() {
   }
 }
 
-
-
 #if defined(ESP8266)
 
-const char* ap_ssid = "gbscontrol";
-const char* ap_password =  "qqqqqqqq";
+void handleRoot() {
+  server.send(200, "text/html", FPSTR(HTML));
+}
 
-WiFiServer webserver(80);
+void handleType1Command() {
+  if (server.hasArg("plain")) {
+    globalCommand = server.arg("plain").charAt(0);
+    Serial.print("globalCommand: "); Serial.println(globalCommand);
+  }
+}
 
-const char HTML[] PROGMEM = "<head><link rel=\"icon\" href=\"data:,\"><style>html{font-family: 'Droid Sans', sans-serif;}h1{position: relative; margin-left: -22px; /* 15px padding + 7px border ribbon shadow*/ margin-right: -22px; padding: 15px; background: #e5e5e5; background: linear-gradient(#f5f5f5, #e5e5e5); box-shadow: 0 -1px 0 rgba(255,255,255,.8) inset; text-shadow: 0 1px 0 #fff;}h1:before,h1:after{position: absolute; left: 0; bottom: -6px; content:''; border-top: 6px solid #555; border-left: 6px solid transparent;}h1:before{border-top: 6px solid #555; border-right: 6px solid transparent; border-left: none; left: auto; right: 0; bottom: -6px;}.button{background-color: #008CBA; /* Blue */ border: none; border-radius: 12px; color: white; padding: 15px 32px; text-align: center; text-decoration: none; display: inline-block; font-size: 28px; margin: 10px 10px; cursor: pointer; -webkit-transition-duration: 0.4s; /* Safari */ transition-duration: 0.4s; width: 440px; float: left;}.button:hover{background-color: #4CAF50;}.button a{color: white; text-decoration: none;}.button .tooltiptext{visibility: hidden; width: 100px; background-color: black; color: #fff; text-align: center; padding: 5px 0; border-radius: 6px; height: 12px; font-size: 10px; /* Position the tooltip */ position: absolute; z-index: 1; margin-left: 10px;}.button:hover .tooltiptext{visibility: visible;}br{clear: left;}h2{clear: left; padding-top: 10px;}</style><script>function loadDoc(link){var xhttp=new XMLHttpRequest(); xhttp.open(\"GET\", \"serial_\"+link, true); xhttp.send();} function loadUser(link){var xhttp=new XMLHttpRequest(); xhttp.open(\"GET\", \"user_\"+link, true); xhttp.send();}</script></head><body><h1>Load Presets</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('r')\">1280x960 PAL</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('2')\">720x576 PAL</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('e')\">1280x960 NTSC</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('9')\">640x480 NTSC</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('Y')\">720p NTSC</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('y')\">720p PAL</button><button class=\"button\" type=\"button\" onclick=\"loadUser('3')\">Custom Preset<span class=\"tooltiptext\">for current video mode</span></button><br><h1>Picture Control</h1><h2>Scaling</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('4')\">Vertical Larger</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('5')\">Vertical Smaller</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('z')\">Horizontal Larger</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('h')\">Horizontal Smaller</button><h2>Move Picture (Framebuffer)</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('*')\">Vertical Up</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('/')\">Vertical Down</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('-')\">Horizontal Left</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('+')\">Horizontal Right</button><h2>Move Picture (Blanking, Horizontal / Vertical Sync)</h2><button class=\"button\" type=\"button\" onclick=\"loadDoc('7')\">Move VS Up</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('6')\">Move VS Down</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('1')\">Move HS Left</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('0')\">Move HS Right</button><br><h1>En-/Disable</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('m')\">SyncWatcher</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('k')\">Passthrough</button><br><h1>Information</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('i')\">Print Infos</button><button class=\"button\" type=\"button\" onclick=\"loadDoc(',')\">Get Video Timings</button><br><h1>Internal</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('D')\">Debug View</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('f')\">Peaking</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('F')\">ADC Filter</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('o')\">Oversampling</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('a')\">HTotal++</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('n')\">PLL divider++</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('b')\">Advance Phase</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('8')\">Invert Sync</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('c')\">Enable OTA</button><br><h1>Reset</h1><button class=\"button\" type=\"button\" onclick=\"loadDoc('j')\">Reset PLL/PLLAD</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('q')\">Reset Chip</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('.')\">Reset SyncLock</button><button class=\"button\" type=\"button\" onclick=\"loadDoc('l')\">Reset SyncProcessor</button><br><h1>Preferences</h1><button class=\"button\" type=\"button\" onclick=\"loadUser('0')\">Prefer Normal Preset</button><button class=\"button\" type=\"button\" onclick=\"loadUser('1')\">Prefer Feedback Preset</button><button class=\"button\" type=\"button\" onclick=\"loadUser('2')\">Prefer Custom Preset</button><button class=\"button\" type=\"button\" onclick=\"loadUser('9')\">Prefer 720p Preset</button><button class=\"button\" type=\"button\" onclick=\"loadUser('4')\">save custom preset</button><button class=\"button\" type=\"button\" onclick=\"loadUser('5')\">Frame Time Lock ON</button><button class=\"button\" type=\"button\" onclick=\"loadUser('6')\">Frame Time Lock OFF (default)</button><button class=\"button\" type=\"button\" onclick=\"loadUser('7')\">Scanlines toggle (experimental)</button></body>";
+void handleType2Command() {
+  if (server.hasArg("plain")) {
+    char argument = server.arg("plain").charAt(0);
+    switch (argument) {
+      case '0':
+        uopt->presetPreference = 0; // normal
+        saveUserPrefs();
+        break;
+      case '1':
+        uopt->presetPreference = 1; // fb clock
+        saveUserPrefs();
+        break;
+      case '2':
+        uopt->presetPreference = 2; // custom
+        saveUserPrefs();
+        break;
+      case '3':
+        {
+          uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
+          writeProgramArrayNew(preset);
+          doPostPresetLoadSteps();
+        }
+        break;
+      case '4':
+        savePresetToSPIFFS();
+        break;
+      case '5':
+        //Frame Time Lock ON
+        uopt->enableFrameTimeLock = 1;
+        saveUserPrefs();
+        break;
+      case '6':
+        //Frame Time Lock OFF
+        uopt->enableFrameTimeLock = 0;
+        saveUserPrefs();
+        break;
+      case '7':
+        {
+          // scanline toggle
+          uint8_t reg;
+          writeOneByte(0xF0, 2);
+          readFromRegister(0x16, 1, &reg);
+          if ((reg & 0x80) == 0x80) {
+            writeOneByte(0x16, reg ^ (1 << 7));
+            writeOneByte(0xF0, 5);
+            writeOneByte(0x09, 0x5f); writeOneByte(0x0a, 0x5f); writeOneByte(0x0b, 0x5f); // more ADC gain
+            writeOneByte(0xF0, 3);
+            writeOneByte(0x35, 0xd0); // more luma gain
+            writeOneByte(0xF0, 2);
+            writeOneByte(0x27, 0x28); // set up VIIR filter (no need to undo later)
+            writeOneByte(0x26, 0x00);
+          }
+          else {
+            writeOneByte(0x16, reg ^ (1 << 7));
+            writeOneByte(0xF0, 5);
+            writeOneByte(0x09, 0x7f); writeOneByte(0x0a, 0x7f); writeOneByte(0x0b, 0x7f);
+            writeOneByte(0xF0, 3);
+            writeOneByte(0x35, 0x80);
+            writeOneByte(0xF0, 2);
+            writeOneByte(0x26, 0x40); // disables VIIR filter
+          }
+        }
+        break;
+      case '9':
+        uopt->presetPreference = 3; // prefer 720p preset
+        saveUserPrefs();
+        break;
+      case 's':
+        // scan for wifi networks
+        //server.sendHeader("Location", String("wifi.htm"), true);
+        //server.send ( 301, "text/plain", "");
+        //persWM.send(200, "text/html", wifi_htm);
+        break;
+      default:
+        break;
+    }
+  }
+}
 
 void start_webserver()
 {
-  WiFiManager wifiManager;
-  wifiManager.setTimeout(180); // in seconds
-  // fixme: when credentials are correct but the connect stalls, it can stay stuck here for setTimeout() seconds
-  wifiManager.autoConnect(ap_ssid, ap_password);
-  // The WiFiManager library will spawn an access point, waiting to be configured.
-  // Once configured, it stores the credentials and restarts the board.
-  // On restart, it tries to connect to the configured AP. If successfull, it resumes execution here.
-  // Option: A timeout closes the configuration AP after 180 seconds, resuming gbs-control (but without any web server)
-  Serial.print("dnsIP: "); Serial.println(WiFi.dnsIP());
-  Serial.print("hostname: "); Serial.println(WiFi.hostname());
+  //WiFi.disconnect(); // test captive portal by forgetting wifi credentials
+  persWM.setApCredentials(ap_ssid, ap_password);
+  persWM.onConnect([]() {
+    WiFi.hostname("gbscontrol");
+    Serial.print("wifi connected using local IP: ");
+    Serial.println(WiFi.localIP());
+    Serial.print("hostname: "); Serial.println(WiFi.hostname());
+  });
+  persWM.onAp([]() {
+    WiFi.hostname("gbscontrol");
+    Serial.print("AP MODE on: ");
+    Serial.println(persWM.getApSsid());
+    Serial.print("hostname: "); Serial.println(WiFi.hostname());
+  });
 
-  WiFi.persistent(false); // this hopefully prevents repeated flash writes (SDK bug)
-  // new WiFiManager library should improve this, update once it's out.
-
-  webserver.begin();
+  server.on("/", handleRoot);
+  server.on("/serial_", handleType1Command);
+  server.on("/user_", handleType2Command);
+  
+  persWM.setConnectNonBlock(true);
+  persWM.begin();
+  server.begin();
 }
 
 void initUpdateOTA() {
@@ -2703,166 +2800,5 @@ void saveUserPrefs() {
   Serial.println("userprefs saved");
   f.close();
 }
-// size of buffer used to capture HTTP requests
-#define REQ_BUF_SZ 500 // we have the RAM
-char HTTP_req[REQ_BUF_SZ] = {0}; // buffered HTTP request stored as null terminated string
-uint16_t req_index = 0; // index into HTTP_req buffer
 
-void handleWebClient()
-{
-  //while (tcp_tw_pcbs != NULL)
-  //{
-  //  tcp_abort(tcp_tw_pcbs);
-  //}
-
-  WiFiClient client = webserver.available();
-  if (client) {
-    // slower, but might be more robust:
-    //client.setNoDelay(true);
-
-    Serial.println("New client");
-    // an http request ends with a blank line
-    boolean currentLineIsBlank = true;
-    uint16_t client_timeout = 0;
-    while (client.connected()) {
-      if (client.available()) {
-        char c = client.read();
-        // limit the size of the stored received HTTP request
-        // buffer first part of HTTP request in HTTP_req array (string)
-        // leave last element in array as 0 to null terminate string (REQ_BUF_SZ - 1)
-        if (req_index < (REQ_BUF_SZ - 1)) {
-          HTTP_req[req_index] = c;   // save one request character
-          req_index++;
-        }
-
-        // last line of client request is blank and ends with \n
-        // respond to client only after last line received
-        if (c == '\n' && currentLineIsBlank) {
-          // display received HTTP request on serial port
-          //Serial.println("HTTP Request: "); Serial.print(HTTP_req); Serial.println();
-
-          if (strstr(HTTP_req, "Accept: */*")) { // this is a xhttp request, no need to send the whole page again
-            client.println("HTTP/1.1 200 OK");
-            client.println("Connection: close");
-            client.println();
-          }
-          else {
-            // send standard http response header ..
-            client.println("HTTP/1.1 200 OK");
-            client.println("Content-Type: text/html");
-            client.println("Connection: close");
-            client.println();
-            // .. and our page
-            client.println("<!DOCTYPE HTML><html>");
-            client.println(FPSTR(HTML)); // FPSTR(HTML) reads 32bit aligned
-            client.println("</html>");
-          }
-          // reset buffer index and all buffer elements to 0
-          req_index = 0;
-          StrClear(HTTP_req, REQ_BUF_SZ);
-          break;
-        }
-        if (c == '\n') {
-          // you're starting a new line
-          if (strstr(HTTP_req, "GET /serial_")) {
-            //Serial.print("HTTP_req[12]: "); Serial.println(HTTP_req[12]);
-            globalCommand = HTTP_req[12];
-            // reset buffer index and all buffer elements to 0 (we don't care about the rest)
-            req_index = 0;
-            StrClear(HTTP_req, REQ_BUF_SZ);
-          }
-          else if (strstr(HTTP_req, "GET /user_")) {
-            //Serial.print("HTTP_req[10]: "); Serial.println(HTTP_req[10]);
-            if (HTTP_req[10] == '0') {
-              uopt->presetPreference = 0; // normal
-              saveUserPrefs();
-            }
-            else if (HTTP_req[10] == '1') {
-              uopt->presetPreference = 1; // fb clock
-              saveUserPrefs();
-            }
-            else if (HTTP_req[10] == '2') {
-              uopt->presetPreference = 2; // custom
-              saveUserPrefs();
-            }
-            else if (HTTP_req[10] == '3') {
-              uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
-              writeProgramArrayNew(preset);
-              doPostPresetLoadSteps();
-            }
-            else if (HTTP_req[10] == '4') {
-              // maybe insert a flag / cheap crc on first line, check that on load
-              savePresetToSPIFFS();
-            }
-            else if (HTTP_req[10] == '5') {
-              //Frame Time Lock ON
-              uopt->enableFrameTimeLock = 1;
-              saveUserPrefs();
-            }
-            else if (HTTP_req[10] == '6') {
-              //Frame Time Lock OFF
-              uopt->enableFrameTimeLock = 0;
-              saveUserPrefs();
-            }
-            else if (HTTP_req[10] == '7') {
-              // scanline toggle
-              uint8_t reg;
-              writeOneByte(0xF0, 2);
-              readFromRegister(0x16, 1, &reg);
-              if ((reg & 0x80) == 0x80) {
-                writeOneByte(0x16, reg ^ (1 << 7));
-                writeOneByte(0xF0, 5);
-                writeOneByte(0x09, 0x5f); writeOneByte(0x0a, 0x5f); writeOneByte(0x0b, 0x5f); // more ADC gain
-                writeOneByte(0xF0, 3);
-                writeOneByte(0x35, 0xd0); // more luma gain
-                writeOneByte(0xF0, 2);
-                writeOneByte(0x27, 0x28); // set up VIIR filter (no need to undo later)
-                writeOneByte(0x26, 0x00);
-              }
-              else {
-                writeOneByte(0x16, reg ^ (1 << 7));
-                writeOneByte(0xF0, 5);
-                writeOneByte(0x09, 0x7f); writeOneByte(0x0a, 0x7f); writeOneByte(0x0b, 0x7f);
-                writeOneByte(0xF0, 3);
-                writeOneByte(0x35, 0x80);
-                writeOneByte(0xF0, 2);
-                writeOneByte(0x26, 0x40); // disables VIIR filter
-              }
-            }
-            else if (HTTP_req[10] == '9') {
-              uopt->presetPreference = 3; // prefer 720p preset
-              saveUserPrefs();
-            }
-
-            // reset buffer index and all buffer elements to 0 (we don't care about the rest)
-            req_index = 0;
-            StrClear(HTTP_req, REQ_BUF_SZ);
-          }
-          currentLineIsBlank = true;
-        }
-        else if (c != '\r') {
-          // a text character was received from client
-          currentLineIsBlank = false;
-        }
-      } else { // bug! client connected but nothing "available", essentially waiting here for a long time for nothing to happen
-        if (client.status() == 4) {
-          client_timeout++;
-        }
-        else {
-          Serial.print("client status: "); Serial.println(client.status());
-        }
-        if (client_timeout > 10000) {
-          //Serial.println("This socket's dead, Jim");
-          break;
-        }
-      }
-    }
-    // give the web browser time to receive the data
-    delay(1);
-
-    // close the connection:
-    client.stop();
-    Serial.print("free ram: "); Serial.println(ESP.getFreeHeap());
-  }
-}
 #endif
