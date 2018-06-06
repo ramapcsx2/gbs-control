@@ -67,7 +67,7 @@ extern "C" {
 class SerialMirror: public Stream {
     size_t write(const uint8_t *data, size_t size) {
 #if defined(ESP8266)
-      webSocket.sendTXT(0, data, size);
+      webSocket.broadcastTXT(data, size);
 #endif
       Serial.write(data, size);
       //Serial1.write(data, size);
@@ -76,7 +76,7 @@ class SerialMirror: public Stream {
 
     size_t write(uint8_t data) {
 #if defined(ESP8266)
-      webSocket.sendTXT(0, &data, 1);
+      webSocket.broadcastTXT(&data, 1);
 #endif
       Serial.write(data);
       //Serial1.write(data);
@@ -162,6 +162,7 @@ struct runTimeOptions *rto = &rtos;
 // userOptions holds user preferences / customizations
 struct userOptions {
   uint8_t presetPreference; // 0 - normal, 1 - feedback clock, 2 - customized, 3 - 720p
+  uint8_t presetGroup;
   uint8_t enableFrameTimeLock;
 } uopts;
 struct userOptions *uopt = &uopts;
@@ -1280,27 +1281,7 @@ void doPostPresetLoadSteps() {
 }
 
 void applyPresets(byte result) {
-  if (result == 2) {
-    SerialM.println("PAL timing ");
-    rto->videoStandardInput = 2;
-    if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(pal_240p);
-    }
-    else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(pal_feedbackclock);
-    }
-    else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(pal_1280x720);
-    }
-#if defined(ESP8266)
-    else if (uopt->presetPreference == 2 ) {
-      SerialM.println("(custom)");
-      uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset);
-    }
-#endif
-  }
-  else if (result == 1) {
+  if (result == 1) {
     SerialM.println("NTSC timing ");
     rto->videoStandardInput = 1;
     if (uopt->presetPreference == 0) {
@@ -1315,7 +1296,27 @@ void applyPresets(byte result) {
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2 ) {
       SerialM.println("(custom)");
-      uint8_t* preset = loadPresetFromSPIFFS(result);
+      const uint8_t* preset = loadPresetFromSPIFFS(result);
+      writeProgramArrayNew(preset);
+    }
+#endif
+  }
+  else if (result == 2) {
+    SerialM.println("PAL timing ");
+    rto->videoStandardInput = 2;
+    if (uopt->presetPreference == 0) {
+      writeProgramArrayNew(pal_240p);
+    }
+    else if (uopt->presetPreference == 1) {
+      writeProgramArrayNew(pal_feedbackclock);
+    }
+    else if (uopt->presetPreference == 3) {
+      writeProgramArrayNew(pal_1280x720);
+    }
+#if defined(ESP8266)
+    else if (uopt->presetPreference == 2 ) {
+      SerialM.println("(custom)");
+      const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset);
     }
 #endif
@@ -1336,7 +1337,7 @@ void applyPresets(byte result) {
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2 ) {
       SerialM.println("(custom)");
-      uint8_t* preset = loadPresetFromSPIFFS(result);
+      const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset);
     }
 #endif
@@ -1357,7 +1358,7 @@ void applyPresets(byte result) {
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2 ) {
       SerialM.println("(custom)");
-      uint8_t* preset = loadPresetFromSPIFFS(result);
+      const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset);
     }
 #endif
@@ -1377,7 +1378,7 @@ void applyPresets(byte result) {
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2 ) {
       SerialM.println("(custom)");
-      uint8_t* preset = loadPresetFromSPIFFS(result);
+      const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset);
     }
 #endif
@@ -1397,7 +1398,7 @@ void applyPresets(byte result) {
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2 ) {
       SerialM.println("(custom)");
-      uint8_t* preset = loadPresetFromSPIFFS(result);
+      const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset);
     }
 #endif
@@ -1669,7 +1670,8 @@ void setup() {
   SerialM.println("starting");
 
   // user options // todo: could be stored in Arduino EEPROM. Other MCUs have SPIFFS
-  uopt->presetPreference = 0;
+  uopt->presetPreference = 0; // normal, 720p, fb or custom
+  uopt->presetGroup = 0; //
   uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
   // run time options
   rto->webServerEnabled = true; // control gbs-control(:p) via web browser, only available on wifi boards. disable to conserve power.
@@ -1699,7 +1701,7 @@ void setup() {
   delay(500); // give the entire system some time to start up.
 
 #if defined(ESP8266)
-  Serial.setDebugOutput(true); // if you want simple wifi debug info
+  //Serial.setDebugOutput(true); // if you want simple wifi debug info
   // file system (web page, custom presets, ect)
   if (!SPIFFS.begin()) {
     SerialM.println("SPIFFS Mount Failed");
@@ -1711,22 +1713,28 @@ void setup() {
   }
   else {
     SerialM.println("userprefs open ok");
-    char result[2];
-    result[0] = f.read();
-    result[0] -= '0'; // file streams with their chars..
-    //SerialM.print("presetPreference = "); SerialM.println((int)result[0]);
-    uopt->presetPreference = result[0];
     //on a fresh MCU:
     //SPIFFS format: 1
     //userprefs.txt open ok
     //result[0] = 207
     //result[1] = 207
+    // so remember to check for that!
+    char result[3];
+    result[0] = f.read();
+    result[0] -= '0'; // file streams with their chars..
+    uopt->presetPreference = (uint8_t)result[0]; // normal, fb or custom preset
+    SerialM.print("presetPreference = "); SerialM.println(uopt->presetPreference);
     if (uopt->presetPreference > 3) uopt->presetPreference = 0; // fresh spiffs ?
     result[1] = f.read();
     result[1] -= '0';
-    //SerialM.print("enableFrameTimeLock = "); SerialM.println((int)result[1]);
-    uopt->enableFrameTimeLock = result[1];
+    uopt->enableFrameTimeLock = (uint8_t)result[1]; // Frame Time Lock
+    SerialM.print("FrameTime Lock = "); SerialM.println(uopt->enableFrameTimeLock);
     if (uopt->enableFrameTimeLock > 1) uopt->enableFrameTimeLock = 0; // fresh spiffs ?
+    result[2] = f.read();
+    result[2] -= '0';
+    uopt->presetGroup = (uint8_t)result[2];
+    SerialM.print("presetGroup = "); SerialM.println(uopt->presetGroup); // custom preset group
+    if (uopt->presetGroup > 5) uopt->presetGroup = 0;
     f.close();
   }
 #endif
@@ -1848,11 +1856,8 @@ void loop() {
     persWM.handleWiFi();
     dnsServer.processNextRequest();
     server.handleClient();
-    //static unsigned long wsloop = millis();
-    //if ((millis() - wsloop) > 5) {
     webSocket.loop();
-    //  wsloop = millis();
-    //}
+
     // if there's a control command from the server, globalCommand will now hold it.
     // process it in the parser, then reset to 0 at the end of the sketch.
   }
@@ -2612,7 +2617,7 @@ void handleType2Command() {
         break;
       case '3':
         {
-          uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
+          const uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
           writeProgramArrayNew(preset);
           doPostPresetLoadSteps();
         }
@@ -2661,6 +2666,60 @@ void handleType2Command() {
         uopt->presetPreference = 3; // prefer 720p preset
         saveUserPrefs();
         break;
+      case 'a':
+        // restart ESP MCU (due to an SDK bug, this does not work reliably after programming. It needs a power cycle or reset button push first.)
+        SerialM.print("Attempting to restart the MCU. If it hangs, reset manually!");
+        delay(300);
+        ESP.restart();
+        while (1);
+        break;
+      case 'b':
+        uopt->presetGroup = 0;
+        saveUserPrefs();
+        break;
+      case 'c':
+        uopt->presetGroup = 1;
+        saveUserPrefs();
+        break;
+      case 'd':
+        uopt->presetGroup = 2;
+        saveUserPrefs();
+        break;
+      case 'e':
+        {
+          Dir dir = SPIFFS.openDir("/");
+          while (dir.next()) {
+            SerialM.print(dir.fileName()); SerialM.print(" "); SerialM.println(dir.fileSize());
+          }
+        }
+        break;
+      case 'f':
+        {
+          // load 1280x960 preset via webui
+          byte videoMode = getVideoMode();
+          if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
+          uopt->presetPreference = 0; // not sure about this yet. override RAM copy of presetPreference for applyPresets
+          applyPresets(videoMode);
+        }
+        break;
+      case 'g':
+        {
+          // load 1280x720 preset via webui
+          byte videoMode = getVideoMode();
+          if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
+          uopt->presetPreference = 3; // not sure about this yet. override RAM copy of presetPreference for applyPresets
+          applyPresets(videoMode);
+        }
+        break;
+      case 'h':
+        {
+          // load 640x480 preset via webui
+          byte videoMode = getVideoMode();
+          if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
+          uopt->presetPreference = 1; // not sure about this yet. override RAM copy of presetPreference for applyPresets
+          applyPresets(videoMode);
+        }
+        break;
       default:
         break;
     }
@@ -2670,11 +2729,11 @@ void handleType2Command() {
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght) {
   switch (type) {
     case WStype_DISCONNECTED:             // if the websocket is disconnected
-      Serial.println("Websocket Disconnected");
+      SerialM.println("Websocket Disconnected");
       break;
     case WStype_CONNECTED: {              // if a new websocket connection is established
         IPAddress ip = webSocket.remoteIP(num);
-        Serial.print("Websocket Connected on IP: "); Serial.println(ip);
+        SerialM.print("Websocket Connected on IP: "); SerialM.println(ip);
       }
       break;
     case WStype_TEXT:                     // if new text data is received
@@ -2757,26 +2816,54 @@ void StrClear(char *str, uint16_t length)
   }
 }
 
-uint8_t* loadPresetFromSPIFFS(byte result) {
+const uint8_t* loadPresetFromSPIFFS(byte result) {
   static uint8_t preset[592];
   String s = "";
+  char group = '0';
   File f;
 
+  f = SPIFFS.open("/userprefs.txt", "r");
+  if (f) {
+    SerialM.println("userprefs.txt opened");
+    char result[3];
+    result[0] = f.read(); // todo: move file cursor manually
+    result[1] = f.read();
+    result[2] = f.read();
+
+    f.close();
+    SerialM.print("loading from presetGroup "); SerialM.println(result[2]); // custom preset group (console)
+    group = result[2];
+  }
+  else {
+    // file not found, we don't know what preset to load
+    SerialM.println("please select a preset group first!");
+    if (result == 2 || result == 4 || result == 5 || result == 6) return pal_240p;
+    else return ntsc_240p;
+  }
+
   if (result == 1) {
-    f = SPIFFS.open("/preset_ntsc.0", "r");
+    f = SPIFFS.open("/preset_ntsc." + String(group), "r");
   }
   else if (result == 2) {
-    f = SPIFFS.open("/preset_pal.0", "r");
+    f = SPIFFS.open("/preset_pal." + String(group), "r");
   }
   else if (result == 3) {
-    f = SPIFFS.open("/preset_ntsc_480p.0", "r");
+    f = SPIFFS.open("/preset_ntsc_480p." + String(group), "r");
   }
   else if (result == 4) {
-    f = SPIFFS.open("/preset_pal_576p.0", "r");
+    f = SPIFFS.open("/preset_pal_576p." + String(group), "r");
+  }
+  else if (result == 5) {
+    f = SPIFFS.open("/preset_ntsc_720p." + String(group), "r");
+  }
+  else if (result == 6) {
+    f = SPIFFS.open("/preset_ntsc_1080p." + String(group), "r");
   }
 
   if (!f) {
     SerialM.println("open preset file failed");
+    if (result == 2 || result == 4 || result == 5 || result == 6) return pal_240p;
+    else return ntsc_240p;
   }
   else {
     SerialM.println("preset file open ok");
@@ -2799,18 +2886,43 @@ uint8_t* loadPresetFromSPIFFS(byte result) {
 void savePresetToSPIFFS() {
   uint8_t readout = 0;
   File f;
+  char group = '0';
+
+  // first figure out if the user has set a preferenced group
+  f = SPIFFS.open("/userprefs.txt", "r");
+  if (f) {
+    char result[3];
+    result[0] = f.read(); // todo: move file cursor manually
+    result[1] = f.read();
+    result[2] = f.read();
+
+    f.close();
+    group = result[2];
+    SerialM.print("saving to presetGroup "); SerialM.println(result[2]); // custom preset group (console)
+  }
+  else {
+    // file not found, we don't know where to save this preset
+    SerialM.println("please select a preset group first!");
+    return;
+  }
 
   if (rto->videoStandardInput == 1) {
-    f = SPIFFS.open("/preset_ntsc.0", "w");
+    f = SPIFFS.open("/preset_ntsc." + String(group), "w");
   }
   else if (rto->videoStandardInput == 2) {
-    f = SPIFFS.open("/preset_pal.0", "w");
+    f = SPIFFS.open("/preset_pal." + String(group), "w");
   }
   else if (rto->videoStandardInput == 3) {
-    f = SPIFFS.open("/preset_ntsc_480p.0", "w");
+    f = SPIFFS.open("/preset_ntsc_480p." + String(group), "w");
   }
   else if (rto->videoStandardInput == 4) {
-    f = SPIFFS.open("/preset_pal_576p.0", "w");
+    f = SPIFFS.open("/preset_pal_576p." + String(group), "w");
+  }
+  else if (rto->videoStandardInput == 5) {
+    f = SPIFFS.open("/preset_ntsc_720p." + String(group), "w");
+  }
+  else if (rto->videoStandardInput == 6) {
+    f = SPIFFS.open("/preset_ntsc_1080p." + String(group), "w");
   }
 
   if (!f) {
@@ -2876,8 +2988,9 @@ void saveUserPrefs() {
     SerialM.println("saving preferences failed");
     return;
   }
-  f.write(uopt->presetPreference + '0'); // makes total sense, i know
+  f.write(uopt->presetPreference + '0');
   f.write(uopt->enableFrameTimeLock + '0');
+  f.write(uopt->presetGroup + '0');
   SerialM.println("userprefs saved");
   f.close();
 }
