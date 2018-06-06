@@ -2837,7 +2837,7 @@ const uint8_t* loadPresetFromSPIFFS(byte result) {
   else {
     // file not found, we don't know what preset to load
     SerialM.println("please select a preset group first!");
-    if (result == 2 || result == 4 || result == 5 || result == 6) return pal_240p;
+    if (result == 2 || result == 4) return pal_240p;
     else return ntsc_240p;
   }
 
@@ -2862,7 +2862,7 @@ const uint8_t* loadPresetFromSPIFFS(byte result) {
 
   if (!f) {
     SerialM.println("open preset file failed");
-    if (result == 2 || result == 4 || result == 5 || result == 6) return pal_240p;
+    if (result == 2 || result == 4) return pal_240p;
     else return ntsc_240p;
   }
   else {
