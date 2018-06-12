@@ -2704,8 +2704,10 @@ void handleType2Command() {
           // load 1280x960 preset via webui
           byte videoMode = getVideoMode();
           if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
-          uopt->presetPreference = 0; // not sure about this yet. override RAM copy of presetPreference for applyPresets
+          uint8_t backup = uopt->presetPreference;
+          uopt->presetPreference = 0; // override RAM copy of presetPreference for applyPresets
           applyPresets(videoMode);
+          uopt->presetPreference = backup;
         }
         break;
       case 'g':
@@ -2713,8 +2715,10 @@ void handleType2Command() {
           // load 1280x720 preset via webui
           byte videoMode = getVideoMode();
           if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
-          uopt->presetPreference = 3; // not sure about this yet. override RAM copy of presetPreference for applyPresets
+          uint8_t backup = uopt->presetPreference;
+          uopt->presetPreference = 3; // override RAM copy of presetPreference for applyPresets
           applyPresets(videoMode);
+          uopt->presetPreference = backup;
         }
         break;
       case 'h':
@@ -2722,8 +2726,10 @@ void handleType2Command() {
           // load 640x480 preset via webui
           byte videoMode = getVideoMode();
           if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
-          uopt->presetPreference = 1; // not sure about this yet. override RAM copy of presetPreference for applyPresets
+          uint8_t backup = uopt->presetPreference;
+          uopt->presetPreference = 1; // override RAM copy of presetPreference for applyPresets
           applyPresets(videoMode);
+          uopt->presetPreference = backup;
         }
         break;
       default:
