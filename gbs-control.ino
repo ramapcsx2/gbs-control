@@ -1179,6 +1179,31 @@ void resetRunTimeVariables() {
   // reset information on the last source
 }
 
+void applyBestHTotal(uint16_t bestHTotal) {
+  uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
+  int diffHTotal = bestHTotal - orig_htotal;
+
+  uint16_t h_blank_display_start_position = bestHTotal - 1;
+  uint16_t h_blank_display_stop_position =  GBS::VDS_DIS_HB_SP::read() + diffHTotal;
+  uint16_t center_blank = ((h_blank_display_stop_position / 2) * 3) / 4; // a bit to the left
+  //uint16_t h_sync_start_position =  center_blank - (center_blank / 2);
+  uint16_t h_sync_start_position =  bestHTotal / 28; // test with HDMI board suggests this is better
+  uint16_t h_sync_stop_position =   center_blank + (center_blank / 2);
+  uint16_t h_blank_memory_start_position = h_blank_display_start_position - 1;
+  uint16_t h_blank_memory_stop_position =  GBS::VDS_HB_SP::read() + diffHTotal; // have to rely on currently loaded preset, see below
+
+  GBS::VDS_HSYNC_RST::write(bestHTotal);
+  GBS::VDS_HS_ST::write( h_sync_start_position );
+  GBS::VDS_HS_SP::write( h_sync_stop_position );
+  GBS::VDS_DIS_HB_ST::write( h_blank_display_start_position );
+  GBS::VDS_DIS_HB_SP::write( h_blank_display_stop_position );
+  GBS::VDS_HB_ST::write( h_blank_memory_start_position );
+  GBS::VDS_HB_SP::write( h_blank_memory_stop_position );
+  Serial.print("Base: "); Serial.print(orig_htotal);
+  Serial.print(" Best: "); Serial.print(bestHTotal);
+  Serial.print(" Diff: "); Serial.println(diffHTotal);
+}
+
 void doPostPresetLoadSteps() {
   // Keep the DAC off until this is done
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC
@@ -1251,7 +1276,10 @@ void doPostPresetLoadSteps() {
     writeOneByte(0x63, 0x0f);
     delay(22);
     // Any sync correction we were applying is gone
-    FrameSync::init();
+    uint16_t bestHTotal = FrameSync::init();
+    if (bestHTotal > 0) {
+      applyBestHTotal(bestHTotal);
+    }
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
   }
   resetPLLAD();
@@ -2566,8 +2594,10 @@ void loop() {
       getSyncStable() && rto->videoStandardInput != 0 && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval) {
     uint8_t debugRegBackup; writeOneByte(0xF0, 5); readFromRegister(0x63, 1, &debugRegBackup);
     writeOneByte(0x63, 0x0f);
-    if (FrameSync::init()) {
+    uint16_t bestHTotal = FrameSync::init();
+    if (bestHTotal > 0) {
       rto->syncLockFailIgnore = 2;
+      applyBestHTotal(bestHTotal);
     }
     else if (rto->syncLockFailIgnore-- == 0) {
       // frame time lock failed, most likely due to missing wires

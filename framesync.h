@@ -137,17 +137,15 @@ class FrameSyncManager {
 
     // Find the largest htotal that makes output frame time less than
     // the input.
-    // todo:
-    //Base htotal: 0
-    //Best htotal: 0
-    //Guru Meditation Error: Core  1 panic'ed (IntegerDivideByZero)
-    //. Exception was unhandled.
-
     static bool findBestHTotal(uint16_t &bestHtotal) {
       uint16_t htotal = HSYNC_RST::read();
       uint32_t inPeriod, outPeriod;
       uint16_t candHtotal;
       uint8_t stable = 0;
+
+      if (htotal == 0) { // safety
+        return false;
+      }
 
       unsigned long timeout = millis();
       while ((stable < syncHtotalStable) && (millis() - timeout) < 5000) {
@@ -190,7 +188,7 @@ class FrameSyncManager {
     }
 
     // Initialize sync locking
-    static bool init() {
+    static uint16_t init() {
       uint16_t bestHTotal = 0;
 
       // Adjust output horizontal sync timing so that the overall
@@ -199,34 +197,11 @@ class FrameSyncManager {
       // should then push the output frame time to being larger than
       // the input.
       if (!findBestHTotal(bestHTotal)) {
-        return false;
+        return 0;
       }
 
-      uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
-      int diffHTotal = bestHTotal - orig_htotal;
-      
-      uint16_t h_blank_display_start_position = bestHTotal - 1;
-      uint16_t h_blank_display_stop_position =  GBS::VDS_DIS_HB_SP::read() + diffHTotal;
-      uint16_t center_blank = ((h_blank_display_stop_position / 2) * 3) / 4; // a bit to the left
-      //uint16_t h_sync_start_position =  center_blank - (center_blank / 2);
-      uint16_t h_sync_start_position =  bestHTotal / 28; // test with HDMI board suggests this is better
-      uint16_t h_sync_stop_position =   center_blank + (center_blank / 2);
-      uint16_t h_blank_memory_start_position = h_blank_display_start_position - 1;
-      uint16_t h_blank_memory_stop_position =  GBS::VDS_HB_SP::read() + diffHTotal; // have to rely on currently loaded preset, see below
-
-      GBS::VDS_HSYNC_RST::write(bestHTotal);
-      GBS::VDS_HS_ST::write( h_sync_start_position );
-      GBS::VDS_HS_SP::write( h_sync_stop_position );
-      GBS::VDS_DIS_HB_ST::write( h_blank_display_start_position );
-      GBS::VDS_DIS_HB_SP::write( h_blank_display_stop_position );
-      GBS::VDS_HB_ST::write( h_blank_memory_start_position );
-      GBS::VDS_HB_SP::write( h_blank_memory_stop_position );
-      Serial.print("Base: "); Serial.print(orig_htotal);
-      Serial.print(" Best: "); Serial.print(bestHTotal);
-      Serial.print(" Diff: "); Serial.println(diffHTotal);
-
       syncLockReady = true;
-      return true;
+      return bestHTotal;
     }
 
     static bool ready(void) {
