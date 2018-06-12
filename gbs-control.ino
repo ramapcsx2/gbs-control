@@ -1312,7 +1312,7 @@ void doPostPresetLoadSteps() {
 
 void applyPresets(byte result) {
   if (result == 1) {
-    SerialM.println("NTSC timing ");
+    SerialM.println("NTSC ");
     rto->videoStandardInput = 1;
     if (uopt->presetPreference == 0) {
       writeProgramArrayNew(ntsc_240p);
@@ -1332,7 +1332,7 @@ void applyPresets(byte result) {
 #endif
   }
   else if (result == 2) {
-    SerialM.println("PAL timing ");
+    SerialM.println("PAL ");
     rto->videoStandardInput = 2;
     if (uopt->presetPreference == 0) {
       writeProgramArrayNew(pal_240p);
@@ -1352,7 +1352,7 @@ void applyPresets(byte result) {
 #endif
   }
   else if (result == 3) {
-    SerialM.println("NTSC HDTV timing ");
+    SerialM.println("NTSC HDTV ");
     rto->videoStandardInput = 3;
     // ntsc base
     if (uopt->presetPreference == 0) {
@@ -1373,7 +1373,7 @@ void applyPresets(byte result) {
 #endif
   }
   else if (result == 4) {
-    SerialM.println("PAL HDTV timing ");
+    SerialM.println("PAL HDTV ");
     rto->videoStandardInput = 4;
     // pal base
     if (uopt->presetPreference == 0) {
@@ -1394,7 +1394,7 @@ void applyPresets(byte result) {
 #endif
   }
   else if (result == 5) {
-    SerialM.println("720p HDTV timing ");
+    SerialM.println("720p HDTV ");
     rto->videoStandardInput = 5;
     if (uopt->presetPreference == 0) {
       writeProgramArrayNew(ntsc_240p);
@@ -1414,7 +1414,7 @@ void applyPresets(byte result) {
 #endif
   }
   else if (result == 6) {
-    SerialM.println("1080 HDTV timing ");
+    SerialM.println("1080 HDTV ");
     rto->videoStandardInput = 6;
     if (uopt->presetPreference == 0) {
       writeProgramArrayNew(ntsc_240p);
@@ -1736,36 +1736,38 @@ void setup() {
   if (!SPIFFS.begin()) {
     SerialM.println("SPIFFS Mount Failed");
   }
-  // load userprefs.txt
-  File f = SPIFFS.open("/userprefs.txt", "r");
-  if (!f) {
-    SerialM.println("userprefs open failed");
-  }
   else {
-    SerialM.println("userprefs open ok");
-    //on a fresh MCU:
-    //SPIFFS format: 1
-    //userprefs.txt open ok
-    //result[0] = 207
-    //result[1] = 207
-    // so remember to check for that!
-    char result[3];
-    result[0] = f.read();
-    result[0] -= '0'; // file streams with their chars..
-    uopt->presetPreference = (uint8_t)result[0]; // normal, fb or custom preset
-    SerialM.print("presetPreference = "); SerialM.println(uopt->presetPreference);
-    if (uopt->presetPreference > 3) uopt->presetPreference = 0; // fresh spiffs ?
-    result[1] = f.read();
-    result[1] -= '0';
-    uopt->enableFrameTimeLock = (uint8_t)result[1]; // Frame Time Lock
-    SerialM.print("FrameTime Lock = "); SerialM.println(uopt->enableFrameTimeLock);
-    if (uopt->enableFrameTimeLock > 1) uopt->enableFrameTimeLock = 0; // fresh spiffs ?
-    result[2] = f.read();
-    result[2] -= '0';
-    uopt->presetGroup = (uint8_t)result[2];
-    SerialM.print("presetGroup = "); SerialM.println(uopt->presetGroup); // custom preset group
-    if (uopt->presetGroup > 5) uopt->presetGroup = 0;
-    f.close();
+    // load userprefs.txt
+    File f = SPIFFS.open("/userprefs.txt", "r");
+    if (!f) {
+      SerialM.println("userprefs open failed");
+      uopt->presetPreference = 0;
+      uopt->enableFrameTimeLock = 0;
+      uopt->presetGroup = 0;
+      saveUserPrefs(); // if this fails, there must be a spiffs problem
+    }
+    else {
+      SerialM.println("userprefs open ok");
+      //on a fresh / spiffs not formatted yet MCU:
+      //userprefs.txt open ok //result[0] = 207 //result[1] = 207
+      char result[3];
+      result[0] = f.read();
+      result[0] -= '0'; // file streams with their chars..
+      uopt->presetPreference = (uint8_t)result[0]; // normal, fb or custom preset
+      SerialM.print("presetPreference = "); SerialM.println(uopt->presetPreference);
+      if (uopt->presetPreference > 3) uopt->presetPreference = 0; // fresh spiffs ?
+      result[1] = f.read();
+      result[1] -= '0';
+      uopt->enableFrameTimeLock = (uint8_t)result[1]; // Frame Time Lock
+      SerialM.print("FrameTime Lock = "); SerialM.println(uopt->enableFrameTimeLock);
+      if (uopt->enableFrameTimeLock > 1) uopt->enableFrameTimeLock = 0; // fresh spiffs ?
+      result[2] = f.read();
+      result[2] -= '0';
+      uopt->presetGroup = (uint8_t)result[2];
+      SerialM.print("presetGroup = "); SerialM.println(uopt->presetGroup); // custom preset group
+      if (uopt->presetGroup > 5) uopt->presetGroup = 0;
+      f.close();
+    }
   }
 #endif
   delay(500); // give the entire system some time to start up.
@@ -1811,7 +1813,7 @@ void setup() {
 #endif
   SerialM.print("\nMCU: "); SerialM.println(F_CPU);
 
-  SerialM.print("active FTL: "); SerialM.println(uopt->enableFrameTimeLock);
+  SerialM.print("FTL: "); SerialM.println(uopt->enableFrameTimeLock);
   LEDOFF // startup done, disable the LED
 }
 
@@ -1887,7 +1889,6 @@ void loop() {
     dnsServer.processNextRequest();
     server.handleClient();
     webSocket.loop();
-
     // if there's a control command from the server, globalCommand will now hold it.
     // process it in the parser, then reset to 0 at the end of the sketch.
   }
@@ -1917,11 +1918,11 @@ void loop() {
         SerialM.println("};");
         break;
       case '+':
-        SerialM.println("shift hor. +");
+        SerialM.println("hor. +");
         shiftHorizontalRight();
         break;
       case '-':
-        SerialM.println("shift hor. -");
+        SerialM.println("hor. -");
         shiftHorizontalLeft();
         break;
       case '*':
@@ -1968,12 +1969,12 @@ void loop() {
         updateCoastPosition();
         break;
       case 'Y':
-        SerialM.println("720p ntsc preset");
+        SerialM.println("720p ntsc");
         writeProgramArrayNew(ntsc_1280x720);
         doPostPresetLoadSteps();
         break;
       case 'y':
-        SerialM.println("720p pal preset");
+        SerialM.println("720p pal");
         writeProgramArrayNew(pal_1280x720);
         doPostPresetLoadSteps();
         break;
@@ -2119,7 +2120,7 @@ void loop() {
         //doPostPresetLoadSteps();
         break;
       case 'f':
-        SerialM.print("hor. peaking ");
+        SerialM.print("peaking ");
         if (GBS::VDS_PK_Y_H_BYPS::read() == 1) {
           GBS::VDS_PK_Y_H_BYPS::write(0);
           SerialM.println("on");
@@ -2142,7 +2143,6 @@ void loop() {
         break;
       case 'L':
         {
-          SerialM.println("LED toggle");
           static boolean led_toggle = 0;
           if (led_toggle) {
             LEDOFF
@@ -2178,8 +2178,8 @@ void loop() {
         doPostPresetLoadSteps();
         break;
       case '3':
-        writeProgramArrayNew(ofw_ypbpr);
-        doPostPresetLoadSteps();
+        //writeProgramArrayNew(ofw_ypbpr);
+        //doPostPresetLoadSteps();
         break;
       case '4':
         scaleVertical(1, true);
@@ -2553,42 +2553,12 @@ void loop() {
     boolean STATUS_MISC_PLLAD_LOCK = GBS::STATUS_MISC_PLLAD_LOCK::read();
     uint16_t SP_H_PULSE_IGNOR = GBS::SP_H_PULSE_IGNOR::read();
 
-
     String output = "h:" + String(HPERIOD_IF) + " " + "v:" + String(VPERIOD_IF) + " PLL:" +
                     (STATUS_MISC_PLL648_LOCK ? "|_" : "  ") + (STATUS_MISC_PLLAD_LOCK ? "_|" : "  ") +
                     " ign:" + String(SP_H_PULSE_IGNOR, HEX) + " stat:" + String(stat0, HEX) + String(stat5, HEX) +
                     " deb:" + String(TEST_BUS, HEX) + " m:" + String(video_mode) + " ht:" + String(STATUS_SYNC_PROC_HTOTAL) +
                     " vt:" + String(STATUS_SYNC_PROC_VTOTAL) + " hpw:" + String(STATUS_SYNC_PROC_HLOW_LEN);
     SerialM.println(output);
-
-    //#if defined(ESP8266)
-    //    static long lastTimeWSInfoSend = millis();
-    //    if ((millis() - lastTimeWSInfoSend) > 120) {
-    //      static boolean tickTock = 0;
-    //      output += " free RAM:" + (String)ESP.getFreeHeap();
-    //      output += tickTock ? "" : " "; // alternate string on each send, prevents grouping of same messages in browsers
-    //      output += "\n";
-    //      webSocket.sendTXT(0, output);
-    //      lastTimeWSInfoSend = millis();
-    //      tickTock = !tickTock;
-    //    }
-    //#endif
-
-    //    SerialM.print("h:"); SerialM.print(HPERIOD_IF); SerialM.print(" ");
-    //    SerialM.print("v:"); SerialM.print(VPERIOD_IF);
-    //    SerialM.print(" PLL:");
-    //    if (STATUS_MISC_PLL648_LOCK) SerialM.print("|_");
-    //    else SerialM.print("  ");
-    //    if (STATUS_MISC_PLLAD_LOCK) SerialM.print("_|");
-    //    else SerialM.print("  ");
-    //    SerialM.print(" ign:"); SerialM.print(SP_H_PULSE_IGNOR, HEX);
-    //    SerialM.print(" stat:"); SerialM.print(stat0, HEX); SerialM.print(stat5, HEX);
-    //    SerialM.print(" deb:"); SerialM.print(TEST_BUS, HEX);
-    //    SerialM.print(" m:"); SerialM.print(video_mode);
-    //    SerialM.print(" ht:"); SerialM.print(STATUS_SYNC_PROC_HTOTAL);
-    //    SerialM.print(" vt:"); SerialM.print(STATUS_SYNC_PROC_VTOTAL);
-    //    SerialM.print(" hpw:"); SerialM.print(STATUS_SYNC_PROC_HLOW_LEN);
-    //    SerialM.print("\n");
   } // end information mode
 
   // only run this when sync is stable!
@@ -2700,7 +2670,7 @@ void handleType2Command() {
         break;
       case 'a':
         // restart ESP MCU (due to an SDK bug, this does not work reliably after programming. It needs a power cycle or reset button push first.)
-        SerialM.print("Attempting to restart the MCU. If it hangs, reset manually!");
+        SerialM.print("Attempting to restart MCU. If it hangs, reset manually!");
         delay(300);
         ESP.restart();
         while (1);
@@ -2761,14 +2731,15 @@ void handleType2Command() {
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght) {
   switch (type) {
     case WStype_DISCONNECTED:             // if the websocket is disconnected
-      SerialM.println("Websocket Disconnected");
+      Serial.println("Websocket Disconnected");
       break;
     case WStype_CONNECTED: {              // if a new websocket connection is established
         IPAddress ip = webSocket.remoteIP(num);
-        SerialM.print("Websocket Connected on IP: "); SerialM.println(ip);
+        Serial.print("Websocket Connected on IP: "); Serial.println(ip);
       }
       break;
     case WStype_TEXT:                     // if new text data is received
+      LEDON delay(1); LEDOFF
       //SerialM.printf("[%u] get Text (length: %d): %s\n", num, lenght, payload);
       break;
     default:
