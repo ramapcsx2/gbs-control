@@ -165,22 +165,6 @@ class FrameSyncManager {
       return true;
     }
 
-    static void adjustFrameSize(int16_t delta) {
-      uint16_t vtotal = 0, vsst = 0, vssp = 0;
-      uint16_t currentLineNumber, earlyFrameBoundary;
-      uint16_t timeout = 10; // this routine usually finishes on first or second attempt
-      VRST_SST_SSP::read(vtotal, vsst, vssp);
-      earlyFrameBoundary = vtotal / 4;
-      vtotal += delta;
-      vsst += delta;
-      vssp += delta;
-      do {
-        // wait for next frame start + 20 lines for stability
-        currentLineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
-      } while ((currentLineNumber > earlyFrameBoundary || currentLineNumber < 20) && --timeout > 0);
-      VRST_SST_SSP::write(vtotal, vsst, vssp);
-    }
-
   public:
     static void reset() {
       syncLockReady = false;
@@ -217,7 +201,7 @@ class FrameSyncManager {
     // signals and adjusting the frame size (and thus the output vsync
     // frequency) to bring the phase offset closer to the desired
     // value.
-    static bool run(void) {
+    static bool run(uint8_t frameTimeLockMethod) {
       uint32_t period;
       int32_t phase;
       int32_t target;
@@ -240,7 +224,25 @@ class FrameSyncManager {
 
       //Serial.print("Correction: "); Serial.println(correction);
 
-      adjustFrameSize(correction - syncLastCorrection);
+      int16_t delta = correction - syncLastCorrection;
+      uint16_t vtotal = 0, vsst = 0, vssp = 0;
+      uint16_t currentLineNumber, earlyFrameBoundary;
+      uint16_t timeout = 10; // this routine usually finishes on first or second attempt
+      VRST_SST_SSP::read(vtotal, vsst, vssp);
+      earlyFrameBoundary = vtotal / 4;
+      vtotal += delta;
+      if (frameTimeLockMethod == 0) { // the default: moves VS position
+        vsst += delta;
+        vssp += delta;
+      }
+      // else it is method 1: don't move VS position
+      
+      do {
+        // wait for next frame start + 20 lines for stability
+        currentLineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
+      } while ((currentLineNumber > earlyFrameBoundary || currentLineNumber < 20) && --timeout > 0);
+      VRST_SST_SSP::write(vtotal, vsst, vssp);
+      
       syncLastCorrection = correction;
 
       return true;
