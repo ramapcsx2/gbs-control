@@ -1201,9 +1201,9 @@ void applyBestHTotal(uint16_t bestHTotal) {
     GBS::VDS_HB_ST::write( h_blank_memory_start_position );
     GBS::VDS_HB_SP::write( h_blank_memory_stop_position );
   }
-  Serial.print("Base: "); Serial.print(orig_htotal);
-  Serial.print(" Best: "); Serial.print(bestHTotal);
-  Serial.print(" Diff: "); Serial.println(diffHTotal);
+  SerialM.print("Base: "); SerialM.print(orig_htotal);
+  SerialM.print(" Best: "); SerialM.print(bestHTotal);
+  SerialM.print(" Diff: "); SerialM.println(diffHTotal);
 }
 
 void doPostPresetLoadSteps() {
@@ -1689,22 +1689,43 @@ void startWire() {
 }
 
 void setup() {
+  Serial.begin(115200); // set Arduino IDE Serial Monitor to the same 115200 bauds!
+  rto->webServerEnabled = true; // control gbs-control(:p) via web browser, only available on wifi boards. disable to conserve power.
 #if defined(ESP8266)
   // SDK enables WiFi and uses stored credentials to auto connect. This can't be turned off.
   // Correct the hostname while it is still in CONNECTING state
-  //wifi_station_set_hostname("gbscontrol"); // direct SDK call
+  //wifi_station_set_hostname("gbscontrol"); // SDK version
   WiFi.hostname("gbscontrol");
-#endif
-  Serial.begin(115200); // set Arduino IDE Serial Monitor to the same 115200 bauds!
-  Serial.setTimeout(10);
-  SerialM.println("starting");
 
+  // start web services as early in boot as possible > greater chance to get a websocket connection in time for logging startup
+  if (rto->webServerEnabled) {
+    start_webserver();
+    WiFi.setOutputPower(12.0f); // float: min 0.0f, max 20.5f
+    rto->webServerStarted = true;
+    unsigned long initLoopStart = millis();
+    while (millis() - initLoopStart < 2000) {
+      persWM.handleWiFi();
+      dnsServer.processNextRequest();
+      server.handleClient();
+      webSocket.loop();
+      delay(1); // allow some time for the ws server to find clients currently trying to reconnect
+    }
+  }
+  else {
+    //WiFi.disconnect(); // deletes credentials
+    WiFi.mode(WIFI_OFF);
+    WiFi.forceSleepBegin();
+    delay(1);
+  }
+#endif
+
+  Serial.setTimeout(10);
+  Serial.println("starting");
   // user options // todo: could be stored in Arduino EEPROM. Other MCUs have SPIFFS
   uopt->presetPreference = 0; // normal, 720p, fb or custom
   uopt->presetGroup = 0; //
   uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
   // run time options
-  rto->webServerEnabled = true; // control gbs-control(:p) via web browser, only available on wifi boards. disable to conserve power.
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->syncLockFailIgnore = 2; // allow syncLock to fail x-1 times in a row before giving up (sync glitch immunity)
@@ -1719,7 +1740,7 @@ void setup() {
   rto->videoStandardInput = 0;
   rto->currentSyncProcessorMode = 0;
   rto->deinterlacerWasTurnedOff = false;
-  rto->webServerStarted = false;
+  if (!rto->webServerEnabled) rto->webServerStarted = false;
   rto->printInfos = false;
   rto->sourceDisconnected = false;
 
@@ -1769,9 +1790,9 @@ void setup() {
       f.close();
     }
   }
-#endif
+#else
   delay(500); // give the entire system some time to start up.
-
+#endif
   startWire();
 
   // i2c test: read 5725 product id; if failed, reset bus
@@ -1803,14 +1824,6 @@ void setup() {
   syncProcessorModeSD(); // default
   goLowPowerWithInputDetection();
 
-#if defined(ESP8266)
-  if (!rto->webServerEnabled) {
-    //WiFi.disconnect(); // deletes credentials
-    WiFi.mode(WIFI_OFF);
-    WiFi.forceSleepBegin();
-    delay(1);
-  }
-#endif
   SerialM.print("\nMCU: "); SerialM.println(F_CPU);
 
   SerialM.print("FTL: "); SerialM.println(uopt->enableFrameTimeLock);
@@ -1877,13 +1890,6 @@ void loop() {
 #endif
 
 #if defined(ESP8266)
-  static unsigned long webServerStartDelay = millis();
-  if (rto->webServerEnabled && !rto->webServerStarted && ((millis() - webServerStartDelay) > 6000) ) {
-    start_webserver();
-    WiFi.setOutputPower(10.0f); // float: min 0.0f, max 20.5f
-    rto->webServerStarted = true;
-  }
-
   if (rto->webServerEnabled && rto->webServerStarted) {
     persWM.handleWiFi();
     dnsServer.processNextRequest();
@@ -2670,10 +2676,8 @@ void handleType2Command() {
         break;
       case 'a':
         // restart ESP MCU (due to an SDK bug, this does not work reliably after programming. It needs a power cycle or reset button push first.)
-        SerialM.print("Attempting to restart MCU. If it hangs, reset manually!");
-        delay(300);
+        SerialM.print("Attempting to restart MCU. If it hangs, reset manually!"); SerialM.println("\n");
         ESP.restart();
-        while (1);
         break;
       case 'b':
         uopt->presetGroup = 0;
@@ -2700,8 +2704,10 @@ void handleType2Command() {
           // load 1280x960 preset via webui
           byte videoMode = getVideoMode();
           if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
-          uopt->presetPreference = 0; // not sure about this yet. override RAM copy of presetPreference for applyPresets
+          uint8_t backup = uopt->presetPreference;
+          uopt->presetPreference = 0; // override RAM copy of presetPreference for applyPresets
           applyPresets(videoMode);
+          uopt->presetPreference = backup;
         }
         break;
       case 'g':
@@ -2709,8 +2715,10 @@ void handleType2Command() {
           // load 1280x720 preset via webui
           byte videoMode = getVideoMode();
           if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
-          uopt->presetPreference = 3; // not sure about this yet. override RAM copy of presetPreference for applyPresets
+          uint8_t backup = uopt->presetPreference;
+          uopt->presetPreference = 3; // override RAM copy of presetPreference for applyPresets
           applyPresets(videoMode);
+          uopt->presetPreference = backup;
         }
         break;
       case 'h':
@@ -2718,8 +2726,10 @@ void handleType2Command() {
           // load 640x480 preset via webui
           byte videoMode = getVideoMode();
           if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
-          uopt->presetPreference = 1; // not sure about this yet. override RAM copy of presetPreference for applyPresets
+          uint8_t backup = uopt->presetPreference;
+          uopt->presetPreference = 1; // override RAM copy of presetPreference for applyPresets
           applyPresets(videoMode);
+          uopt->presetPreference = backup;
         }
         break;
       default:
@@ -2735,7 +2745,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
       break;
     case WStype_CONNECTED: {              // if a new websocket connection is established
         IPAddress ip = webSocket.remoteIP(num);
-        Serial.print("Websocket Connected on IP: "); Serial.println(ip);
+        SerialM.print("Websocket Connected on IP: "); SerialM.println(ip);
       }
       break;
     case WStype_TEXT:                     // if new text data is received
