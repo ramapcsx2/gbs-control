@@ -2815,7 +2815,7 @@ void start_webserver()
   });
   persWM.onAp([]() {
     WiFi.hostname("gbscontrol");
-    SerialM.print("AP MODE ");
+    SerialM.print("AP MODE: "); SerialM.println("connect to wifi network called gbscontrol with password qqqqqqqq");
     //SerialM.println(persWM.getApSsid()); // crash with exception
     //SerialM.print("hostname: "); SerialM.println(WiFi.hostname());
   });
@@ -2891,7 +2891,7 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
 
     f.close();
     SerialM.print("loading from presetGroup "); SerialM.println(result[2]); // custom preset group (console)
-    group = result[2];
+    if ((uint8_t)result[2] < 10) group = result[2]; // otherwise not stored on spiffs
   }
   else {
     // file not found, we don't know what preset to load
