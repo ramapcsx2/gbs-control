@@ -1788,7 +1788,7 @@ void setup() {
       result[2] = f.read(); result[2] -= '0';
       uopt->presetGroup = (uint8_t)result[2];
       SerialM.print("presetGroup = "); SerialM.println(uopt->presetGroup); // custom preset group
-      if (uopt->presetGroup > 5) uopt->presetGroup = 0;
+      if (uopt->presetGroup > 4) uopt->presetGroup = 0;
 
       result[3] = f.read(); result[3] -= '0';
       uopt->frameTimeLockMethod = (uint8_t)result[3];
@@ -2628,18 +2628,21 @@ void handleType2Command() {
         saveUserPrefs();
         break;
       case '2':
-        uopt->presetPreference = 2; // custom
-        saveUserPrefs();
+        //
         break;
       case '3':
         {
-          const uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
-          writeProgramArrayNew(preset);
-          doPostPresetLoadSteps();
+          if (rto->videoStandardInput == 0) SerialM.println("no input detected, aborting action");
+          else {
+            const uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
+            writeProgramArrayNew(preset);
+            doPostPresetLoadSteps();
+          }
         }
         break;
       case '4':
-        savePresetToSPIFFS();
+        if (rto->videoStandardInput == 0) SerialM.println("no input detected, aborting action");
+        else savePresetToSPIFFS();
         break;
       case '5':
         //Frame Time Lock ON
@@ -2689,14 +2692,27 @@ void handleType2Command() {
         break;
       case 'b':
         uopt->presetGroup = 0;
+        uopt->presetPreference = 2; // custom
         saveUserPrefs();
         break;
       case 'c':
         uopt->presetGroup = 1;
+        uopt->presetPreference = 2;
         saveUserPrefs();
         break;
       case 'd':
         uopt->presetGroup = 2;
+        uopt->presetPreference = 2;
+        saveUserPrefs();
+        break;
+      case 'j':
+        uopt->presetGroup = 3;
+        uopt->presetPreference = 2;
+        saveUserPrefs();
+        break;
+      case 'k':
+        uopt->presetGroup = 4;
+        uopt->presetPreference = 2;
         saveUserPrefs();
         break;
       case 'e':
@@ -2780,7 +2796,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
       }
       break;
     case WStype_TEXT:                     // if new text data is received
-      LEDON delay(1); LEDOFF
       //SerialM.printf("[%u] get Text (length: %d): %s\n", num, lenght, payload);
       break;
     default:
@@ -2860,7 +2875,7 @@ void StrClear(char *str, uint16_t length)
   }
 }
 
-const uint8_t* loadPresetFromSPIFFS(byte result) {
+const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
   static uint8_t preset[592];
   String s = "";
   char group = '0';
@@ -2881,38 +2896,37 @@ const uint8_t* loadPresetFromSPIFFS(byte result) {
   else {
     // file not found, we don't know what preset to load
     SerialM.println("please select a preset group first!");
-    if (result == 2 || result == 4) return pal_240p;
+    if (forVideoMode == 2 || forVideoMode == 4) return pal_240p;
     else return ntsc_240p;
   }
 
-  if (result == 1) {
+  if (forVideoMode == 1) {
     f = SPIFFS.open("/preset_ntsc." + String(group), "r");
   }
-  else if (result == 2) {
+  else if (forVideoMode == 2) {
     f = SPIFFS.open("/preset_pal." + String(group), "r");
   }
-  else if (result == 3) {
+  else if (forVideoMode == 3) {
     f = SPIFFS.open("/preset_ntsc_480p." + String(group), "r");
   }
-  else if (result == 4) {
+  else if (forVideoMode == 4) {
     f = SPIFFS.open("/preset_pal_576p." + String(group), "r");
   }
-  else if (result == 5) {
+  else if (forVideoMode == 5) {
     f = SPIFFS.open("/preset_ntsc_720p." + String(group), "r");
   }
-  else if (result == 6) {
+  else if (forVideoMode == 6) {
     f = SPIFFS.open("/preset_ntsc_1080p." + String(group), "r");
   }
 
   if (!f) {
     SerialM.println("open preset file failed");
-    if (result == 2 || result == 4) return pal_240p;
+    if (forVideoMode == 2 || forVideoMode == 4) return pal_240p;
     else return ntsc_240p;
   }
   else {
     SerialM.println("preset file open ok: ");
-    SerialM.print(f.name());
-    SerialM.print(" "); SerialM.println(f.size());
+    SerialM.println(f.name());
     s = f.readStringUntil('}');
     f.close();
   }
