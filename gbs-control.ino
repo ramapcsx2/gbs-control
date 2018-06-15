@@ -2779,6 +2779,32 @@ void handleType2Command() {
         else if (uopt->frameTimeLockMethod == 1) uopt->frameTimeLockMethod = 0;
         saveUserPrefs();
         break;
+      case 'l':
+        // cycle through available SDRAM clocks
+        {
+          uint8_t PLL_MS = GBS::PLL_MS::read();
+          uint8_t memClock = 0;
+          PLL_MS++; PLL_MS &= 0x7;
+          switch (PLL_MS) {
+            case 0: memClock = 108; break;
+            case 1: memClock = 81; break;
+            case 2: memClock = 255; break; //feedback clock
+            case 3: memClock = 162; break;
+            case 4: memClock = 144; break;
+            case 5: memClock = 185; break;
+            case 6: memClock = 216; break;
+            case 7: memClock = 129; break;
+            default: break;
+          }
+          GBS::PLL_MS::write(PLL_MS);
+          if (memClock != 255) {
+            SerialM.print("SDRAM clock: "); SerialM.print(memClock); SerialM.println("Mhz");
+          }
+          else {
+            SerialM.print("SDRAM clock: "); SerialM.println("Feedback clock (default)");
+          }
+        }
+        break;
       default:
         break;
     }
@@ -2890,8 +2916,8 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
     result[2] = f.read();
 
     f.close();
-    SerialM.print("loading from presetGroup "); SerialM.println(result[2]); // custom preset group (console)
-    if ((uint8_t)result[2] < 10) group = result[2]; // otherwise not stored on spiffs
+    if ((uint8_t)(result[2] - '0') < 10) group = result[2]; // otherwise not stored on spiffs
+    SerialM.print("loading from presetGroup "); SerialM.println((uint8_t)(group - '0')); // custom preset group (console)
   }
   else {
     // file not found, we don't know what preset to load
