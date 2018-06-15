@@ -220,6 +220,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x03, 0x29, 0,  8> VDS_BLEV_GAIN;
     typedef UReg<0x03, 0x2A, 0,  1> VDS_BLEV_BYPS;
     typedef UReg<0x03, 0x2A, 4,  2> VDS_STEP_DLY_CNTRL;
+    typedef UReg<0x03, 0x2A, 6,  2> VDS_0X2A_RESERVED_2BITS;
     typedef UReg<0x03, 0x2B, 0,  4> VDS_STEP_GAIN;
     typedef UReg<0x03, 0x2B, 4,  3> VDS_STEP_CLIP;
     typedef UReg<0x03, 0x2B, 7,  1> VDS_UV_STEP_BYPS;

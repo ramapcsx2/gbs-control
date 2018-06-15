@@ -1176,22 +1176,20 @@ void debugPortSetSP() {
   writeOneByte(0x4D, 0x2a); // SP
 }
 
-void resetRunTimeVariables() {
-  // reset information on the last source
-}
-
 void applyBestHTotal(uint16_t bestHTotal) {
   uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
   int diffHTotal = bestHTotal - orig_htotal;
 
-  if (diffHTotal != 0) { // if source is different than presets timings
+  // apply correction, but only if source is different than presets timings, ie: not a custom preset or source doesn't fit custom preset
+  // hack: rto->syncLockFailIgnore == 3 means the correction should be forced (command '.')
+  if (diffHTotal != 0 || rto->syncLockFailIgnore == 3) {
     uint16_t h_blank_display_start_position = bestHTotal - 1;
     uint16_t h_blank_display_stop_position =  GBS::VDS_DIS_HB_SP::read() + diffHTotal;
     uint16_t center_blank = ((h_blank_display_stop_position / 2) * 3) / 4; // a bit to the left
     //uint16_t h_sync_start_position =  center_blank - (center_blank / 2);
     uint16_t h_sync_start_position =  bestHTotal / 28; // test with HDMI board suggests this is better
     uint16_t h_sync_stop_position =   center_blank + (center_blank / 2);
-    uint16_t h_blank_memory_start_position = h_blank_display_start_position - 1;
+    uint16_t h_blank_memory_start_position = h_blank_display_start_position - (h_blank_display_start_position / 24); // at least h_blank_display_start_position - 1
     uint16_t h_blank_memory_stop_position =  GBS::VDS_HB_SP::read() + diffHTotal; // have to rely on currently loaded preset, see below
 
     GBS::VDS_HSYNC_RST::write(bestHTotal);
@@ -1263,7 +1261,6 @@ void doPostPresetLoadSteps() {
     syncProcessorModeSD();
   }
   setSOGLevel( rto->currentLevelSOG );
-  resetRunTimeVariables();
   resetDigital();
   enableDebugPort();
   resetPLL();
@@ -2044,6 +2041,7 @@ void loop() {
         break;
       case '.':
         resetSyncLock();
+        rto->syncLockFailIgnore = 3;
         break;
       case 'j':
         resetPLL(); resetPLLAD();
@@ -2582,8 +2580,8 @@ void loop() {
     writeOneByte(0x63, 0x0f);
     uint16_t bestHTotal = FrameSync::init();
     if (bestHTotal > 0) {
-      rto->syncLockFailIgnore = 2;
       applyBestHTotal(bestHTotal);
+      rto->syncLockFailIgnore = 2;
     }
     else if (rto->syncLockFailIgnore-- == 0) {
       // frame time lock failed, most likely due to missing wires
@@ -2803,6 +2801,25 @@ void handleType2Command() {
           else {
             SerialM.print("SDRAM clock: "); SerialM.println("Feedback clock (default)");
           }
+        }
+        break;
+      case 'm':
+        // DCTI (pixel edges slope enhancement)
+        if (GBS::VDS_UV_STEP_BYPS::read() == 1) {
+          GBS::VDS_UV_STEP_BYPS::write(0);
+          if (GBS::VDS_TAP6_BYPS::read() == 1) {
+            GBS::VDS_TAP6_BYPS::write(0); // no good way to store this change for later reversal
+            GBS::VDS_0X2A_RESERVED_2BITS::write(1); // so use this trick to detect it later
+          }
+          SerialM.println("DCTI on");
+        }
+        else {
+          GBS::VDS_UV_STEP_BYPS::write(1);
+          if (GBS::VDS_0X2A_RESERVED_2BITS::read() == 1) {
+            GBS::VDS_TAP6_BYPS::write(1);
+            GBS::VDS_0X2A_RESERVED_2BITS::write(0);
+          }
+          SerialM.println("DCTI off");
         }
         break;
       default:
