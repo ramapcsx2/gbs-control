@@ -159,7 +159,8 @@ struct runTimeOptions {
   boolean deinterlacerWasTurnedOff;
   boolean syncLockEnabled;
   uint8_t syncLockFailIgnore;
-  uint8_t currentSyncProcessorMode : 2; //HD or SD
+  uint8_t currentSyncProcessorMode : 2; // SD, HD, VGA
+  boolean externalHVEnabled;
   boolean printInfos;
   boolean sourceDisconnected;
   boolean webServerEnabled;
@@ -465,7 +466,6 @@ void syncProcessorModeHD() {
 }
 
 void syncProcessorModeVGA() {
-  rto->videoStandardInput = 15;
   rto->syncLockEnabled = false; // not necessary, since VDS is off / bypassed
   writeOneByte(0xF0, 5);
   writeOneByte(0x37, 0x04);
@@ -473,7 +473,6 @@ void syncProcessorModeVGA() {
   writeOneByte(0x39, 0x00);
   writeOneByte(0xF0, 0);
   writeOneByte(0x40, 0x05); // source clocks from pll, 81Mhz mem clock
-  writeOneByte(0x46, 0x00); // entire block disabled. also check conditional in resetDigital()
 
   rto->currentSyncProcessorMode = 3;
 }
@@ -521,32 +520,28 @@ uint8_t detectAndSwitchToActiveInput() { // if any
   static boolean toggle = 0;
   static uint8_t annoying = 0;
 
+  uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
+
   writeOneByte(0xF0, 0);
   long timeout = millis();
   while (readout == 0 && millis() - timeout < 150) {
     yield();
     readFromRegister(0x2f, 1, &readout);
-    if (readout != 0 || getVideoMode() > 0) { // getVideoMode() writes 0 to 0xF0, so okay
-      uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
-      if (currentInput == 1 && !toggle) {
+    if (readout != 0 || getVideoMode() > 0) {
+      if (currentInput == 1 && rto->externalHVEnabled == 0 && getVideoMode() != 0) { // RGBS data inputs + ext off = RGBS! For RGBS it should be possible to tell a video mode..
         rto->inputIsYpBpR = 0;
-        toggle = !toggle;
-        //SerialM.println("return 1");
         rto->sourceDisconnected = false;
         return 1;
       }
-      else if (currentInput == 0) {
-        rto->inputIsYpBpR = 1;
-        //SerialM.println("return 2");
-        rto->sourceDisconnected = false;
-        return 2;
-      }
-      if (currentInput == 1 && toggle) { // RGBS data inputs but checked for "toggle", so RGBHV
+      else if (currentInput == 1 && rto->externalHVEnabled == 1) { // RGBS data inputs + ext on = RGBHV!
         rto->inputIsYpBpR = 0;
-        toggle = !toggle;
-        //SerialM.println("return 3");
         rto->sourceDisconnected = false;
         return 3;
+      }
+      else if (currentInput == 0) { // don't care about ext HV for YUV // but maybe also check for video mode
+        rto->inputIsYpBpR = 1;
+        rto->sourceDisconnected = false;
+        return 2;
       }
     }
   }
@@ -555,14 +550,17 @@ uint8_t detectAndSwitchToActiveInput() { // if any
     GBS::ADC_SOGEN::write(1); // test inputs that require SOG separation (normal)
     GBS::SP_EXT_SYNC_SEL::write(1); // bypass the HV input
     GBS::SP_SOG_MODE::write(1); //5_56 bit 0
+    //Serial.println("     disabling ");
+    rto->externalHVEnabled = 0;
   }
   annoying++;
-  if (annoying == 3) { //RGBHV test
+  if (annoying > 3 && toggle == 1) { //RGBHV test, only if ADC_INPUT_SEL is going to be "1" (RGBHV / RGBS data input)
     annoying = 0;
-    GBS::ADC_SOGEN::write(0); // signals input detector to test HV + prevents SOG from generating signals
+    //Serial.println("     enabling ");
     GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input
-    GBS::ADC_SOGEN::write(1); delay(100); GBS::ADC_SOGEN::write(0); delay(100);
+    GBS::ADC_SOGEN::write(0); delay(30);
     GBS::SP_SOG_MODE::write(0); //5_56 bit 0
+    rto->externalHVEnabled = 1;
   }
 
   byte randomValue = random(0, 2); // random(inclusive, exclusive)
@@ -608,6 +606,10 @@ void inputAndSyncDetect() {
     GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input
     GBS::ADC_SOGEN::write(0);
     GBS::SP_SOG_MODE::write(0);
+    // exception for this mode: apply it right here, not later in syncwatcher
+    rto->videoStandardInput = 15;
+    disableVDS();
+    applyPresets(rto->videoStandardInput);
   }
 }
 
@@ -1371,7 +1373,7 @@ void doPostPresetLoadSteps() {
   SerialM.println("post preset done");
 }
 
-void applyPresets(byte result) {
+void applyPresets(uint8_t result) {
   if (result == 1) {
     SerialM.println("NTSC ");
     rto->videoStandardInput = 1;
@@ -1497,7 +1499,6 @@ void applyPresets(byte result) {
   else if (result == 15) {
     SerialM.println("RGBHV bypass ");
     writeProgramArrayNew(ntsc_240p);
-    syncProcessorModeVGA();
     bypassModeSwitch();
   }
   else {
@@ -1564,7 +1565,7 @@ static byte getVideoMode() {
   if ((detectedMode & 0x10) == 0x10) return 3; // edtv 60 progressive
   if ((detectedMode & 0x40) == 0x40) return 4; // edtv 50 progressive
 
-  if (GBS::ADC_SOGEN::read() == 0 && GBS::SP_EXT_SYNC_SEL::read() == 0) { // okay, time to check RGBHV
+  if (rto->externalHVEnabled) { // time to check RGBHV
     // maybe add a test bus check here
     writeOneByte(0xF0, 0);
     //readFromRegister(0x2f, 1, &detectedMode);
@@ -1677,6 +1678,7 @@ void setPhaseADC() {
 }
 
 void updateCoastPosition() {
+  if (rto->videoStandardInput == 15) return;
   uint16_t inHlength = 0;
   int i = 0;
   for (; i < 8; i++) {
@@ -1685,12 +1687,14 @@ void updateCoastPosition() {
   inHlength /= i;
   inHlength *= 4;
   SerialM.print("in length: ");  SerialM.println(inHlength);
-  GBS::SP_H_CST_SP::write(inHlength - (inHlength / 24)); // snes requires this to be 4% less than inHlength (else jumpy pic)
-  GBS::SP_H_CST_ST::write((inHlength / 4) - 8);
+  if (inHlength > 0) {
+    GBS::SP_H_CST_SP::write(inHlength - (inHlength / 24)); // snes requires this to be 4% less than inHlength (else jumpy pic)
+    GBS::SP_H_CST_ST::write((inHlength / 4) - 8);
+  }
 }
 
 void updateClampPosition() {
-  if (rto->inputIsYpBpR) {
+  if (rto->inputIsYpBpR && rto->videoStandardInput != 15) {
     // in YUV mode, should use back porch clamping: 14 clocks
     GBS::SP_CS_CLP_ST::write(0x19);
     GBS::SP_CS_CLP_SP::write(0x27);
@@ -1727,8 +1731,10 @@ void setInitialClampPosition() {
 
 void bypassModeSwitch() {
   uint8_t readout;
-  //if (GBS::DAC_RGBS_ADC2DAC::read() == 0) {
-  GBS::SP_H_PULSE_IGNOR::write(0x04);
+
+  rto->videoStandardInput = 15; // making sure
+  rto->externalHVEnabled = 1; // todo: find out why this is 0 at this point. it should've been left at 1 from detection
+
   writeOneByte(0xF0, 0);
   writeOneByte(0x40, 0x0c); // drop memory clock
   writeOneByte(0x41, 0x35); // PLL clock = from ADC
@@ -1741,19 +1747,22 @@ void bypassModeSwitch() {
   writeOneByte(0xF0, 3);
   readFromRegister(0x1a, 1, &readout); writeOneByte(0x1a, readout | (1 << 4)); // frame lock on (use source timing directly)
 
-  writeOneByte(0xF0, 5);
-  readFromRegister(0x02, 1, &readout); writeOneByte(0x02, readout & ~(1 << 0)); // When = 0, ADC disable SOG mode
-  writeOneByte(0x13, 0x04); // PLL divider: 05 for 640x480, 02 for 1024x768
-  writeOneByte(0x12, 0x00); // PLL divider
-  writeOneByte(0x17, 0x06); // high charge pump current (hmm, used to require 6 or 7 before including setparameterssp)
-  readFromRegister(0x3e, 1, &readout); writeOneByte(0x3e, readout | (1 << 5) | (1 << 0)); // SP_DIS_SUB_COAST, cs_p_swap cs edge reference select default rising edge
-  //readFromRegister(0x55, 1, &readout); writeOneByte(0x55, readout | (1 << 3)); // hs_inv_reg inver hs to retimming module (fixes position)
-  readFromRegister(0x56, 1, &readout); writeOneByte(0x56, readout & ~(1 << 0)); // SP_SOG_MODE 1: SOG mode; 0: normal mode
-  readFromRegister(0x56, 1, &readout); writeOneByte(0x56, readout | (1 << 2)); // clamp auto
-  readFromRegister(0x57, 1, &readout); writeOneByte(0x57, readout & ~(1 << 6)); // off for now // retiming on (necessary?)
-  //}
+  GBS::ADC_SOGEN::write(0); // 5_02 bit 0
+  GBS::SP_SOG_MODE::write(0); // 5_56 bit 0
+  GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
+  GBS::SP_CLAMP_MANUAL::write(1); // 1: clamp turn on off by control by software (default)
+  GBS::SP_HS_LOOP_SEL::write(0); // off for now but do tests later
+  GBS::SP_CS_P_SWAP::write(1); // 5_3e bit 0
+  GBS::SP_DIS_SUB_COAST::write(1);
+
+  GBS::PLLAD_ICP::write(6);
+  GBS::PLLAD_FS::write(1); // high gain
+  GBS::PLLAD_MD::write(1024); // 0x400
+
   syncProcessorModeVGA();
+  resetDigital(); // this will leave 0_46 reset controls with 0 (bypassed blocks disabled)
 }
+
 void applyYuvPatches() {   // also does color mixing changes
   uint8_t readout;
 
@@ -1858,10 +1867,11 @@ void setup() {
   rto->inputIsYpBpR = false;
   rto->videoStandardInput = 0;
   rto->currentSyncProcessorMode = 0;
+  rto->externalHVEnabled = 0;
   rto->deinterlacerWasTurnedOff = false;
   if (!rto->webServerEnabled) rto->webServerStarted = false;
   rto->printInfos = false;
-  rto->sourceDisconnected = false;
+  rto->sourceDisconnected = true;
 
   globalCommand = 0; // web server uses this to issue commands
 
@@ -2535,7 +2545,7 @@ void loop() {
     readFromRegister(0x63, 1, &debugRegBackup);
     writeOneByte(0x63, 0x0f);
 
-    byte newVideoMode = getVideoMode();
+    uint8_t newVideoMode = getVideoMode();
     if (!getSyncStable() || newVideoMode == 0) {
       noSyncCounter++;
       if (noSyncCounter < 3) SerialM.print(".");
@@ -2546,8 +2556,8 @@ void loop() {
     if ((newVideoMode != 0 && newVideoMode != rto->videoStandardInput && getSyncStable()) ||
         (newVideoMode != 0 && rto->videoStandardInput == 0 /*&& getSyncPresent()*/) ) {
       noSyncCounter = 0;
-      byte test = 10;
-      byte changeToPreset = newVideoMode;
+      uint8_t test = 10;
+      uint8_t changeToPreset = newVideoMode;
       uint8_t signalInputChangeCounter = 0;
 
       // this first test is necessary with "dirty" sync (CVid)
@@ -2561,7 +2571,7 @@ void loop() {
       if (signalInputChangeCounter >= 8) { // video mode has changed
         SerialM.println("New Input");
         rto->videoStandardInput = 0;
-        byte timeout = 255;
+        uint8_t timeout = 255;
         while (newVideoMode == 0 && --timeout > 0) {
           newVideoMode = getVideoMode();
         }
@@ -2634,6 +2644,7 @@ void loop() {
 
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
     lastTimeSyncWatcher = millis();
+
   }
 
   if (rto->printInfos == true) { // information mode
@@ -2915,6 +2926,8 @@ void handleType2Command() {
     }
   }
 }
+
+// void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght);
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght) {
   switch (type) {
