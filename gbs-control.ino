@@ -1881,7 +1881,7 @@ void setup() {
   delay(500); // give the entire system some time to start up.
 
 #if defined(ESP8266)
-  //Serial.setDebugOutput(true); // if you want simple wifi debug info
+  Serial.setDebugOutput(true); // if you want simple wifi debug info
   // file system (web page, custom presets, ect)
   if (!SPIFFS.begin()) {
     SerialM.println("SPIFFS Mount Failed");
