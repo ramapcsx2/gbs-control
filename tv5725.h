@@ -143,6 +143,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x43, 4,  1> PLL_VCORST;
     typedef UReg<0x00, 0x44, 0,  1> DAC_RGBS_PWDNZ;
     typedef UReg<0x00, 0x49, 2,  1> PAD_SYNC_OUT_ENZ;
+    typedef UReg<0x00, 0x4B, 2,  1> DAC_RGBS_ADC2DAC;
     typedef UReg<0x00, 0x4D, 0,  5> TEST_BUS_SEL;
 
     // IF Registers
@@ -424,6 +425,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x18, 7,  1> PA_ADC_LAT;
     typedef UReg<0x05, 0x19, 0,  1> PA_SP_BYPSZ;
     typedef UReg<0x05, 0x19, 7,  1> PA_SP_LAT;
+    typedef UReg<0x05, 0x20, 3,  1> SP_EXT_SYNC_SEL;
     typedef UReg<0x05, 0x37, 0,  8> SP_H_PULSE_IGNOR;
     typedef UReg<0x05, 0x3B, 0,  3> SP_SDCS_VSST_REG_H;
     typedef UReg<0x05, 0x3B, 4,  3> SP_SDCS_VSSP_REG_H;
@@ -434,6 +436,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x43, 0, 12> SP_CS_CLP_SP;
     typedef UReg<0x05, 0x4D, 0, 12> SP_H_CST_ST;
     typedef UReg<0x05, 0x4F, 0, 12> SP_H_CST_SP;
+    typedef UReg<0x05, 0x56, 0,  1> SP_SOG_MODE;
 
 
     static const uint8_t OSD_ZOOM_1X = 0;
