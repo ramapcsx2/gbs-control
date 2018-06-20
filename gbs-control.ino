@@ -36,16 +36,25 @@ extern "C" {
 #define DEBUG_IN_PIN D6 // marked "D12/MISO/D6" (Wemos D1) or D6 (Lolin NodeMCU)
 // SCL = D1 (Lolin), D15 (Wemos D1) // ESP8266 Arduino default map: SCL
 // SDA = D2 (Lolin), D14 (Wemos D1) // ESP8266 Arduino default map: SDA
-#define LEDON  { pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, LOW); }// active low
-#define LEDOFF { digitalWrite(LED_BUILTIN, HIGH); pinMode(LED_BUILTIN, INPUT); }
+#define LEDON \
+  pinMode(LED_BUILTIN, OUTPUT); \
+  digitalWrite(LED_BUILTIN, LOW)
+#define LEDOFF \
+  digitalWrite(LED_BUILTIN, HIGH); \
+  pinMode(LED_BUILTIN, INPUT)
 
 // fast ESP8266 digitalRead (21 cycles vs 77), *should* work with all possible input pins
 // but only "D7" and "D6" have been tested so far
 #define digitalRead(x) ((GPIO_REG_READ(GPIO_IN_ADDRESS) >> x) & 1)
 
 #else // Arduino
-#define LEDON  { pinMode(LED_BUILTIN, OUTPUT); digitalWrite(LED_BUILTIN, HIGH); }
-#define LEDOFF { digitalWrite(LED_BUILTIN, LOW); pinMode(LED_BUILTIN, INPUT); }
+#define LEDON \
+  pinMode(LED_BUILTIN, OUTPUT); \
+  digitalWrite(LED_BUILTIN, HIGH)
+#define LEDOFF \
+  digitalWrite(LED_BUILTIN, LOW); \
+  pinMode(LED_BUILTIN, INPUT)
+
 #define DEBUG_IN_PIN 11
 
 #include "fastpin.h"
@@ -142,7 +151,7 @@ typedef MenuManager<GBS, MenuAttrs> Menu;
 struct runTimeOptions {
   boolean inputIsYpBpR;
   boolean syncWatcher;
-  uint8_t videoStandardInput : 3; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 480p NTSC, 4 576p PAL
+  uint8_t videoStandardInput : 4; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 480p NTSC, 4 576p PAL
   uint8_t phaseSP;
   uint8_t phaseADC;
   uint8_t currentLevelSOG;
@@ -150,7 +159,8 @@ struct runTimeOptions {
   boolean deinterlacerWasTurnedOff;
   boolean syncLockEnabled;
   uint8_t syncLockFailIgnore;
-  uint8_t currentSyncProcessorMode : 2; //HD or SD
+  uint8_t currentSyncProcessorMode : 2; // SD, HD, VGA
+  boolean externalHVEnabled;
   boolean printInfos;
   boolean sourceDisconnected;
   boolean webServerEnabled;
@@ -347,7 +357,10 @@ void setParametersSP() {
   }
 
   writeOneByte(0xF0, 5); // just making sure
-  writeOneByte(0x20, 0x12); // was 0xd2 // keep jitter sync on! (snes, check debug vsync)(auto correct sog polarity, sog source = ADC)
+  if (rto->currentSyncProcessorMode != 3) {
+    writeOneByte(0x20, 0x1a); // auto correct sog polarity, sog source = ADC, external sync input to the unused one (will get tested elsewhere)
+  }
+  else writeOneByte(0x20, 0x12);
   // H active detect control
   writeOneByte(0x21, 0x02); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20 // keep this very low
   writeOneByte(0x22, 0x10); // SP_L_DLT_REG       Sync pulse width different threshold (little than this as equal). // 7
@@ -434,7 +447,8 @@ void syncProcessorModeSD() {
   rto->currentSyncPulseIgnoreValue = 0x58;
   writeOneByte(0x37, rto->currentSyncPulseIgnoreValue);
   writeOneByte(0x38, 0x03);
-  writeOneByte(0x56, 0x01); // could also be 0x05 but 0x01 is compatible
+  writeOneByte(0x39, 0x07);
+  writeOneByte(0x56, 0x05); // clamp control needs to stay on, if only for source detection
 
   rto->currentSyncProcessorMode = 0;
 }
@@ -445,9 +459,22 @@ void syncProcessorModeHD() {
   rto->currentSyncPulseIgnoreValue = 0x04;
   writeOneByte(0x37, rto->currentSyncPulseIgnoreValue);
   writeOneByte(0x38, 0x04); // snes 239 test
+  writeOneByte(0x39, 0x07);
   writeOneByte(0x56, 0x01);
 
   rto->currentSyncProcessorMode = 1;
+}
+
+void syncProcessorModeVGA() {
+  rto->syncLockEnabled = false; // not necessary, since VDS is off / bypassed
+  writeOneByte(0xF0, 5);
+  writeOneByte(0x37, 0x04);
+  writeOneByte(0x38, 0x00);
+  writeOneByte(0x39, 0x00);
+  writeOneByte(0xF0, 0);
+  writeOneByte(0x40, 0x05); // source clocks from pll, 81Mhz mem clock
+
+  rto->currentSyncProcessorMode = 3;
 }
 
 // in operation: t5t04t1 for 10% lower power on ADC
@@ -478,6 +505,8 @@ void goLowPowerWithInputDetection() {
   GBS::PA_SP_BYPSZ::write(0);
   // low power test mode on
   GBS::ADC_TEST::write(2);
+  SyncProcessorOffOn();
+  delay(200); // test
 }
 
 // GBS boards have 2 potential sync sources:
@@ -489,23 +518,49 @@ void goLowPowerWithInputDetection() {
 uint8_t detectAndSwitchToActiveInput() { // if any
   uint8_t readout = 0;
   static boolean toggle = 0;
+  static uint8_t annoying = 0;
+
+  uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
 
   writeOneByte(0xF0, 0);
   long timeout = millis();
-  while (readout == 0 && millis() - timeout < 100) {
+  while (readout == 0 && millis() - timeout < 150) {
     yield();
     readFromRegister(0x2f, 1, &readout);
-    if (readout != 0 || getVideoMode() > 0) { // getVideoMode() writes 0 to 0xF0, so okay
-      rto->sourceDisconnected = false;
-      if (GBS::ADC_INPUT_SEL::read() == 1) {
+    if (readout != 0 || getVideoMode() > 0) {
+      if (currentInput == 1 && rto->externalHVEnabled == 0 && getVideoMode() != 0) { // RGBS data inputs + ext off = RGBS! For RGBS it should be possible to tell a video mode..
         rto->inputIsYpBpR = 0;
+        rto->sourceDisconnected = false;
         return 1;
       }
-      else if (GBS::ADC_INPUT_SEL::read() == 0) {
+      else if (currentInput == 1 && rto->externalHVEnabled == 1) { // RGBS data inputs + ext on = RGBHV!
+        rto->inputIsYpBpR = 0;
+        rto->sourceDisconnected = false;
+        return 3;
+      }
+      else if (currentInput == 0) { // don't care about ext HV for YUV // but maybe also check for video mode
         rto->inputIsYpBpR = 1;
+        rto->sourceDisconnected = false;
         return 2;
       }
     }
+  }
+
+  if (annoying == 0) {
+    GBS::ADC_SOGEN::write(1); // test inputs that require SOG separation (normal)
+    GBS::SP_EXT_SYNC_SEL::write(1); // bypass the HV input
+    GBS::SP_SOG_MODE::write(1); //5_56 bit 0
+    //Serial.println("     disabling ");
+    rto->externalHVEnabled = 0;
+  }
+  annoying++;
+  if (annoying > 3 && toggle == 1) { //RGBHV test, only if ADC_INPUT_SEL is going to be "1" (RGBHV / RGBS data input)
+    annoying = 0;
+    //Serial.println("     enabling ");
+    GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input
+    GBS::ADC_SOGEN::write(0); delay(30);
+    GBS::SP_SOG_MODE::write(0); //5_56 bit 0
+    rto->externalHVEnabled = 1;
   }
 
   byte randomValue = random(0, 2); // random(inclusive, exclusive)
@@ -519,30 +574,42 @@ uint8_t detectAndSwitchToActiveInput() { // if any
 
 void inputAndSyncDetect() {
   setSOGLevel(10);
-  boolean syncFound = detectAndSwitchToActiveInput();
+  uint8_t syncFound = detectAndSwitchToActiveInput();
 
-  if (!syncFound) {
+  if (syncFound == 0) {
     SerialM.println("no input with sync found");
     if (!getSyncPresent()) {
       rto->sourceDisconnected = true;
       SerialM.println("source is off");
       goLowPowerWithInputDetection();
       syncProcessorModeSD();
-      GBS::SP_SDCS_VSST_REG_H::write(0);
-      GBS::SP_SDCS_VSST_REG_L::write(0);
-      GBS::SP_SDCS_VSSP_REG_H::write(0);
-      GBS::SP_SDCS_VSSP_REG_L::write(1);
+      //GBS::SP_SDCS_VSST_REG_H::write(0); // these are 5_3F + 5_40.. why?
+      //GBS::SP_SDCS_VSST_REG_L::write(0);
+      //GBS::SP_SDCS_VSSP_REG_H::write(0);
+      //GBS::SP_SDCS_VSSP_REG_L::write(1);
     }
   }
-  else if (syncFound && rto->inputIsYpBpR == true) {
+  else if (syncFound == 1) { // input is RGBS
+    SerialM.println("using RGBS inputs");
+    rto->sourceDisconnected = false;
+    applyRGBPatches();
+  }
+  else if (syncFound == 2) {
     SerialM.println("using RCA inputs");
     rto->sourceDisconnected = false;
     applyYuvPatches();
   }
-  else if (syncFound && rto->inputIsYpBpR == false) { // input is RGBS
-    SerialM.println("using RGBS inputs");
+  else if (syncFound == 3) { // input is RGBS
+    SerialM.println("using RGBHV");
     rto->sourceDisconnected = false;
     applyRGBPatches();
+    GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input
+    GBS::ADC_SOGEN::write(0);
+    GBS::SP_SOG_MODE::write(0);
+    // exception for this mode: apply it right here, not later in syncwatcher
+    rto->videoStandardInput = 15;
+    disableVDS();
+    applyPresets(rto->videoStandardInput);
   }
 }
 
@@ -642,9 +709,8 @@ void resetPLL() {
 void resetDigital() {
   writeOneByte(0xF0, 0);
   writeOneByte(0x46, 0); writeOneByte(0x47, 0);
-  //writeOneByte(0x43, 0x20); delay(10); // initial VCO voltage
   resetPLL(); delay(1);
-  writeOneByte(0x46, 0x3f); // all on except VDS (display enable)
+  if (rto->currentSyncProcessorMode != 3) writeOneByte(0x46, 0x3f); // all on except VDS (display enable)
   writeOneByte(0x47, 0x17); // all on except HD bypass
   SerialM.println("resetDigital");
 }
@@ -667,7 +733,6 @@ void resetModeDetect() {
   writeOneByte(0x47, readout & ~(1 << 1));
   readFromRegister(0x47, 1, &readout);
   writeOneByte(0x47, readout | (1 << 1));
-  //SerialM.println("^");
 
   // try a softer approach
   //  writeOneByte(0xF0, 1);
@@ -1176,22 +1241,20 @@ void debugPortSetSP() {
   writeOneByte(0x4D, 0x2a); // SP
 }
 
-void resetRunTimeVariables() {
-  // reset information on the last source
-}
-
 void applyBestHTotal(uint16_t bestHTotal) {
   uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
   int diffHTotal = bestHTotal - orig_htotal;
 
-  if (diffHTotal != 0) { // if source is different than presets timings
+  // apply correction, but only if source is different than presets timings, ie: not a custom preset or source doesn't fit custom preset
+  // hack: rto->syncLockFailIgnore == 3 means the correction should be forced (command '.')
+  if (diffHTotal != 0 || rto->syncLockFailIgnore == 3) {
     uint16_t h_blank_display_start_position = bestHTotal - 1;
     uint16_t h_blank_display_stop_position =  GBS::VDS_DIS_HB_SP::read() + diffHTotal;
     uint16_t center_blank = ((h_blank_display_stop_position / 2) * 3) / 4; // a bit to the left
     //uint16_t h_sync_start_position =  center_blank - (center_blank / 2);
     uint16_t h_sync_start_position =  bestHTotal / 28; // test with HDMI board suggests this is better
     uint16_t h_sync_stop_position =   center_blank + (center_blank / 2);
-    uint16_t h_blank_memory_start_position = h_blank_display_start_position - 1;
+    uint16_t h_blank_memory_start_position = h_blank_display_start_position - (h_blank_display_start_position / 24); // at least h_blank_display_start_position - 1
     uint16_t h_blank_memory_stop_position =  GBS::VDS_HB_SP::read() + diffHTotal; // have to rely on currently loaded preset, see below
 
     GBS::VDS_HSYNC_RST::write(bestHTotal);
@@ -1240,7 +1303,7 @@ void doPostPresetLoadSteps() {
     applyYuvPatches();
     rto->currentLevelSOG = 10;
   }
-  if (rto->videoStandardInput >= 3) {
+  if (rto->videoStandardInput >= 3 && rto->videoStandardInput != 15) {
     SerialM.println("HDTV mode");
     syncProcessorModeHD();
     writeOneByte(0xF0, 1); // also set IF parameters
@@ -1258,12 +1321,11 @@ void doPostPresetLoadSteps() {
     GBS::IF_HSYNC_RST::write(pll_divider);
     GBS::IF_LINE_SP::write(pll_divider);
   }
-  else {
+  else if (rto->videoStandardInput != 15) {
     SerialM.println("SD mode");
     syncProcessorModeSD();
   }
   setSOGLevel( rto->currentLevelSOG );
-  resetRunTimeVariables();
   resetDigital();
   enableDebugPort();
   resetPLL();
@@ -1289,14 +1351,14 @@ void doPostPresetLoadSteps() {
 
   timeout = millis();
   while (getVideoMode() == 0 && millis() - timeout < 500); // stability
-  if (1 /*rto->inputIsYpBpR == false*/) {
-    updateCoastPosition();  // ignores sync pulses outside expected range (wip)
-    timeout = millis();
-    while (getVideoMode() == 0 && millis() - timeout < 250);
-    updateClampPosition();
-    timeout = millis();
-    while (getVideoMode() == 0 && millis() - timeout < 250);
-  }
+  updateCoastPosition();  // ignores sync pulses outside expected range (wip)
+
+  timeout = millis();
+  while (getVideoMode() == 0 && millis() - timeout < 250);
+  updateClampPosition();
+
+  timeout = millis();
+  while (getVideoMode() == 0 && millis() - timeout < 250);
 
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   GBS::PAD_SYNC_OUT_ENZ::write(0); // display goes on
@@ -1311,7 +1373,7 @@ void doPostPresetLoadSteps() {
   SerialM.println("post preset done");
 }
 
-void applyPresets(byte result) {
+void applyPresets(uint8_t result) {
   if (result == 1) {
     SerialM.println("NTSC ");
     rto->videoStandardInput = 1;
@@ -1434,6 +1496,11 @@ void applyPresets(byte result) {
     }
 #endif
   }
+  else if (result == 15) {
+    SerialM.println("RGBHV bypass ");
+    writeProgramArrayNew(ntsc_240p);
+    bypassModeSwitch();
+  }
   else {
     SerialM.println("Unknown timing! ");
     rto->videoStandardInput = 0; // mark as "no sync" for syncwatcher
@@ -1445,13 +1512,16 @@ void applyPresets(byte result) {
   }
 
   doPostPresetLoadSteps();
+  if (result == 15) {
+    bypassModeSwitch(); // fixme: required twice?
+  }
 }
 
 void enableDeinterlacer() {
   uint8_t readout = 0;
   writeOneByte(0xf0, 0);
   readFromRegister(0x46, 1, &readout);
-  writeOneByte(0x46, readout | (1 << 1));
+  if (rto->currentSyncProcessorMode != 3) writeOneByte(0x46, readout | (1 << 1));
   rto->deinterlacerWasTurnedOff = false;
 }
 
@@ -1474,7 +1544,7 @@ void enableVDS() {
   uint8_t readout = 0;
   writeOneByte(0xf0, 0);
   readFromRegister(0x46, 1, &readout);
-  writeOneByte(0x46, readout | (1 << 6));
+  if (rto->currentSyncProcessorMode != 3) writeOneByte(0x46, readout | (1 << 6));
 }
 
 void resetSyncLock() {
@@ -1485,8 +1555,8 @@ void resetSyncLock() {
 }
 
 static byte getVideoMode() {
-  writeOneByte(0xF0, 0);
   byte detectedMode = 0;
+  writeOneByte(0xF0, 0);
   readFromRegister(0x00, 1, &detectedMode);
   // note: if stat0 == 0x07, it's supposedly stable. if we then can't find a mode, it must be an MD problem
   detectedMode &= 0x7f; // was 0x78 but 720p reports as 0x07
@@ -1494,6 +1564,26 @@ static byte getVideoMode() {
   if ((detectedMode & 0x20) == 0x20) return 2; // pal interlace
   if ((detectedMode & 0x10) == 0x10) return 3; // edtv 60 progressive
   if ((detectedMode & 0x40) == 0x40) return 4; // edtv 50 progressive
+
+  if (rto->externalHVEnabled) { // time to check RGBHV
+    // maybe add a test bus check here
+    writeOneByte(0xF0, 0);
+    //readFromRegister(0x2f, 1, &detectedMode);
+    //if (detectedMode > 0) { // this fails on cold starts with 0_2f == 0, 0_2e == a7
+    readFromRegister(0x05, 1, &detectedMode);
+    if (detectedMode == 0x18) {
+      return 15; // RGBHV bypass
+    }
+    else if (detectedMode == 0x0e) { // if it was locked to RGBHV once, 0_05 = 0x0e, 0_2f > 4
+      readFromRegister(0x2f, 1, &detectedMode);
+      if (detectedMode > 2) {
+        return 15; // RGBHV bypass
+      }
+    }
+    //}
+  }
+
+  writeOneByte(0xF0, 0);
   readFromRegister(0x03, 1, &detectedMode);
   if ((detectedMode & 0x10) == 0x10) return 5; // hdtv 720p
   readFromRegister(0x04, 1, &detectedMode);
@@ -1520,8 +1610,10 @@ boolean getSyncPresent() {
 
 boolean getSyncStable() {
   uint8_t readout = 0;
+  if (rto->videoStandardInput == 15) return true; // hack
   writeOneByte(0xF0, 0);
   readFromRegister(0x2f, 1, &readout);
+  //todo: fix this to include other valids, ie RGBHV has 4 or 6
   readout &= 0x05;
   if (readout == 0x05) {
     return true;
@@ -1586,6 +1678,7 @@ void setPhaseADC() {
 }
 
 void updateCoastPosition() {
+  if (rto->videoStandardInput == 15) return;
   uint16_t inHlength = 0;
   int i = 0;
   for (; i < 8; i++) {
@@ -1594,21 +1687,29 @@ void updateCoastPosition() {
   inHlength /= i;
   inHlength *= 4;
   SerialM.print("in length: ");  SerialM.println(inHlength);
-  GBS::SP_H_CST_SP::write(inHlength - (inHlength / 24)); // snes requires this to be 4% less than inHlength (else jumpy pic)
-  GBS::SP_H_CST_ST::write((inHlength / 4) - 8);
+  if (inHlength > 0) {
+    GBS::SP_H_CST_SP::write(inHlength - (inHlength / 24)); // snes requires this to be 4% less than inHlength (else jumpy pic)
+    GBS::SP_H_CST_ST::write((inHlength / 4) - 8);
+  }
 }
 
 void updateClampPosition() {
-  if (rto->inputIsYpBpR) {
+  if (rto->inputIsYpBpR && rto->videoStandardInput != 15) {
     // in YUV mode, should use back porch clamping: 14 clocks
     GBS::SP_CS_CLP_ST::write(0x19);
     GBS::SP_CS_CLP_SP::write(0x27);
     return;
   }
-  // approach left side of sync tip rising flank
-  uint16_t inHlength = GBS::HPERIOD_IF::read() * 4;
-  GBS::SP_CS_CLP_SP::write(inHlength - 8);
-  GBS::SP_CS_CLP_ST::write((inHlength - 8) - (inHlength / 80));
+  else if (rto->videoStandardInput != 15) {
+    // approach left side of sync tip rising flank
+    uint16_t inHlength = GBS::HPERIOD_IF::read() * 4;
+    GBS::SP_CS_CLP_SP::write(inHlength - 8);
+    GBS::SP_CS_CLP_ST::write((inHlength - 8) - (inHlength / 80));
+  }
+  else if (rto->videoStandardInput == 15) {
+    GBS::SP_CS_CLP_ST::write(8);
+    GBS::SP_CS_CLP_SP::write(18);
+  }
 }
 
 void setInitialClampPosition() {
@@ -1626,6 +1727,40 @@ void setInitialClampPosition() {
     writeOneByte(0x41, 0x40); writeOneByte(0x43, 0x5c);
     writeOneByte(0x42, 0x00); writeOneByte(0x44, 0x00);
   }
+}
+
+void bypassModeSwitch() {
+  uint8_t readout;
+
+  rto->videoStandardInput = 15; // making sure
+  rto->externalHVEnabled = 1; // todo: find out why this is 0 at this point. it should've been left at 1 from detection
+
+  writeOneByte(0xF0, 0);
+  writeOneByte(0x40, 0x0c); // drop memory clock
+  writeOneByte(0x41, 0x35); // PLL clock = from ADC
+  readFromRegister(0x4b, 1, &readout); writeOneByte(0x4b, readout | (1 << 2)); // When = 1, enable ADC (with decimation) to DAC directly t0t4bt2
+  // correction: this could be t4t2bt3 on (playback bypass > direct)
+
+  // todo: best set oversampling to 1x
+  readFromRegister(0x4f, 1, &readout); writeOneByte(0x4f, readout | (1 << 7)); // When = 10, H/V sync output are from sync processor
+
+  writeOneByte(0xF0, 3);
+  readFromRegister(0x1a, 1, &readout); writeOneByte(0x1a, readout | (1 << 4)); // frame lock on (use source timing directly)
+
+  GBS::ADC_SOGEN::write(0); // 5_02 bit 0
+  GBS::SP_SOG_MODE::write(0); // 5_56 bit 0
+  GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
+  GBS::SP_CLAMP_MANUAL::write(1); // 1: clamp turn on off by control by software (default)
+  GBS::SP_HS_LOOP_SEL::write(0); // off for now but do tests later
+  GBS::SP_CS_P_SWAP::write(1); // 5_3e bit 0
+  GBS::SP_DIS_SUB_COAST::write(1);
+
+  GBS::PLLAD_ICP::write(6);
+  GBS::PLLAD_FS::write(1); // high gain
+  GBS::PLLAD_MD::write(1024); // 0x400
+
+  syncProcessorModeVGA();
+  resetDigital(); // this will leave 0_46 reset controls with 0 (bypassed blocks disabled)
 }
 
 void applyYuvPatches() {   // also does color mixing changes
@@ -1655,15 +1790,6 @@ void applyRGBPatches() {
   uint8_t readout;
   rto->currentLevelSOG = 10;
   setSOGLevel( rto->currentLevelSOG );
-  writeOneByte(0xF0, 5);
-  readFromRegister(0x03, 1, &readout);
-  writeOneByte(0x03, readout & ~(1 << 1)); // midlevel clamp red
-  readFromRegister(0x03, 1, &readout);
-  writeOneByte(0x03, readout & ~(1 << 3)); // midlevel clamp blue
-
-  writeOneByte(0x00, 0xd8);
-  writeOneByte(0x3b, 0x00); // important
-  writeOneByte(0x56, 0x05);
 
   writeOneByte(0xF0, 1);
   readFromRegister(0x00, 1, &readout);
@@ -1741,20 +1867,21 @@ void setup() {
   rto->inputIsYpBpR = false;
   rto->videoStandardInput = 0;
   rto->currentSyncProcessorMode = 0;
+  rto->externalHVEnabled = 0;
   rto->deinterlacerWasTurnedOff = false;
   if (!rto->webServerEnabled) rto->webServerStarted = false;
   rto->printInfos = false;
-  rto->sourceDisconnected = false;
+  rto->sourceDisconnected = true;
 
   globalCommand = 0; // web server uses this to issue commands
 
   pinMode(DEBUG_IN_PIN, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
-  LEDON // enable the LED, lets users know the board is starting up
+  LEDON; // enable the LED, lets users know the board is starting up
   delay(500); // give the entire system some time to start up.
 
 #if defined(ESP8266)
-  //Serial.setDebugOutput(true); // if you want simple wifi debug info
+  Serial.setDebugOutput(true); // if you want simple wifi debug info
   // file system (web page, custom presets, ect)
   if (!SPIFFS.begin()) {
     SerialM.println("SPIFFS Mount Failed");
@@ -1823,7 +1950,7 @@ void setup() {
 
   disableVDS();
   writeProgramArrayNew(ntsc_240p); // bring the chip up for input detection
-  //setParametersSP();
+  GBS::SP_EXT_SYNC_SEL::write(1); // bypass the HV input initially (H+V separate input)
   enableDebugPort(); // post preset should do this but may fail. make sure debug is on
   rto->videoStandardInput = 0;
   resetDigital();
@@ -1833,9 +1960,7 @@ void setup() {
   goLowPowerWithInputDetection();
 
   SerialM.print("\nMCU: "); SerialM.println(F_CPU);
-
-  SerialM.print("FTL: "); SerialM.println(uopt->enableFrameTimeLock);
-  LEDOFF // startup done, disable the LED
+  LEDOFF; // startup done, disable the LED
 }
 
 #ifdef HAVE_BUTTONS
@@ -1999,38 +2124,8 @@ void loop() {
         moveVS(1, false);
         break;
       case 'k':
-        {
-          static boolean sp_passthrough_enabled = false;
-          if (!sp_passthrough_enabled) {
-            writeOneByte(0xF0, 0);
-            //readFromRegister(0x4b, 1, &readout);
-            //writeOneByte(0x4b, readout | (1 << 2));
-            readFromRegister(0x4f, 1, &readout);
-            writeOneByte(0x4f, readout | (1 << 7));
-            // clock output (for measurment)
-            readFromRegister(0x4f, 1, &readout);
-            writeOneByte(0x4f, readout | (1 << 4));
-            readFromRegister(0x49, 1, &readout);
-            writeOneByte(0x49, readout & ~(1 << 1));
-
-            writeOneByte(0xF0, 5);
-            readFromRegister(0x57, 1, &readout);
-            writeOneByte(0x57, readout | (1 << 6));
-            sp_passthrough_enabled = true;
-          }
-          else {
-            writeOneByte(0xF0, 0);
-            //readFromRegister(0x4b, 1, &readout);
-            //writeOneByte(0x4b, readout & ~(1 << 2));
-            readFromRegister(0x4f, 1, &readout);
-            writeOneByte(0x4f, readout & ~(1 << 7));
-
-            writeOneByte(0xF0, 5);
-            readFromRegister(0x57, 1, &readout);
-            writeOneByte(0x57, readout & ~(1 << 6));
-            sp_passthrough_enabled = false;
-          }
-        }
+        bypassModeSwitch();
+        resetPLL(); resetPLLAD();
         break;
       case 'e':
         SerialM.println("ntsc preset");
@@ -2044,6 +2139,7 @@ void loop() {
         break;
       case '.':
         resetSyncLock();
+        rto->syncLockFailIgnore = 3;
         break;
       case 'j':
         resetPLL(); resetPLLAD();
@@ -2072,7 +2168,7 @@ void loop() {
               line_length /= 2;
             }
 
-            line_length = line_length / ((rto->currentSyncProcessorMode == 1 ? 1 : 2)); // half of pll_divider, but in linedouble mode only
+            line_length = line_length / ((rto->currentSyncProcessorMode > 0 ? 1 : 2)); // half of pll_divider, but in linedouble mode only
             line_length -= (GBS::IF_HB_SP2::read() / 2);
             line_length += (GBS::IF_INI_ST::read() / 2);
 
@@ -2082,7 +2178,7 @@ void loop() {
             SerialM.print(" line_length: "); SerialM.println(line_length);
             // IF S0_18/19 need to be line lenth - 1
             // update: but this makes any slight adjustments a pain. also, it doesn't seem to affect picture quality
-            //GBS::IF_HB_ST2::write((line_length / ((rto->currentSyncProcessorMode == 1 ? 1 : 2))) - 1);
+            //GBS::IF_HB_ST2::write((line_length / ((rto->currentSyncProcessorMode > 0 ? 1 : 2))) - 1);
             resetPLLAD();
           }
         }
@@ -2159,11 +2255,11 @@ void loop() {
         {
           static boolean led_toggle = 0;
           if (led_toggle) {
-            LEDOFF
+            LEDOFF;
             led_toggle = 0;
           }
           else {
-            LEDON
+            LEDON;
             led_toggle = 1;
           }
         }
@@ -2449,7 +2545,7 @@ void loop() {
     readFromRegister(0x63, 1, &debugRegBackup);
     writeOneByte(0x63, 0x0f);
 
-    byte newVideoMode = getVideoMode();
+    uint8_t newVideoMode = getVideoMode();
     if (!getSyncStable() || newVideoMode == 0) {
       noSyncCounter++;
       if (noSyncCounter < 3) SerialM.print(".");
@@ -2458,10 +2554,10 @@ void loop() {
     }
 
     if ((newVideoMode != 0 && newVideoMode != rto->videoStandardInput && getSyncStable()) ||
-        (newVideoMode != 0 && rto->videoStandardInput == 0 /*&& getSyncPresent()*/) ) { // mode switch
+        (newVideoMode != 0 && rto->videoStandardInput == 0 /*&& getSyncPresent()*/) ) {
       noSyncCounter = 0;
-      byte test = 10;
-      byte changeToPreset = newVideoMode;
+      uint8_t test = 10;
+      uint8_t changeToPreset = newVideoMode;
       uint8_t signalInputChangeCounter = 0;
 
       // this first test is necessary with "dirty" sync (CVid)
@@ -2475,7 +2571,7 @@ void loop() {
       if (signalInputChangeCounter >= 8) { // video mode has changed
         SerialM.println("New Input");
         rto->videoStandardInput = 0;
-        byte timeout = 255;
+        uint8_t timeout = 255;
         while (newVideoMode == 0 && --timeout > 0) {
           newVideoMode = getVideoMode();
         }
@@ -2489,7 +2585,7 @@ void loop() {
           syncPulseHistoryIndex = 0;
         }
         else {
-          SerialM.println(" .. but lost it?");
+          SerialM.println(" .. lost");
         }
         noSyncCounter = 0;
       }
@@ -2548,6 +2644,7 @@ void loop() {
 
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
     lastTimeSyncWatcher = millis();
+
   }
 
   if (rto->printInfos == true) { // information mode
@@ -2582,8 +2679,8 @@ void loop() {
     writeOneByte(0x63, 0x0f);
     uint16_t bestHTotal = FrameSync::init();
     if (bestHTotal > 0) {
-      rto->syncLockFailIgnore = 2;
       applyBestHTotal(bestHTotal);
+      rto->syncLockFailIgnore = 2;
     }
     else if (rto->syncLockFailIgnore-- == 0) {
       // frame time lock failed, most likely due to missing wires
@@ -2593,7 +2690,7 @@ void loop() {
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
   }
 
-  if (rto->sourceDisconnected == true && ((millis() - lastSourceCheck) > 750)) { // source is off; keep looking for new input
+  if (rto->sourceDisconnected == true && rto->syncWatcher == true && ((millis() - lastSourceCheck) > 750)) { // source is off; keep looking for new input
     detectAndSwitchToActiveInput();
     lastSourceCheck = millis();
   }
@@ -2779,11 +2876,58 @@ void handleType2Command() {
         else if (uopt->frameTimeLockMethod == 1) uopt->frameTimeLockMethod = 0;
         saveUserPrefs();
         break;
+      case 'l':
+        // cycle through available SDRAM clocks
+        {
+          uint8_t PLL_MS = GBS::PLL_MS::read();
+          uint8_t memClock = 0;
+          PLL_MS++; PLL_MS &= 0x7;
+          switch (PLL_MS) {
+            case 0: memClock = 108; break;
+            case 1: memClock = 81; break;
+            case 2: memClock = 255; break; //feedback clock
+            case 3: memClock = 162; break;
+            case 4: memClock = 144; break;
+            case 5: memClock = 185; break;
+            case 6: memClock = 216; break;
+            case 7: memClock = 129; break;
+            default: break;
+          }
+          GBS::PLL_MS::write(PLL_MS);
+          if (memClock != 255) {
+            SerialM.print("SDRAM clock: "); SerialM.print(memClock); SerialM.println("Mhz");
+          }
+          else {
+            SerialM.print("SDRAM clock: "); SerialM.println("Feedback clock (default)");
+          }
+        }
+        break;
+      case 'm':
+        // DCTI (pixel edges slope enhancement)
+        if (GBS::VDS_UV_STEP_BYPS::read() == 1) {
+          GBS::VDS_UV_STEP_BYPS::write(0);
+          if (GBS::VDS_TAP6_BYPS::read() == 1) {
+            GBS::VDS_TAP6_BYPS::write(0); // no good way to store this change for later reversal
+            GBS::VDS_0X2A_RESERVED_2BITS::write(1); // so use this trick to detect it later
+          }
+          SerialM.println("DCTI on");
+        }
+        else {
+          GBS::VDS_UV_STEP_BYPS::write(1);
+          if (GBS::VDS_0X2A_RESERVED_2BITS::read() == 1) {
+            GBS::VDS_TAP6_BYPS::write(1);
+            GBS::VDS_0X2A_RESERVED_2BITS::write(0);
+          }
+          SerialM.println("DCTI off");
+        }
+        break;
       default:
         break;
     }
   }
 }
+
+// void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght);
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght) {
   switch (type) {
@@ -2890,8 +3034,8 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
     result[2] = f.read();
 
     f.close();
-    SerialM.print("loading from presetGroup "); SerialM.println(result[2]); // custom preset group (console)
-    if ((uint8_t)result[2] < 10) group = result[2]; // otherwise not stored on spiffs
+    if ((uint8_t)(result[2] - '0') < 10) group = result[2]; // otherwise not stored on spiffs
+    SerialM.print("loading from presetGroup "); SerialM.println((uint8_t)(group - '0')); // custom preset group (console)
   }
   else {
     // file not found, we don't know what preset to load

@@ -143,6 +143,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x43, 4,  1> PLL_VCORST;
     typedef UReg<0x00, 0x44, 0,  1> DAC_RGBS_PWDNZ;
     typedef UReg<0x00, 0x49, 2,  1> PAD_SYNC_OUT_ENZ;
+    typedef UReg<0x00, 0x4B, 2,  1> DAC_RGBS_ADC2DAC;
     typedef UReg<0x00, 0x4D, 0,  5> TEST_BUS_SEL;
 
     // IF Registers
@@ -167,7 +168,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
 
     // Deinterlacer / Scaledown registers
     typedef UReg<0x02, 0x17, 0,  4> MADPT_Y_DELAY;
-    
+
     // VDS Registers
     typedef UReg<0x03, 0x00, 0,  1> VDS_SYNC_EN;
     typedef UReg<0x03, 0x00, 1,  1> VDS_FIELDAB_EN;
@@ -220,6 +221,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x03, 0x29, 0,  8> VDS_BLEV_GAIN;
     typedef UReg<0x03, 0x2A, 0,  1> VDS_BLEV_BYPS;
     typedef UReg<0x03, 0x2A, 4,  2> VDS_STEP_DLY_CNTRL;
+    typedef UReg<0x03, 0x2A, 6,  2> VDS_0X2A_RESERVED_2BITS;
     typedef UReg<0x03, 0x2B, 0,  4> VDS_STEP_GAIN;
     typedef UReg<0x03, 0x2B, 4,  3> VDS_STEP_CLIP;
     typedef UReg<0x03, 0x2B, 7,  1> VDS_UV_STEP_BYPS;
@@ -423,16 +425,22 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x18, 7,  1> PA_ADC_LAT;
     typedef UReg<0x05, 0x19, 0,  1> PA_SP_BYPSZ;
     typedef UReg<0x05, 0x19, 7,  1> PA_SP_LAT;
+    typedef UReg<0x05, 0x20, 3,  1> SP_EXT_SYNC_SEL;
     typedef UReg<0x05, 0x37, 0,  8> SP_H_PULSE_IGNOR;
     typedef UReg<0x05, 0x3B, 0,  3> SP_SDCS_VSST_REG_H;
     typedef UReg<0x05, 0x3B, 4,  3> SP_SDCS_VSSP_REG_H;
+    typedef UReg<0x05, 0x3E, 0,  1> SP_CS_P_SWAP;
     typedef UReg<0x05, 0x3E, 1,  1> SP_HD_MODE;
+    typedef UReg<0x05, 0x3E, 5,  1> SP_DIS_SUB_COAST;
     typedef UReg<0x05, 0x3F, 0,  8> SP_SDCS_VSST_REG_L;
     typedef UReg<0x05, 0x40, 0,  8> SP_SDCS_VSSP_REG_L;
     typedef UReg<0x05, 0x41, 0, 12> SP_CS_CLP_ST;
     typedef UReg<0x05, 0x43, 0, 12> SP_CS_CLP_SP;
     typedef UReg<0x05, 0x4D, 0, 12> SP_H_CST_ST;
     typedef UReg<0x05, 0x4F, 0, 12> SP_H_CST_SP;
+    typedef UReg<0x05, 0x56, 0,  1> SP_SOG_MODE;
+    typedef UReg<0x05, 0x56, 2,  1> SP_CLAMP_MANUAL;
+    typedef UReg<0x05, 0x57, 6,  1> SP_HS_LOOP_SEL;
 
 
     static const uint8_t OSD_ZOOM_1X = 0;
