@@ -501,6 +501,7 @@ void goLowPowerWithInputDetection() {
   // low power test mode on
   GBS::ADC_TEST::write(2);
   GBS::PLLAD_FS::write(0); // low gain
+  resetPLLAD();
   SyncProcessorOffOn();
   delay(200);
 }
@@ -524,8 +525,8 @@ uint8_t detectAndSwitchToActiveInput() { // if any
     uint8_t videoMode = getVideoMode();
     if (readout != 0 || videoMode > 0) {
       unsigned long timeOutStart = millis();
-      SerialM.print("found smth. readout: "); SerialM.print(readout); SerialM.print(" getVideoMode: "); SerialM.print(getVideoMode());
-      SerialM.print(" currentInput: "); SerialM.println(currentInput);
+      //SerialM.print("found smth. readout: "); SerialM.print(readout); SerialM.print(" getVideoMode: "); SerialM.print(getVideoMode());
+      //SerialM.print(" currentInput: "); SerialM.println(currentInput);
       if (currentInput == 1) { // RGBS
         while (!getVideoMode() && millis() - timeOutStart < 3000) yield(); // wait here instead of in syncwatcher
         if (millis() - timeOutStart >= 3000) { // maybe RGBHV input?
@@ -597,7 +598,6 @@ void inputAndSyncDetect() {
       GBS::SP_EXT_SYNC_SEL::write(1); // disconnect HV input
       GBS::ADC_SOGEN::write(1);
       GBS::SP_SOG_MODE::write(1);
-      resetDigital();
       goLowPowerWithInputDetection();
     }
   }
@@ -677,21 +677,6 @@ void dumpRegisters(byte segment)
 void resetPLLAD() {
   GBS::PLLAD_LAT::write(0);
   GBS::PLLAD_LAT::write(1);
-  //  uint8_t readout = 0;
-  //  writeOneByte(0xF0, 5);
-  //  readFromRegister(0x11, 1, &readout);
-  //  readout &= ~(1 << 7); // latch off
-  //  readout |= (1 << 0); // init vco voltage on
-  //  readout &= ~(1 << 1); // lock off
-  //  writeOneByte(0x11, readout);
-  //  readFromRegister(0x11, 1, &readout);
-  //  readout |= (1 << 7); // latch on
-  //  readout &= 0xfe; // init vco voltage off
-  //  writeOneByte(0x11, readout);
-  //  readFromRegister(0x11, 1, &readout);
-  //  readout |= (1 << 1); // lock on
-  //  delay(2);
-  //  writeOneByte(0x11, readout);
 }
 
 void resetPLL() {
