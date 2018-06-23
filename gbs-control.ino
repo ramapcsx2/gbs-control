@@ -514,7 +514,16 @@ void goLowPowerWithInputDetection() {
 uint8_t detectAndSwitchToActiveInput() { // if any
   uint8_t readout = 0;
   static boolean toggle = 0;
+  static uint8_t rgbhvCheck = 0;
   uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
+
+  if (currentInput == 1) {
+    rgbhvCheck++;
+    if (rgbhvCheck >= 3) { // favor RGBS a little over RGBHV
+      rgbhvCheck = 0;
+      GBS::SP_EXT_SYNC_SEL::write(!GBS::SP_EXT_SYNC_SEL::read());
+    }
+  }
 
   writeOneByte(0xF0, 0);
   long timeout = millis();
@@ -602,11 +611,13 @@ void inputAndSyncDetect() {
   }
   else if (syncFound == 1) { // input is RGBS
     SerialM.println("using RGBS inputs");
+    GBS::SP_EXT_SYNC_SEL::write(1); // disconnect HV input
     rto->sourceDisconnected = false;
     applyRGBPatches();
   }
   else if (syncFound == 2) {
     SerialM.println("using RCA inputs");
+    GBS::SP_EXT_SYNC_SEL::write(1); // disconnect HV input
     rto->sourceDisconnected = false;
     applyYuvPatches();
   }
