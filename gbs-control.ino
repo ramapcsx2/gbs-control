@@ -491,17 +491,16 @@ void goLowPowerWithInputDetection() {
   writeOneByte(0x49, 0x00); //pad control pull down/up transistors on
   writeOneByte(0x46, 0x00);
   // pllad
-  GBS::PLLAD_VCORST::write(1); // initial control voltage on
-  GBS::PLLAD_LEN::write(0); // lock off
-  GBS::PLLAD_TEST::write(0); // test clock off
-  //GBS::PLLAD_PDZ::write(0); // power down // doesn't always work to wake up (snes)
+  writeOneByte(0xF0, 5);
+  resetPLLAD();
+  writeOneByte(0x11, 0x00); // all off
+  GBS::PLLAD_TEST::write(1); // test clock on
   // phase control units
   GBS::PA_ADC_BYPSZ::write(0);
   GBS::PA_SP_BYPSZ::write(0);
   // low power test mode on
-  GBS::ADC_TEST::write(2);
-  GBS::PLLAD_FS::write(0); // low gain
-  resetPLLAD();
+  GBS::ADC_TEST::write(2); // 5_0c
+  GBS::ADC_TR_RSEL::write(2); // 5_04
   SyncProcessorOffOn();
   delay(200);
 }
@@ -585,7 +584,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
 }
 
 void inputAndSyncDetect() {
-  setSOGLevel(10);
+  setSOGLevel(rto->currentLevelSOG);
   uint8_t syncFound = detectAndSwitchToActiveInput();
 
   if (syncFound == 0) {
@@ -1672,11 +1671,10 @@ void setInitialClampPosition() {
     writeOneByte(0x42, 0x00); writeOneByte(0x44, 0x00);
   }
   else {
-    // in RGB mode, (should use sync tip clamping?) use back porch clamping: 28 clocks
     // tip: see clamp pulse in RGB signal: t5t56t7, scope trigger on hsync, measurement probe on one of the RGB lines
     // move the clamp away from the sync pulse slightly (SNES 239 mode), but not too much to start disturbing Genesis
     // Genesis starts having issues in the 0x78 range and above
-    writeOneByte(0x41, 0x40); writeOneByte(0x43, 0x5c);
+    writeOneByte(0x41, 0x10); writeOneByte(0x43, 0x50);
     writeOneByte(0x42, 0x00); writeOneByte(0x44, 0x00);
   }
 }
@@ -1739,7 +1737,7 @@ void applyYuvPatches() {   // also does color mixing changes
 // undo yuvpatches if necessary
 void applyRGBPatches() {
   uint8_t readout;
-  rto->currentLevelSOG = 10;
+  rto->currentLevelSOG = 8;
   setSOGLevel( rto->currentLevelSOG );
 
   writeOneByte(0xF0, 1);
@@ -1813,7 +1811,7 @@ void setup() {
   rto->phaseSP = 8; // 0 to 31
 
   // the following is just run time variables. don't change!
-  rto->currentLevelSOG = 10;
+  rto->currentLevelSOG = 8;
   rto->currentSyncPulseIgnoreValue = 0x58;
   rto->inputIsYpBpR = false;
   rto->videoStandardInput = 0;
