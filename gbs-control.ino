@@ -1273,28 +1273,32 @@ void doPostPresetLoadSteps() {
     applyYuvPatches();
     rto->currentLevelSOG = 10;
   }
-  if (rto->videoStandardInput >= 3 && rto->videoStandardInput != 15) {
-    SerialM.println("HDTV mode");
-    syncProcessorModeHD();
-    writeOneByte(0xF0, 1); // also set IF parameters
-    writeOneByte(0x02, 0x01); // if based UV delays off, replace with s2_17 MADPT_Y_DELAY
-    writeOneByte(0x0b, 0xc0); // fixme: just so it works
-    writeOneByte(0x0c, 0x07); // linedouble off, fixme: other params?
-    writeOneByte(0x26, 0x10); // scale down stop blank position behaves differently in HD, fix to 0x10
 
-    GBS::MADPT_Y_DELAY::write(6); // delay for IF: 0 clocks, VDS: 1 clock
-    GBS::VDS_Y_DELAY::write(1);
-    GBS::VDS_V_DELAY::write(1); // >> s3_24 = 0x14
+  if (GBS::ADC_0X00_RESERVED_5::read() == 0) { // prevent patching already customized presets again
+    if (rto->videoStandardInput >= 3 && rto->videoStandardInput != 15) {
+      SerialM.println("HDTV mode");
+      syncProcessorModeHD();
+      writeOneByte(0xF0, 1); // also set IF parameters
+      writeOneByte(0x02, 0x01); // if based UV delays off, replace with s2_17 MADPT_Y_DELAY
+      writeOneByte(0x0b, 0xc0); // fixme: just so it works
+      writeOneByte(0x0c, 0x07); // linedouble off, fixme: other params?
+      writeOneByte(0x26, 0x10); // scale down stop blank position behaves differently in HD, fix to 0x10
 
-    uint16_t pll_divider = GBS::PLLAD_MD::read() / 2;
-    GBS::PLLAD_MD::write(pll_divider); // note: minimum seems to be exactly 0x400
-    GBS::IF_HSYNC_RST::write(pll_divider);
-    GBS::IF_LINE_SP::write(pll_divider);
+      GBS::MADPT_Y_DELAY::write(6); // delay for IF: 0 clocks, VDS: 1 clock
+      GBS::VDS_Y_DELAY::write(1);
+      GBS::VDS_V_DELAY::write(1); // >> s3_24 = 0x14
+
+      uint16_t pll_divider = GBS::PLLAD_MD::read() / 2;
+      GBS::PLLAD_MD::write(pll_divider); // note: minimum seems to be exactly 0x400
+      GBS::IF_HSYNC_RST::write(pll_divider);
+      GBS::IF_LINE_SP::write(pll_divider);
+    }
+    else if (rto->videoStandardInput != 15) {
+      SerialM.println("SD mode");
+      syncProcessorModeSD();
+    }
   }
-  else if (rto->videoStandardInput != 15) {
-    SerialM.println("SD mode");
-    syncProcessorModeSD();
-  }
+
   setSOGLevel( rto->currentLevelSOG );
   resetDigital();
   enableDebugPort();
@@ -1732,17 +1736,13 @@ void applyYuvPatches() {   // also does color mixing changes
   readFromRegister(0x03, 1, &readout);
   writeOneByte(0x03, readout | (1 << 3)); // midlevel clamp blue
 
-  writeOneByte(0x06, 0x3f); //adc R offset
-  writeOneByte(0x07, 0x3f); //adc G offset
-  writeOneByte(0x08, 0x3f); //adc B offset
-
   writeOneByte(0xF0, 1);
   readFromRegister(0x00, 1, &readout);
   writeOneByte(0x00, readout | (1 << 1)); // rgb matrix bypass
 
-  writeOneByte(0xF0, 3); // for colors
-  writeOneByte(0x35, 0x7a); writeOneByte(0x3a, 0xfa); writeOneByte(0x36, 0x18);
-  writeOneByte(0x3b, 0x02); writeOneByte(0x37, 0x22); writeOneByte(0x3c, 0x02);
+  //writeOneByte(0xF0, 3); // for colors
+  //writeOneByte(0x35, 0x7a); writeOneByte(0x3a, 0xfa); writeOneByte(0x36, 0x18);
+  //writeOneByte(0x3b, 0x02); writeOneByte(0x37, 0x22); writeOneByte(0x3c, 0x02);
 }
 
 // undo yuvpatches if necessary
@@ -1755,9 +1755,9 @@ void applyRGBPatches() {
   readFromRegister(0x00, 1, &readout);
   writeOneByte(0x00, readout & ~(1 << 1)); // rgb matrix bypass
 
-  writeOneByte(0xF0, 3); // for colors
-  writeOneByte(0x35, 0x80); writeOneByte(0x3a, 0xfe); writeOneByte(0x36, 0x1E);
-  writeOneByte(0x3b, 0x01); writeOneByte(0x37, 0x29); writeOneByte(0x3c, 0x01);
+  //writeOneByte(0xF0, 3); // for colors
+  //writeOneByte(0x35, 0x80); writeOneByte(0x3a, 0xfe); writeOneByte(0x36, 0x1E);
+  //writeOneByte(0x3b, 0x01); writeOneByte(0x37, 0x29); writeOneByte(0x3c, 0x01);
 }
 
 void startWire() {
@@ -3094,6 +3094,9 @@ void savePresetToSPIFFS() {
   }
   else {
     SerialM.println("preset file open ok");
+
+    writeOneByte(0xF0, 5);
+    GBS::ADC_0X00_RESERVED_5::write(1); // use one reserved bit to mark this as a custom preset
 
     for (int i = 0; i <= 5; i++) {
       writeOneByte(0xF0, i);

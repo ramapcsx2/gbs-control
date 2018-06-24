@@ -396,6 +396,9 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x98, 0,  8> OSD_BAR_FOREGROUND_VALUE;
 
     // ADC, SP Registers
+    typedef UReg<0x05, 0x00, 5,  1> ADC_0X00_RESERVED_5;
+    typedef UReg<0x05, 0x00, 6,  1> ADC_0X00_RESERVED_6;
+    typedef UReg<0x05, 0x00, 7,  1> ADC_0X00_RESERVED_7;
     typedef UReg<0x05, 0x02, 0,  1> ADC_SOGEN;
     typedef UReg<0x05, 0x02, 1,  5> ADC_SOGCTRL;
     typedef UReg<0x05, 0x02, 6,  2> ADC_INPUT_SEL;
