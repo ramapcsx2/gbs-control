@@ -210,7 +210,7 @@ void writeProgramArrayNew(const uint8_t* programArray)
   // 498 = s5_12, 499 = s5_13
   writeOneByte(0xF0, 5);
   GBS::ADC_TR_RSEL::write(0); // reset ADC test resistor reg before initializing
-  writeOneByte(0x11, 0x11); // Initial VCO control voltage
+  writeOneByte(0x11, 0x10);
   writeOneByte(0x13, getSingleByteFromPreset(programArray, 499)); // load PLLAD divider high bits first (tvp7002 manual)
   writeOneByte(0x12, getSingleByteFromPreset(programArray, 498));
   writeOneByte(0x16, getSingleByteFromPreset(programArray, 502)); // might as well
@@ -483,7 +483,8 @@ void goLowPowerWithInputDetection() {
   SerialM.println("low power");
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC (output)
   //pll648
-  GBS::PLL_VCORST::write(1); //t0t43t5 // PLL_VCORST reset vco voltage //10%
+  GBS::PLL_VCORST::write(0); // PLL_VCORST reset vco voltage
+  GBS::PLL_LEN::write(0); // PLL_LEN lock enable
   GBS::PLL_CKIS::write(1); // pll input from "input clock" (which is off)
   GBS::PLL_MS::write(1); // memory clock 81mhz
   writeOneByte(0xF0, 0);
@@ -686,6 +687,7 @@ void dumpRegisters(byte segment)
 
 void resetPLLAD() {
   GBS::PLLAD_LAT::write(0);
+  delay(1);
   GBS::PLLAD_LAT::write(1);
 }
 
@@ -958,6 +960,14 @@ void shiftVerticalDown() {
   shiftVertical(1, false);
 }
 
+void setHSyncStartPosition(uint16_t value) {
+  GBS::VDS_HS_ST::write(value);
+}
+
+void setHSyncStopPosition(uint16_t value) {
+  GBS::VDS_HS_SP::write(value);
+}
+
 void setMemoryHblankStartPosition(uint16_t value) {
   GBS::VDS_HB_ST::write(value);
 }
@@ -972,6 +982,14 @@ void setDisplayHblankStartPosition(uint16_t value) {
 
 void setDisplayHblankStopPosition(uint16_t value) {
   GBS::VDS_DIS_HB_SP::write(value);
+}
+
+void setVSyncStartPosition(uint16_t value) {
+  GBS::VDS_VS_ST::write(value);
+}
+
+void setVSyncStopPosition(uint16_t value) {
+  GBS::VDS_VS_SP::write(value);
 }
 
 void setMemoryVblankStartPosition(uint16_t value) {
@@ -1260,13 +1278,8 @@ void doPostPresetLoadSteps() {
   writeOneByte(0x83, 0x04); // MD H + V unstable lock value (shared)
 
   //update rto phase variables
-  uint8_t readout = 0;
-  writeOneByte(0xF0, 5);
-  readFromRegister(0x18, 1, &readout);
-  rto->phaseADC = ((readout & 0x3e) >> 1);
-  readFromRegister(0x19, 1, &readout);
-  //rto->phaseSP = ((readout & 0x3e) >> 1);
-  rto->phaseSP = 0; // always 0 seems best
+  rto->phaseADC = 2; //GBS::PA_ADC_S::read(); // use ofw value
+  rto->phaseSP = 1; //GBS::PA_SP_S::read(); // use ofw value
 
   if (rto->inputIsYpBpR == true) {
     SerialM.print("(YUV)");
@@ -1589,35 +1602,26 @@ boolean getSyncStable() {
 
 void advancePhase() {
   GBS::PA_ADC_LAT::write(0); //PA_ADC_LAT off
-  GBS::PA_SP_LOCKOFF::write(1); // lock off
-  byte level = GBS::PA_SP_S::read();
+  //GBS::PA_ADC_LOCKOFF::write(1); // lock off
+  byte level = GBS::PA_ADC_S::read();
   level += 2; level &= 0x1f;
-  GBS::PA_SP_S::write(level);
+  GBS::PA_ADC_S::write(level);
   GBS::PA_ADC_LAT::write(1); //PA_ADC_LAT on
   delay(1);
-  GBS::PA_SP_LOCKOFF::write(0); // lock on
+  GBS::PA_ADC_LOCKOFF::write(0); // lock on
 
-  uint8_t readout;
-  writeOneByte(0xF0, 5);
-  readFromRegister(0x18, 1, &readout);
-  SerialM.print("ADC phase: "); SerialM.println(readout, HEX);
+  SerialM.print("ADC phase: "); SerialM.println(GBS::PA_ADC_S::read(), HEX);
 }
 
 void setPhaseSP() {
-  uint8_t readout = 0;
-
-  writeOneByte(0xF0, 5);
-  readFromRegister(0x19, 1, &readout);
-  readout &= ~(1 << 7); // latch off
-  writeOneByte(0x19, readout);
-
-  readout = rto->phaseSP << 1;
-  readout |= (1 << 0);
-  writeOneByte(0x19, readout); // write this first
-  readFromRegister(0x19, 1, &readout); // read out again
-  readout |= (1 << 7);  // latch is now primed. new phase will go in effect when readout is written
-
-  writeOneByte(0x19, readout);
+  GBS::PA_SP_LAT::write(0); //PA_ADC_LAT off
+  //GBS::PA_SP_LOCKOFF::write(1); // lock off
+  GBS::PA_SP_BYPSZ::write(0); // bypass on (as in ofw)
+  GBS::PA_SP_S::write(rto->phaseSP);
+  delay(1);
+  GBS::PA_SP_LAT::write(1);
+  delay(1);
+  GBS::PA_SP_LOCKOFF::write(0); // lock on
 }
 
 void setPhaseADC() {
@@ -1627,9 +1631,8 @@ void setPhaseADC() {
   writeOneByte(0x63, 0x3d); // prep test bus, output clock
 
   GBS::PA_ADC_LAT::write(0); //PA_ADC_LAT off
-  GBS::PA_SP_LOCKOFF::write(1); // lock off
-  byte level = rto->phaseADC;
-  GBS::PA_SP_S::write(level);
+  //GBS::PA_ADC_LOCKOFF::write(1); // lock off
+  GBS::PA_ADC_S::write(rto->phaseADC);
   if (pulseIn(DEBUG_IN_PIN, HIGH, 100000) != 0) {
     if (pulseIn(DEBUG_IN_PIN, LOW, 100000) != 0) {
       while (digitalRead(DEBUG_IN_PIN) == 1);
@@ -1639,7 +1642,7 @@ void setPhaseADC() {
 
   GBS::PA_ADC_LAT::write(1); //PA_ADC_LAT on
   delay(1);
-  GBS::PA_SP_LOCKOFF::write(0); // lock on
+  GBS::PA_ADC_LOCKOFF::write(0); // lock on
   writeOneByte(0x63, debug_backup); // restore
 }
 
@@ -1727,8 +1730,10 @@ void bypassModeSwitch() {
   resetDigital(); // this will leave 0_46 reset controls with 0 (bypassed blocks disabled)
 }
 
-void applyYuvPatches() {   // also does color mixing changes
+void applyYuvPatches() {
   uint8_t readout;
+  rto->currentLevelSOG = 10;
+  setSOGLevel( rto->currentLevelSOG );
 
   writeOneByte(0xF0, 5);
   readFromRegister(0x03, 1, &readout);
@@ -1787,7 +1792,7 @@ void setup() {
   // start web services as early in boot as possible > greater chance to get a websocket connection in time for logging startup
   if (rto->webServerEnabled) {
     start_webserver();
-    WiFi.setOutputPower(12.0f); // float: min 0.0f, max 20.5f
+    WiFi.setOutputPower(14.0f); // float: min 0.0f, max 20.5f // 14.0 to try and push through the PLL interference
     rto->webServerStarted = true;
     unsigned long initLoopStart = millis();
     while (millis() - initLoopStart < 2000) {
@@ -1795,7 +1800,7 @@ void setup() {
       dnsServer.processNextRequest();
       server.handleClient();
       webSocket.loop();
-      delay(1); // allow some time for the ws server to find clients currently trying to reconnect
+      yield(); // allow some time for the ws server to find clients currently trying to reconnect
     }
   }
   else {
@@ -1818,8 +1823,8 @@ void setup() {
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->syncLockFailIgnore = 2; // allow syncLock to fail x-1 times in a row before giving up (sync glitch immunity)
   rto->syncWatcher = true;  // continously checks the current sync status. required for normal operation
-  rto->phaseADC = 8; // 0 to 31
-  rto->phaseSP = 8; // 0 to 31
+  rto->phaseADC = 2; // 0 to 31 // ofw uses 2
+  rto->phaseSP = 1; // 0 to 31  // ofw uses 0 but keeps PA_SP disabled
 
   // the following is just run time variables. don't change!
   rto->currentLevelSOG = 8;
@@ -2231,10 +2236,7 @@ void loop() {
         uopt->enableFrameTimeLock = !uopt->enableFrameTimeLock;
         break;
       case 'E':
-        rto->phaseADC += 1; rto->phaseADC &= 0x1f;
-        rto->phaseSP += 1; rto->phaseSP &= 0x1f;
-        SerialM.print("ADC: "); SerialM.println(rto->phaseADC);
-        SerialM.print(" SP: "); SerialM.println(rto->phaseSP);
+        //
         break;
       case '0':
         moveHS(1, true);
@@ -2426,6 +2428,12 @@ void loop() {
               else if (what.equals("vt")) {
                 set_vtotal(value);
               }
+              else if (what.equals("hsst")) {
+                setHSyncStartPosition(value);
+              }
+              else if (what.equals("hssp")) {
+                setHSyncStopPosition(value);
+              }
               else if (what.equals("hbst")) {
                 setMemoryHblankStartPosition(value);
               }
@@ -2437,6 +2445,12 @@ void loop() {
               }
               else if (what.equals("hbspd")) {
                 setDisplayHblankStopPosition(value);
+              }
+              else if (what.equals("vsst")) {
+                setVSyncStartPosition(value);
+              }
+              else if (what.equals("vssp")) {
+                setVSyncStopPosition(value);
               }
               else if (what.equals("vbst")) {
                 setMemoryVblankStartPosition(value);

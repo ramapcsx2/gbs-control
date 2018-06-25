@@ -140,7 +140,8 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     // Miscellaneous Registers
     typedef UReg<0x00, 0x40, 0,  1> PLL_CKIS;
     typedef UReg<0x00, 0x40, 4,  3> PLL_MS;
-    typedef UReg<0x00, 0x43, 4,  1> PLL_VCORST;
+    typedef UReg<0x00, 0x43, 4,  1> PLL_LEN;
+    typedef UReg<0x00, 0x43, 5,  1> PLL_VCORST;
     typedef UReg<0x00, 0x44, 0,  1> DAC_RGBS_PWDNZ;
     typedef UReg<0x00, 0x49, 2,  1> PAD_SYNC_OUT_ENZ;
     typedef UReg<0x00, 0x4B, 2,  1> DAC_RGBS_ADC2DAC;
@@ -423,10 +424,12 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x16, 6,  2> PLLAD_CKOS;
     typedef UReg<0x05, 0x17, 0,  3> PLLAD_ICP;
     typedef UReg<0x05, 0x18, 0,  1> PA_ADC_BYPSZ;
-    typedef UReg<0x05, 0x18, 1,  5> PA_SP_S;
-    typedef UReg<0x05, 0x18, 6,  1> PA_SP_LOCKOFF;
+    typedef UReg<0x05, 0x18, 1,  5> PA_ADC_S;
+    typedef UReg<0x05, 0x18, 6,  1> PA_ADC_LOCKOFF;
     typedef UReg<0x05, 0x18, 7,  1> PA_ADC_LAT;
     typedef UReg<0x05, 0x19, 0,  1> PA_SP_BYPSZ;
+    typedef UReg<0x05, 0x19, 1,  5> PA_SP_S;
+    typedef UReg<0x05, 0x19, 6,  1> PA_SP_LOCKOFF;
     typedef UReg<0x05, 0x19, 7,  1> PA_SP_LAT;
     typedef UReg<0x05, 0x20, 3,  1> SP_EXT_SYNC_SEL;
     typedef UReg<0x05, 0x37, 0,  8> SP_H_PULSE_IGNOR;
