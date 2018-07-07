@@ -145,8 +145,10 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x44, 0,  1> DAC_RGBS_PWDNZ;
     typedef UReg<0x00, 0x46, 1,  1> SFTRST_DEINT_RSTZ;
     typedef UReg<0x00, 0x46, 6,  1> SFTRST_VDS_RSTZ;
+    typedef UReg<0x00, 0x47, 1,  1> SFTRST_MODE_RSTZ;
+    typedef UReg<0x00, 0x47, 2,  1> SFTRST_SYNC_RSTZ;
     typedef UReg<0x00, 0x49, 2,  1> PAD_SYNC_OUT_ENZ;
-	typedef UReg<0x00, 0x4a, 0,  3> PAD_OSC_CNTRL;
+    typedef UReg<0x00, 0x4a, 0,  3> PAD_OSC_CNTRL;
     typedef UReg<0x00, 0x4B, 2,  1> DAC_RGBS_ADC2DAC;
     typedef UReg<0x00, 0x4D, 0,  5> TEST_BUS_SEL;
 
@@ -384,7 +386,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     // Memory Controller Registers
     typedef UReg<0x04, 0x00, 4,  1> SDRAM_RESET_SIGNAL;
     typedef UReg<0x04, 0x00, 7,  1> SDRAM_START_INITIAL_CYCLE;
-    
+
     // OSD Registers
     typedef UReg<0x00, 0x90, 0,  1> OSD_SW_RESET;
     typedef UReg<0x00, 0x90, 1,  3> OSD_HORIZONTAL_ZOOM;
@@ -462,8 +464,12 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x43, 0, 12> SP_CS_CLP_SP;
     typedef UReg<0x05, 0x4D, 0, 12> SP_H_CST_ST;
     typedef UReg<0x05, 0x4F, 0, 12> SP_H_CST_SP;
+    typedef UReg<0x05, 0x55, 4,  1> SP_HS_POL_ATO;
+    typedef UReg<0x05, 0x55, 6,  1> SP_VS_POL_ATO;
     typedef UReg<0x05, 0x56, 0,  1> SP_SOG_MODE;
     typedef UReg<0x05, 0x56, 2,  1> SP_CLAMP_MANUAL;
+    typedef UReg<0x05, 0x56, 5,  1> SP_HS_PROC_INV_REG;
+    typedef UReg<0x05, 0x56, 6,  1> SP_VS_PROC_INV_REG;
     typedef UReg<0x05, 0x57, 6,  1> SP_HS_LOOP_SEL;
 
 

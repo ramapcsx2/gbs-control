@@ -404,7 +404,7 @@ void setParametersSP() {
   writeOneByte(0x37, rto->currentSyncPulseIgnoreValue);
   writeOneByte(0x3a, 0x04); // was 0x0a // range depends on source vtiming, from 0x03 to xxx, some good effect at lower levels
 
-  setInitialClampPosition(); // already done if gone thorugh syncwatcher, but not manual modes
+  updateClampPosition(); // already done if gone thorugh syncwatcher, but not manual modes
   GBS::SP_SDCS_VSST_REG_H::write(0);
   GBS::SP_SDCS_VSST_REG_L::write(0); // VSST 0
   GBS::SP_SDCS_VSSP_REG_H::write(0);
@@ -457,8 +457,9 @@ void setSOGLevel(uint8_t level) {
 }
 
 void syncProcessorModeSD() {
-  setInitialClampPosition();
+  updateClampPosition();
   writeOneByte(0xF0, 5);
+  GBS::SP_JITTER_SYNC::write(0); // for all 3 modes now
   rto->currentSyncPulseIgnoreValue = 0x58;
   writeOneByte(0x37, 0x58);
   writeOneByte(0x38, 0x03);
@@ -469,13 +470,13 @@ void syncProcessorModeSD() {
 }
 
 void syncProcessorModeHD() {
-  setInitialClampPosition();
+  updateClampPosition();
   writeOneByte(0xF0, 5);
+  GBS::SP_JITTER_SYNC::write(0);
   rto->currentSyncPulseIgnoreValue = 0x04;
   writeOneByte(0x37, 0x04);
   writeOneByte(0x38, 0x04);
   writeOneByte(0x39, 0x07);
-  //writeOneByte(0x56, 0x01);
 
   rto->currentSyncProcessorMode = 1;
 }
@@ -484,6 +485,10 @@ void syncProcessorModeVGA() {
   rto->syncLockEnabled = false; // not necessary, since VDS is off / bypassed
   writeOneByte(0xF0, 5);
   GBS::SP_JITTER_SYNC::write(0);
+  //GBS::SP_HS_POL_ATO::write(1);
+  //GBS::SP_VS_POL_ATO::write(1);
+  //GBS::SP_HS_PROC_INV_REG::write(0);
+  //GBS::SP_VS_PROC_INV_REG::write(0);
   writeOneByte(0x37, 0x04);
   writeOneByte(0x38, 0x00);
   writeOneByte(0x39, 0x00);
@@ -559,7 +564,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
       writeOneByte(0xF0, 0);
       unsigned long timeOutStart = millis();
       uint8_t vsyncActive = 0;
-      while (!vsyncActive && millis() - timeOutStart < 3000) {
+      while (!vsyncActive && millis() - timeOutStart < 500) {
         readFromRegister(0x16, 1, &readout);
         vsyncActive = readout & 0x08;
       }
@@ -595,8 +600,8 @@ uint8_t detectAndSwitchToActiveInput() { // if any
       //SerialM.print("found smth. readout: "); SerialM.print(readout); SerialM.print(" getVideoMode: "); SerialM.print(getVideoMode());
       //SerialM.print(" currentInput: "); SerialM.println(currentInput);
       if (currentInput == 1) { // RGBS
-        while (!getVideoMode() && millis() - timeOutStart < 3000) yield(); // wait here instead of in syncwatcher
-        if (millis() - timeOutStart >= 3000) {
+        while (!getVideoMode() && millis() - timeOutStart < 500) yield(); // wait here instead of in syncwatcher
+        if (millis() - timeOutStart >= 500) {
           return 0;
         }
         rto->inputIsYpBpR = 0;
@@ -606,7 +611,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
       else if (currentInput == 0) { // YUV
         rto->inputIsYpBpR = 1;
         rto->sourceDisconnected = false;
-        while (!getVideoMode() && millis() - timeOutStart < 4000) { // wait here instead of in syncwatcher
+        while (!getVideoMode() && millis() - timeOutStart < 1800) { // wait here instead of in syncwatcher
           static boolean toggle = 0;
           if (toggle) syncProcessorModeHD();
           else syncProcessorModeSD();
@@ -635,10 +640,9 @@ void inputAndSyncDetect() {
   uint8_t syncFound = detectAndSwitchToActiveInput();
 
   if (syncFound == 0) {
-    SerialM.println("no input with sync found");
+    SerialM.println("no sync found");
     if (!getSyncPresent()) {
       rto->sourceDisconnected = true;
-      SerialM.println("source is off");
       // reset to base settings, then go to low power
       syncProcessorModeSD();
       GBS::SP_EXT_SYNC_SEL::write(1); // disconnect HV input
@@ -744,13 +748,6 @@ void resetPLL() {
   GBS::PLL_VCORST::write(0);
   delay(10);
   GBS::PLL_LEN::write(1);
-  //writeOneByte(0xF0, 0);
-  //writeOneByte(0x4a, 0x00); // 27Mhz crystal drive strength, low jitter at the default (0)
-  //delay(20);
-  //writeOneByte(0x43, 0x00);
-  // removed the jitter margin. pll should lock without it now
-  //delay(50);
-  //writeOneByte(0x43, 0x10); // pll lock on
 }
 
 void ResetSDRAM() {
@@ -779,33 +776,15 @@ void resetDigital() {
 }
 
 void SyncProcessorOffOn() {
-  uint8_t readout = 0;
   disableDeinterlacer();
-  writeOneByte(0xF0, 0);
-  readFromRegister(0x47, 1, &readout);
-  writeOneByte(0x47, readout & ~(1 << 2));
-  readFromRegister(0x47, 1, &readout);
-  writeOneByte(0x47, readout | (1 << 2));
+  GBS::SFTRST_SYNC_RSTZ::write(0);
+  GBS::SFTRST_SYNC_RSTZ::write(1);
   delay(200); enableDeinterlacer();
 }
 
 void resetModeDetect() {
-  uint8_t readout = 0; //, backup = 0;
-  writeOneByte(0xF0, 0);
-  readFromRegister(0x47, 1, &readout);
-  writeOneByte(0x47, readout & ~(1 << 1));
-  readFromRegister(0x47, 1, &readout);
-  writeOneByte(0x47, readout | (1 << 1));
-
-  // try a softer approach
-  //  writeOneByte(0xF0, 1);
-  //  readFromRegister(0x63, 1, &readout);
-  //  backup = readout;
-  //  writeOneByte(0x63, readout & ~(1 << 6));
-  //  writeOneByte(0x63, readout | (1 << 6));
-  //  writeOneByte(0x63, readout & ~(1 << 7));
-  //  writeOneByte(0x63, readout | (1 << 7));
-  //  writeOneByte(0x63, backup);
+  GBS::SFTRST_MODE_RSTZ::write(0);
+  GBS::SFTRST_MODE_RSTZ::write(1);
 }
 
 void shiftHorizontal(uint16_t amountToAdd, bool subtracting) {
@@ -1029,10 +1008,10 @@ void shiftVerticalUpIF() {
   int16_t stop = GBS::IF_VB_SP::read();
   int16_t start = GBS::IF_VB_ST::read();
 
-  if (stop + 1 <= sourceLines) stop += 1;
+  if (stop + 1 <= (int16_t)sourceLines) stop += 1;
   else stop = 0 + 1;
 
-  if (start + 2 <= sourceLines) start += 1;
+  if (start + 2 <= (int16_t)sourceLines) start += 1;
   else start = 0 + 1;
 
   GBS::IF_VB_SP::write(stop);
@@ -1107,9 +1086,7 @@ void getVideoTimings() {
   uint8_t  regHigh;
 
   uint16_t Vds_hsync_rst;
-  uint16_t VDS_HSCALE;
   uint16_t Vds_vsync_rst;
-  uint16_t VDS_VSCALE;
   uint16_t vds_dis_hb_st;
   uint16_t vds_dis_hb_sp;
   uint16_t VDS_HS_ST;
@@ -1125,12 +1102,6 @@ void getVideoTimings() {
   readFromRegister(0x02, 1, &regHigh);
   Vds_hsync_rst = (( ( ((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
   SerialM.print("htotal: "); SerialM.println(Vds_hsync_rst);
-
-  // get horizontal scale up
-  readFromRegister(0x16, 1, &regLow);
-  readFromRegister(0x17, 1, &regHigh);
-  VDS_HSCALE = (( ( ((uint16_t)regHigh) & 0x0003) << 8) | (uint16_t)regLow);
-  SerialM.print("VDS_HSCALE: "); SerialM.println(VDS_HSCALE);
 
   // get HS_ST
   readFromRegister(0x0a, 1, &regLow);
@@ -1174,12 +1145,6 @@ void getVideoTimings() {
   readFromRegister(0x03, 1, &regHigh);
   Vds_vsync_rst = ( (((uint16_t)regHigh) & 0x007f) << 4) | ( (((uint16_t)regLow) & 0x00f0) >> 4);
   SerialM.print("vtotal: "); SerialM.println(Vds_vsync_rst);
-
-  // get vertical scale up
-  readFromRegister(0x17, 1, &regLow);
-  readFromRegister(0x18, 1, &regHigh);
-  VDS_VSCALE = ( (((uint16_t)regHigh) & 0x007f) << 4) | ( (((uint16_t)regLow) & 0x00f0) >> 4);
-  SerialM.print("VDS_VSCALE: "); SerialM.println(VDS_VSCALE);
 
   // get V Sync Start
   readFromRegister(0x0d, 1, &regLow);
@@ -1326,10 +1291,10 @@ void debugPortSetSP() {
 void applyBestHTotal(uint16_t bestHTotal) {
   uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
   int diffHTotal = bestHTotal - orig_htotal;
-
+  boolean negativeScalingCorrection = GBS::VDS_HSCALE::read() < 512;
   // apply correction, but only if source is different than presets timings, ie: not a custom preset or source doesn't fit custom preset
   // hack: rto->syncLockFailIgnore == 3 means the correction should be forced (command '.')
-  if (diffHTotal != 0 || rto->syncLockFailIgnore == 3) {
+  if ((diffHTotal != 0 || negativeScalingCorrection) || rto->syncLockFailIgnore == 3) {
     uint16_t h_blank_display_start_position = bestHTotal - 1;
     uint16_t h_blank_display_stop_position =  GBS::VDS_DIS_HB_SP::read() + diffHTotal;
     uint16_t center_blank = ((h_blank_display_stop_position / 2) * 3) / 4; // a bit to the left
@@ -1338,6 +1303,12 @@ void applyBestHTotal(uint16_t bestHTotal) {
     uint16_t h_sync_stop_position =   center_blank + (center_blank / 2);
     uint16_t h_blank_memory_start_position = h_blank_display_start_position - (h_blank_display_start_position / 24); // at least h_blank_display_start_position - 1
     uint16_t h_blank_memory_stop_position =  GBS::VDS_HB_SP::read() + diffHTotal; // have to rely on currently loaded preset, see below
+
+    if (negativeScalingCorrection) {
+      //h_blank_memory_start_position = (h_blank_memory_start_position - 1) | 1;
+      h_blank_memory_start_position &= 0xfffe;
+      SerialM.println("neg. scale!");
+    }
 
     GBS::VDS_HSYNC_RST::write(bestHTotal);
     GBS::VDS_HS_ST::write( h_sync_start_position );
@@ -1614,10 +1585,7 @@ void disableDeinterlacer() {
 }
 
 void disableVDS() {
-  uint8_t readout = 0;
-  writeOneByte(0xf0, 0);
-  readFromRegister(0x46, 1, &readout);
-  writeOneByte(0x46, readout & ~(1 << 6));
+  GBS::SFTRST_VDS_RSTZ::write(0);
 }
 
 void enableVDS() {
@@ -1711,7 +1679,7 @@ boolean getSyncStable() {
 }
 
 void togglePhaseAdjustUnits() {
-  GBS::PA_SP_BYPSZ::write(0); // bypass on
+  GBS::PA_SP_BYPSZ::write(0); // yes, 0 means bypass on here
   GBS::PA_SP_BYPSZ::write(1);
 }
 
@@ -1748,14 +1716,10 @@ void updateCoastPosition() {
   }
   inHlength /= i;
   inHlength *= 4;
-  SerialM.print("in length: "); SerialM.print(inHlength);
+
   if (inHlength > 0) {
     GBS::SP_H_CST_SP::write(inHlength - (inHlength / 24)); // snes requires this to be 4% less than inHlength (else jumpy pic)
     GBS::SP_H_CST_ST::write((inHlength / 4) - 8);
-    SerialM.print("\n");
-  }
-  else {
-    SerialM.println(" (ignored)");
   }
 }
 
@@ -1774,21 +1738,6 @@ void updateClampPosition() {
   else if (rto->videoStandardInput == 15) {
     GBS::SP_CS_CLP_ST::write(8);
     GBS::SP_CS_CLP_SP::write(18);
-  }
-}
-
-void setInitialClampPosition() {
-  writeOneByte(0xF0, 5);
-  if (rto->inputIsYpBpR) {
-    writeOneByte(0x41, 0x10); writeOneByte(0x43, 0x27);
-    writeOneByte(0x42, 0x00); writeOneByte(0x44, 0x00);
-  }
-  else {
-    // tip: see clamp pulse in RGB signal: t5t56t7, scope trigger on hsync, measurement probe on one of the RGB lines
-    // move the clamp away from the sync pulse slightly (SNES 239 mode), but not too much to start disturbing Genesis
-    // Genesis starts having issues in the 0x78 range and above
-    writeOneByte(0x41, 0x10); writeOneByte(0x43, 0x50);
-    writeOneByte(0x42, 0x00); writeOneByte(0x44, 0x00);
   }
 }
 
@@ -2259,13 +2208,16 @@ void loop() {
             }
 
             line_length = line_length / ((rto->currentSyncProcessorMode > 0 ? 1 : 2)); // half of pll_divider, but in linedouble mode only
+
+            SerialM.print("PLL div: "); SerialM.print(pll_divider, HEX);
+            SerialM.print(" line_length: "); SerialM.println(line_length);
+
             line_length -= (GBS::IF_HB_SP2::read() / 2);
             line_length += (GBS::IF_INI_ST::read() / 2);
 
             GBS::IF_HSYNC_RST::write(line_length);
             GBS::IF_LINE_SP::write(line_length + 1); // line_length +1
-            SerialM.print("PLL div: "); SerialM.print(pll_divider, HEX);
-            SerialM.print(" line_length: "); SerialM.println(line_length);
+
             // IF S0_18/19 need to be line lenth - 1
             // update: but this makes any slight adjustments a pain. also, it doesn't seem to affect picture quality
             //GBS::IF_HB_ST2::write((line_length / ((rto->currentSyncProcessorMode > 0 ? 1 : 2))) - 1);
@@ -2692,44 +2644,58 @@ void loop() {
         noSyncCounter = 0;
       }
     }
-    else if (getSyncStable() && newVideoMode != 0) { // last used mode reappeared
+    else if (getSyncStable() && newVideoMode != 0) { // last used mode reappeared / stable again
       noSyncCounter = 0;
-      if (rto->deinterlacerWasTurnedOff) enableDeinterlacer();
+      if (rto->deinterlacerWasTurnedOff) {
+        SerialM.println("last mode reappeared");
+        if ((rto->currentSyncProcessorMode > 0) && (newVideoMode <= 2)) { // if HD mode loaded and source is SD
+          syncProcessorModeSD(); SerialM.println("go SD");
+          delay(100);
+        }
+        else if ((rto->currentSyncProcessorMode == 0) && (newVideoMode > 2)) { // if HD mode loaded and source is SD
+          syncProcessorModeHD(); SerialM.println("go HD");
+          delay(100);
+        }
+        latchPLLAD();
+        //togglePhaseAdjustUnits();
+        setPhaseSP(); setPhaseADC();
+        enableDeinterlacer();
+        delay(60);
+      }
       // source is stable, this is a good time to do running hpw sampling to determine correct SP_H_PULSE_IGNOR (S5_37)
       // goal is to prevent eq and serration pulses present in NTSC/PAL video counting towards vlines
       // todo: sanity check the sort!
-      syncPulseHistory[syncPulseHistoryIndex++] = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
-      if (syncPulseHistoryIndex == 19) {
-        syncPulseHistoryIndex = 0;
-        for (uint8_t i = 0; i < 20; i++) {
-          for (uint8_t o = 0; o < (20 - (i + 1)); o++) {
-            if (syncPulseHistory[o] > syncPulseHistory[o + 1]) {
-              uint16_t t = syncPulseHistory[o];
-              syncPulseHistory[o] = syncPulseHistory[o + 1];
-              syncPulseHistory[o + 1] = t;
+      if (rto->currentSyncProcessorMode == 0) { // is in SD; HD mode doesn't need this
+        syncPulseHistory[syncPulseHistoryIndex++] = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
+        if (syncPulseHistoryIndex == 19) {
+          syncPulseHistoryIndex = 0;
+          for (uint8_t i = 0; i < 20; i++) {
+            for (uint8_t o = 0; o < (20 - (i + 1)); o++) {
+              if (syncPulseHistory[o] > syncPulseHistory[o + 1]) {
+                uint16_t t = syncPulseHistory[o];
+                syncPulseHistory[o] = syncPulseHistory[o + 1];
+                syncPulseHistory[o + 1] = t;
+              }
             }
           }
-        }
-        if (rto->currentSyncProcessorMode == 0) { // is in SD; HD mode doesn't need this
           rto->currentSyncPulseIgnoreValue = (syncPulseHistory[9] / 2) + 4;
           GBS::SP_H_PULSE_IGNOR::write(rto->currentSyncPulseIgnoreValue);
         }
       }
     }
 
-    uint8_t limit = rto->currentSyncProcessorMode == 3 ? 2 : 50;
-    if (noSyncCounter >= limit) { // signal lost
+    if (noSyncCounter >= 60) { // signal lost
       delay(8);
-      if (noSyncCounter == limit || noSyncCounter == 100) {
+      if (noSyncCounter % 30 == 0) {
         if (rto->currentSyncProcessorMode == 0) { // is in SD
-          SerialM.println("try HD");
+          SerialM.print("HD? ");
           disableDeinterlacer();
           syncProcessorModeHD();
           resetModeDetect();
           delay(10);
         }
         else if (rto->currentSyncProcessorMode == 1) { // is in HD
-          SerialM.println("try SD");
+          SerialM.print("SD? ");
           syncProcessorModeSD();
           resetModeDetect();
           delay(10);
@@ -2754,18 +2720,18 @@ void loop() {
         }
       }
 
-      if (noSyncCounter >= 200) { // couldn't recover; wait at least for an SD2SNES long reset cycle
+      if (noSyncCounter >= 500) { // couldn't recover;
         disableVDS();
         resetDigital();
         rto->videoStandardInput = 0;
         noSyncCounter = 0;
+        syncPulseHistoryIndex = 0;
         inputAndSyncDetect();
       }
     }
 
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
     lastTimeSyncWatcher = millis();
-
   }
 
   if (rto->printInfos == true && millis() - lastTimeInfoMode > 2) { // information mode
@@ -3076,7 +3042,7 @@ void start_webserver()
   persWM.setApCredentials(ap_ssid, ap_password);
   persWM.onConnect([]() {
     WiFi.hostname("gbscontrol");
-    SerialM.print("wifi connected using local IP: ");
+    SerialM.print("local IP: ");
     SerialM.println(WiFi.localIP());
     SerialM.print("hostname: "); SerialM.println(WiFi.hostname());
   });
