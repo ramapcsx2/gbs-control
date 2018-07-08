@@ -376,9 +376,9 @@ void setParametersSP() {
 
   writeOneByte(0xF0, 5); // just making sure
   if (rto->currentSyncProcessorMode != 3) {
-    writeOneByte(0x20, 0x1a); // auto correct sog polarity, sog source = ADC, external sync input to the unused one (will get tested elsewhere)
+    writeOneByte(0x20, 0x0a); // auto correct sog polarity, sog source = ADC, external sync input to the unused one (will get tested elsewhere)
   }
-  else writeOneByte(0x20, 0x12);
+  else writeOneByte(0x20, 0x02);
   // H active detect control
   writeOneByte(0x21, 0x02); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20 // keep this very low
   writeOneByte(0x22, 0x10); // SP_L_DLT_REG       Sync pulse width different threshold (little than this as equal). // 7
@@ -406,9 +406,9 @@ void setParametersSP() {
 
   updateClampPosition(); // already done if gone thorugh syncwatcher, but not manual modes
   GBS::SP_SDCS_VSST_REG_H::write(0);
-  GBS::SP_SDCS_VSST_REG_L::write(0); // VSST 0
+  GBS::SP_SDCS_VSST_REG_L::write(3);
   GBS::SP_SDCS_VSSP_REG_H::write(0);
-  GBS::SP_SDCS_VSSP_REG_L::write(1); // VSSP 1
+  GBS::SP_SDCS_VSSP_REG_L::write(12); // test: t5t11t3 > minimize jitter
 
   writeOneByte(0x3e, 0x10); // seems to be good for permanent use now
 
@@ -751,10 +751,13 @@ void resetPLL() {
 }
 
 void ResetSDRAM() {
+  writeOneByte(0xF0, 4);
+  writeOneByte(0x00, 0x80); // test: disable "Software Control SDRAM Idle Period" 0x87 for normal
   GBS::SDRAM_START_INITIAL_CYCLE::write(1);
   GBS::SDRAM_RESET_SIGNAL::write(1);
   GBS::SDRAM_START_INITIAL_CYCLE::write(0);
   GBS::SDRAM_RESET_SIGNAL::write(0);
+  GBS::SDRAM_START_INITIAL_CYCLE::write(1);
 }
 
 // soft reset cycle
@@ -2848,8 +2851,9 @@ void handleType2Command() {
           readFromRegister(0x16, 1, &reg);
           if ((reg & 0x80) == 0x80) {
             writeOneByte(0x16, reg ^ (1 << 7));
-            writeOneByte(0xF0, 5);
-            writeOneByte(0x09, 0x5f); writeOneByte(0x0a, 0x5f); writeOneByte(0x0b, 0x5f); // more ADC gain
+            GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() - 0x20);
+            GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() - 0x20);
+            GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() - 0x20);
             writeOneByte(0xF0, 3);
             writeOneByte(0x35, 0xd0); // more luma gain
             writeOneByte(0xF0, 2);
@@ -2858,8 +2862,9 @@ void handleType2Command() {
           }
           else {
             writeOneByte(0x16, reg ^ (1 << 7));
-            writeOneByte(0xF0, 5);
-            writeOneByte(0x09, 0x7f); writeOneByte(0x0a, 0x7f); writeOneByte(0x0b, 0x7f);
+            GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 0x20);
+            GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 0x20);
+            GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 0x20);
             writeOneByte(0xF0, 3);
             writeOneByte(0x35, 0x80);
             writeOneByte(0xF0, 2);
@@ -2974,7 +2979,7 @@ void handleType2Command() {
           switch (PLL_MS) {
             case 0: memClock = 108; break;
             case 1: memClock = 81; break;
-            case 2: memClock = 255; break; //feedback clock
+            case 2: memClock = 10; break; //feedback clock
             case 3: memClock = 162; break;
             case 4: memClock = 144; break;
             case 5: memClock = 185; break;
@@ -2983,7 +2988,8 @@ void handleType2Command() {
             default: break;
           }
           GBS::PLL_MS::write(PLL_MS);
-          if (memClock != 255) {
+          ResetSDRAM();
+          if (memClock != 10) {
             SerialM.print("SDRAM clock: "); SerialM.print(memClock); SerialM.println("Mhz");
           }
           else {
@@ -3009,6 +3015,20 @@ void handleType2Command() {
           }
           SerialM.println("DCTI off");
         }
+        break;
+      case 'n':
+        SerialM.print("ADC gain++ : ");
+        GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() - 1);
+        GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() - 1);
+        GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() - 1);
+        SerialM.println(GBS::ADC_RGCTRL::read(), HEX);
+        break;
+      case 'o':
+        SerialM.print("ADC gain-- : ");
+        GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 1);
+        GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 1);
+        GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 1);
+        SerialM.println(GBS::ADC_RGCTRL::read(), HEX);
         break;
       default:
         break;
