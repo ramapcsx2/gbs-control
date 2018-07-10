@@ -728,11 +728,13 @@ void dumpRegisters(byte segment)
 
 void resetPLLAD() {
   GBS::PLLAD_LAT::write(0);
+  GBS::PLLAD_PDZ::write(0);
   GBS::PLLAD_VCORST::write(0);
   delay(1);
+  GBS::PLLAD_PDZ::write(1);
+  delay(2);
   GBS::PLLAD_LEN::write(1);
   GBS::PLLAD_LAT::write(1);
-  delay(3);
 }
 
 void latchPLLAD() {
@@ -744,20 +746,18 @@ void resetPLL() {
   GBS::PAD_OSC_CNTRL::write(5); // crystal drive
   GBS::PLL_LEN::write(0);
   GBS::PLL_VCORST::write(1);
-  delay(20);
+  delay(2);
   GBS::PLL_VCORST::write(0);
-  delay(10);
+  delay(2);
   GBS::PLL_LEN::write(1);
 }
 
 void ResetSDRAM() {
   writeOneByte(0xF0, 4);
-  writeOneByte(0x00, 0x80); // test: disable "Software Control SDRAM Idle Period" 0x87 for normal
-  GBS::SDRAM_START_INITIAL_CYCLE::write(1);
-  GBS::SDRAM_RESET_SIGNAL::write(1);
-  GBS::SDRAM_START_INITIAL_CYCLE::write(0);
-  GBS::SDRAM_RESET_SIGNAL::write(0);
-  GBS::SDRAM_START_INITIAL_CYCLE::write(1);
+  writeOneByte(0x00, 0x00); // test: disable "Software Control SDRAM Idle Period" 0x87 for normal
+  GBS::SDRAM_RESET_SIGNAL::write(1); delay(2);
+  GBS::SDRAM_RESET_SIGNAL::write(0); delay(2);
+  GBS::SDRAM_START_INITIAL_CYCLE::write(1); delay(2);
 }
 
 // soft reset cycle
@@ -772,9 +772,9 @@ void resetDigital() {
   writeOneByte(0xF0, 0);
   writeOneByte(0x46, disableState); writeOneByte(0x47, 0); delay(1);
   if (rto->videoStandardInput != 15) writeOneByte(0x46, enableState);
-  writeOneByte(0x47, 0x17); delay(6); // all on except HD bypass
-  ResetSDRAM(); delay(10);
-  resetPLL(); delay(10);
+  writeOneByte(0x47, 0x17); delay(1); // all on except HD bypass
+  ResetSDRAM(); delay(1);
+  resetPLL();
   SerialM.println("resetDigital");
 }
 
@@ -1991,7 +1991,7 @@ void setup() {
   enableDebugPort(); // post preset should do this but may fail. make sure debug is on
   rto->videoStandardInput = 0;
   resetDigital();
-
+  delay(120);
   // is there an active input?
   for (uint8_t i = 0; i < 3; i++) {
     SerialM.print("loop: "); SerialM.println(i);
@@ -2124,25 +2124,34 @@ void loop() {
         enableVDS();
         break;
       case 'D':
-        // debug stuff:
-        //shift h / v blanking into good view
-        if (GBS::VDS_PK_Y_H_BYPS::read() == 1) { // a bit crummy, should be replaced with a dummy reg bit
-          shiftHorizontal(500, false);
-          shiftVertical(260, false);
-          // enable peaking
-          GBS::VDS_PK_Y_H_BYPS::write(0);
-          // enhance!
-          GBS::VDS_Y_GAIN::write(0xf0);
-          GBS::VDS_Y_OFST::write(0x20);
-        }
-        else {
-          shiftHorizontal(500, true);
-          shiftVertical(260, true);
-          GBS::VDS_PK_Y_H_BYPS::write(1);
-          // enhance!
-          GBS::VDS_Y_GAIN::write(0x80);
-          GBS::VDS_Y_OFST::write(0xFE);
-        }
+	  {
+		  static boolean toggle = false;
+		  static uint8_t filter = GBS::ADC_FLTR::read();
+		  // debug stuff:
+		  //shift h / v blanking into good view
+		  if (!toggle) { 
+			  shiftHorizontal(700, false);
+			  shiftVertical(240, false);
+			  // enable peaking
+			  GBS::VDS_PK_Y_H_BYPS::write(0);
+			  // enhance!
+			  GBS::VDS_Y_GAIN::write(0xf0);
+			  GBS::VDS_Y_OFST::write(0x20);
+			  filter = GBS::ADC_FLTR::read();
+			  GBS::ADC_FLTR::write(0);
+			  toggle = true;
+		  }
+		  else {
+			  shiftHorizontal(700, true);
+			  shiftVertical(240, true);
+			  GBS::VDS_PK_Y_H_BYPS::write(1);
+			  // enhance!
+			  GBS::VDS_Y_GAIN::write(0x80);
+			  GBS::VDS_Y_OFST::write(0xFE);
+			  GBS::ADC_FLTR::write(filter);
+			  toggle = false;
+		  }
+	  }
         break;
       case 'C':
         updateClampPosition();
