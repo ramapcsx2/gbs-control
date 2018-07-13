@@ -727,6 +727,8 @@ void dumpRegisters(byte segment)
 }
 
 void resetPLLAD() {
+  GBS::PA_SP_BYPSZ::write(0);
+  GBS::PA_ADC_BYPSZ::write(0);
   GBS::PLLAD_LAT::write(0);
   GBS::PLLAD_PDZ::write(0);
   GBS::PLLAD_VCORST::write(0);
@@ -735,6 +737,8 @@ void resetPLLAD() {
   delay(2);
   GBS::PLLAD_LEN::write(1);
   GBS::PLLAD_LAT::write(1);
+  setPhaseSP();
+  setPhaseADC();
 }
 
 void latchPLLAD() {
@@ -1279,6 +1283,9 @@ void enableDebugPort() {
   writeOneByte(0xf0, 0x03);
   readFromRegister(0x50, 1, &reg);
   writeOneByte(0x50, reg | (1 << 4)); // VDS test enable
+  writeOneByte(0xf0, 0x05);
+  readFromRegister(0x1f, 1, &reg);
+  writeOneByte(0x1f, reg | (1 << 3)); // DECimation test enable
 }
 
 void debugPortSetVDS() {
@@ -1294,10 +1301,12 @@ void debugPortSetSP() {
 void applyBestHTotal(uint16_t bestHTotal) {
   uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
   int diffHTotal = bestHTotal - orig_htotal;
-  boolean negativeScalingCorrection = GBS::VDS_HSCALE::read() < 512;
+  boolean requiresScalingCorrection = GBS::VDS_HSCALE::read() < 512; // output distorts if less than 512 but can be corrected
+  boolean syncIsNegative = GBS::VDS_HS_ST::read() > GBS::VDS_HS_SP::read(); // if HSST > HSSP then this preset was made to have neg. active HS (ie 640x480)
+
   // apply correction, but only if source is different than presets timings, ie: not a custom preset or source doesn't fit custom preset
   // hack: rto->syncLockFailIgnore == 3 means the correction should be forced (command '.')
-  if ((diffHTotal != 0 || negativeScalingCorrection) || rto->syncLockFailIgnore == 3) {
+  if ((diffHTotal != 0 || requiresScalingCorrection) || rto->syncLockFailIgnore == 3) {
     uint16_t h_blank_display_start_position = bestHTotal - 1;
     uint16_t h_blank_display_stop_position =  GBS::VDS_DIS_HB_SP::read() + diffHTotal;
     uint16_t center_blank = ((h_blank_display_stop_position / 2) * 3) / 4; // a bit to the left
@@ -1307,10 +1316,16 @@ void applyBestHTotal(uint16_t bestHTotal) {
     uint16_t h_blank_memory_start_position = h_blank_display_start_position - (h_blank_display_start_position / 24); // at least h_blank_display_start_position - 1
     uint16_t h_blank_memory_stop_position =  GBS::VDS_HB_SP::read() + diffHTotal; // have to rely on currently loaded preset, see below
 
-    if (negativeScalingCorrection) {
+    if (requiresScalingCorrection) {
       //h_blank_memory_start_position = (h_blank_memory_start_position - 1) | 1;
       h_blank_memory_start_position &= 0xfffe;
       SerialM.println("neg. scale!");
+    }
+
+    if (syncIsNegative) {
+      uint16_t temp = h_sync_stop_position;
+      h_sync_stop_position = h_sync_start_position;
+      h_sync_start_position = temp;
     }
 
     GBS::VDS_HSYNC_RST::write(bestHTotal);
@@ -2124,34 +2139,34 @@ void loop() {
         enableVDS();
         break;
       case 'D':
-	  {
-		  static boolean toggle = false;
-		  static uint8_t filter = GBS::ADC_FLTR::read();
-		  // debug stuff:
-		  //shift h / v blanking into good view
-		  if (!toggle) { 
-			  shiftHorizontal(700, false);
-			  shiftVertical(240, false);
-			  // enable peaking
-			  GBS::VDS_PK_Y_H_BYPS::write(0);
-			  // enhance!
-			  GBS::VDS_Y_GAIN::write(0xf0);
-			  GBS::VDS_Y_OFST::write(0x20);
-			  filter = GBS::ADC_FLTR::read();
-			  GBS::ADC_FLTR::write(0);
-			  toggle = true;
-		  }
-		  else {
-			  shiftHorizontal(700, true);
-			  shiftVertical(240, true);
-			  GBS::VDS_PK_Y_H_BYPS::write(1);
-			  // enhance!
-			  GBS::VDS_Y_GAIN::write(0x80);
-			  GBS::VDS_Y_OFST::write(0xFE);
-			  GBS::ADC_FLTR::write(filter);
-			  toggle = false;
-		  }
-	  }
+        {
+          static boolean toggle = false;
+          static uint8_t filter = GBS::ADC_FLTR::read();
+          // debug stuff:
+          //shift h / v blanking into good view
+          if (!toggle) {
+            shiftHorizontal(700, false);
+            shiftVertical(240, false);
+            // enable peaking
+            GBS::VDS_PK_Y_H_BYPS::write(0);
+            // enhance!
+            GBS::VDS_Y_GAIN::write(0xf0);
+            GBS::VDS_Y_OFST::write(0x20);
+            filter = GBS::ADC_FLTR::read();
+            GBS::ADC_FLTR::write(0);
+            toggle = true;
+          }
+          else {
+            shiftHorizontal(700, true);
+            shiftVertical(240, true);
+            GBS::VDS_PK_Y_H_BYPS::write(1);
+            // enhance!
+            GBS::VDS_Y_GAIN::write(0x80);
+            GBS::VDS_Y_OFST::write(0xFE);
+            GBS::ADC_FLTR::write(filter);
+            toggle = false;
+          }
+        }
         break;
       case 'C':
         updateClampPosition();
@@ -2645,8 +2660,9 @@ void loop() {
           disableVDS();
           applyPresets(newVideoMode);
           delay(250);
-          setPhaseADC();
           setPhaseSP();
+          delay(30);
+          setPhaseADC();
           delay(50);
           syncPulseHistoryIndex = 0;
         }
