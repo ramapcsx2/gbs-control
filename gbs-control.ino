@@ -620,9 +620,6 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         }
         return 2;
       }
-      else {
-        SerialM.println("sync: no handler!");
-      }
     }
   }
 
@@ -1088,6 +1085,7 @@ void setDisplayVblankStopPosition(uint16_t value) {
   GBS::VDS_DIS_VB_SP::write(value);
 }
 
+#if defined(ESP8266) // Arduino space saving
 void getVideoTimings() {
   uint8_t  regLow;
   uint8_t  regHigh;
@@ -1189,6 +1187,7 @@ void getVideoTimings() {
   VDS_DIS_VB_SP = ((((uint16_t)regHigh & 0x007f) << 4) | ((uint16_t)regLow & 0x00f0) >> 4) ;
   SerialM.print("VB SP (memory): "); SerialM.println(VDS_DIS_VB_SP);
 }
+#endif
 
 void set_htotal(uint16_t htotal) {
   // ModeLine "1280x960" 108.00 1280 1376 1488 1800 960 961 964 1000 +HSync +VSync
@@ -1419,7 +1418,9 @@ void doPostPresetLoadSteps() {
   GBS::PAD_SYNC_OUT_ENZ::write(1); // while searching for bestTtotal
   enableVDS();
 
-  resetSyncLockVariables();
+  FrameSync::reset();
+  rto->syncLockFailIgnore = 2;
+
   boolean success = true;
   long timeout = millis();
   while (getVideoMode() == 0 && millis() - timeout < 500); // stability
@@ -1628,13 +1629,6 @@ void enableVDS() {
     GBS::SFTRST_VDS_RSTZ::write(0); delay(3);
     GBS::SFTRST_VDS_RSTZ::write(1); delay(3);
   }
-}
-
-void resetSyncLockVariables() {
-  if (rto->syncLockEnabled) {
-    FrameSync::reset();
-  }
-  rto->syncLockFailIgnore = 2;
 }
 
 static uint8_t getVideoMode() {
@@ -2220,7 +2214,8 @@ void loop() {
         doPostPresetLoadSteps();
         break;
       case '.':
-        resetSyncLockVariables();
+        // timings recalculation with new bestHtotal
+        FrameSync::reset();
         rto->syncLockFailIgnore = 3;
         break;
       case 'j':
@@ -2297,8 +2292,10 @@ void loop() {
         }
         break;
       case ',':
+#if defined(ESP8266) // Arduino space saving
         SerialM.println("----");
         getVideoTimings();
+#endif
         break;
       case 'i':
         rto->printInfos = !rto->printInfos;
@@ -2820,7 +2817,7 @@ void loop() {
     else if (rto->syncLockFailIgnore-- == 0) {
       // frame time lock failed, most likely due to missing wires
       rto->syncLockEnabled = false;
-      SerialM.println("sync lock failed, check debug + vsync wires!");
+      SerialM.println("sync lock failed, check debug wire!");
     }
     writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
   }
