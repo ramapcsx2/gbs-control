@@ -1301,25 +1301,42 @@ void debugPortSetSP() {
 void applyBestHTotal(uint16_t bestHTotal) {
   uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
   int diffHTotal = bestHTotal - orig_htotal;
+  uint16_t diffHTotalUnsigned = abs(diffHTotal);
+  boolean isLargeDiff = (diffHTotalUnsigned * 10) > orig_htotal ? true : false;
   boolean requiresScalingCorrection = GBS::VDS_HSCALE::read() < 512; // output distorts if less than 512 but can be corrected
   boolean syncIsNegative = GBS::VDS_HS_ST::read() > GBS::VDS_HS_SP::read(); // if HSST > HSSP then this preset was made to have neg. active HS (ie 640x480)
 
   // apply correction, but only if source is different than presets timings, ie: not a custom preset or source doesn't fit custom preset
   // hack: rto->syncLockFailIgnore == 3 means the correction should be forced (command '.')
+  // timings checked against multi clock snes
   if ((diffHTotal != 0 || requiresScalingCorrection) || rto->syncLockFailIgnore == 3) {
-    uint16_t h_blank_display_start_position = bestHTotal - 1;
+    uint16_t h_blank_display_start_position = (bestHTotal - 1) & 0xfffe;
     uint16_t h_blank_display_stop_position =  GBS::VDS_DIS_HB_SP::read() + diffHTotal;
+    if (isLargeDiff) {
+      h_blank_display_stop_position = h_blank_display_start_position / 5; // 1/5th of screen for blanking
+    }
+    h_blank_display_stop_position &= 0xfff8; // align on 8s
     uint16_t center_blank = ((h_blank_display_stop_position / 2) * 3) / 4; // a bit to the left
     //uint16_t h_sync_start_position =  center_blank - (center_blank / 2);
     uint16_t h_sync_start_position =  bestHTotal / 28; // test with HDMI board suggests this is better
     uint16_t h_sync_stop_position =   center_blank + (center_blank / 2);
     uint16_t h_blank_memory_start_position = h_blank_display_start_position - (h_blank_display_start_position / 24); // at least h_blank_display_start_position - 1
-    uint16_t h_blank_memory_stop_position =  GBS::VDS_HB_SP::read() + diffHTotal; // have to rely on currently loaded preset, see below
+    uint16_t h_blank_memory_stop_position =  GBS::VDS_HB_SP::read() + diffHTotal; // have to rely on currently loaded preset
+    if (isLargeDiff) {
+      // S4 test bus may have artifact detection!
+      // probably better to hor. zoom instead of memory blank pos change
+      h_blank_memory_stop_position = (h_blank_display_stop_position / 2) - (h_blank_display_stop_position / 5);
+      if (diffHTotal > 0) h_blank_memory_stop_position = h_blank_display_stop_position + (h_blank_display_stop_position / 6);
+      SerialM.println("large diff!");
+    }
 
     if (requiresScalingCorrection) {
       //h_blank_memory_start_position = (h_blank_memory_start_position - 1) | 1;
       h_blank_memory_start_position &= 0xfffe;
-      SerialM.println("neg. scale!");
+    }
+    else {
+      h_blank_memory_start_position &= 0xfff8;
+      h_blank_memory_stop_position &= 0xfff8;
     }
 
     if (syncIsNegative) {
@@ -2688,6 +2705,7 @@ void loop() {
         //togglePhaseAdjustUnits();
         setPhaseSP(); setPhaseADC();
         enableDeinterlacer();
+        FrameSync::reset(); // corner case: source changed timings inbetween power cycles. won't affect display if timings are the same
         delay(60);
       }
       // source is stable, this is a good time to do running hpw sampling to determine correct SP_H_PULSE_IGNOR (S5_37)
