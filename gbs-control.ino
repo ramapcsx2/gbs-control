@@ -569,7 +569,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         vsyncActive = readout & 0x08;
       }
       if (vsyncActive) {
-        SerialM.println("using RGBHV");
+        SerialM.println("RGBHV");
         rto->inputIsYpBpR = 0;
         rto->sourceDisconnected = false;
         applyRGBPatches();
@@ -649,13 +649,13 @@ void inputAndSyncDetect() {
     }
   }
   else if (syncFound == 1) { // input is RGBS
-    SerialM.println("using RGBS inputs");
+    SerialM.println("RGBS");
     GBS::SP_EXT_SYNC_SEL::write(1); // disconnect HV input
     rto->sourceDisconnected = false;
     applyRGBPatches();
   }
   else if (syncFound == 2) {
-    SerialM.println("using RCA inputs");
+    SerialM.println("YUV");
     GBS::SP_EXT_SYNC_SEL::write(1); // disconnect HV input
     rto->sourceDisconnected = false;
     applyYuvPatches();
@@ -874,8 +874,8 @@ void moveHS(uint16_t amountToAdd, bool subtracting) {
     newST += amountToAdd;
     newSP += amountToAdd;
   }
-  SerialM.print("HSST: "); SerialM.print(newST);
-  SerialM.print(" HSSP: "); SerialM.println(newSP);
+  //SerialM.print("HSST: "); SerialM.print(newST);
+  //SerialM.print(" HSSP: "); SerialM.println(newSP);
 
   writeOneByte(0x0a, (uint8_t)(newST & 0x00ff));
   writeOneByte(0x0b, ((uint8_t)(newSP & 0x000f) << 4) | ((uint8_t)((newST & 0x0f00) >> 8)) );
@@ -899,8 +899,8 @@ void moveVS(uint16_t amountToAdd, bool subtracting) {
       newVDS_VS_SP += amountToAdd;
     } else SerialM.println("limit");
   }
-  SerialM.print("VSST: "); SerialM.print(newVDS_VS_ST);
-  SerialM.print(" VSSP: "); SerialM.println(newVDS_VS_SP);
+  //SerialM.print("VSST: "); SerialM.print(newVDS_VS_ST);
+  //SerialM.print(" VSSP: "); SerialM.println(newVDS_VS_SP);
 
   GBS::VDS_VS_ST::write(newVDS_VS_ST);
   GBS::VDS_VS_SP::write(newVDS_VS_SP);
@@ -995,7 +995,7 @@ void shiftVertical(uint16_t amountToAdd, bool subtracting) {
   }
 
   Regs::write(newVbst, newVbsp);
-  SerialM.print("VSST: "); SerialM.print(newVbst); SerialM.print(" VSSP: "); SerialM.println(newVbsp);
+  //SerialM.print("VSST: "); SerialM.print(newVbst); SerialM.print(" VSSP: "); SerialM.println(newVbsp);
 }
 
 void shiftVerticalUp() {
@@ -2249,7 +2249,6 @@ void loop() {
             line_length = line_length / ((rto->currentSyncProcessorMode > 0 ? 1 : 2)); // half of pll_divider, but in linedouble mode only
 
             SerialM.print("PLL div: "); SerialM.print(pll_divider, HEX);
-            SerialM.print(" line_length: "); SerialM.println(line_length);
 
             line_length -= (GBS::IF_HB_SP2::read() / 2);
             line_length += (GBS::IF_INI_ST::read() / 2);
@@ -2433,20 +2432,20 @@ void loop() {
         if (inputStage > 0) {
           if (inputStage == 1) {
             segment = Serial.parseInt();
-            SerialM.print("segment: ");
-            SerialM.println(segment);
+            SerialM.print("G");
+            SerialM.print(segment);
           }
           else if (inputStage == 2) {
             char szNumbers[3];
             szNumbers[0] = Serial.read(); szNumbers[1] = Serial.read(); szNumbers[2] = '\0';
             char * pEnd;
             inputRegister = strtol(szNumbers, &pEnd, 16);
-            SerialM.print("register: ");
-            SerialM.println(inputRegister, HEX);
+            SerialM.print("R0x");
+            SerialM.print(inputRegister, HEX);
             if (segment <= 5) {
               writeOneByte(0xF0, segment);
               readFromRegister(inputRegister, 1, &readout);
-              SerialM.print("register value is: "); SerialM.println(readout, HEX);
+              SerialM.print(" value: 0x"); SerialM.println(readout, HEX);
             }
             else {
               SerialM.println("abort");
@@ -2462,16 +2461,16 @@ void loop() {
         if (inputStage > 0) {
           if (inputStage == 1) {
             segment = Serial.parseInt();
-            SerialM.print("segment: ");
-            SerialM.println(segment);
+            SerialM.print("S");
+            SerialM.print(segment);
           }
           else if (inputStage == 2) {
             char szNumbers[3];
             szNumbers[0] = Serial.read(); szNumbers[1] = Serial.read(); szNumbers[2] = '\0';
             char * pEnd;
             inputRegister = strtol(szNumbers, &pEnd, 16);
-            SerialM.print("register: ");
-            SerialM.println(inputRegister);
+            SerialM.print("R0x");
+            SerialM.print(inputRegister, HEX);
           }
           else if (inputStage == 3) {
             char szNumbers[3];
@@ -2481,10 +2480,10 @@ void loop() {
             if (segment <= 5) {
               writeOneByte(0xF0, segment);
               readFromRegister(inputRegister, 1, &readout);
-              SerialM.print("was: "); SerialM.println(readout, HEX);
+              SerialM.print(" (was 0x"); SerialM.print(readout, HEX); SerialM.print(")");
               writeOneByte(inputRegister, inputToogleBit);
               readFromRegister(inputRegister, 1, &readout);
-              SerialM.print("is now: "); SerialM.println(readout, HEX);
+              SerialM.print(" is now: 0x"); SerialM.println(readout, HEX);
             }
             else {
               SerialM.println("abort");
@@ -2500,28 +2499,28 @@ void loop() {
         if (inputStage > 0) {
           if (inputStage == 1) {
             segment = Serial.parseInt();
-            SerialM.print("toggle bit segment: ");
-            SerialM.println(segment);
+            SerialM.print("T");
+            SerialM.print(segment);
           }
           else if (inputStage == 2) {
             char szNumbers[3];
             szNumbers[0] = Serial.read(); szNumbers[1] = Serial.read(); szNumbers[2] = '\0';
             char * pEnd;
             inputRegister = strtol (szNumbers, &pEnd, 16);
-            SerialM.print("toggle bit register: ");
-            SerialM.println(inputRegister, HEX);
+            SerialM.print("R0x");
+            SerialM.print(inputRegister, HEX);
           }
           else if (inputStage == 3) {
             inputToogleBit = Serial.parseInt();
-            SerialM.print(" inputToogleBit: "); SerialM.println(inputToogleBit);
+            SerialM.print(" Bit: "); SerialM.print(inputToogleBit);
             inputStage = 0;
             if ((segment <= 5) && (inputToogleBit <= 7)) {
               writeOneByte(0xF0, segment);
               readFromRegister(inputRegister, 1, &readout);
-              SerialM.print("was: "); SerialM.println(readout, HEX);
+              SerialM.print(" (was 0x"); SerialM.print(readout, HEX); SerialM.print(")");
               writeOneByte(inputRegister, readout ^ (1 << inputToogleBit));
               readFromRegister(inputRegister, 1, &readout);
-              SerialM.print("is now: "); SerialM.println(readout, HEX);
+              SerialM.print(" is now: 0x"); SerialM.println(readout, HEX);
             }
             else {
               SerialM.println("abort");
