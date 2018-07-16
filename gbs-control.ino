@@ -834,6 +834,30 @@ void shiftHorizontalRight() {
   shiftHorizontal(4, false);
 }
 
+void shiftHorizontalLeftIF(uint8_t amount) {
+  uint16_t IF_HSYNC_RST = GBS::IF_HSYNC_RST::read();
+  uint16_t IF_HB_ST2 = GBS::IF_HB_ST2::read();
+  uint16_t IF_HB_SP2 = GBS::IF_HB_SP2::read();
+
+  if ((IF_HB_ST2 + amount) < IF_HSYNC_RST) GBS::IF_HB_ST2::write(IF_HB_ST2 + amount);
+  else GBS::IF_HB_ST2::write(0 + amount); // wrong. calc diff to max and add that
+
+  if ((IF_HB_SP2 + amount) < IF_HSYNC_RST) GBS::IF_HB_SP2::write(IF_HB_SP2 + amount);
+  else GBS::IF_HB_SP2::write(7 + amount);
+}
+
+void shiftHorizontalRightIF(uint8_t amount) {
+  uint16_t IF_HSYNC_RST = GBS::IF_HSYNC_RST::read();
+  uint16_t IF_HB_ST2 = GBS::IF_HB_ST2::read();
+  uint16_t IF_HB_SP2 = GBS::IF_HB_SP2::read();
+
+  if ((IF_HB_ST2 - amount) > 0) GBS::IF_HB_ST2::write(IF_HB_ST2 - amount);
+  else GBS::IF_HB_ST2::write(IF_HSYNC_RST - amount);
+
+  if ((IF_HB_SP2 - amount) > 7) GBS::IF_HB_SP2::write(IF_HB_SP2 - amount);
+  else GBS::IF_HB_SP2::write(IF_HSYNC_RST - amount);
+}
+
 void scaleHorizontal(uint16_t amountToAdd, bool subtracting) {
   uint16_t hscale = GBS::VDS_HSCALE::read();
 
@@ -1357,6 +1381,21 @@ void applyBestHTotal(uint16_t bestHTotal) {
   SerialM.print(" Diff: "); SerialM.println(diffHTotal);
 }
 
+void prepareIF() {
+  boolean pllDivUneven = (GBS::PLLAD_MD::read() % 2 != 0);
+  SerialM.print("pll uneven?: "); SerialM.println(pllDivUneven);
+
+  GBS::IF_INI_ST::write(GBS::HPERIOD_IF::read() - 2); // aha! (S1_0d)
+
+  GBS::IF_HSYNC_RST::write((GBS::PLLAD_MD::read() & 0xfffe) / 2); // input line length from pll div
+  GBS::IF_LINE_ST::write(GBS::IF_HSYNC_RST::read() * 2); // S1_20 to pll div
+  GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read());
+  GBS::IF_HB_ST2::write(GBS::IF_HSYNC_RST::read() - 1); // S1_18+19 to S1_0e (- some safety margin maybe? -1 for now)
+
+  if (pllDivUneven) GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() + 1);
+  else GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() - 1);
+}
+
 void doPostPresetLoadSteps() {
   // Keep the DAC off until this is done
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC
@@ -1445,6 +1484,8 @@ void doPostPresetLoadSteps() {
   while (getVideoMode() == 0 && millis() - timeout < 500); // stability
   updateCoastPosition();  // ignores sync pulses outside expected range (wip)
 
+  ResetSDRAM();
+
   timeout = millis();
   while (getVideoMode() == 0 && millis() - timeout < 250);
   updateClampPosition();
@@ -1452,10 +1493,11 @@ void doPostPresetLoadSteps() {
   timeout = millis();
   while (getVideoMode() == 0 && millis() - timeout < 250);
 
-  ResetSDRAM();
-
   // limit input formater with a little slack; allows for continous IF vertical shifting
   //if (GBS::IF_VB_ST::read() == 0) GBS::IF_VB_ST::write(GBS::VPERIOD_IF::read() - 2);
+
+  // IF HB new stuff
+  prepareIF();
 
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   GBS::PAD_SYNC_OUT_ENZ::write(0); // display goes on
@@ -2125,11 +2167,13 @@ void loop() {
         break;
       case '+':
         SerialM.println("hor. +");
-        shiftHorizontalRight();
+        //shiftHorizontalRight();
+        shiftHorizontalRightIF(4);
         break;
       case '-':
         SerialM.println("hor. -");
-        shiftHorizontalLeft();
+        //shiftHorizontalLeft();
+        shiftHorizontalLeftIF(4);
         break;
       case '*':
         shiftVerticalUpIF();
@@ -2237,28 +2281,24 @@ void loop() {
             pll_divider += 1;
             GBS::PLLAD_MD::write(pll_divider);
 
-            uint8_t PLLAD_KS = GBS::PLLAD_KS::read();
-            uint16_t line_length = GBS::PLLAD_MD::read();
-            if (PLLAD_KS == 2) {
-              line_length *= 1;
-            }
-            if (PLLAD_KS == 1) {
-              line_length /= 2;
-            }
+            //            uint8_t PLLAD_KS = GBS::PLLAD_KS::read();
+            //            uint16_t line_length = GBS::PLLAD_MD::read();
+            //            if (PLLAD_KS == 2) {
+            //              line_length *= 1;
+            //            }
+            //            if (PLLAD_KS == 1) {
+            //              line_length /= 2;
+            //            }
+            //
+            //            line_length = line_length / ((rto->currentSyncProcessorMode > 0 ? 1 : 2)); // half of pll_divider, but in linedouble mode only
 
-            line_length = line_length / ((rto->currentSyncProcessorMode > 0 ? 1 : 2)); // half of pll_divider, but in linedouble mode only
+            SerialM.print("PLL div: "); SerialM.println(pll_divider, HEX);
 
-            SerialM.print("PLL div: "); SerialM.print(pll_divider, HEX);
+            boolean pllDivUneven = (GBS::PLLAD_MD::read() % 2 != 0);
+            GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() + 1);
+            prepareIF();
+            //shiftHorizontalLeftIF(1);
 
-            line_length -= (GBS::IF_HB_SP2::read() / 2);
-            line_length += (GBS::IF_INI_ST::read() / 2);
-
-            GBS::IF_HSYNC_RST::write(line_length);
-            GBS::IF_LINE_SP::write(line_length + 1); // line_length +1
-
-            // IF S0_18/19 need to be line lenth - 1
-            // update: but this makes any slight adjustments a pain. also, it doesn't seem to affect picture quality
-            //GBS::IF_HB_ST2::write((line_length / ((rto->currentSyncProcessorMode > 0 ? 1 : 2))) - 1);
             latchPLLAD();
           }
         }
