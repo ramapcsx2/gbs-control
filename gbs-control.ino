@@ -321,7 +321,7 @@ void setParametersSP() {
   writeOneByte(0xF0, 5);
   if (rto->videoStandardInput == 3) { // ED YUV 60
     GBS::IF_VB_ST::write(0);
-    GBS::SP_HD_MODE::write(1);
+    //GBS::SP_HD_MODE::write(1);
     GBS::IF_HB_SP2::write(136); // todo: (s1_1a) position depends on preset
     rto->currentSyncPulseIgnoreValue = 0x04;
     writeOneByte(0x38, 0x04); // h coast pre
@@ -329,7 +329,7 @@ void setParametersSP() {
   }
   else if (rto->videoStandardInput == 4) { // ED YUV 50
     GBS::IF_VB_ST::write(0);
-    GBS::SP_HD_MODE::write(1);
+    //GBS::SP_HD_MODE::write(1);
     GBS::IF_HB_SP2::write(180); // todo: (s1_1a) position depends on preset
     rto->currentSyncPulseIgnoreValue = 0x04;
     writeOneByte(0x38, 0x02); // h coast pre
@@ -338,14 +338,14 @@ void setParametersSP() {
   else if (rto->videoStandardInput == 1) { // NTSC 60
     if (!rto->inputIsYpBpR) rto->currentSyncPulseIgnoreValue = 0x58;
     GBS::IF_VB_ST::write(0);
-    GBS::SP_HD_MODE::write(0);
+    //GBS::SP_HD_MODE::write(0);
     writeOneByte(0x38, 0x03); // h coast pre
     writeOneByte(0x39, 0x07); // h coast post
   }
   else if (rto->videoStandardInput == 2) { // PAL 50
     if (!rto->inputIsYpBpR) rto->currentSyncPulseIgnoreValue = 0x58;
     GBS::IF_VB_ST::write(0);
-    GBS::SP_HD_MODE::write(0);
+    //GBS::SP_HD_MODE::write(0);
     writeOneByte(0x38, 0x02); // h coast pre
     writeOneByte(0x39, 0x06); // h coast post
   }
@@ -353,7 +353,7 @@ void setParametersSP() {
     rto->currentSyncPulseIgnoreValue = 0x04;
     GBS::IF_VB_ST::write(0);
     GBS::IF_VB_SP::write(0x10); // v. position
-    GBS::SP_HD_MODE::write(1);
+    //GBS::SP_HD_MODE::write(1);
     GBS::IF_HB_SP2::write(192); // todo: (s1_1a) position depends on preset
     writeOneByte(0x38, 0x03); // h coast pre
     writeOneByte(0x39, 0x07); // h coast post
@@ -365,7 +365,7 @@ void setParametersSP() {
     rto->currentSyncPulseIgnoreValue = 0x04;
     GBS::IF_VB_ST::write(0);
     GBS::IF_VB_SP::write(0x10); // v. position
-    GBS::SP_HD_MODE::write(1);
+    //GBS::SP_HD_MODE::write(1);
     GBS::IF_HB_SP2::write(216); // todo: (s1_1a) position depends on preset
     writeOneByte(0x38, 0x03); // h coast pre
     writeOneByte(0x39, 0x07); // h coast post
@@ -839,11 +839,13 @@ void shiftHorizontalLeftIF(uint8_t amount) {
   uint16_t IF_HB_ST2 = GBS::IF_HB_ST2::read();
   uint16_t IF_HB_SP2 = GBS::IF_HB_SP2::read();
 
+  // start
   if ((IF_HB_ST2 + amount) < IF_HSYNC_RST) GBS::IF_HB_ST2::write(IF_HB_ST2 + amount);
-  else GBS::IF_HB_ST2::write(0 + amount); // wrong. calc diff to max and add that
+  else GBS::IF_HB_ST2::write((IF_HB_ST2 + amount) - IF_HSYNC_RST);
 
+  // stop
   if ((IF_HB_SP2 + amount) < IF_HSYNC_RST) GBS::IF_HB_SP2::write(IF_HB_SP2 + amount);
-  else GBS::IF_HB_SP2::write(7 + amount);
+  else GBS::IF_HB_SP2::write((IF_HB_SP2 + amount) - IF_HSYNC_RST);
 }
 
 void shiftHorizontalRightIF(uint8_t amount) {
@@ -851,11 +853,11 @@ void shiftHorizontalRightIF(uint8_t amount) {
   uint16_t IF_HB_ST2 = GBS::IF_HB_ST2::read();
   uint16_t IF_HB_SP2 = GBS::IF_HB_SP2::read();
 
-  if ((IF_HB_ST2 - amount) > 0) GBS::IF_HB_ST2::write(IF_HB_ST2 - amount);
-  else GBS::IF_HB_ST2::write(IF_HSYNC_RST - amount);
+  if ((int16_t)(IF_HB_ST2 - amount) > 0) GBS::IF_HB_ST2::write(IF_HB_ST2 - amount);
+  else GBS::IF_HB_ST2::write(IF_HSYNC_RST + (int16_t)(IF_HB_ST2 - amount)); // (int16_t)(IF_HB_ST2 - amount) will be negative or 0
 
-  if ((IF_HB_SP2 - amount) > 7) GBS::IF_HB_SP2::write(IF_HB_SP2 - amount);
-  else GBS::IF_HB_SP2::write(IF_HSYNC_RST - amount);
+  if ((int16_t)(IF_HB_SP2 - amount) > 0) GBS::IF_HB_SP2::write(IF_HB_SP2 - amount);
+  else GBS::IF_HB_SP2::write(IF_HSYNC_RST + (int16_t)(IF_HB_SP2 - amount)); // same
 }
 
 void scaleHorizontal(uint16_t amountToAdd, bool subtracting) {
@@ -1385,15 +1387,26 @@ void prepareIF() {
   boolean pllDivUneven = (GBS::PLLAD_MD::read() % 2 != 0);
   SerialM.print("pll uneven?: "); SerialM.println(pllDivUneven);
 
-  GBS::IF_INI_ST::write(GBS::HPERIOD_IF::read() - 2); // aha! (S1_0d)
-
-  GBS::IF_HSYNC_RST::write((GBS::PLLAD_MD::read() & 0xfffe) / 2); // input line length from pll div
+  if (rto->videoStandardInput <= 2) {
+    GBS::IF_HSYNC_RST::write((GBS::PLLAD_MD::read() & 0xfffe) / 2); // input line length from pll div
+  }
+  else if (rto->videoStandardInput <= 4) {
+    GBS::IF_HSYNC_RST::write((GBS::PLLAD_MD::read() & 0xfffe) * 4);
+  }
   GBS::IF_LINE_ST::write(GBS::IF_HSYNC_RST::read() * 2); // S1_20 to pll div
   GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read());
   GBS::IF_HB_ST2::write(GBS::IF_HSYNC_RST::read() - 1); // S1_18+19 to S1_0e (- some safety margin maybe? -1 for now)
 
-  if (pllDivUneven) GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() + 1);
-  else GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() - 1);
+  if (rto->videoStandardInput <= 2) {
+    if (pllDivUneven) GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() + 1);
+    else GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() - 1);
+  }
+  else {
+    GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() + 1);
+  }
+
+  // s1_0d initial position
+  GBS::IF_INI_ST::write((GBS::IF_HSYNC_RST::read() - 2)); // initial position seems to be "ht" (on S1_0d)
 }
 
 void doPostPresetLoadSteps() {
