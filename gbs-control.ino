@@ -1442,6 +1442,12 @@ void doPostPresetLoadSteps() {
   // jitter sync off for all modes
   GBS::SP_JITTER_SYNC::write(0);
 
+  // S5_3f + 40 should probably account for serration / eq pulses
+  //GBS::SP_SDCS_VSST_REG_H::write(0);
+  //GBS::SP_SDCS_VSST_REG_L::write(0);
+  //GBS::SP_SDCS_VSSP_REG_H::write(0);
+  //GBS::SP_SDCS_VSSP_REG_L::write(0x10); // NTSC: max 16 pulses
+
   if (rto->inputIsYpBpR == true) {
     SerialM.print("(YUV)");
     applyYuvPatches();
@@ -1763,7 +1769,7 @@ void togglePhaseAdjustUnits() {
 }
 
 void advancePhase() {
-  rto->phaseADC = (rto->phaseADC + 1) & 0x1f;
+  rto->phaseADC = (rto->phaseADC + 2) & 0x1f;
   setPhaseADC();
   SerialM.print("ADC: "); SerialM.println(rto->phaseADC);
 }
@@ -2269,7 +2275,7 @@ void loop() {
         resetPLL(); resetPLLAD();
         break;
       case 'v':
-        rto->phaseSP += 1; rto->phaseSP &= 0x1f;
+        rto->phaseSP += 2; rto->phaseSP &= 0x1f;
         SerialM.print("SP: "); SerialM.println(rto->phaseSP);
         setPhaseSP();
         setPhaseADC();
@@ -2750,6 +2756,10 @@ void loop() {
           }
           rto->currentSyncPulseIgnoreValue = (syncPulseHistory[9] / 2) + 4;
           GBS::SP_H_PULSE_IGNOR::write(rto->currentSyncPulseIgnoreValue);
+		  //GBS::SP_DLT_REG::write(rto->currentSyncPulseIgnoreValue * 2);
+		  //uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read() / 2; // round down is okay (SNES, "523" vtotal)
+		  //GBS::SP_SDCS_VSST_REG_H::write(VPERIOD_IF >> 8);
+		  //GBS::SP_SDCS_VSST_REG_L::write((uint8_t)VPERIOD_IF);
         }
       }
     }
