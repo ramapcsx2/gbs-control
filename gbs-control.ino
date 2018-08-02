@@ -2402,12 +2402,12 @@ void loop() {
         break;
       case 'f':
         SerialM.print("peaking ");
-        if (GBS::VDS_PK_Y_H_BYPS::read() == 1) {
-          GBS::VDS_PK_Y_H_BYPS::write(0);
+        if (GBS::VDS_PK_LB_CORE::read() == 1) {
+          GBS::VDS_PK_LB_CORE::write(0);
           SerialM.println("on");
         }
         else {
-          GBS::VDS_PK_Y_H_BYPS::write(1);
+          GBS::VDS_PK_LB_CORE::write(1);
           SerialM.println("off");
         }
         break;
