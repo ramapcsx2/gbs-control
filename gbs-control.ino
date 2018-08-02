@@ -406,11 +406,11 @@ void setParametersSP() {
 
   updateClampPosition(); // already done if gone thorugh syncwatcher, but not manual modes
   GBS::SP_SDCS_VSST_REG_H::write(0);
-  GBS::SP_SDCS_VSST_REG_L::write(3);
+  GBS::SP_SDCS_VSST_REG_L::write(6); // 3 // source switch interlace <> progressive stable when SDCS_VS after real vsync
   GBS::SP_SDCS_VSSP_REG_H::write(0);
-  GBS::SP_SDCS_VSSP_REG_L::write(12); // test: t5t11t3 > minimize jitter
+  GBS::SP_SDCS_VSSP_REG_L::write(9); // 12 // test: t5t11t3 > minimize jitter
 
-  writeOneByte(0x3e, 0x10); // seems to be good for permanent use now
+  writeOneByte(0x3e, 0x10); // SP sub coast on, ovf protect on
 
   // 0x45 to 0x48 set a HS position just for Mode Detect. it's fine at start = 0 and stop = 1 or above
   // Update: This is the retiming module. It can be used for SP processing with t5t57t6
@@ -418,6 +418,9 @@ void setParametersSP() {
   //writeOneByte(0x46, 0x00); // 0xc0 // retiming SOG HS start
   //writeOneByte(0x47, 0x02); // 0x05 // retiming SOG HS stop // align with 1_26 (same value) seems good for phase
   //writeOneByte(0x48, 0x00); // 0xc0 // retiming SOG HS stop
+  writeOneByte(0x45, 0x00); // 0x0 to 0x80 is okay to match psx 240p
+  writeOneByte(0x47, 0x80);
+
   writeOneByte(0x49, 0x04); // 0x04 rgbhv: 20
   writeOneByte(0x4a, 0x00); // 0xc0
   writeOneByte(0x4b, 0x44); // 0x34 rgbhv: 50
@@ -435,9 +438,8 @@ void setParametersSP() {
   writeOneByte(0x53, 0x06); // 0x05 rgbhv: 6
   writeOneByte(0x54, 0x00); // 0xc0
 
-  writeOneByte(0x56, 0x01); // always auto clamp
-
-  //writeOneByte(0x57, 0xc0); // 0xc0 rgbhv: 44 // set to 0x80 for retiming
+  //GBS::SP_CLAMP_MANUAL::write(0); // necessary?
+  //GBS::SP_HS_PROC_INV_REG::write(1); // appears that SOG processing inverts hsync, this corrects it // not needed when S5_57, 6 is on
 
   // these regs seem to be shifted in the docs. doc 0x58 is actually 0x59 etc
   writeOneByte(0x58, 0x00); //rgbhv: 0
@@ -1436,8 +1438,8 @@ void doPostPresetLoadSteps() {
   // IF stuff
   GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 2); // initial position seems to be "ht" (on S1_0d)
 
-  // looks better in tests
-  GBS::DEC_WEN_MODE::write(0);
+  GBS::DEC_WEN_MODE::write(1);
+  GBS::DEC_IDREG_EN::write(1);
 
   // jitter sync off for all modes
   GBS::SP_JITTER_SYNC::write(0);
@@ -1662,7 +1664,7 @@ void applyPresets(uint8_t result) {
   else if (result == 15) {
     SerialM.println("RGBHV bypass ");
     writeProgramArrayNew(ntsc_240p);
-    bypassModeSwitch();
+    bypassModeSwitch_RGBHV();
   }
   else {
     SerialM.println("Unknown timing! ");
@@ -1836,7 +1838,51 @@ void updateClampPosition() {
   }
 }
 
-void bypassModeSwitch() {
+void bypassModeSwitch_SOG() {
+  static uint16_t oldPLLAD = 0;
+  static uint8_t oldPLL_VCLKCTL = 0;
+  static uint8_t oldPLLAD_ICP = 0;
+  static uint8_t old_0_46 = 0;
+  static uint8_t old_5_3f = 0;
+  static uint8_t old_5_40 = 0;
+  static uint8_t old_5_3e = 0;
+
+  if (GBS::DAC_RGBS_ADC2DAC::read() == 0) {
+    oldPLLAD = GBS::PLLAD_MD::read();
+    oldPLL_VCLKCTL = GBS::PLL_VCLKCTL::read();
+    oldPLLAD_ICP = GBS::PLLAD_ICP::read();
+    old_0_46 = GBS::SFTRST_0x46::read();
+    old_5_3f = GBS::SP_SDCS_VSST_REG_L::read();
+    old_5_40 = GBS::SP_SDCS_VSSP_REG_L::read();
+    old_5_3e = GBS::SP_CS_0x3E::read();
+
+    GBS::PLLAD_ICP::write(5);
+    GBS::OUT_SYNC_SEL::write(2); // S0_4F, 6+7
+    GBS::DAC_RGBS_ADC2DAC::write(1); // S0_4B, 2
+    GBS::SP_HS_LOOP_SEL::write(0); // retiming enable
+    GBS::SP_CS_0x3E::write(0x20); // sub coast off, ovf protect off
+    GBS::PLL_VCLKCTL::write(0x35); // ADC clock
+    GBS::PLLAD_MD::write(1802);
+    GBS::SP_SDCS_VSST_REG_L::write(0x00);
+    GBS::SP_SDCS_VSSP_REG_L::write(0x03);
+    GBS::SFTRST_0x46::write(0); // none required
+  }
+  else {
+    GBS::OUT_SYNC_SEL::write(0);
+    GBS::DAC_RGBS_ADC2DAC::write(0);
+    GBS::SP_HS_LOOP_SEL::write(1);
+
+    if (oldPLLAD_ICP != 0) GBS::PLLAD_ICP::write(oldPLLAD_ICP);
+    if (oldPLL_VCLKCTL != 0) GBS::PLL_VCLKCTL::write(oldPLL_VCLKCTL);
+    if (oldPLLAD != 0) GBS::PLLAD_MD::write(oldPLLAD);
+    if (old_5_3e != 0) GBS::SP_CS_0x3E::write(old_5_3e);
+    if (old_5_3f != 0) GBS::SP_SDCS_VSST_REG_L::write(old_5_3f);
+    if (old_5_40 != 0) GBS::SP_SDCS_VSSP_REG_L::write(old_5_40);
+    if (old_0_46 != 0) GBS::SFTRST_0x46::write(old_0_46);
+  }
+}
+
+void bypassModeSwitch_RGBHV() {
   uint8_t readout;
 
   rto->videoStandardInput = 15; // making sure
@@ -2083,12 +2129,14 @@ void setup() {
   rto->videoStandardInput = 0;
   resetDigital();
   delay(120);
+
   // is there an active input?
-  for (uint8_t i = 0; i < 3; i++) {
-    SerialM.print("loop: "); SerialM.println(i);
-    if (detectAndSwitchToActiveInput()) break;
-    else if (i == 2) inputAndSyncDetect();
-  }
+  //for (uint8_t i = 0; i < 3; i++) {
+  //  SerialM.print("loop: "); SerialM.println(i);
+  //  if (detectAndSwitchToActiveInput()) break;
+  //  else if (i == 2) inputAndSyncDetect();
+  //}
+  inputAndSyncDetect();
 
   SerialM.print("\nMCU: "); SerialM.println(F_CPU);
   LEDOFF; // startup done, disable the LED
@@ -2253,7 +2301,8 @@ void loop() {
         moveVS(1, false);
         break;
       case 'k':
-        bypassModeSwitch();
+        //bypassModeSwitch_RGBHV();
+        bypassModeSwitch_SOG();
         latchPLLAD();
         break;
       case 'e':
@@ -2272,7 +2321,7 @@ void loop() {
         rto->syncLockFailIgnore = 3;
         break;
       case 'j':
-        resetPLL(); resetPLLAD();
+        resetPLL(); latchPLLAD(); //resetPLLAD();
         break;
       case 'v':
         rto->phaseSP += 2; rto->phaseSP &= 0x1f;
@@ -2453,7 +2502,7 @@ void loop() {
               SerialM.println("OSR ?");
               break;
           }
-          latchPLLAD();
+          resetPLLAD(); // jist latching not good enough, shifts h offset
         }
         break;
       case 'g':
@@ -2756,10 +2805,10 @@ void loop() {
           }
           rto->currentSyncPulseIgnoreValue = (syncPulseHistory[9] / 2) + 4;
           GBS::SP_H_PULSE_IGNOR::write(rto->currentSyncPulseIgnoreValue);
-		  //GBS::SP_DLT_REG::write(rto->currentSyncPulseIgnoreValue * 2);
-		  //uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read() / 2; // round down is okay (SNES, "523" vtotal)
-		  //GBS::SP_SDCS_VSST_REG_H::write(VPERIOD_IF >> 8);
-		  //GBS::SP_SDCS_VSST_REG_L::write((uint8_t)VPERIOD_IF);
+          //GBS::SP_DLT_REG::write(rto->currentSyncPulseIgnoreValue * 2);
+          //uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read() / 2; // round down is okay (SNES, "523" vtotal)
+          //GBS::SP_SDCS_VSST_REG_H::write(VPERIOD_IF >> 8);
+          //GBS::SP_SDCS_VSST_REG_L::write((uint8_t)VPERIOD_IF);
         }
       }
     }
@@ -2823,7 +2872,7 @@ void loop() {
     uint8_t video_mode = getVideoMode();
     uint16_t HPERIOD_IF = GBS::HPERIOD_IF::read();
     uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read();
-    uint16_t TEST_BUS = GBS::TEST_BUS::read();
+    uint16_t TEST_BUS = GBS::TEST_BUS::read() & 0x0fff;
     uint16_t STATUS_SYNC_PROC_HTOTAL = GBS::STATUS_SYNC_PROC_HTOTAL::read();
     uint16_t STATUS_SYNC_PROC_VTOTAL = GBS::STATUS_SYNC_PROC_VTOTAL::read();
     uint16_t STATUS_SYNC_PROC_HLOW_LEN = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
@@ -3078,18 +3127,19 @@ void handleType2Command() {
         // DCTI (pixel edges slope enhancement)
         if (GBS::VDS_UV_STEP_BYPS::read() == 1) {
           GBS::VDS_UV_STEP_BYPS::write(0);
-          if (GBS::VDS_TAP6_BYPS::read() == 1) {
+          // VDS_TAP6_BYPS (S3_24, 3) no longer enabled by default
+          /*if (GBS::VDS_TAP6_BYPS::read() == 1) {
             GBS::VDS_TAP6_BYPS::write(0); // no good way to store this change for later reversal
             GBS::VDS_0X2A_RESERVED_2BITS::write(1); // so use this trick to detect it later
-          }
+            }*/
           SerialM.println("DCTI on");
         }
         else {
           GBS::VDS_UV_STEP_BYPS::write(1);
-          if (GBS::VDS_0X2A_RESERVED_2BITS::read() == 1) {
+          /*if (GBS::VDS_0X2A_RESERVED_2BITS::read() == 1) {
             GBS::VDS_TAP6_BYPS::write(1);
             GBS::VDS_0X2A_RESERVED_2BITS::write(0);
-          }
+            }*/
           SerialM.println("DCTI off");
         }
         break;
