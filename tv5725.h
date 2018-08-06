@@ -477,6 +477,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x4F, 0, 12> SP_H_CST_SP;
     typedef UReg<0x05, 0x55, 4,  1> SP_HS_POL_ATO;
     typedef UReg<0x05, 0x55, 6,  1> SP_VS_POL_ATO;
+    typedef UReg<0x05, 0x55, 7,  1> SP_HCST_AUTO_EN;
     typedef UReg<0x05, 0x56, 0,  1> SP_SOG_MODE;
     typedef UReg<0x05, 0x56, 2,  1> SP_CLAMP_MANUAL;
     typedef UReg<0x05, 0x56, 5,  1> SP_HS_PROC_INV_REG;

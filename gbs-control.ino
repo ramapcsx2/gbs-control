@@ -112,7 +112,7 @@ struct FrameSyncAttrs {
   //static const uint8_t vsyncInPin = VSYNC_IN_PIN;
   static const uint8_t debugInPin = DEBUG_IN_PIN;
   // Sync lock sampling timeout in microseconds
-  static const uint32_t timeout = 200000;
+  static const uint32_t timeout = 900000;
   // Sync lock interval in milliseconds
   static const uint32_t lockInterval = 60 * 16; // every 60 frames. good range for this: 30 to 90
   // Sync correction in scanlines to apply when phase lags target
@@ -234,7 +234,7 @@ void writeProgramArrayNew(const uint8_t* programArray)
   writeOneByte(0x12, getSingleByteFromPreset(programArray, 498));
   writeOneByte(0x16, getSingleByteFromPreset(programArray, 502)); // might as well
   writeOneByte(0x17, getSingleByteFromPreset(programArray, 503)); // charge pump current
-  writeOneByte(0x18, 0); writeOneByte(0x19, 0); // adc / sp phase reset
+  writeOneByte(0x18, 0x41); writeOneByte(0x19, 0x41); // adc / sp phase reset
 
   for (int y = 0; y < 6; y++)
   {
@@ -309,12 +309,6 @@ void writeProgramArrayNew(const uint8_t* programArray)
         break;
     }
   }
-
-  // this is a test. the plls never needed this but maybe they work better with a reset
-  GBS::PLL_LEN::write(0);
-  GBS::PLL_VCORST::write(1);
-  GBS::PLLAD_LEN::write(0);
-  GBS::PLLAD_VCORST::write(1);
 }
 
 void setParametersSP() {
@@ -380,14 +374,14 @@ void setParametersSP() {
   }
   else writeOneByte(0x20, 0x02);
   // H active detect control
-  writeOneByte(0x21, 0x02); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20 // keep this very low
+  writeOneByte(0x21, 0x06); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20 // keep this very low
   writeOneByte(0x22, 0x10); // SP_L_DLT_REG       Sync pulse width different threshold (little than this as equal). // 7
   writeOneByte(0x23, 0x00); // UNDOCUMENTED       range from 0x00 to at least 0x1d
   writeOneByte(0x24, 0x40); // SP_T_DLT_REG       H total width different threshold rgbhv: b // range from 0x02 upwards
   writeOneByte(0x25, 0x00); // SP_T_DLT_REG
   writeOneByte(0x26, 0x08); // SP_SYNC_PD_THD     H sync pulse width threshold // range from 0(?) to about 0x50 // in yuv 720p range only to 0x0a!
   writeOneByte(0x27, 0x00); // SP_SYNC_PD_THD
-  writeOneByte(0x2a, 0x06); // SP_PRD_EQ_THD      How many continue legal line as valid // range from 0(?) to about 0x1d
+  writeOneByte(0x2a, 0x06); // SP_PRD_EQ_THD     ! How many continue legal line as valid // range from 0(?) to about 0x1d
   // V active detect control
   // these 4 have no effect currently test string:  s5s2ds34 s5s2es24 s5s2fs16 s5s31s84   |   s5s2ds02 s5s2es04 s5s2fs02 s5s31s04
   writeOneByte(0x2d, 0x02); // SP_VSYNC_TGL_THD   V sync toggle times threshold // at 5 starts to drop many 0_16 vsync events
@@ -395,7 +389,7 @@ void setParametersSP() {
   writeOneByte(0x2f, 0x02); // SP_V_PRD_EQ_THD    How many continue legal v sync as valid // at 4 starts to drop 0_16 vsync events
   writeOneByte(0x31, 0x2f); // SP_VT_DLT_REG      V total different threshold
   // Timer value control
-  writeOneByte(0x33, 0x10); // SP_H_TIMER_VAL     H timer value for h detect (was 0x28) // coupled with 5_21 // test bus 5_63 to 0x25 and scope dbg pin
+  writeOneByte(0x33, 0x0b); // SP_H_TIMER_VAL    ! H timer value for h detect (was 0x28) // coupled with 5_2a // test bus 5_63 to 0x25 and scope dbg pin
   writeOneByte(0x34, 0x05); // SP_V_TIMER_VAL     V timer for V detect // affects 0_16 vsactive
   // Sync separation control
   writeOneByte(0x35, 0x15); // SP_DLT_REG [7:0]   Sync pulse width difference threshold  (tweak point)
@@ -497,7 +491,7 @@ void syncProcessorModeVGA() {
   writeOneByte(0x40, 0x02); // source clocks from pll, 81Mhz mem clock
 
   rto->phaseADC = 8;
-  rto->phaseSP = 16;
+  rto->phaseSP = 18;
   setPhaseSP();
   setPhaseADC();
 
@@ -724,15 +718,14 @@ void dumpRegisters(byte segment)
 }
 
 void resetPLLAD() {
-  GBS::PA_SP_BYPSZ::write(0);
-  GBS::PA_ADC_BYPSZ::write(0);
   GBS::PLLAD_LAT::write(0);
-  GBS::PLLAD_PDZ::write(0);
+  //GBS::PLLAD_PDZ::write(0);
   GBS::PLLAD_VCORST::write(0);
-  delay(1);
-  GBS::PLLAD_PDZ::write(1);
-  delay(2);
+  //delay(1);
+  //GBS::PLLAD_PDZ::write(1);
+  //delay(2);
   GBS::PLLAD_LEN::write(1);
+  delay(2);
   GBS::PLLAD_LAT::write(1);
   setPhaseSP();
   setPhaseADC();
@@ -1363,7 +1356,7 @@ void applyBestHTotal(uint16_t bestHTotal) {
   // apply correction, but only if source is different than presets timings, ie: not a custom preset or source doesn't fit custom preset
   // hack: rto->syncLockFailIgnore == 3 means the correction should be forced (command '.')
   // timings checked against multi clock snes
-  if ((diffHTotal != 0 || requiresScalingCorrection) || rto->syncLockFailIgnore == 3) {
+  if (((diffHTotal != 0 || requiresScalingCorrection) || rto->syncLockFailIgnore == 3) && bestHTotal > 400) {
     uint16_t h_blank_display_start_position = (bestHTotal - 1) & 0xfffe;
     uint16_t h_blank_display_stop_position =  GBS::VDS_DIS_HB_SP::read() + diffHTotal;
     if (isLargeDiff) {
@@ -1438,7 +1431,7 @@ void doPostPresetLoadSteps() {
   // IF stuff
   GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 2); // initial position seems to be "ht" (on S1_0d)
 
-  GBS::DEC_WEN_MODE::write(1);
+  GBS::DEC_WEN_MODE::write(0); // write 0 if dec0 (5_1f, 0) is not bypassed | if both dec bypassed
   GBS::DEC_IDREG_EN::write(1);
 
   // jitter sync off for all modes
@@ -1777,21 +1770,19 @@ void advancePhase() {
 }
 
 void setPhaseSP() {
-  writeOneByte(0xF0, 5); writeOneByte(0x19, 0x40); // PSP unit bypass, lock off
+  writeOneByte(0xF0, 5); writeOneByte(0x19, 0x41); // lock off, no bypass, 0 value
   GBS::PA_SP_S::write(rto->phaseSP);
-  GBS::PA_SP_LAT::write(1);
-  delay(1);
   GBS::PA_SP_LOCKOFF::write(0); // lock on
-  GBS::PA_SP_BYPSZ::write(1); // bypass off
+  delay(1);
+  GBS::PA_SP_LAT::write(1);
 }
 
 void setPhaseADC() {
-  writeOneByte(0xF0, 5); writeOneByte(0x18, 0x40); // PADC unit bypass, lock off
+  writeOneByte(0xF0, 5); writeOneByte(0x18, 0x41); // lock off, no bypass, 0 value
   GBS::PA_ADC_S::write(rto->phaseADC);
-  GBS::PA_ADC_LAT::write(1); //PA_ADC_LAT on
-  delay(1);
   GBS::PA_ADC_LOCKOFF::write(0); // lock on
-  GBS::PA_ADC_BYPSZ::write(1); // bypass off
+  delay(1);
+  GBS::PA_ADC_LAT::write(1); //PA_ADC_LAT on
 }
 
 void updateHorizontalCoastPosition() {
@@ -1799,7 +1790,7 @@ void updateHorizontalCoastPosition() {
   int16_t inHlength = 0;
   int i = 0;
   for (; i < 8; i++) {
-    inHlength += GBS::HPERIOD_IF::read();
+    inHlength += ((GBS::HPERIOD_IF::read() + 1) & 0xfffe); // psx jitters between 427, 428
   }
   inHlength /= i;
   inHlength *= 4;
@@ -1812,11 +1803,12 @@ void updateHorizontalCoastPosition() {
     //GBS::SP_DLT_REG::write(inHlength / 6); // this is probably the width of the hsync pulse
 
     // above not ready yet / snes would require post coast at 3 (normal is 7)
-    GBS::SP_H_CST_SP::write(inHlength - (inHlength / 24));
-    GBS::SP_H_CST_ST::write((inHlength / 4) - 8);
+    GBS::SP_H_CST_SP::write(inHlength - 10);
+    GBS::SP_H_CST_ST::write((inHlength / 2) + 4);
   }
   else {
     SerialM.println("hcoast undetermined, skipping");
+	GBS::SP_HCST_AUTO_EN::write(0);
   }
 }
 
@@ -1856,16 +1848,17 @@ void bypassModeSwitch_SOG() {
     old_5_40 = GBS::SP_SDCS_VSSP_REG_L::read();
     old_5_3e = GBS::SP_CS_0x3E::read();
 
-    GBS::PLLAD_ICP::write(5);
+    // WIP
+    //GBS::PLLAD_ICP::write(5);
     GBS::OUT_SYNC_SEL::write(2); // S0_4F, 6+7
     GBS::DAC_RGBS_ADC2DAC::write(1); // S0_4B, 2
     GBS::SP_HS_LOOP_SEL::write(0); // retiming enable
-    GBS::SP_CS_0x3E::write(0x20); // sub coast off, ovf protect off
-    GBS::PLL_VCLKCTL::write(0x35); // ADC clock
-    GBS::PLLAD_MD::write(1802);
+    //GBS::SP_CS_0x3E::write(0x20); // sub coast off, ovf protect off
+    //GBS::PLL_VCLKCTL::write(0x35); // ADC clock
+    //GBS::PLLAD_MD::write(1802);
     GBS::SP_SDCS_VSST_REG_L::write(0x00);
     GBS::SP_SDCS_VSSP_REG_L::write(0x03);
-    GBS::SFTRST_0x46::write(0); // none required
+    //GBS::SFTRST_0x46::write(0); // none required
   }
   else {
     GBS::OUT_SYNC_SEL::write(0);
@@ -2026,8 +2019,8 @@ void setup() {
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->syncLockFailIgnore = 2; // allow syncLock to fail x-1 times in a row before giving up (sync glitch immunity)
   rto->syncWatcher = true;  // continously checks the current sync status. required for normal operation
-  rto->phaseADC = 8;
-  rto->phaseSP = 16;
+  rto->phaseADC = 16;
+  rto->phaseSP = 6;
 
   // the following is just run time variables. don't change!
   rto->currentLevelSOG = 8;
@@ -2803,9 +2796,12 @@ void loop() {
               }
             }
           }
-          rto->currentSyncPulseIgnoreValue = (syncPulseHistory[9] / 2) + 4;
-          GBS::SP_H_PULSE_IGNOR::write(rto->currentSyncPulseIgnoreValue);
-          //GBS::SP_DLT_REG::write(rto->currentSyncPulseIgnoreValue * 2);
+		  uint16_t newValue = ((syncPulseHistory[9] / 2) + 8) & 0xfffc;
+		  if (newValue != rto->currentSyncPulseIgnoreValue) {
+			  rto->currentSyncPulseIgnoreValue = newValue;
+			  GBS::SP_H_PULSE_IGNOR::write(rto->currentSyncPulseIgnoreValue);
+		  }
+		  //GBS::SP_DLT_REG::write(rto->currentSyncPulseIgnoreValue * 2);
           //uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read() / 2; // round down is okay (SNES, "523" vtotal)
           //GBS::SP_SDCS_VSST_REG_H::write(VPERIOD_IF >> 8);
           //GBS::SP_SDCS_VSST_REG_L::write((uint8_t)VPERIOD_IF);
@@ -2893,8 +2889,8 @@ void loop() {
   if (rto->sourceDisconnected == false && rto->syncLockEnabled == true && !FrameSync::ready() &&
       getSyncStable() && rto->videoStandardInput != 0 && rto->videoStandardInput != 15
       && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval) {
-    uint8_t debugRegBackup; writeOneByte(0xF0, 5); readFromRegister(0x63, 1, &debugRegBackup);
-    writeOneByte(0x63, 0x0f);
+    uint8_t debugRegBackup; writeOneByte(0xF0, 0); readFromRegister(0x4d, 1, &debugRegBackup);
+    writeOneByte(0x4d, 0x22);
     uint16_t bestHTotal = FrameSync::init();
     if (bestHTotal > 0) {
       applyBestHTotal(bestHTotal);
@@ -2905,7 +2901,7 @@ void loop() {
       rto->syncLockEnabled = false;
       SerialM.println("sync lock failed, check debug wire!");
     }
-    writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
+    writeOneByte(0xF0, 0); writeOneByte(0x4d, debugRegBackup);
   }
 
   if (rto->sourceDisconnected == true && rto->syncWatcher == true && ((millis() - lastSourceCheck) > 750)) { // source is off; keep looking for new input

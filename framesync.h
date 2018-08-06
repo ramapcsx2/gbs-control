@@ -81,18 +81,18 @@ class FrameSyncManager {
       unsigned long inStart, inStop, outStart, outStop, inPeriod, outPeriod,
                diff;
 
-      GBS::TEST_BUS_SEL::write(10);
+      GBS::TEST_BUS_SEL::write(0x0a); // 0x20 is already set
       if (!vsyncInputSample(&inStart, &inStop)) {
         return false;
       }
       inPeriod = (inStop - inStart) / 2;
 
-      GBS::TEST_BUS_SEL::write(2);
+      GBS::TEST_BUS_SEL::write(0x02);
       if (!vsyncOutputSample(&outStart, &outStop)) {
         GBS::TEST_BUS_SEL::write(10);
         return false;
       }
-      GBS::TEST_BUS_SEL::write(10);
+      GBS::TEST_BUS_SEL::write(0x0a);
       outPeriod = outStop - outStart;
       diff = (outStart - inStart) % inPeriod;
       if (periodInput)
