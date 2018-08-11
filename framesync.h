@@ -16,7 +16,7 @@ class FrameSyncManager {
     static const uint32_t syncTimeout = Attrs::timeout;
     static const int16_t syncCorrection = Attrs::correction;
     static const uint32_t syncTargetPhase = Attrs::targetPhase;
-    static const uint8_t syncHtotalStable = Attrs::htotalStable;
+    //static const uint8_t syncHtotalStable = Attrs::htotalStable;
     static const uint8_t syncSamples = Attrs::samples;
 
     static bool syncLockReady;
@@ -140,29 +140,34 @@ class FrameSyncManager {
     static bool findBestHTotal(uint16_t &bestHtotal) {
       uint16_t htotal = HSYNC_RST::read();
       uint32_t inPeriod, outPeriod;
-      uint16_t candHtotal;
-      uint8_t stable = 0;
 
       if (htotal == 0) { // safety
         return false;
       }
 
-      unsigned long timeout = millis();
-      while ((stable < syncHtotalStable) && (millis() - timeout) < 5000) {
-        yield();
-        if (!sampleVsyncPeriods(&inPeriod, &outPeriod))
-          return false;
-        candHtotal = (htotal * inPeriod) / outPeriod;
-        //Serial.print("Candidate htotal: "); Serial.println(candHtotal);
-
-        if (candHtotal == bestHtotal)
-          stable++;
-        else
-          stable = 1;
-        bestHtotal = candHtotal;
-      }
-
+      if (!sampleVsyncPeriods(&inPeriod, &outPeriod)) return false;
+      bestHtotal = (htotal * inPeriod) / outPeriod;
       return true;
+
+      // deprecated
+      //uint16_t candHtotal;
+      //uint8_t stable = 0;
+      //unsigned long timeout = millis();
+      //while ((stable < syncHtotalStable) && (millis() - timeout) < 5000) {
+      //  yield();
+      //  if (!sampleVsyncPeriods(&inPeriod, &outPeriod))
+      //    return false;
+      //  candHtotal = (htotal * inPeriod) / outPeriod;
+      //  //Serial.print("Candidate htotal: "); Serial.println(candHtotal);
+
+      //  if (candHtotal == bestHtotal)
+      //    stable++;
+      //  else
+      //    stable = 1;
+      //  bestHtotal = candHtotal;
+      //}
+
+      //return true;
     }
 
   public:
