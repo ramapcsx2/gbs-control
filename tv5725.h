@@ -462,7 +462,9 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x1F, 0,  1> DEC1_BYPS;
     typedef UReg<0x05, 0x1F, 1,  1> DEC2_BYPS;
     typedef UReg<0x05, 0x1F, 2,  1> DEC_MATRIX_BYPS;
-    typedef UReg<0x05, 0x1F, 7,  0> DEC_IDREG_EN;
+    typedef UReg<0x05, 0x1F, 3,  1> DEC_TEST_ENABLE; // fake name
+    typedef UReg<0x05, 0x1F, 4,  3> DEC_TEST_SEL;
+    typedef UReg<0x05, 0x1F, 7,  1> DEC_IDREG_EN;
     typedef UReg<0x05, 0x20, 3,  1> SP_EXT_SYNC_SEL;
     typedef UReg<0x05, 0x20, 4,  1> SP_JITTER_SYNC;
     typedef UReg<0x05, 0x35, 0, 12> SP_DLT_REG;
@@ -472,6 +474,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x3E, 0,  8> SP_CS_0x3E; // fake name
     typedef UReg<0x05, 0x3E, 0,  1> SP_CS_P_SWAP;
     typedef UReg<0x05, 0x3E, 1,  1> SP_HD_MODE;
+    typedef UReg<0x05, 0x3E, 4,  1> SP_H_PROTECT;
     typedef UReg<0x05, 0x3E, 5,  1> SP_DIS_SUB_COAST;
     typedef UReg<0x05, 0x3F, 0,  8> SP_SDCS_VSST_REG_L;
     typedef UReg<0x05, 0x40, 0,  8> SP_SDCS_VSSP_REG_L;
