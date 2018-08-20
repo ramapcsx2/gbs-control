@@ -467,11 +467,11 @@ void syncProcessorModeSD() {
   updateClampPosition();
   writeOneByte(0xF0, 5);
   uint8_t i = 0;
-  uint16_t temp = 0;
-  for (; i < 7; i++) {
-    temp += GBS::STATUS_SYNC_PROC_HTOTAL::read();
-  }
-  temp /= i;
+  uint16_t temp = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+  temp += GBS::STATUS_SYNC_PROC_HTOTAL::read();
+  temp += GBS::STATUS_SYNC_PROC_HTOTAL::read();
+  temp += GBS::STATUS_SYNC_PROC_HTOTAL::read();
+  temp = temp >> 2;
   if (temp > 1500) rto->currentSyncPulseIgnoreValue = temp / 21;
   else if (temp > 400) rto->currentSyncPulseIgnoreValue = temp / 16;
   else rto->currentSyncPulseIgnoreValue = 0x58; // temp can be 0
@@ -1868,12 +1868,12 @@ void setPhaseADC() {
 void updateHorizontalCoastPosition() {
   if (rto->videoStandardInput == 15) return;
   int16_t inHlength = 0;
-  int i = 0;
+  uint8_t i = 0;
+
   for (; i < 8; i++) {
     inHlength += ((GBS::HPERIOD_IF::read() + 1) & 0xfffe); // psx jitters between 427, 428
   }
-  inHlength /= i;
-  inHlength *= 4;
+  inHlength = inHlength >> 1; // /8 , *4
 
   if (inHlength > 0) {
     //GBS::SP_H_CST_ST::write(inHlength / 128); // basically very short. test with 3 chip snes
@@ -1887,7 +1887,6 @@ void updateHorizontalCoastPosition() {
     GBS::SP_H_CST_ST::write((inHlength / 2) + 4);
   }
   else {
-    SerialM.println("hcoast undetermined, skipping");
     GBS::SP_HCST_AUTO_EN::write(0);
   }
 }
@@ -2259,7 +2258,6 @@ void setup() {
   //}
   inputAndSyncDetect();
 
-  SerialM.print("\nMCU: "); SerialM.println(F_CPU);
   LEDOFF; // startup done, disable the LED
 }
 
@@ -2420,8 +2418,8 @@ void loop() {
         moveVS(1, false);
         break;
       case 'k':
-        //bypassModeSwitch_RGBHV();
-        bypassModeSwitch_SOG();
+        bypassModeSwitch_RGBHV();
+        //bypassModeSwitch_SOG();  // arduino space saving
         latchPLLAD();
         break;
       case 'K':
@@ -2549,7 +2547,7 @@ void loop() {
         //
         break;
       case 'l':
-        SerialM.println("l - spOffOn");
+        SerialM.println("spOffOn");
         SyncProcessorOffOn();
         break;
       case 'W':
@@ -2584,7 +2582,7 @@ void loop() {
         moveVS(1, false);
         break;
       case '8':
-        SerialM.println("invert sync");
+        //SerialM.println("invert sync");
         invertHS(); invertVS();
         break;
       case '9':
@@ -2622,7 +2620,6 @@ void loop() {
               GBS::DEC2_BYPS::write(0);
               break;
             default:
-              SerialM.println("OSR ?");
               break;
           }
           resetPLLAD(); // jist latching not good enough, shifts h offset
