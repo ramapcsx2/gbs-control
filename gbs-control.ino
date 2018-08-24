@@ -56,6 +56,8 @@ PersWiFiManager persWM(server, dnsServer);
 
 #define DEBUG_IN_PIN 11
 
+// fastest, but non portable (Uno pin 11 = PB3, Mega2560 pin 11 = PB5)
+//#define digitalRead(x) bitRead(PINB, 3)
 #include "fastpin.h"
 #define digitalRead(x) fastRead<x>()
 
@@ -466,7 +468,6 @@ void setSOGLevel(uint8_t level) {
 void syncProcessorModeSD() {
   updateClampPosition();
   writeOneByte(0xF0, 5);
-  uint8_t i = 0;
   uint16_t temp = GBS::STATUS_SYNC_PROC_HTOTAL::read();
   temp += GBS::STATUS_SYNC_PROC_HTOTAL::read();
   temp += GBS::STATUS_SYNC_PROC_HTOTAL::read();

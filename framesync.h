@@ -1,6 +1,16 @@
 #ifndef FRAMESYNC_H_
 #define FRAMESYNC_H_
 
+// fast digitalRead()
+#if defined(ESP8266)
+   #define digitalRead(x) ((GPIO_REG_READ(GPIO_IN_ADDRESS) >> x) & 1)
+#else // Arduino
+   // fastest, but non portable (Uno pin 11 = PB3, Mega2560 pin 11 = PB5)
+   //#define digitalRead(x) bitRead(PINB, 3)
+   #include "fastpin.h"
+   #define digitalRead(x) fastRead<x>()
+#endif
+
 template <class GBS, class Attrs>
 class FrameSyncManager {
   private:
@@ -241,13 +251,13 @@ class FrameSyncManager {
         vssp += delta;
       }
       // else it is method 1: don't move VS position
-      
+
       do {
         // wait for next frame start + 20 lines for stability
         currentLineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
       } while ((currentLineNumber > earlyFrameBoundary || currentLineNumber < 20) && --timeout > 0);
       VRST_SST_SSP::write(vtotal, vsst, vssp);
-      
+
       syncLastCorrection = correction;
 
       return true;
