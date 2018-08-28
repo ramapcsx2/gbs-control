@@ -433,6 +433,9 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x03, 4,  2> ADC_FLTR;
     typedef UReg<0x05, 0x04, 0,  2> ADC_TR_RSEL;
     typedef UReg<0x05, 0x04, 2,  3> ADC_TR_ISEL;
+    typedef UReg<0x05, 0x06, 0,  8> ADC_ROFCTRL;
+    typedef UReg<0x05, 0x07, 0,  8> ADC_GOFCTRL;
+    typedef UReg<0x05, 0x08, 0,  8> ADC_BOFCTRL;
     typedef UReg<0x05, 0x09, 0,  8> ADC_RGCTRL;
     typedef UReg<0x05, 0x0A, 0,  8> ADC_GGCTRL;
     typedef UReg<0x05, 0x0B, 0,  8> ADC_BGCTRL;

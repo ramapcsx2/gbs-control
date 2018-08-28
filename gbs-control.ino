@@ -412,7 +412,7 @@ void setParametersSP() {
   writeOneByte(0x36, 0x00); // SP_DLT_REG [11:8]
 
   writeOneByte(0x37, rto->currentSyncPulseIgnoreValue);
-  writeOneByte(0x3a, 0x04); // was 0x0a // range depends on source vtiming, from 0x03 to xxx, some good effect at lower levels
+  writeOneByte(0x3a, 0x03); // was 0x0a // range depends on source vtiming, from 0x03 to xxx, some good effect at lower levels
 
   updateClampPosition(); // already done if gone thorugh syncwatcher, but not manual modes
   GBS::SP_SDCS_VSST_REG_H::write(0);
@@ -420,7 +420,7 @@ void setParametersSP() {
   GBS::SP_SDCS_VSSP_REG_H::write(0);
   GBS::SP_SDCS_VSSP_REG_L::write(9); // 12 // test: t5t11t3 > minimize jitter
 
-  //writeOneByte(0x3e, 0x10); // SP sub coast on, ovf protect on
+  writeOneByte(0x3e, 0x10); // SP sub coast on, ovf protect on
 
   // Update: This is the retiming module. It can be used for SP processing with t5t57t6
   //writeOneByte(0x45, 0x00); // 0x00 // retiming SOG HS start
@@ -509,7 +509,7 @@ void syncProcessorModeVGA() {
   writeOneByte(0xF0, 0);
   writeOneByte(0x40, 0x02); // source clocks from pll, 81Mhz mem clock
 
-  rto->phaseADC = 8;
+  rto->phaseADC = 16;
   rto->phaseSP = 18;
   setPhaseSP();
   setPhaseADC();
@@ -1450,7 +1450,7 @@ void doPostPresetLoadSteps() {
   // IF stuff
   GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 2); // initial position seems to be "ht" (on S1_0d)
 
-  GBS::DEC_WEN_MODE::write(0); // write 0 if dec0 (5_1f, 0) is not bypassed | if both dec bypassed
+  GBS::DEC_WEN_MODE::write(1); // keeps ADC phase much more consistent. around 4 lock positions vs totally random
   GBS::DEC_IDREG_EN::write(1);
 
   // jitter sync off for all modes
@@ -1498,22 +1498,11 @@ void doPostPresetLoadSteps() {
   rto->syncLockFailIgnore = 2;
 
   updateHorizontalCoastPosition();  // ignores sync pulses outside expected range
-  GBS::SP_H_PROTECT::write(0);      //
-  GBS::SP_DIS_SUB_COAST::write(1);  // test whether macrovision coast is required
-  delay(3);
   boolean success = true;
   long timeout = millis();
   while (getVideoMode() == 0 && millis() - timeout < 500); // stability
   if (millis() - timeout >= 500) {
-    //SerialM.println("timeout 1");
-    GBS::SP_H_PROTECT::write(1);      //
-    GBS::SP_DIS_SUB_COAST::write(0);  // use macrovision coast
-    timeout = millis();
-    while (getVideoMode() == 0 && millis() - timeout < 500);
-    if (millis() - timeout >= 500) {
-      //SerialM.println("timeout 2");
-      success = false;
-    }
+    success = false;
   }
   if (success && rto->syncLockEnabled == true && rto->videoStandardInput != 15) {
     uint8_t debugRegBackup; writeOneByte(0xF0, 5); readFromRegister(0x63, 1, &debugRegBackup);
@@ -1542,6 +1531,10 @@ void doPostPresetLoadSteps() {
 
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
 
+  for (uint8_t i = 0; i < 8; i++) { // somehow this increases phase position reliability
+    advancePhase();
+  }
+
   //if (rto->currentSyncProcessorMode <= 2) { // actually, the test should be for a SOG requring source
   //  findBestPhase(); // test
   //}
@@ -1555,6 +1548,14 @@ void doPostPresetLoadSteps() {
   // If it's not (like when powered by NodeMCU adapter via USB > only 2.9V), then colors are bad.
   // I want to keep this in the code for its benefits but need to watch user reports.
   // update: still randomly does this on one of my boards. disabled until fully stable
+
+  //  GBS::ADC_ROFCTRL::write(0x3f);
+  //  GBS::ADC_GOFCTRL::write(0x3f);
+  //  GBS::ADC_BOFCTRL::write(0x3f);
+  //  GBS::ADC_RGCTRL::write(0x7f);
+  //  GBS::ADC_GGCTRL::write(0x7f);
+  //  GBS::ADC_BGCTRL::write(0x7f);
+
   SerialM.println("post preset done");
 }
 
@@ -1855,15 +1856,15 @@ void advancePhase() {
 }
 
 void setPhaseSP() {
-  writeOneByte(0xF0, 5); writeOneByte(0x19, 0x01); // lock on, no bypass, 0 value
+  GBS::PA_SP_LAT::write(0); // latch off
   GBS::PA_SP_S::write(rto->phaseSP);
-  GBS::PA_SP_LAT::write(1);
+  GBS::PA_SP_LAT::write(1); // latch on
 }
 
 void setPhaseADC() {
-  writeOneByte(0xF0, 5); writeOneByte(0x18, 0x01); // lock on, no bypass, 0 value
+  GBS::PA_ADC_LAT::write(0);
   GBS::PA_ADC_S::write(rto->phaseADC);
-  GBS::PA_ADC_LAT::write(1); //PA_ADC_LAT on
+  GBS::PA_ADC_LAT::write(1);
 }
 
 void updateHorizontalCoastPosition() {
@@ -1877,12 +1878,12 @@ void updateHorizontalCoastPosition() {
   inHlength = inHlength >> 1; // /8 , *4
 
   if (inHlength > 0) {
-    //GBS::SP_H_CST_ST::write(inHlength / 128); // basically very short. test with 3 chip snes
-    //GBS::SP_H_CST_SP::write(inHlength - 12); // master system (worst sync i've got) (snes minimum: inHlength -8)
+    //GBS::SP_H_CST_ST::write(inHlength / 16); //old snes jitter scanline in 239 mode vs interlace mode
+    //GBS::SP_H_CST_SP::write(inHlength - (inHlength / 8)); // master system (worst sync i've got) (snes minimum: inHlength -8)
     SerialM.print("hcoast: "); SerialM.println(inHlength);
     // also set S5_35+36 Sync pulse width difference threshold
+    // classic snes issues
     //GBS::SP_DLT_REG::write(inHlength / 6); // this is probably the width of the hsync pulse
-
     // above not ready yet / snes would require post coast at 3 (normal is 7)
     GBS::SP_H_CST_SP::write(inHlength - 10);
     GBS::SP_H_CST_ST::write((inHlength / 2) + 4);
@@ -2238,6 +2239,8 @@ void setup() {
   disableVDS();
   writeProgramArrayNew(ntsc_240p); // bring the chip up for input detection
   GBS::SP_H_PULSE_IGNOR::write(0x60); // for startup
+  GBS::SP_H_PROTECT::write(1);
+  GBS::SP_DIS_SUB_COAST::write(0);
   //zeroAll();
   //resetDigital();
   //setParametersSP();
