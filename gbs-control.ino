@@ -20,6 +20,7 @@ typedef TV5725<GBS_ADDR> GBS;
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include "PersWiFiManager.h"
+#include <ESP8266mDNS.h>  // mDNS library for finding gbscontrol.local on the local network
 
 // WebSockets library by Markus Sattler
 // to install: "Sketch" > "Include Library" > "Manage Libraries ..." > search for "websockets" and install "WebSockets for Arduino (Server + Client)"
@@ -319,39 +320,31 @@ void setParametersSP() {
   writeOneByte(0xF0, 5);
   if (rto->videoStandardInput == 3) { // ED YUV 60
     GBS::IF_VB_ST::write(0);
-    //GBS::SP_HD_MODE::write(1);
-    GBS::IF_HB_SP2::write(136); // todo: (s1_1a) position depends on preset
+    GBS::SP_HD_MODE::write(0); // bi level sync
+    GBS::IF_HB_SP2::write(0xb0); // (s1_1a) position depends on preset
     rto->currentSyncPulseIgnoreValue = 0x04;
-    writeOneByte(0x38, 0x04); // h coast pre
-    writeOneByte(0x39, 0x07); // h coast post
     GBS::SP_CS_HS_ST::write(0x40);
     GBS::SP_CS_HS_SP::write(0x50);
   }
   else if (rto->videoStandardInput == 4) { // ED YUV 50
     GBS::IF_VB_ST::write(0);
-    //GBS::SP_HD_MODE::write(1);
-    GBS::IF_HB_SP2::write(180); // todo: (s1_1a) position depends on preset
+    GBS::SP_HD_MODE::write(0); // bi level sync
+    GBS::IF_HB_SP2::write(0xb0);
     rto->currentSyncPulseIgnoreValue = 0x04;
-    writeOneByte(0x38, 0x02); // h coast pre
-    writeOneByte(0x39, 0x06); // h coast post
     GBS::SP_CS_HS_ST::write(0x48);
     GBS::SP_CS_HS_SP::write(0x58);
   }
   else if (rto->videoStandardInput == 1) { // NTSC 60
     if (!rto->inputIsYpBpR) rto->currentSyncPulseIgnoreValue = 0x60;
     GBS::IF_VB_ST::write(0);
-    //GBS::SP_HD_MODE::write(0);
-    writeOneByte(0x38, 0x03); // h coast pre
-    writeOneByte(0x39, 0x07); // h coast post
+    GBS::SP_HD_MODE::write(0); // bi level sync
     GBS::SP_CS_HS_ST::write(0x60);
     GBS::SP_CS_HS_SP::write(0x88);
   }
   else if (rto->videoStandardInput == 2) { // PAL 50
     if (!rto->inputIsYpBpR) rto->currentSyncPulseIgnoreValue = 0x60;
     GBS::IF_VB_ST::write(0);
-    //GBS::SP_HD_MODE::write(0);
-    writeOneByte(0x38, 0x02); // h coast pre
-    writeOneByte(0x39, 0x06); // h coast post
+    GBS::SP_HD_MODE::write(0); // bi level sync
     GBS::SP_CS_HS_ST::write(0x50);
     GBS::SP_CS_HS_SP::write(0x80);
   }
@@ -359,12 +352,10 @@ void setParametersSP() {
     rto->currentSyncPulseIgnoreValue = 0x04;
     GBS::IF_VB_ST::write(0);
     GBS::IF_VB_SP::write(0x10); // v. position
-    //GBS::SP_HD_MODE::write(1);
-    GBS::IF_HB_SP2::write(192); // todo: (s1_1a) position depends on preset
-    writeOneByte(0x38, 0x03); // h coast pre
-    writeOneByte(0x39, 0x07); // h coast post
+    GBS::SP_HD_MODE::write(1); // tri level sync
+    GBS::IF_HB_SP2::write(0xf8);
     GBS::PLLAD_FS::write(1); // high gain
-    GBS::PLLAD_ICP::write(6); // high charge pump current
+    GBS::PLLAD_ICP::write(7); // maximum charge pump current
     GBS::VDS_VSCALE::write(804);
     GBS::SP_CS_HS_ST::write(0x80);
     GBS::SP_CS_HS_SP::write(0xa0);
@@ -373,10 +364,8 @@ void setParametersSP() {
     rto->currentSyncPulseIgnoreValue = 0x04;
     GBS::IF_VB_ST::write(0);
     GBS::IF_VB_SP::write(0x10); // v. position
-    //GBS::SP_HD_MODE::write(1);
+    GBS::SP_HD_MODE::write(1); // tri level sync
     GBS::IF_HB_SP2::write(216); // todo: (s1_1a) position depends on preset
-    writeOneByte(0x38, 0x03); // h coast pre
-    writeOneByte(0x39, 0x07); // h coast post
     GBS::PLLAD_ICP::write(6); // high charge pump current
     GBS::PLLAD_FS::write(1); // high gain
     GBS::VDS_VSCALE::write(583);
@@ -1386,7 +1375,7 @@ void applyBestHTotal(uint16_t bestHTotal) {
     //uint16_t h_sync_start_position =  center_blank - (center_blank / 2);
     uint16_t h_sync_start_position =  bestHTotal / 28; // test with HDMI board suggests this is better
     uint16_t h_sync_stop_position =   center_blank + (center_blank / 2);
-    uint16_t h_blank_memory_start_position = h_blank_display_start_position - (h_blank_display_start_position / 24); // at least h_blank_display_start_position - 1
+    uint16_t h_blank_memory_start_position = h_blank_display_start_position - (h_blank_display_start_position / 48); // at least h_blank_display_start_position - 1
     uint16_t h_blank_memory_stop_position =  GBS::VDS_HB_SP::read() + diffHTotal; // have to rely on currently loaded preset
     if (isLargeDiff) {
       // S4 test bus may have artifact detection!
@@ -3368,6 +3357,7 @@ void start_webserver()
 
   persWM.setConnectNonBlock(true);
   persWM.begin(); // WiFiManager with captive portal
+  MDNS.begin("gbscontrol"); // respnd to MDNS request for gbscontrol.local
   server.begin(); // Webserver for the site
   webSocket.begin();  // Websocket for interaction
   webSocket.onEvent(webSocketEvent);
