@@ -393,6 +393,8 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x12, 0,  1> MEM_INTER_DLYCELL_SEL;
     typedef UReg<0x04, 0x12, 1,  1> MEM_CLK_DLYCELL_SEL;
     typedef UReg<0x04, 0x12, 2,  1> MEM_FBK_CLK_DLYCELL_SEL;
+    typedef UReg<0x04, 0x1b, 0,  3> MEM_ADR_DLY_REG;
+    typedef UReg<0x04, 0x1b, 4,  3> MEM_CLK_DLY_REG;
 
     // Playback / Capture / Memory Registers
     typedef UReg<0x04, 0x2b, 3,  1> PB_BYPASS;

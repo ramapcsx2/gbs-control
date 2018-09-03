@@ -2397,8 +2397,10 @@ void loop() {
         //findBestPhase();
         SerialM.println("PLL: ICLK");
         GBS::MEM_CLK_DLYCELL_SEL::write(0);
-        GBS::PLLAD_FS::write(0); // gain low
-        GBS::PLLAD_ICP::write(4); // CPC
+        GBS::PLL_MS::write(0x07); // memory clock 129mhz (many boards don't like fb clock)
+        GBS::MEM_ADR_DLY_REG::write(0x03); GBS::MEM_CLK_DLY_REG::write(0x03); // memory subtimings
+        GBS::PLLAD_FS::write(1); // gain high
+        GBS::PLLAD_ICP::write(5); // CPC
         GBS::PLL_CKIS::write(1); // PLL use ICLK (instead of oscillator)
         latchPLLAD();
         GBS::VDS_HSCALE::write(512);
