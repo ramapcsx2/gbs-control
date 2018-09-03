@@ -73,12 +73,21 @@ void PersWiFiManager::setConnectNonBlock(bool b) {
 
 void PersWiFiManager::setupWiFiHandlers() {
   IPAddress apIP(192, 168, 4, 1);
-  _dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
+  //_dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
+  //
+  // modify TTL associated  with the domain name (in seconds)
+  // default is 60 seconds
+  _dnsServer->setTTL(300);
+  // set which return code will be used for all other domains (e.g. sending
+  // ServerFailure instead of NonExistentDomain will reduce number of queries
+  // sent by clients)
+  // default is DNSReplyCode::NonExistentDomain
+  _dnsServer->setErrorReplyCode(DNSReplyCode::ServerFailure);
   _dnsServer->start((byte)53, "*", apIP); //used for captive portal in AP mode
 
-  _server->on("/", [&] () {
-    _server->send(200, "text/html", FPSTR(HTML));
-  });
+  //_server->on("/", [&] () {
+  //  _server->send(200, "text/html", FPSTR(HTML));
+  //});
     
   _server->on("/wifi/list", [&] () {
     //scan for wifi networks

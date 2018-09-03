@@ -390,6 +390,9 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     // Memory Controller Registers
     typedef UReg<0x04, 0x00, 4,  1> SDRAM_RESET_SIGNAL;
     typedef UReg<0x04, 0x00, 7,  1> SDRAM_START_INITIAL_CYCLE;
+    typedef UReg<0x04, 0x12, 0,  1> MEM_INTER_DLYCELL_SEL;
+    typedef UReg<0x04, 0x12, 1,  1> MEM_CLK_DLYCELL_SEL;
+    typedef UReg<0x04, 0x12, 2,  1> MEM_FBK_CLK_DLYCELL_SEL;
 
     // Playback / Capture / Memory Registers
     typedef UReg<0x04, 0x2b, 3,  1> PB_BYPASS;

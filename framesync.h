@@ -88,16 +88,19 @@ class FrameSyncManager {
     // difference in microseconds
     static bool vsyncPeriodAndPhase(uint32_t *periodInput,
                                     uint32_t *periodOutput, int32_t *phase) {
-      unsigned long inStart, inStop, outStart, outStop, inPeriod, outPeriod,
+      unsigned long inStart, inStop, inTemp, outStart, outStop, inPeriod, outPeriod,
                diff;
 
       GBS::TEST_BUS_SEL::write(0x0a); // 0x20 is already set
       if (!vsyncInputSample(&inStart, &inStop)) {
         return false;
       }
-      inPeriod = (inStop - inStart) / 2;
+      GBS::TEST_BUS_SEL::write(0x02); // switch to show sync output right away
+	  inTemp = inStop - inStart;
+	  inPeriod = inTemp >> 1;
+	  // the div2 rounds down, fix it
+	  if (bitRead(inTemp, 0)) inPeriod++;
 
-      GBS::TEST_BUS_SEL::write(0x02);
       if (!vsyncOutputSample(&outStart, &outStop)) {
         GBS::TEST_BUS_SEL::write(10);
         return false;
@@ -113,16 +116,16 @@ class FrameSyncManager {
         *phase = (diff < inPeriod / 2) ? diff : diff - inPeriod;
 
       // good for jitter tests
-      //  static uint32_t minseen = 100000, maxseen = 0;
-      //  static uint8_t initialHold = 22;
-      //  if (initialHold-- < 3) {
-      //    if (inPeriod < minseen) minseen = inPeriod;
-      //    if (inPeriod > maxseen) maxseen = inPeriod;
-      //    initialHold = 2;
-      //  }
-      //  Serial.print("inPeriod: "); Serial.print(inPeriod);
-      //  Serial.print(" min|max: "); Serial.print(minseen);
-      //  Serial.print("|"); Serial.println(maxseen);
+        //static uint32_t minseen = 100000, maxseen = 0;
+        //static uint8_t initialHold = 22;
+        //if (initialHold-- < 3) {
+        //  if (inPeriod < minseen) minseen = inPeriod;
+        //  if (inPeriod > maxseen) maxseen = inPeriod;
+        //  initialHold = 2;
+        //}
+        //Serial.print("inPeriod: "); Serial.println(inPeriod);
+        //Serial.print(" min|max: "); Serial.print(minseen);
+        //Serial.print(" | "); Serial.println(maxseen);
 
       return true;
     }

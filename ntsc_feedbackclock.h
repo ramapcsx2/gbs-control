@@ -85,7 +85,7 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 3, // s1_23
 0, // s1_24
 0, // s1_25
-5, // s1_26
+12, // s1_26
 0, // s1_27
 4, // s1_28
 0, // s1_29
@@ -260,8 +260,8 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 211, // s3_2
 32, // s3_3
 48, // s3_4
-131, // s3_5
-5, // s3_6
+195, // s3_5
+6, // s3_6
 6, // s3_7
 112, // s3_8
 0, // s3_9
@@ -313,7 +313,7 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 39, // s3_37
 0, // s3_38
 0, // s3_39
-0, // s3_3A
+254, // s3_3A
 0, // s3_3B
 0, // s3_3C
 0, // s3_3D
@@ -333,7 +333,7 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 32, // s3_4B
 249, // s3_4C
 10, // s3_4D
-26, // s3_4E
+27, // s3_4E
 30, // s3_4F
 48, // s3_50
 0, // s3_51
@@ -389,7 +389,7 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 0, // s4_3
 48, // s4_4
 119, // s4_5
-2, // s4_6
+20, // s4_6
 51, // s4_7
 1, // s4_8
 153, // s4_9
@@ -432,7 +432,7 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 0, // s4_2E
 0, // s4_2F
 0, // s4_30
-0, // s4_31
+255, // s4_31
 0, // s4_32
 0, // s4_33
 0, // s4_34
@@ -509,7 +509,7 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 0, // s5_1B
 0, // s5_1C
 0, // s5_1D
-0, // s5_1E
+128, // s5_1E
 140, // s5_1F
 10, // s5_20
 6, // s5_21
@@ -537,11 +537,11 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 100, // s5_37
 3, // s5_38
 7, // s5_39
-4, // s5_3A
+3, // s5_3A
 0, // s5_3B
 0, // s5_3C
 0, // s5_3D
-32, // s5_3E
+16, // s5_3E
 0, // s5_3F
 9, // s5_40
 16, // s5_41

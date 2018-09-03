@@ -2104,7 +2104,7 @@ void setup() {
   // start web services as early in boot as possible > greater chance to get a websocket connection in time for logging startup
   if (rto->webServerEnabled) {
     start_webserver();
-    WiFi.setOutputPower(14.0f); // float: min 0.0f, max 20.5f // 14.0 to try and push through the PLL interference
+    WiFi.setOutputPower(14.0f); // float: min 0.0f, max 20.5f // reduced from max, but still strong
     rto->webServerStarted = true;
     unsigned long initLoopStart = millis();
     while (millis() - initLoopStart < 2000) {
@@ -2316,7 +2316,7 @@ void loop() {
 
 #if defined(ESP8266)
   if (rto->webServerEnabled && rto->webServerStarted) {
-    persWM.handleWiFi();
+    persWM.handleWiFi(); // if connected, returns instantly. otherwise it reconnects or opens AP
     dnsServer.processNextRequest();
     server.handleClient();
     webSocket.loop();
@@ -2395,6 +2395,16 @@ void loop() {
         break;
       case 'C':
         //findBestPhase();
+        SerialM.println("PLL: ICLK");
+        GBS::MEM_CLK_DLYCELL_SEL::write(0);
+        GBS::PLLAD_FS::write(0); // gain low
+        GBS::PLLAD_ICP::write(4); // CPC
+        GBS::PLL_CKIS::write(1); // PLL use ICLK (instead of oscillator)
+        latchPLLAD();
+        GBS::VDS_HSCALE::write(512);
+        delay(20);
+        FrameSync::reset(); // adjust htotal to new display clock
+        rto->syncLockFailIgnore = 3; //
         break;
       case 'Y':
         writeProgramArrayNew(ntsc_1280x720);
@@ -2925,7 +2935,7 @@ void loop() {
           // the value depends on the PLL divider.
           uint8_t scalar = 0;
           uint16_t newValue = 0;
-          if (syncPulseHistory[5] > 2200) scalar = 22;
+          if (syncPulseHistory[5] > 2200) scalar = 23;
           else if (syncPulseHistory[5] > 1800) scalar = 19;
           else if (syncPulseHistory[5] > 1000) scalar = 17;
           else scalar = 1; // exception
@@ -3050,6 +3060,8 @@ void loop() {
     if (bestHTotal > 0) {
       applyBestHTotal(bestHTotal);
       rto->syncLockFailIgnore = 2;
+      delay(30);
+      lastVsyncLock = millis(); // just making sure
     }
     else if (rto->syncLockFailIgnore-- == 0) {
       // frame time lock failed, most likely due to missing wires
@@ -3068,20 +3080,21 @@ void loop() {
 #if defined(ESP8266)
 
 void handleRoot() {
-  server.send(200, "text/html", FPSTR(HTML));
-  //wifi_set_sleep_type(NONE_SLEEP_T);
+  server.send_P(200, "text/html", HTML); // send_P removes the need for FPSTR(HTML)
+  server.client().stop(); // not sure
 }
 
 void handleType1Command() {
-  server.send(200, "text/plain", "");
+  server.send(200);
+  server.client().stop(); // not sure
   if (server.hasArg("plain")) {
     globalCommand = server.arg("plain").charAt(0);
-    //SerialM.print("globalCommand: "); SerialM.println(globalCommand);
   }
 }
 
 void handleType2Command() {
-  server.send(200, "text/plain", "");
+  server.send(200);
+  server.client().stop(); // not sure
   if (server.hasArg("plain")) {
     char argument = server.arg("plain").charAt(0);
     switch (argument) {
@@ -3322,8 +3335,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
       Serial.println("Websocket Disconnected");
       break;
     case WStype_CONNECTED: {              // if a new websocket connection is established
-        IPAddress ip = webSocket.remoteIP(num);
-        SerialM.print("Websocket Connected on IP: "); SerialM.println(ip);
+        SerialM.println("Websocket Connected");
       }
       break;
     case WStype_TEXT:                     // if new text data is received
