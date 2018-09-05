@@ -101,6 +101,7 @@ class FrameSyncManager {
 	  // the div2 rounds down, fix it
 	  if (bitRead(inTemp, 0)) inPeriod++;
 
+	  delay(2); // improves output stability
       if (!vsyncOutputSample(&outStart, &outStop)) {
         GBS::TEST_BUS_SEL::write(10);
         return false;
@@ -150,7 +151,7 @@ class FrameSyncManager {
 
     // Find the largest htotal that makes output frame time less than
     // the input.
-    static bool findBestHTotal(uint16_t &bestHtotal) {
+    static bool findBestHTotal(uint32_t &bestHtotal) {
       uint16_t htotal = HSYNC_RST::read();
       uint32_t inPeriod, outPeriod;
 
@@ -159,6 +160,12 @@ class FrameSyncManager {
       }
 
       if (!sampleVsyncPeriods(&inPeriod, &outPeriod)) return false;
+      
+      //Serial.println((htotal * inPeriod));
+      //Serial.println(outPeriod);
+      //Serial.println((htotal * inPeriod) / outPeriod);
+      //Serial.println("");
+      
       bestHtotal = (htotal * inPeriod) / outPeriod;
       return true;
 
@@ -191,7 +198,7 @@ class FrameSyncManager {
 
     // Initialize sync locking
     static uint16_t init() {
-      uint16_t bestHTotal = 0;
+      uint32_t bestHTotal = 0;
 
       // Adjust output horizontal sync timing so that the overall
       // frame time is as close to the input as possible while still
@@ -203,7 +210,7 @@ class FrameSyncManager {
       }
 
       syncLockReady = true;
-      return bestHTotal;
+      return (uint16_t)bestHTotal;
     }
 
     static bool ready(void) {
