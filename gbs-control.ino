@@ -4,6 +4,7 @@
 #include "ntsc_feedbackclock.h"
 #include "pal_feedbackclock.h"
 #include "ntsc_1280x720.h"
+#include "ntsc_1280x1024.h"
 #include "pal_1280x720.h"
 
 #include "tv5725.h"
@@ -165,7 +166,7 @@ struct runTimeOptions *rto = &rtos;
 
 // userOptions holds user preferences / customizations
 struct userOptions {
-  uint8_t presetPreference; // 0 - normal, 1 - feedback clock, 2 - customized, 3 - 720p
+  uint8_t presetPreference; // 0 - normal, 1 - feedback clock, 2 - customized, 3 - 720p, 4 - 1280x1024
   uint8_t presetGroup;
   uint8_t enableFrameTimeLock;
   uint8_t frameTimeLockMethod;
@@ -1567,6 +1568,9 @@ void applyPresets(uint8_t result) {
       const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset);
     }
+	else if (uopt->presetPreference == 4 ) {
+      writeProgramArrayNew(ntsc_1280x1024);
+    }
 #endif
   }
   else if (result == 2) {
@@ -1586,6 +1590,9 @@ void applyPresets(uint8_t result) {
       SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset);
+    }
+	else if (uopt->presetPreference == 4 ) {
+      writeProgramArrayNew(pal_240p);
     }
 #endif
   }
@@ -1608,6 +1615,9 @@ void applyPresets(uint8_t result) {
       const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset);
     }
+	else if (uopt->presetPreference == 4 ) {
+      writeProgramArrayNew(ntsc_1280x1024);
+    }
 #endif
   }
   else if (result == 4) {
@@ -1629,6 +1639,9 @@ void applyPresets(uint8_t result) {
       const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset);
     }
+	else if (uopt->presetPreference == 4 ) {
+      writeProgramArrayNew(pal_240p);
+    }
 #endif
   }
   else if (result == 5) {
@@ -1649,6 +1662,9 @@ void applyPresets(uint8_t result) {
       const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset);
     }
+	else if (uopt->presetPreference == 4 ) {
+      writeProgramArrayNew(ntsc_1280x1024);
+    }
 #endif
   }
   else if (result == 6) {
@@ -1668,6 +1684,9 @@ void applyPresets(uint8_t result) {
       SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset);
+    }
+	else if (uopt->presetPreference == 4 ) {
+      writeProgramArrayNew(ntsc_1280x1024);
     }
 #endif
   }
@@ -2126,7 +2145,7 @@ void setup() {
   Serial.setTimeout(10);
   Serial.println("starting");
   // user options // todo: could be stored in Arduino EEPROM. Other MCUs have SPIFFS
-  uopt->presetPreference = 0; // normal, 720p, fb or custom
+  uopt->presetPreference = 0; // normal, 720p, fb, custom, 1280x1024
   uopt->presetGroup = 0; //
   uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
   uopt->frameTimeLockMethod = 0; // compatibility with more displays
@@ -2180,9 +2199,9 @@ void setup() {
       //userprefs.txt open ok //result[0] = 207 //result[1] = 207
       char result[4];
       result[0] = f.read(); result[0] -= '0'; // file streams with their chars..
-      uopt->presetPreference = (uint8_t)result[0]; // normal, fb or custom preset
+      uopt->presetPreference = (uint8_t)result[0];
       SerialM.print("presetPreference = "); SerialM.println(uopt->presetPreference);
-      if (uopt->presetPreference > 3) uopt->presetPreference = 0; // fresh spiffs ?
+      if (uopt->presetPreference > 4) uopt->presetPreference = 0; // fresh spiffs ?
 
       result[1] = f.read(); result[1] -= '0';
       uopt->enableFrameTimeLock = (uint8_t)result[1]; // Frame Time Lock
@@ -3108,11 +3127,12 @@ void handleType2Command() {
         saveUserPrefs();
         break;
       case '1':
-        uopt->presetPreference = 1; // fb clock
+        uopt->presetPreference = 1; // prefer fb clock
         saveUserPrefs();
         break;
       case '2':
-        //
+        uopt->presetPreference = 4; // prefer 1280x1024 preset
+        saveUserPrefs();
         break;
       case '3':
         {
@@ -3241,9 +3261,9 @@ void handleType2Command() {
         {
           // load 1280x720 preset via webui
           uint8_t videoMode = getVideoMode();
-          if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
+          if (videoMode == 0) videoMode = rto->videoStandardInput;
           uint8_t backup = uopt->presetPreference;
-          uopt->presetPreference = 3; // override RAM copy of presetPreference for applyPresets
+          uopt->presetPreference = 3;
           applyPresets(videoMode);
           uopt->presetPreference = backup;
         }
@@ -3252,13 +3272,24 @@ void handleType2Command() {
         {
           // load 640x480 preset via webui
           uint8_t videoMode = getVideoMode();
-          if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
+          if (videoMode == 0) videoMode = rto->videoStandardInput;
           uint8_t backup = uopt->presetPreference;
-          uopt->presetPreference = 1; // override RAM copy of presetPreference for applyPresets
+          uopt->presetPreference = 1;
           applyPresets(videoMode);
           uopt->presetPreference = backup;
         }
         break;
+	  case 'p':
+        {
+          // load 1280x1024
+          uint8_t videoMode = getVideoMode();
+          if (videoMode == 0) videoMode = rto->videoStandardInput;
+          uint8_t backup = uopt->presetPreference;
+          uopt->presetPreference = 4;
+          applyPresets(videoMode);
+          uopt->presetPreference = backup;
+        }
+		 break;
       case 'i':
         // toggle active frametime lock method
         if (uopt->frameTimeLockMethod == 0) uopt->frameTimeLockMethod = 1;
