@@ -91,7 +91,7 @@ class FrameSyncManager {
       unsigned long inStart, inStop, inTemp, outStart, outStop, inPeriod, outPeriod,
                diff;
 
-      GBS::TEST_BUS_SEL::write(0x0a); // 0x20 is already set
+      GBS::TEST_BUS_SEL::write(0x0a); // 0x20 (enable bit) is already set
       if (!vsyncInputSample(&inStart, &inStop)) {
         return false;
       }

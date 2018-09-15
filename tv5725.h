@@ -149,6 +149,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x46, 6,  1> SFTRST_VDS_RSTZ;
     typedef UReg<0x00, 0x47, 1,  1> SFTRST_MODE_RSTZ;
     typedef UReg<0x00, 0x47, 2,  1> SFTRST_SYNC_RSTZ;
+    typedef UReg<0x00, 0x48, 0,  1> PAD_BOUT_EN; // aka debug pin
     typedef UReg<0x00, 0x49, 2,  1> PAD_SYNC_OUT_ENZ;
     typedef UReg<0x00, 0x4A, 0,  3> PAD_OSC_CNTRL;
     typedef UReg<0x00, 0x4B, 2,  1> DAC_RGBS_ADC2DAC;
@@ -497,10 +498,14 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x55, 7,  1> SP_HCST_AUTO_EN;
     typedef UReg<0x05, 0x56, 0,  1> SP_SOG_MODE;
     typedef UReg<0x05, 0x56, 2,  1> SP_CLAMP_MANUAL;
+    typedef UReg<0x05, 0x56, 3,  1> SP_CLP_SRC_SEL;
     typedef UReg<0x05, 0x56, 5,  1> SP_HS_PROC_INV_REG;
     typedef UReg<0x05, 0x56, 6,  1> SP_VS_PROC_INV_REG;
     typedef UReg<0x05, 0x57, 2,  1> SP_NO_COAST_REG;
     typedef UReg<0x05, 0x57, 6,  1> SP_HS_LOOP_SEL;
+    typedef UReg<0x05, 0x60, 0,  8> ADC_ROFCTRL_FAKE;
+    typedef UReg<0x05, 0x61, 0,  8> ADC_GOFCTRL_FAKE;
+    typedef UReg<0x05, 0x62, 0,  8> ADC_BOFCTRL_FAKE;
 
 
     static const uint8_t OSD_ZOOM_1X = 0;
