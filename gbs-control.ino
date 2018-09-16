@@ -478,7 +478,6 @@ void setSOGLevel(uint8_t level) {
 
 void syncProcessorModeSD() {
   updateClampPosition();
-  writeOneByte(0xF0, 5);
   uint16_t temp = GBS::STATUS_SYNC_PROC_HTOTAL::read();
   temp += GBS::STATUS_SYNC_PROC_HTOTAL::read();
   temp += GBS::STATUS_SYNC_PROC_HTOTAL::read();
@@ -488,6 +487,7 @@ void syncProcessorModeSD() {
   else if (temp > 400) rto->currentSyncPulseIgnoreValue = temp / 16;
   else rto->currentSyncPulseIgnoreValue = 0x58; // temp can be 0
   //Serial.println(rto->currentSyncPulseIgnoreValue);
+  writeOneByte(0xF0, 5);
   writeOneByte(0x37, rto->currentSyncPulseIgnoreValue);
   writeOneByte(0x38, 0x03);
   writeOneByte(0x39, 0x07);
@@ -1445,6 +1445,7 @@ void doPostPresetLoadSteps() {
   rto->syncLockEnabled = true;
   // Any menu corrections are gone
   Menu::init();
+  enableDebugPort();
 
   if (rto->videoStandardInput != 15) setParametersSP();
 
@@ -1503,7 +1504,6 @@ void doPostPresetLoadSteps() {
 
   setSOGLevel( rto->currentLevelSOG );
   //resetDigital();
-  enableDebugPort();
   //delay(200);
   GBS::PAD_SYNC_OUT_ENZ::write(1); // while searching for bestTtotal
   enableVDS();
@@ -1770,7 +1770,6 @@ static uint8_t getVideoMode() {
   if ((detectedMode & 0x10) == 0x10) return 3; // edtv 60 progressive
   if ((detectedMode & 0x40) == 0x40) return 4; // edtv 50 progressive
 
-  writeOneByte(0xF0, 0);
   readFromRegister(0x03, 1, &detectedMode);
   if ((detectedMode & 0x10) == 0x10) return 5; // hdtv 720p
   readFromRegister(0x04, 1, &detectedMode);
@@ -1785,20 +1784,18 @@ static uint8_t getVideoMode() {
 
 // if testbus has 0x05, sync is present and line counting active. if it has 0x04, sync is present but no line counting
 boolean getSyncPresent() {
-  uint8_t readout = 0;
-  writeOneByte(0xF0, 0);
-  readFromRegister(0x2f, 1, &readout);
-  readout &= 0x05;
-  if ((readout == 0x05) || (readout == 0x04) ) {
+  uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
+  GBS::TEST_BUS_SEL::write(0xa);
+  uint16_t readout = GBS::TEST_BUS::read();
+  if (((readout & 0x0500) == 0x0500) || ((readout & 0x0500) == 0x0400) ) {
+    GBS::TEST_BUS_SEL::write(debug_backup);
     return true;
   }
+  GBS::TEST_BUS_SEL::write(debug_backup);
   return false;
 }
 
 boolean getSyncStable() {
-  uint8_t readout = 0;
-  //if (rto->videoStandardInput == 15) return true; // hack
-  writeOneByte(0xF0, 0);
   if (rto->videoStandardInput == 15) { // check RGBHV first
     if (GBS::STATUS_MISC_PLLAD_LOCK::read() == 1) {
       return true;
@@ -1807,13 +1804,15 @@ boolean getSyncStable() {
       return false;
     }
   }
-
-  readFromRegister(0x2f, 1, &readout);
+  
+  uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
+  GBS::TEST_BUS_SEL::write(0xa);
   //todo: fix this to include other valids, ie RGBHV has 4 or 6
-  readout &= 0x05;
-  if (readout == 0x05) {
+  if ((GBS::TEST_BUS::read() & 0x0500) == 0x0500) {
+    GBS::TEST_BUS_SEL::write(debug_backup);
     return true;
   }
+  GBS::TEST_BUS_SEL::write(debug_backup);
   return false;
 }
 
@@ -2083,13 +2082,13 @@ void applyYuvPatches() {
   writeOneByte(0x03, readout | (1 << 1)); // midlevel clamp red
   readFromRegister(0x03, 1, &readout);
   writeOneByte(0x03, readout | (1 << 3)); // midlevel clamp blue
+  GBS::ADC_AUTO_OFST_EN::write(1);
 
   writeOneByte(0xF0, 1);
   readFromRegister(0x00, 1, &readout);
   writeOneByte(0x00, readout | (1 << 1)); // rgb matrix bypass
-
-  GBS::ADC_AUTO_OFST_EN::write(1);
   GBS::IF_AUTO_OFST_EN::write(1);
+
   //writeOneByte(0xF0, 3); // for colors
   //writeOneByte(0x35, 0x7a); writeOneByte(0x3a, 0xfa); writeOneByte(0x36, 0x18);
   //writeOneByte(0x3b, 0x02); writeOneByte(0x37, 0x22); writeOneByte(0x3c, 0x02);
@@ -2105,12 +2104,11 @@ void applyRGBPatches() {
   uint8_t readout;
   //rto->currentLevelSOG = 8;
   setSOGLevel( rto->currentLevelSOG );
+  GBS::ADC_AUTO_OFST_EN::write(0);
 
   writeOneByte(0xF0, 1);
   readFromRegister(0x00, 1, &readout);
   writeOneByte(0x00, readout & ~(1 << 1)); // rgb matrix bypass
-
-  GBS::ADC_AUTO_OFST_EN::write(0);
   GBS::IF_AUTO_OFST_EN::write(0);
 
   //writeOneByte(0xF0, 3); // for colors
@@ -2119,27 +2117,20 @@ void applyRGBPatches() {
 }
 
 void doAutoGain() {
-    uint8_t debugRegBackup = 0;
-    boolean debugPinBackup = false;
     uint8_t r_found = 0, g_found = 0, b_found = 0, regValue = 0;
-    uint16_t value = 0;
-    debugPinBackup = GBS::PAD_BOUT_EN::read();
-    GBS::PAD_BOUT_EN::write(0); // disable output to pin for test
-    writeOneByte(0xF0, 0);
-    readFromRegister(0x4d, 1, &debugRegBackup);
-    writeOneByte(0x4d, 0x2b);
+    uint16_t value = 0; 
 
     writeOneByte(0xF0, 5);
     readFromRegister(0x1f, 1, &regValue);
     regValue |= (1 << 4); regValue &= ~(1 << 5); regValue &= ~(1 << 6); // blue on 2 low bytes, green on 2 high bytes
     writeOneByte(0x1f, regValue); // 0x9c
-    writeOneByte(0xF0, 0);
+
     for (uint8_t i = 0; i < 4; i++) {
         value = GBS::TEST_BUS::read();
-        if ((value & 0x00ff) == 0x00ff) {
+        if ((value & 0x00ff) == 0x00ff || (value & 0x00ff) == 0x007f) {
             b_found++;
         }
-        else if ((value & 0xff00) == 0xff00) {
+        else if ((value & 0xff00) == 0xff00 || (value & 0xff00) == 0x007f) {
             g_found++;
         }
     }
@@ -2147,21 +2138,19 @@ void doAutoGain() {
     readFromRegister(0x1f, 1, &regValue);
     regValue |= (1 << 4); regValue |= (1 << 5); regValue &= ~(1 << 6); // red on 2 low bytes
     writeOneByte(0x1f, regValue); // 0xbc
-    writeOneByte(0xF0, 0);
+
     for (uint8_t i = 0; i < 4; i++) {
         value = GBS::TEST_BUS::read() & 0x00ff;
-        if (value == 0x00ff) {
+        if (value == 0x00ff || value == 0x007f) {
             r_found++;
         }
     }
 
-    GBS::PAD_BOUT_EN::write(debugPinBackup); // debug output pin back on now
-
     if (r_found > 2 || g_found > 2 || b_found > 2) {
         if (GBS::ADC_RGCTRL::read() < 0xA0) {
-            GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 1); // larger steps?
-            GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 1);
-            GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 1);
+            GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 2); // larger steps?
+            GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 2);
+            GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 2);
             SerialM.print("ADC gain: "); SerialM.println(GBS::ADC_RGCTRL::read(), HEX);
         }
     }
@@ -2183,9 +2172,6 @@ void doAutoGain() {
     //        SerialM.print("BGCTRL: "); SerialM.println(GBS::ADC_BGCTRL::read(), HEX);
     //    }
     //}
-
-    writeOneByte(0xF0, 0);
-    writeOneByte(0x4d, debugRegBackup);
 }
 
 void startWire() {
@@ -2318,7 +2304,8 @@ void setup() {
   delay(500); // give the entire system some time to start up.
 #endif
   startWire();
-
+  
+  writeOneByte(0xF0, 0); // templated reg code seems to rely on this being called once
   // i2c test: read 5725 product id; if failed, reset bus
   if (GBS::CHIP_ID_PRODUCT::read() == 0) { // stuck i2c or no contact with 5725
     SerialM.println("i2c recover");
@@ -2956,10 +2943,8 @@ void loop() {
 
   // run FrameTimeLock
   if ((rto->sourceDisconnected == false) && uopt->enableFrameTimeLock && rto->syncLockEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval) {
-    uint8_t debugRegBackup;
-    writeOneByte(0xF0, 5);
-    readFromRegister(0x63, 1, &debugRegBackup);
-    writeOneByte(0x63, 0x0f);
+    uint8_t debugRegSPBackup = GBS::TEST_BUS_SP_SEL::read();
+    if (debugRegSPBackup != 0x0f) GBS::TEST_BUS_SP_SEL::write(0x0f);
     lastVsyncLock = millis();
     if (!FrameSync::run(uopt->frameTimeLockMethod)) {
       if (rto->syncLockFailIgnore-- == 0) {
@@ -2969,24 +2954,15 @@ void loop() {
     else if (rto->syncLockFailIgnore > 0) {
       rto->syncLockFailIgnore = 2;
     }
-    writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
+    GBS::TEST_BUS_SP_SEL::write(debugRegSPBackup);
   }
-
-#if defined(ESP8266) // no more space on ATmega
-  // run auto ADC gain feature (if enabled)
-  if (uopt->enableAutoGain == 1 && getVideoMode() != 0 && getSyncStable()) {
-	  doAutoGain();
-  }
-#endif
 
   // syncwatcher polls SP status. when necessary, initiates adjustments or preset changes
   if ((rto->sourceDisconnected == false) && (rto->syncWatcher == true) && ((millis() - lastTimeSyncWatcher) > 40)) {
     static uint16_t syncPulseHistory [10] = {0};
     static uint8_t syncPulseHistoryIndex = 0;
-    uint8_t debugRegBackup;
-    writeOneByte(0xF0, 5);
-    readFromRegister(0x63, 1, &debugRegBackup);
-    writeOneByte(0x63, 0x0f);
+    uint8_t debugRegBackup = GBS::TEST_BUS_SP_SEL::read();
+    if (debugRegBackup != 0x0f) GBS::TEST_BUS_SP_SEL::write(0x0f);
 
     uint8_t newVideoMode = getVideoMode();
     if (!getSyncStable() || newVideoMode == 0) {
@@ -3032,6 +3008,7 @@ void loop() {
           setPhaseADC();
           delay(50);
           syncPulseHistoryIndex = 0;
+          debugRegBackup = 0x0f;
         }
         else {
           SerialM.println(" .. lost");
@@ -3164,7 +3141,7 @@ void loop() {
       }
     }
 
-    writeOneByte(0xF0, 5); writeOneByte(0x63, debugRegBackup);
+    GBS::TEST_BUS_SP_SEL::write(debugRegBackup);
     lastTimeSyncWatcher = millis();
   }
 
@@ -3188,7 +3165,7 @@ void loop() {
     String dbg = TEST_BUS < 0x10 ? "000" + String(TEST_BUS, HEX) : TEST_BUS < 0x100 ? "00" + String(TEST_BUS, HEX) : TEST_BUS < 0x1000 ? "0" + String(TEST_BUS, HEX) : String(TEST_BUS, HEX);
     String hv_stable = GBS::STATUS_IF_HVT_OK::read() == 1 ? " stable" : " UNSTABLE";
     String interlace_progressive = GBS::STATUS_IF_INP_INT::read() == 1 ? " interlace" : " progressive";
-    String hpw = STATUS_SYNC_PROC_HLOW_LEN < 100 ? "0" + String(STATUS_SYNC_PROC_HLOW_LEN) : String(STATUS_SYNC_PROC_HLOW_LEN);
+    String hpw = STATUS_SYNC_PROC_HLOW_LEN < 100 ? "00" + String(STATUS_SYNC_PROC_HLOW_LEN) : STATUS_SYNC_PROC_HLOW_LEN < 1000 ? "0" + String(STATUS_SYNC_PROC_HLOW_LEN) : String(STATUS_SYNC_PROC_HLOW_LEN);
     
     String output = "h:" + String(HPERIOD_IF) + " " + "v:" + String(VPERIOD_IF) + " PLL:" +
                     (STATUS_MISC_PLL648_LOCK ? "^" : "_") + (STATUS_MISC_PLLAD_LOCK ? "^" : "_") +
@@ -3201,12 +3178,13 @@ void loop() {
     lastTimeInfoMode = millis();
   } // end information mode
 
-  // only run this when sync is stable!
-  if (rto->sourceDisconnected == false && rto->syncLockEnabled == true && !FrameSync::ready() &&
+  // only run this when sync is stable! (this only runs if !FrameSync::ready(), ie manual retiming etc)
+  if (!FrameSync::ready() && rto->sourceDisconnected == false && rto->syncLockEnabled == true &&
       getSyncStable() && rto->videoStandardInput != 0 && rto->videoStandardInput != 15 && rto->outModeSynclock != 1
       && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval) {
-    uint8_t debugRegBackup; writeOneByte(0xF0, 0); readFromRegister(0x4d, 1, &debugRegBackup);
-    writeOneByte(0x4d, 0x22);
+
+    uint8_t debugRegSPBackup = GBS::TEST_BUS_SP_SEL::read();
+    if (debugRegSPBackup != 0x0f) GBS::TEST_BUS_SP_SEL::write(0x0f);
     uint16_t bestHTotal = FrameSync::init();
     if (bestHTotal > 0) {
       applyBestHTotal(bestHTotal);
@@ -3219,13 +3197,27 @@ void loop() {
       rto->syncLockEnabled = false;
       SerialM.println("sync lock failed, check debug wire!");
     }
-    writeOneByte(0xF0, 0); writeOneByte(0x4d, debugRegBackup);
+    GBS::TEST_BUS_SP_SEL::write(debugRegSPBackup);
   }
 
   if (rto->sourceDisconnected == true && rto->syncWatcher == true && ((millis() - lastSourceCheck) > 750)) { // source is off; keep looking for new input
     detectAndSwitchToActiveInput();
     lastSourceCheck = millis();
   }
+
+#if defined(ESP8266) // no more space on ATmega
+  // run auto ADC gain feature (if enabled)
+  if (uopt->enableAutoGain == 1 && getVideoMode() != 0 && getSyncStable()) {
+	uint8_t debugRegBackup = 0, debugPinBackup = 0;
+    debugPinBackup = GBS::PAD_BOUT_EN::read();
+    debugRegBackup = GBS::TEST_BUS_SEL::read();
+    GBS::PAD_BOUT_EN::write(0); // disable output to pin for test
+    GBS::TEST_BUS_SEL::write(0xb);
+    doAutoGain();
+    GBS::TEST_BUS_SEL::write(debugRegBackup);
+    GBS::PAD_BOUT_EN::write(debugPinBackup); // debug output pin back on
+  }
+#endif
 }
 
 #if defined(ESP8266)

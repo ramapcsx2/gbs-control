@@ -154,6 +154,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x4A, 0,  3> PAD_OSC_CNTRL;
     typedef UReg<0x00, 0x4B, 2,  1> DAC_RGBS_ADC2DAC;
     typedef UReg<0x00, 0x4D, 0,  5> TEST_BUS_SEL;
+    typedef UReg<0x00, 0x4D, 5,  1> TEST_BUS_EN;
     typedef UReg<0x00, 0x4F, 6,  2> OUT_SYNC_SEL;
 
     // IF Registers
@@ -506,6 +507,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x60, 0,  8> ADC_ROFCTRL_FAKE;
     typedef UReg<0x05, 0x61, 0,  8> ADC_GOFCTRL_FAKE;
     typedef UReg<0x05, 0x62, 0,  8> ADC_BOFCTRL_FAKE;
+    typedef UReg<0x05, 0x63, 0,  8> TEST_BUS_SP_SEL;
 
 
     static const uint8_t OSD_ZOOM_1X = 0;
