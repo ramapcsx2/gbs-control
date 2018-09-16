@@ -401,7 +401,7 @@ void setParametersSP() {
   writeOneByte(0x25, 0x00); // SP_T_DLT_REG
   writeOneByte(0x26, 0x08); // SP_SYNC_PD_THD     H sync pulse width threshold // range from 0(?) to about 0x50 // in yuv 720p range only to 0x0a!
   writeOneByte(0x27, 0x00); // SP_SYNC_PD_THD
-  writeOneByte(0x2a, 0x06); // SP_PRD_EQ_THD     ! How many continue legal line as valid // range from 0(?) to about 0x1d
+  writeOneByte(0x2a, 0x03); // SP_PRD_EQ_THD     ! How many continue legal line as valid // effect on MD recovery after sync loss
   // V active detect control
   // these 4 have no effect currently test string:  s5s2ds34 s5s2es24 s5s2fs16 s5s31s84   |   s5s2ds02 s5s2es04 s5s2fs02 s5s31s04
   writeOneByte(0x2d, 0x02); // SP_VSYNC_TGL_THD   V sync toggle times threshold // at 5 starts to drop many 0_16 vsync events
@@ -483,8 +483,8 @@ void syncProcessorModeSD() {
   temp += GBS::STATUS_SYNC_PROC_HTOTAL::read();
   temp += GBS::STATUS_SYNC_PROC_HTOTAL::read();
   temp = temp >> 2;
-  if (temp > 1500) rto->currentSyncPulseIgnoreValue = temp / 21;
-  else if (temp > 400) rto->currentSyncPulseIgnoreValue = temp / 16;
+  if (temp > 1500) rto->currentSyncPulseIgnoreValue = temp / 24;
+  else if (temp > 400) rto->currentSyncPulseIgnoreValue = temp / 18;
   else rto->currentSyncPulseIgnoreValue = 0x58; // temp can be 0
   //Serial.println(rto->currentSyncPulseIgnoreValue);
   writeOneByte(0xF0, 5);
@@ -781,10 +781,11 @@ void resetPLL() {
 
 void ResetSDRAM() {
   writeOneByte(0xF0, 4);
-  writeOneByte(0x00, 0x00); // test: disable "Software Control SDRAM Idle Period" 0x87 for normal
-  GBS::SDRAM_RESET_SIGNAL::write(1); delay(2);
-  GBS::SDRAM_RESET_SIGNAL::write(0); delay(2);
-  GBS::SDRAM_START_INITIAL_CYCLE::write(1); delay(2);
+  writeOneByte(0x00, 0x07); delay(2); // enable "Software Control SDRAM Idle Period" 0x00 for off
+  GBS::SDRAM_RESET_SIGNAL::write(1); //delay(4);
+  GBS::SDRAM_START_INITIAL_CYCLE::write(1); delay(4);
+  GBS::SDRAM_RESET_SIGNAL::write(0); //delay(2);
+  GBS::SDRAM_START_INITIAL_CYCLE::write(0); //delay(2);
 }
 
 // soft reset cycle
@@ -1450,9 +1451,9 @@ void doPostPresetLoadSteps() {
   if (rto->videoStandardInput != 15) setParametersSP();
 
   writeOneByte(0xF0, 1);
-  writeOneByte(0x60, 0x62); // MD H unlock / lock
-  writeOneByte(0x61, 0x62); // MD V unlock / lock
-  writeOneByte(0x62, 0x20); // error range
+  writeOneByte(0x60, 0x22); // MD H unlock / lock (was 62)
+  writeOneByte(0x61, 0x22); // MD V unlock / lock (was 62)
+  writeOneByte(0x62, 0x60); // MD H error range = 2 (0x20 for error range = 1)
   writeOneByte(0x80, 0xa9); // MD V nonsensical custom mode
   writeOneByte(0x81, 0x2e); // MD H nonsensical custom mode
   writeOneByte(0x82, 0x05); // MD H / V timer detect enable: auto; timing from period detect (enables better power off detection)
@@ -2941,8 +2942,8 @@ void loop() {
   }
   globalCommand = 0; // in case the web server had this set
 
-  // run FrameTimeLock
-  if ((rto->sourceDisconnected == false) && uopt->enableFrameTimeLock && rto->syncLockEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval) {
+  // run FrameTimeLock if enabled
+  if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false && rto->syncLockEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval) {
     uint8_t debugRegSPBackup = GBS::TEST_BUS_SP_SEL::read();
     if (debugRegSPBackup != 0x0f) GBS::TEST_BUS_SP_SEL::write(0x0f);
     lastVsyncLock = millis();
@@ -2959,8 +2960,6 @@ void loop() {
 
   // syncwatcher polls SP status. when necessary, initiates adjustments or preset changes
   if ((rto->sourceDisconnected == false) && (rto->syncWatcher == true) && ((millis() - lastTimeSyncWatcher) > 40)) {
-    static uint16_t syncPulseHistory [10] = {0};
-    static uint8_t syncPulseHistoryIndex = 0;
     uint8_t debugRegBackup = GBS::TEST_BUS_SP_SEL::read();
     if (debugRegBackup != 0x0f) GBS::TEST_BUS_SP_SEL::write(0x0f);
 
@@ -3007,7 +3006,6 @@ void loop() {
           delay(30);
           setPhaseADC();
           delay(50);
-          syncPulseHistoryIndex = 0;
           debugRegBackup = 0x0f;
         }
         else {
@@ -3037,61 +3035,34 @@ void loop() {
         FrameSync::reset(); // corner case: source changed timings inbetween power cycles. won't affect display if timings are the same
         delay(60);
       }
-      // source is stable, this is a good time to do running hpw sampling to determine correct SP_H_PULSE_IGNOR (S5_37)
+      // source is stable, this is a good time to determine correct SP_H_PULSE_IGNOR (S5_37)
       // goal is to prevent eq and serration pulses present in NTSC/PAL video counting towards vlines
-      if (rto->currentSyncProcessorMode == 0) { // is in SD; HD mode doesn't need this
-        syncPulseHistory[syncPulseHistoryIndex++] = GBS::STATUS_SYNC_PROC_HTOTAL::read() + GBS::STATUS_SYNC_PROC_HLOW_LEN::read(); //GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
-        if (syncPulseHistoryIndex == 9) {
-          syncPulseHistoryIndex = 0;
-          for (uint8_t i = 0; i < 10; i++) {
-            for (uint8_t o = 0; o < (10 - (i + 1)); o++) {
-              if (syncPulseHistory[o] > syncPulseHistory[o + 1]) {
-                uint16_t t = syncPulseHistory[o];
-                syncPulseHistory[o] = syncPulseHistory[o + 1];
-                syncPulseHistory[o + 1] = t;
+      // sync mode is SD + sync is stable, but there are more than (NTSC) 263 lines, then more lines need to be ignored
+      // SNES 239 mode changes can falsely report 265 vlines briefly, with no warning indicator, so use >=267 and >=320
+      // the method requires stable sync. check HLOW_LEN for anomalies //  and VPERIOD_IF ? should be around 525
+      if (rto->currentSyncProcessorMode == 0) {
+          uint16_t hlow = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
+          if (hlow > 16 && hlow < 300) {
+              //uint16_t vperiod = GBS::VPERIOD_IF::read();
+              uint16_t vtotal = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+              uint16_t newValue = rto->currentSyncPulseIgnoreValue;
+              if (newVideoMode == 1 && (vtotal >= 267 && vtotal <= 276)) { // ie: mega drive
+                  SerialM.println("ONEUP");
+                  newValue += 12;
               }
-            }
-          }
-
-          // the value depends on the PLL divider.
-          uint8_t scalar = 0;
-          uint16_t newValue = 0;
-          if (syncPulseHistory[5] > 2200) scalar = 23;
-          else if (syncPulseHistory[5] > 1800) scalar = 19;
-          else if (syncPulseHistory[5] > 1000) scalar = 17;
-          else scalar = 1; // exception
-
-          if (scalar > 1) { // normal case
-            newValue = (syncPulseHistory[5] / scalar) & 0xfffc;
-          }
-          else { // very low PLL speed
-            uint8_t i = 1;
-            uint16_t temp = 0;
-            for (; i < 50; i++) {
-              temp = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
-              newValue += temp;
-              if (temp > ((newValue / i) + 10)) {
-                newValue -= temp;
-                i -= 1;
+              else if (newVideoMode == 2 && (vtotal >= 320 && vtotal <= 328)) {
+                  SerialM.println("ONEUP");
+                  newValue += 12;
               }
-              else if (temp < ((newValue / i) - 4)) {
-                newValue -= temp;
-                i -= 1;
+              if (newValue != rto->currentSyncPulseIgnoreValue) {
+                  rto->currentSyncPulseIgnoreValue = newValue;
+                  GBS::SP_H_PULSE_IGNOR::write(rto->currentSyncPulseIgnoreValue);
               }
-            }
-            newValue /= i;
-            newValue -= 1;
-          }
-
-          if (newValue != rto->currentSyncPulseIgnoreValue) {
-            rto->currentSyncPulseIgnoreValue = newValue;
-            GBS::SP_H_PULSE_IGNOR::write(rto->currentSyncPulseIgnoreValue);
           }
           //GBS::SP_DLT_REG::write(rto->currentSyncPulseIgnoreValue * 2);
           //uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read() / 2; // round down is okay (SNES, "523" vtotal)
           //GBS::SP_SDCS_VSST_REG_H::write(VPERIOD_IF >> 8);
           //GBS::SP_SDCS_VSST_REG_L::write((uint8_t)VPERIOD_IF);
-        }
       }
     }
 
@@ -3136,7 +3107,6 @@ void loop() {
         resetDigital();
         rto->videoStandardInput = 0;
         noSyncCounter = 0;
-        syncPulseHistoryIndex = 0;
         inputAndSyncDetect();
       }
     }
@@ -3166,10 +3136,11 @@ void loop() {
     String hv_stable = GBS::STATUS_IF_HVT_OK::read() == 1 ? " stable" : " UNSTABLE";
     String interlace_progressive = GBS::STATUS_IF_INP_INT::read() == 1 ? " interlace" : " progressive";
     String hpw = STATUS_SYNC_PROC_HLOW_LEN < 100 ? "00" + String(STATUS_SYNC_PROC_HLOW_LEN) : STATUS_SYNC_PROC_HLOW_LEN < 1000 ? "0" + String(STATUS_SYNC_PROC_HLOW_LEN) : String(STATUS_SYNC_PROC_HLOW_LEN);
-    
-    String output = "h:" + String(HPERIOD_IF) + " " + "v:" + String(VPERIOD_IF) + " PLL:" +
-                    (STATUS_MISC_PLL648_LOCK ? "^" : "_") + (STATUS_MISC_PLLAD_LOCK ? "^" : "_") +
-                    " ign:" + String(SP_H_PULSE_IGNOR) + " stat:" + String(stat16, HEX) + String(".") + String(stat5, HEX) +
+    String ignore = SP_H_PULSE_IGNOR < 10 ? "00" + String(SP_H_PULSE_IGNOR) : SP_H_PULSE_IGNOR < 100 ? "0" + String(SP_H_PULSE_IGNOR) : String(SP_H_PULSE_IGNOR);
+
+    String output = "h:" + String(HPERIOD_IF) + " " + "v:" + String(VPERIOD_IF) + " PLL: " +
+                    (STATUS_MISC_PLL648_LOCK ? "." : "x") + (STATUS_MISC_PLLAD_LOCK ? "^" : " ") +
+                    " ign:" + ignore + " stat:" + String(stat16, HEX) + String(".") + String(stat5, HEX) +
                     " deb:" + dbg + " m:" + String(video_mode) + " ht:" + String(STATUS_SYNC_PROC_HTOTAL) +
                     " vt:" + String(STATUS_SYNC_PROC_VTOTAL) + " hpw:" + hpw + 
                     hv_stable + interlace_progressive; // + String(" ") + String(WiFi.RSSI());
