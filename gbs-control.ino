@@ -231,16 +231,6 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean hardReset = 1)
   // programs all valid registers (the register map has holes in it, so it's not straight forward)
   // 'index' keeps track of the current preset data location.
 
-  // 498 = s5_12, 499 = s5_13
-  writeOneByte(0xF0, 5);
-  GBS::ADC_TR_RSEL::write(0); // reset ADC test resistor reg before initializing
-  writeOneByte(0x11, 0x10);
-  writeOneByte(0x13, getSingleByteFromPreset(programArray, 499)); // load PLLAD divider high bits first (tvp7002 manual)
-  writeOneByte(0x12, getSingleByteFromPreset(programArray, 498));
-  writeOneByte(0x16, getSingleByteFromPreset(programArray, 502)); // might as well
-  writeOneByte(0x17, getSingleByteFromPreset(programArray, 503)); // charge pump current
-  writeOneByte(0x18, 0x41); writeOneByte(0x19, 0x41); // adc / sp phase reset
-
   if (hardReset == 0) {
     writeOneByte(0xF0, 0);
     writeOneByte(0x41, getSingleByteFromPreset(programArray, 1)); // display clock only
@@ -263,7 +253,7 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean hardReset = 1)
           for (int x = 0; x <= 15; x++) {
             if (j == 0 && x == 4) {
               // keep DAC off for now
-              bank[x] = (pgm_read_byte(programArray + index)) | (1 << 0);
+              bank[x] = (pgm_read_byte(programArray + index)) & ~(1 << 0);
             }
             else if (j == 0 && (x == 6 || x == 7)) {
               // keep reset controls active
@@ -318,7 +308,10 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean hardReset = 1)
               else bitSet(bank[x], 6);
             }
             if (index == 484) { // s5_04 ADC test resistor / current register
-              bank[x] = 0;      // always reset to 0
+              if(hardReset == 1) bank[x] = 2;      // // was 0; needs to be 2 for low power startup
+            }
+            if (index == 497) { // s5_11 pllad 
+              if(hardReset == 1) bitClear(bank[x], 4); // power off pllad
             }
             index++;
           }
@@ -424,7 +417,7 @@ void setParametersSP() {
   GBS::SP_SDCS_VSSP_REG_H::write(0);
   GBS::SP_SDCS_VSSP_REG_L::write(9); // 12 // test: t5t11t3 > minimize jitter
 
-  writeOneByte(0x3e, 0x10); // SP sub coast on, ovf protect on
+  writeOneByte(0x3e, 0x20); // SP sub coast off
 
   // Update: This is the retiming module. It can be used for SP processing with t5t57t6
   //writeOneByte(0x45, 0x00); // 0x00 // retiming SOG HS start
@@ -462,9 +455,9 @@ void setParametersSP() {
   writeOneByte(0x5d, 0x02); //rgbhv: 0
 
   if (uopt->enableAutoGain == 1) { // high color gain so auto adjust can work on it
-	  GBS::ADC_RGCTRL::write(0x55);
-      GBS::ADC_GGCTRL::write(0x55);
-      GBS::ADC_BGCTRL::write(0x55);
+	  GBS::ADC_RGCTRL::write(0x53);
+      GBS::ADC_GGCTRL::write(0x53);
+      GBS::ADC_BGCTRL::write(0x53);
   }
 }
 
@@ -1440,8 +1433,10 @@ void applyBestHTotal(uint16_t bestHTotal) {
 }
 
 void doPostPresetLoadSteps() {
-  // Keep the DAC off until this is done
-  GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC
+  GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC here, enable later
+  GBS::ADC_TR_RSEL::write(0); // in case it was set
+  GBS::ADC_TR_ISEL::write(0); // in case it was set
+  GBS::PLLAD_PDZ::write(1); // in case it was off
   // Re-detect whether timing wires are present
   rto->syncLockEnabled = true;
   // Any menu corrections are gone
@@ -1512,7 +1507,7 @@ void doPostPresetLoadSteps() {
   FrameSync::reset();
   rto->syncLockFailIgnore = 2;
 
-  updateCoastPosition();  // ignores sync pulses outside expected range
+  //updateCoastPosition();  // ignores sync pulses outside expected range // off for now
   boolean success = true;
   long timeout = millis();
   while (getVideoMode() == 0 && millis() - timeout < 500); // stability
@@ -1916,7 +1911,7 @@ void updateCoastPosition() {
     //GBS::SP_DLT_REG::write(inHlength / 6); // this is probably the width of the hsync pulse
     // above not ready yet / snes would require post coast at 3 (normal is 7)
     GBS::SP_H_CST_SP::write(inHlength - 16); //snes minimum: inHlength -12 (only required in 239 mode)
-    GBS::SP_H_CST_ST::write((inHlength / 2) + 4);
+    GBS::SP_H_CST_ST::write(0x10);
   }
   else {
     GBS::SP_HCST_AUTO_EN::write(0);
@@ -1925,28 +1920,35 @@ void updateCoastPosition() {
 
 void updateClampPosition() {
   if (rto->inputIsYpBpR && rto->videoStandardInput != 15) {
+    if (GBS::SP_CLAMP_INV_REG::read() == 1) GBS::SP_CLAMP_INV_REG::write(0); // clamp normal
     GBS::SP_CS_CLP_ST::write(0x10);
     GBS::SP_CS_CLP_SP::write(0x27); // tested to be 0x34 at most (xbox)
     return;
   }
   else if (rto->videoStandardInput != 15) {
-	GBS::SP_CS_CLP_ST::write(0x70); // cables produce pulse reflections (burst, CS), clamp where they are more unlikely
-    GBS::SP_CS_CLP_SP::write(0xa0);
-    //uint16_t inHlength = GBS::HPERIOD_IF::read() * 4;
-    //GBS::SP_CS_CLP_ST::write((inHlength - 8) - (inHlength / 80));
+	//GBS::SP_CS_CLP_ST::write(0x70); // cables produce pulse reflections (burst, CS), clamp where they are more unlikely
+    //GBS::SP_CS_CLP_SP::write(0xa0);
+    if (GBS::SP_CLAMP_INV_REG::read() == 0) GBS::SP_CLAMP_INV_REG::write(1); // invert clamp, makes positioning more accurate
+    uint16_t inHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+    GBS::SP_CS_CLP_ST::write(0);
+    GBS::SP_CS_CLP_SP::write(inHlength - (inHlength>>5));
   }
   else if (rto->videoStandardInput == 15) {
+    if (GBS::SP_CLAMP_INV_REG::read() == 1) GBS::SP_CLAMP_INV_REG::write(0); // clamp normal
     GBS::SP_CS_CLP_ST::write(8);
     GBS::SP_CS_CLP_SP::write(18);
   }
 }
 
+// use t5t00t2 and adjust t5t11t5 to find this sources ideal sampling clock for this preset (affected by htotal)
+// 2431 for psx, 2437 for MD
+// in this mode, sampling clock is free to choose
 void syncLockModeSwitch() {
-  SerialM.print("sync lock mode ");
+  SerialM.print("sync lock");
   if (rto->outModeSynclock == 0) { // then enable sync lock mode
-    SerialM.println("on");
     delay(100); // stability
     uint16_t lineLength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+    //GBS::PLL_MS::write(0x00); // memory clock 108mhz (many boards don't like fb clock) // not sure if required
     GBS::OUT_SYNC_SEL::write(2);
     GBS::VDS_HB_ST::write(0);
     GBS::VDS_HB_SP::write((lineLength / 32) & 0xffe);
@@ -1981,9 +1983,7 @@ void syncLockModeSwitch() {
     rto->outModeSynclock = 1;
   }
   else { // switch back
-    SerialM.println("off");
-    rto->videoStandardInput = 0;
-    rto->outModeSynclock = 0;
+    // todo?
   }
 }
 
@@ -2228,7 +2228,7 @@ void setup() {
   uopt->presetGroup = 0; //
   uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
   uopt->frameTimeLockMethod = 0; // compatibility with more displays
-  uopt->enableAutoGain = 0;
+  uopt->enableAutoGain = 1;
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
@@ -2346,7 +2346,9 @@ void setup() {
   //  if (detectAndSwitchToActiveInput()) break;
   //  else if (i == 2) inputAndSyncDetect();
   //}
-  inputAndSyncDetect();
+
+  // allows no monitoring operation by disabling syncwatcher
+  if (rto->syncWatcher == true) inputAndSyncDetect();
 
   LEDOFF; // startup done, disable the LED
 }
@@ -2503,7 +2505,7 @@ void loop() {
         //findBestPhase();
         SerialM.println("PLL: ICLK");
         GBS::MEM_CLK_DLYCELL_SEL::write(0);
-        GBS::PLL_MS::write(0x07); // memory clock 129mhz (many boards don't like fb clock)
+        GBS::PLL_MS::write(0x00); // memory clock 108mhz (many boards don't like fb clock)
         GBS::MEM_ADR_DLY_REG::write(0x03); GBS::MEM_CLK_DLY_REG::write(0x03); // memory subtimings
         GBS::PLLAD_FS::write(1); // gain high
         GBS::PLLAD_ICP::write(5); // CPC
@@ -2543,9 +2545,9 @@ void loop() {
           SerialM.print("auto gain ");
           if (uopt->enableAutoGain == 0) {
               uopt->enableAutoGain = 1;
-              GBS::ADC_RGCTRL::write(0x55);
-              GBS::ADC_GGCTRL::write(0x55);
-              GBS::ADC_BGCTRL::write(0x55);
+              GBS::ADC_RGCTRL::write(0x53);
+              GBS::ADC_GGCTRL::write(0x53);
+              GBS::ADC_BGCTRL::write(0x53);
               SerialM.println("on");
           }
           else {
@@ -3018,8 +3020,7 @@ void loop() {
       noSyncCounter = 0;
       if (rto->deinterlacerWasTurnedOff) {
         SerialM.print("ok ");
-        updateCoastPosition();
-        delay(10);
+        //updateCoastPosition(); // off for now
         if ((rto->currentSyncProcessorMode > 0) && (newVideoMode <= 2)) { // if HD mode loaded and source is SD
           syncProcessorModeSD(); SerialM.println("go SD");
           delay(100);
@@ -3047,12 +3048,10 @@ void loop() {
               uint16_t vtotal = GBS::STATUS_SYNC_PROC_VTOTAL::read();
               uint16_t newValue = rto->currentSyncPulseIgnoreValue;
               if (newVideoMode == 1 && (vtotal >= 267 && vtotal <= 276)) { // ie: mega drive
-                  SerialM.println("ONEUP");
-                  newValue += 12;
+                  newValue += 14;
               }
               else if (newVideoMode == 2 && (vtotal >= 320 && vtotal <= 328)) {
-                  SerialM.println("ONEUP");
-                  newValue += 12;
+                  newValue += 14;
               }
               if (newValue != rto->currentSyncPulseIgnoreValue) {
                   rto->currentSyncPulseIgnoreValue = newValue;
@@ -3133,7 +3132,7 @@ void loop() {
     uint16_t SP_H_PULSE_IGNOR = GBS::SP_H_PULSE_IGNOR::read();
     
     String dbg = TEST_BUS < 0x10 ? "000" + String(TEST_BUS, HEX) : TEST_BUS < 0x100 ? "00" + String(TEST_BUS, HEX) : TEST_BUS < 0x1000 ? "0" + String(TEST_BUS, HEX) : String(TEST_BUS, HEX);
-    String hv_stable = GBS::STATUS_IF_HVT_OK::read() == 1 ? " stable" : " UNSTABLE";
+    String hv_stable = GBS::STATUS_IF_HVT_OK::read() == 1 ? " " : " UNSTABLE";
     String interlace_progressive = GBS::STATUS_IF_INP_INT::read() == 1 ? " interlace" : " progressive";
     String hpw = STATUS_SYNC_PROC_HLOW_LEN < 100 ? "00" + String(STATUS_SYNC_PROC_HLOW_LEN) : STATUS_SYNC_PROC_HLOW_LEN < 1000 ? "0" + String(STATUS_SYNC_PROC_HLOW_LEN) : String(STATUS_SYNC_PROC_HLOW_LEN);
     String ignore = SP_H_PULSE_IGNOR < 10 ? "00" + String(SP_H_PULSE_IGNOR) : SP_H_PULSE_IGNOR < 100 ? "0" + String(SP_H_PULSE_IGNOR) : String(SP_H_PULSE_IGNOR);
