@@ -478,8 +478,8 @@ void syncProcessorModeSD() {
   temp += GBS::STATUS_SYNC_PROC_HTOTAL::read();
   temp += GBS::STATUS_SYNC_PROC_HTOTAL::read();
   temp = temp >> 2;
-  if (temp > 1500) rto->currentSyncPulseIgnoreValue = temp / 24;
-  else if (temp > 400) rto->currentSyncPulseIgnoreValue = temp / 18;
+  if (temp > 1800) rto->currentSyncPulseIgnoreValue = temp / 24;
+  else if (temp > 400) rto->currentSyncPulseIgnoreValue = temp / 21;
   else rto->currentSyncPulseIgnoreValue = 0x58; // temp can be 0
   //Serial.println(rto->currentSyncPulseIgnoreValue);
   writeOneByte(0xF0, 5);
@@ -1480,7 +1480,7 @@ void doPostPresetLoadSteps() {
     rto->currentLevelSOG = 10;
   }
 
-  if (GBS::ADC_0X00_RESERVED_5::read() == 0) { // prevent patching already customized presets again
+  if (1 /*GBS::ADC_0X00_RESERVED_5::read() == 0*/) { // prevent patching already customized presets again // really?
     if (rto->videoStandardInput >= 3 && rto->videoStandardInput != 15) {
       SerialM.println("HDTV mode");
       syncProcessorModeHD();
@@ -2526,10 +2526,10 @@ void loop() {
         doPostPresetLoadSteps();
         break;
       case 'P':
-        moveVS(1, true);
+        //
         break;
       case 'p':
-        moveVS(1, false);
+        //
         break;
       case 'k':
         bypassModeSwitch_RGBHV();
@@ -2704,10 +2704,10 @@ void loop() {
         scaleVertical(1, false);
         break;
       case '6':
-        moveVS(1, true);
+        GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() - 4); // canvas move left
         break;
       case '7':
-        moveVS(1, false);
+        GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() + 4); // canvas move right
         break;
       case '8':
         //SerialM.println("invert sync");
@@ -3233,12 +3233,12 @@ void handleType2Command() {
         uopt->presetPreference = 4; // prefer 1280x1024 preset
         saveUserPrefs();
         break;
-      case '3':
+      case '3':  // load custom preset
         {
           if (rto->videoStandardInput == 0) SerialM.println("no input detected, aborting action");
           else {
             const uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
-            writeProgramArrayNew(preset, 0);
+            writeProgramArrayNew(preset, 1); // with hard reset
             doPostPresetLoadSteps();
           }
         }
@@ -3321,7 +3321,7 @@ void handleType2Command() {
         uopt->presetPreference = 2;
         saveUserPrefs();
         break;
-      case 'e':
+      case 'e': // print files on spiffs
         {
           Dir dir = SPIFFS.openDir("/");
           while (dir.next()) {
@@ -3456,6 +3456,22 @@ void handleType2Command() {
         GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 1);
         GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 1);
         SerialM.println(GBS::ADC_RGCTRL::read(), HEX);
+        break;
+      case 'A':
+        //GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 4);
+        GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() + 4);
+        break;
+      case 'B':
+        //GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 4);
+        GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 4);
+        break;
+      case 'C':
+        GBS::VDS_DIS_VB_ST::write(GBS::VDS_DIS_VB_ST::read() - 2);
+        GBS::VDS_DIS_VB_SP::write(GBS::VDS_DIS_VB_SP::read() + 2);
+        break;
+      case 'D':
+        GBS::VDS_DIS_VB_ST::write(GBS::VDS_DIS_VB_ST::read() + 2);
+        GBS::VDS_DIS_VB_SP::write(GBS::VDS_DIS_VB_SP::read() - 2);
         break;
       default:
         break;

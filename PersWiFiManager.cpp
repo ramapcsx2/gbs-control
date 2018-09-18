@@ -77,7 +77,7 @@ void PersWiFiManager::setupWiFiHandlers() {
   //
   // modify TTL associated  with the domain name (in seconds)
   // default is 60 seconds
-  _dnsServer->setTTL(300);
+  _dnsServer->setTTL(9001); // couple hours
   // set which return code will be used for all other domains (e.g. sending
   // ServerFailure instead of NonExistentDomain will reduce number of queries
   // sent by clients)
