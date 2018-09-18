@@ -400,6 +400,8 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
 
     // Playback / Capture / Memory Registers
     typedef UReg<0x04, 0x2b, 3,  1> PB_BYPASS;
+    typedef UReg<0x04, 0x2c, 0,  8> PB_MAST_FLAG_REG;
+    typedef UReg<0x04, 0x2d, 0,  8> PB_GENERAL_FLAG_REG;
 
     // OSD Registers
     typedef UReg<0x00, 0x90, 0,  1> OSD_SW_RESET;

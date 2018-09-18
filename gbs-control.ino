@@ -347,14 +347,14 @@ void setParametersSP() {
   }
   else if (rto->videoStandardInput == 1) { // NTSC 60
     if (!rto->inputIsYpBpR) rto->currentSyncPulseIgnoreValue = 0x60;
-    GBS::IF_VB_ST::write(0);
+    //GBS::IF_VB_ST::write(0);
     GBS::SP_HD_MODE::write(0); // bi level sync
     GBS::SP_CS_HS_ST::write(0x60);
     GBS::SP_CS_HS_SP::write(0x88);
   }
   else if (rto->videoStandardInput == 2) { // PAL 50
     if (!rto->inputIsYpBpR) rto->currentSyncPulseIgnoreValue = 0x60;
-    GBS::IF_VB_ST::write(0);
+    //GBS::IF_VB_ST::write(0);
     GBS::SP_HD_MODE::write(0); // bi level sync
     GBS::SP_CS_HS_ST::write(0x50);
     GBS::SP_CS_HS_SP::write(0x80);
@@ -1389,12 +1389,12 @@ void applyBestHTotal(uint16_t bestHTotal) {
   // hack: rto->syncLockFailIgnore == 3 means the correction should be forced (command '.')
   // timings checked against multi clock snes
   if (((diffHTotal != 0 || requiresScalingCorrection) || rto->syncLockFailIgnore == 3) && bestHTotal > 400) {
-    uint16_t h_blank_display_start_position = (bestHTotal - 1) & 0xfffe;
+    uint16_t h_blank_display_start_position = (bestHTotal - 1); // & 0xfffe;
     uint16_t h_blank_display_stop_position =  GBS::VDS_DIS_HB_SP::read() + diffHTotal;
     if (isLargeDiff) {
       h_blank_display_stop_position = h_blank_display_start_position / 5; // 1/5th of screen for blanking
     }
-    h_blank_display_stop_position &= 0xfff8; // align on 8s
+    //h_blank_display_stop_position &= 0xfff8; // align on 8s
     uint16_t center_blank = ((h_blank_display_stop_position / 2) * 3) / 4; // a bit to the left
     //uint16_t h_sync_start_position =  center_blank - (center_blank / 2);
     uint16_t h_sync_start_position =  bestHTotal / 28; // test with HDMI board suggests this is better
@@ -1411,11 +1411,11 @@ void applyBestHTotal(uint16_t bestHTotal) {
 
     if (requiresScalingCorrection) {
       //h_blank_memory_start_position = (h_blank_memory_start_position - 1) | 1;
-      h_blank_memory_start_position &= 0xfffe;
+      h_blank_memory_start_position; // &= 0xfffe;
     }
     else {
-      h_blank_memory_start_position &= 0xfff8;
-      h_blank_memory_stop_position &= 0xfff8;
+      //h_blank_memory_start_position &= 0xfff8;
+      //h_blank_memory_stop_position &= 0xfff8;
     }
 
     if (syncIsNegative) {
@@ -1454,8 +1454,8 @@ void doPostPresetLoadSteps() {
   if (rto->videoStandardInput != 15) setParametersSP();
 
   writeOneByte(0xF0, 1);
-  writeOneByte(0x60, 0x22); // MD H unlock / lock (was 62)
-  writeOneByte(0x61, 0x22); // MD V unlock / lock (was 62)
+  writeOneByte(0x60, 0x43); // MD H unlock / lock (was 62, 22 is too low)
+  writeOneByte(0x61, 0x43); // MD V unlock / lock (was 62)
   writeOneByte(0x62, 0x60); // MD H error range = 2 (0x20 for error range = 1)
   writeOneByte(0x80, 0xa9); // MD V nonsensical custom mode
   writeOneByte(0x81, 0x2e); // MD H nonsensical custom mode
@@ -2503,10 +2503,10 @@ void loop() {
         //findBestPhase();
         SerialM.println("PLL: ICLK");
         GBS::MEM_CLK_DLYCELL_SEL::write(0);
-        GBS::PLL_MS::write(0x00); // memory clock 108mhz (many boards don't like fb clock)
+        GBS::PB_MAST_FLAG_REG::write(0x37); // or set memory clock to 108mhz (0x00)
         GBS::MEM_ADR_DLY_REG::write(0x03); GBS::MEM_CLK_DLY_REG::write(0x03); // memory subtimings
         GBS::PLLAD_FS::write(1); // gain high
-        GBS::PLLAD_ICP::write(5); // CPC
+        GBS::PLLAD_ICP::write(2); // CPC was 5, but MD works with as low as 0 and it removes a glitch
         GBS::PLL_CKIS::write(1); // PLL use ICLK (instead of oscillator)
         latchPLLAD();
         GBS::VDS_HSCALE::write(512);
@@ -2518,11 +2518,11 @@ void loop() {
         //delay(30);
         break;
       case 'Y':
-        writeProgramArrayNew(ntsc_1280x720, 0);
+        writeProgramArrayNew(ntsc_1280x720, 1);
         doPostPresetLoadSteps();
         break;
       case 'y':
-        writeProgramArrayNew(pal_1280x720, 0);
+        writeProgramArrayNew(pal_1280x720, 1);
         doPostPresetLoadSteps();
         break;
       case 'P':
@@ -2554,11 +2554,11 @@ void loop() {
           }
           break;
       case 'e':
-        writeProgramArrayNew(ntsc_240p, 0);
+        writeProgramArrayNew(ntsc_240p, 1);
         doPostPresetLoadSteps();
         break;
       case 'r':
-        writeProgramArrayNew(pal_240p, 0);
+        writeProgramArrayNew(pal_240p, 1);
         doPostPresetLoadSteps();
         break;
       case '.':
@@ -2691,7 +2691,7 @@ void loop() {
         moveHS(1, false);
         break;
       case '2':
-        writeProgramArrayNew(pal_feedbackclock, 0); // ModeLine "720x576@50" 27 720 732 795 864 576 581 586 625 -hsync -vsync
+        writeProgramArrayNew(pal_feedbackclock, 1); // ModeLine "720x576@50" 27 720 732 795 864 576 581 586 625 -hsync -vsync
         doPostPresetLoadSteps();
         break;
       case '3':
@@ -2714,7 +2714,7 @@ void loop() {
         invertHS(); invertVS();
         break;
       case '9':
-        writeProgramArrayNew(ntsc_feedbackclock, 0);
+        writeProgramArrayNew(ntsc_feedbackclock, 1);
         doPostPresetLoadSteps();
         break;
       case 'o':
@@ -3353,6 +3353,7 @@ void handleType2Command() {
           if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
           uint8_t backup = uopt->presetPreference;
           uopt->presetPreference = 0; // override RAM copy of presetPreference for applyPresets
+          rto->videoStandardInput = 0; // force hard reset
           applyPresets(videoMode);
           uopt->presetPreference = backup;
         }
@@ -3364,6 +3365,7 @@ void handleType2Command() {
           if (videoMode == 0) videoMode = rto->videoStandardInput;
           uint8_t backup = uopt->presetPreference;
           uopt->presetPreference = 3;
+          rto->videoStandardInput = 0; // force hard reset
           applyPresets(videoMode);
           uopt->presetPreference = backup;
         }
@@ -3375,6 +3377,7 @@ void handleType2Command() {
           if (videoMode == 0) videoMode = rto->videoStandardInput;
           uint8_t backup = uopt->presetPreference;
           uopt->presetPreference = 1;
+          rto->videoStandardInput = 0; // force hard reset
           applyPresets(videoMode);
           uopt->presetPreference = backup;
         }
@@ -3386,6 +3389,7 @@ void handleType2Command() {
           if (videoMode == 0) videoMode = rto->videoStandardInput;
           uint8_t backup = uopt->presetPreference;
           uopt->presetPreference = 4;
+          rto->videoStandardInput = 0; // force hard reset
           applyPresets(videoMode);
           uopt->presetPreference = backup;
         }
