@@ -390,12 +390,12 @@ void setParametersSP() {
   }
   else writeOneByte(0x20, 0x02);
   // H active detect control
-  writeOneByte(0x21, 0x06); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20 // keep this very low
+  writeOneByte(0x21, 0x20); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20 // ! lower than 5_33, 4 ticks (ie 20 < 24)  !
   writeOneByte(0x22, 0x10); // SP_L_DLT_REG       Sync pulse width different threshold (little than this as equal). // 7
   writeOneByte(0x23, 0x00); // UNDOCUMENTED       range from 0x00 to at least 0x1d
-  writeOneByte(0x24, 0x40); // SP_T_DLT_REG       H total width different threshold rgbhv: b // range from 0x02 upwards
+  writeOneByte(0x24, 0x0b); // SP_T_DLT_REG       H total width different threshold rgbhv: b // range from 0x02 upwards
   writeOneByte(0x25, 0x00); // SP_T_DLT_REG
-  writeOneByte(0x26, 0x08); // SP_SYNC_PD_THD     H sync pulse width threshold // range from 0(?) to about 0x50 // in yuv 720p range only to 0x0a!
+  writeOneByte(0x26, 0x08); // SP_SYNC_PD_THD     H sync pulse width threshold // from 0(?) to 0x50 // in yuv 720p range only to 0x0a!
   writeOneByte(0x27, 0x00); // SP_SYNC_PD_THD
   writeOneByte(0x2a, 0x03); // SP_PRD_EQ_THD     ! How many continue legal line as valid // effect on MD recovery after sync loss
   // V active detect control
@@ -405,7 +405,7 @@ void setParametersSP() {
   writeOneByte(0x2f, 0x02); // SP_V_PRD_EQ_THD    How many continue legal v sync as valid // at 4 starts to drop 0_16 vsync events
   writeOneByte(0x31, 0x2f); // SP_VT_DLT_REG      V total different threshold
   // Timer value control
-  writeOneByte(0x33, 0x0b); // SP_H_TIMER_VAL    ! H timer value for h detect (was 0x28) // coupled with 5_2a // test bus 5_63 to 0x25 and scope dbg pin
+  writeOneByte(0x33, 0x2e); // SP_H_TIMER_VAL    ! H timer value for h detect (was 0x28) // coupled with 5_2a and 5_21 // test bus 5_63 to 0x25 and scope dbg pin
   writeOneByte(0x34, 0x05); // SP_V_TIMER_VAL     V timer for V detect // affects 0_16 vsactive
   // Sync separation control
   writeOneByte(0x35, 0x15); // SP_DLT_REG [7:0]   Sync pulse width difference threshold  (tweak point)
@@ -485,7 +485,7 @@ void syncProcessorModeSD() {
   writeOneByte(0xF0, 5);
   writeOneByte(0x37, rto->currentSyncPulseIgnoreValue);
   writeOneByte(0x38, 0x03);
-  writeOneByte(0x39, 0x07);
+  writeOneByte(0x39, 0x09);
   GBS::SP_NO_COAST_REG::write(0);
 
   rto->currentSyncProcessorMode = 0;
@@ -497,7 +497,7 @@ void syncProcessorModeHD() {
   rto->currentSyncPulseIgnoreValue = 0x04;
   writeOneByte(0x37, rto->currentSyncPulseIgnoreValue);
   writeOneByte(0x38, 0x04);
-  writeOneByte(0x39, 0x07);
+  writeOneByte(0x39, 0x09);
   GBS::SP_NO_COAST_REG::write(0);
 
   rto->currentSyncProcessorMode = 1;
@@ -1951,7 +1951,7 @@ void syncLockModeSwitch() {
     uint16_t lineLength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
     //GBS::PLL_MS::write(0x00); // memory clock 108mhz (many boards don't like fb clock) // not sure if required
     GBS::OUT_SYNC_SEL::write(2);
-    GBS::VDS_HB_ST::write(0);
+    GBS::VDS_HB_ST::write(0x30);
     GBS::VDS_HB_SP::write((lineLength / 32) & 0xffe);
     GBS::VDS_HS_ST::write(0);
     GBS::VDS_HS_SP::write(lineLength / 8);
@@ -1967,8 +1967,8 @@ void syncLockModeSwitch() {
     rto->phaseSP = 12; setPhaseSP();
     GBS::SP_SDCS_VSST_REG_H::write(0x00); // S5_3B
     GBS::SP_SDCS_VSSP_REG_H::write(0x00); // S5_3B
-    GBS::SP_SDCS_VSST_REG_L::write(0x00); // S5_3F
-    GBS::SP_SDCS_VSSP_REG_L::write(0x09); // S5_40 (test with interlaced sources)
+    GBS::SP_SDCS_VSST_REG_L::write(0x03); // S5_3F
+    GBS::SP_SDCS_VSSP_REG_L::write(0x06); // S5_40 (test with interlaced sources)
     // IF
     GBS::IF_LD_RAM_BYPS::write(1);
     GBS::IF_HS_DEC_FACTOR::write(0);
@@ -1984,7 +1984,9 @@ void syncLockModeSwitch() {
     rto->outModeSynclock = 1;
   }
   else { // switch back
-    // todo?
+    writeProgramArrayNew(ntsc_240p, 1); // with hard reset
+    doPostPresetLoadSteps();
+    rto->outModeSynclock = 0;
   }
 }
 
@@ -2077,21 +2079,20 @@ void bypassModeSwitch_RGBHV() {
 void applyYuvPatches() {
   uint8_t readout;
   //rto->currentLevelSOG = 10;
-  setSOGLevel( rto->currentLevelSOG );
+  setSOGLevel( rto->currentLevelSOG ); // on one board this is good up to 26
 
   writeOneByte(0xF0, 5);
   readFromRegister(0x03, 1, &readout);
   writeOneByte(0x03, readout | (1 << 1)); // midlevel clamp red
   readFromRegister(0x03, 1, &readout);
   writeOneByte(0x03, readout | (1 << 3)); // midlevel clamp blue
-  GBS::ADC_AUTO_OFST_EN::write(1);
+  //GBS::ADC_AUTO_OFST_EN::write(1);
 
-  writeOneByte(0xF0, 1);
-  readFromRegister(0x00, 1, &readout);
-  writeOneByte(0x00, readout | (1 << 1)); // rgb matrix bypass
-  GBS::IF_AUTO_OFST_EN::write(1);
+  GBS::IF_MATRIX_BYPS::write(1);
+  //GBS::IF_AUTO_OFST_EN::write(1);
 
-  //writeOneByte(0xF0, 3); // for colors
+  writeOneByte(0xF0, 3); // for colors
+  writeOneByte(0x3b, 0x03); writeOneByte(0x3c, 0x03);
   //writeOneByte(0x35, 0x7a); writeOneByte(0x3a, 0xfa); writeOneByte(0x36, 0x18);
   //writeOneByte(0x3b, 0x02); writeOneByte(0x37, 0x22); writeOneByte(0x3c, 0x02);
 
@@ -2108,14 +2109,11 @@ void applyRGBPatches() {
   setSOGLevel( rto->currentLevelSOG );
   GBS::ADC_AUTO_OFST_EN::write(0);
 
-  writeOneByte(0xF0, 1);
-  readFromRegister(0x00, 1, &readout);
-  writeOneByte(0x00, readout & ~(1 << 1)); // rgb matrix bypass
+  GBS::IF_MATRIX_BYPS::write(0);
   GBS::IF_AUTO_OFST_EN::write(0);
 
-  //writeOneByte(0xF0, 3); // for colors
-  //writeOneByte(0x35, 0x80); writeOneByte(0x3a, 0xfe); writeOneByte(0x36, 0x1E);
-  //writeOneByte(0x3b, 0x01); writeOneByte(0x37, 0x29); writeOneByte(0x3c, 0x01);
+  writeOneByte(0xF0, 3); // for colors
+  writeOneByte(0x3b, 0x00); writeOneByte(0x3c, 0x00);
 }
 
 void doAutoGain() {
