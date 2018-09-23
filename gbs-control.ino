@@ -577,7 +577,7 @@ void goLowPowerWithInputDetection() {
   SerialM.println("low power");
   setSpParameters();
   loadPresetMdSection(); // fills 1_60 to 1_83 (mode detect segment, mostly static)
-  setAndUpdateSogLevel(2);
+  setAndUpdateSogLevel(rto->currentLevelSOG);
   setResetParameters();
   delay(300);
   LEDOFF;
@@ -695,6 +695,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
           else { now = millis(); }
         }
         if (millis() - timeOutStart >= 1000) {
+          SerialM.print("\n");
           return 0;
         }
 
@@ -1902,6 +1903,7 @@ void syncLockModeSwitch() {
     GBS::SP_SDCS_VSSP_REG_L::write(12); // S5_40 (test with interlaced sources)
     // IF
     GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 bit 4 filter off looks better
+    GBS::IF_HS_Y_PDELAY::write(3); // 1_02 bits 5+6
     GBS::IF_LD_RAM_BYPS::write(1);
     GBS::IF_HS_DEC_FACTOR::write(0);
     GBS::IF_HSYNC_RST::write(0x7ff); // (lineLength) // must be set for 240p at least
@@ -2163,6 +2165,7 @@ void setup() {
   rto->sourceDisconnected = true;
   rto->applyPresetDone = 0;
   rto->applyPresetDoneTime = millis();
+  rto->currentLevelSOG = 8;
 
   globalCommand = 0; // web server uses this to issue commands
 
@@ -2243,7 +2246,7 @@ void setup() {
 
   setSpParameters();
   loadPresetMdSection(); // fills 1_60 to 1_83 (mode detect segment, mostly static)
-  setAndUpdateSogLevel(2);
+  setAndUpdateSogLevel(8);
   setResetParameters();
   delay(300); // let everything settle first
 
@@ -2919,7 +2922,8 @@ void loop() {
     uint8_t newVideoMode = getVideoMode();
     if (!getSyncStable() || newVideoMode == 0) {
       noSyncCounter++;
-      if (noSyncCounter == 2 && rto->printInfos == false) { LEDOFF; SerialM.print("."); }
+      LEDOFF;
+      if (noSyncCounter == 2 && rto->printInfos == false) { SerialM.print("."); }
       if (noSyncCounter == 6) { GBS::SP_NO_CLAMP_REG::write(1); rto->clampWasTurnedOff = 1; }
       if (noSyncCounter == 20) { SerialM.println("!"); }
       lastVsyncLock = millis(); // delay sync locking
