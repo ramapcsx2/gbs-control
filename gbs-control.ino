@@ -118,14 +118,14 @@ struct runTimeOptions {
   uint8_t applyPresetDoneStage;
   boolean inputIsYpBpR;
   boolean syncWatcherEnabled;
-  boolean outModeSynclock;
+  boolean outModePassThroughWithIf;
   boolean printInfos;
   boolean sourceDisconnected;
   boolean webServerEnabled;
   boolean webServerStarted;
   boolean allowUpdatesOTA;
   boolean webSocketConnected;
-  boolean syncLockEnabled;
+  boolean autoBestHtotalEnabled;
   boolean deinterlacerWasTurnedOff;
   boolean clampWasTurnedOff;
   boolean forceRetime;
@@ -275,6 +275,10 @@ void writeProgramArrayNew(const uint8_t* programArray)
           else if (j == 0 && (x == 6 || x == 7)) {
             // keep reset controls active
             bank[x] = 0;
+          }
+          else if (j == 0 && x == 9) {
+            // keep sync output off
+            bank[x] = pgm_read_byte(programArray + index) | (1 << 2);
           }
           else {
             // use preset values
@@ -468,7 +472,7 @@ void syncProcessorModeSDHD() {
 }
 
 void syncProcessorModeVGA() {
-  rto->syncLockEnabled = false; // not necessary, since VDS is off / bypassed
+  rto->autoBestHtotalEnabled = false; // not necessary, since VDS is off / bypassed
   writeOneByte(0xF0, 5);
   writeOneByte(0x3e, 0x30);
   GBS::SP_NO_COAST_REG::write(1);
@@ -1371,7 +1375,8 @@ void applyBestHTotal(uint16_t bestHTotal) {
   // apply correction, but only if source is different than presets timings, ie: not a custom preset or source doesn't fit custom preset
   // rto->forceRetime = true means the correction should be forced (command '.')
   // timings checked against multi clock snes
-  if (((diffHTotal != 0 || requiresScalingCorrection) || rto->forceRetime == true) && bestHTotal > 400) {
+  if ((((diffHTotal != 0 || requiresScalingCorrection) && !rto->outModePassThroughWithIf) || rto->forceRetime == true) 
+    && bestHTotal > 400) {
     rto->forceRetime = false;
     uint16_t h_blank_display_start_position = bestHTotal; //(bestHTotal - 1); // & 0xfffe;
     uint16_t h_blank_display_stop_position = GBS::VDS_DIS_HB_SP::read() + diffHTotal;
@@ -1441,6 +1446,9 @@ void doPostPresetLoadSteps() {
     uint16_t newVerticalScale = GBS::VDS_VSCALE::read() << 1;
     if (newVerticalScale > 1023) { newVerticalScale = 1023; }
     GBS::VDS_VSCALE::write(newVerticalScale);
+    // also shift upwards
+    GBS::IF_VB_ST::write(0x9e);
+    GBS::IF_VB_SP::write(0xa0);
   }
   else if (rto->videoStandardInput == 5) { // 720p
     GBS::SP_HD_MODE::write(1); // tri level sync
@@ -1480,6 +1488,7 @@ void doPostPresetLoadSteps() {
     //GBS::SP_CS_HS_SP::write(0x60);
   }
 
+  rto->outModePassThroughWithIf = 0; // could be 1 if it was active, but overriden by preset load
   if (rto->videoStandardInput != 15) setSpParameters();
   setAndUpdateSogLevel(rto->currentLevelSOG);
 
@@ -1516,7 +1525,7 @@ void doPostPresetLoadSteps() {
   delay(20);
   resetDigital();
 
-  rto->syncLockEnabled = true; // will re-detect whether debug wire is present
+  rto->autoBestHtotalEnabled = true; // will re-detect whether debug wire is present
   Menu::init();
   enableDebugPort();
 
@@ -1870,31 +1879,42 @@ void updateClampPosition() {
 // use t5t00t2 and adjust t5t11t5 to find this sources ideal sampling clock for this preset (affected by htotal)
 // 2431 for psx, 2437 for MD
 // in this mode, sampling clock is free to choose
-void passThroughWithIFModeSwitch() {
-  SerialM.println("pass-through");
-  // first load default presets
-  if (rto->videoStandardInput == 2 || rto->videoStandardInput == 4) {
-    writeProgramArrayNew(pal_240p);
-    doPostPresetLoadSteps();
-  }
-  else {
-    writeProgramArrayNew(ntsc_240p);
-    doPostPresetLoadSteps();
-  }
-  if (rto->outModeSynclock == 0) { // then enable pass-through mode
-    delay(100); // stability
-    uint16_t lineLength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+void passThroughWithIfModeSwitch() {
+  SerialM.print("pass-through ");
+  if (rto->outModePassThroughWithIf == 0) { // then enable pass-through mode
+    SerialM.println("on");
+    // first load default presets
+    if (rto->videoStandardInput == 2 || rto->videoStandardInput == 4) {
+      writeProgramArrayNew(pal_240p);
+      doPostPresetLoadSteps();
+    }
+    else {
+      writeProgramArrayNew(ntsc_240p);
+      doPostPresetLoadSteps();
+    }
+    GBS::PAD_SYNC_OUT_ENZ::write(1); // no sync out yet
     //GBS::PLL_MS::write(0x00); // memory clock 108mhz (many boards don't like fb clock) // not sure if required
     GBS::OUT_SYNC_SEL::write(2);
-    GBS::VDS_HB_ST::write(0x30);
-    GBS::VDS_HB_SP::write((lineLength / 32) & 0xffe);
-    GBS::VDS_HS_ST::write(0);
-    GBS::VDS_HS_SP::write(lineLength / 8);
-    setDisplayHblankStartPosition(lineLength - (lineLength / 32));
-    setDisplayHblankStopPosition(lineLength / 8);
+    GBS::VDS_HB_ST::write(0x00);
+    GBS::VDS_HB_SP::write(0x10);
+    // test!
+    GBS::VDS_BLK_BF_EN::write(0);
     GBS::VDS_HSYNC_RST::write(0xfff); // max
     GBS::VDS_VSYNC_RST::write(0x7ff); // max
-    GBS::PLLAD_MD::write(0x911); // psx 320 pix
+    GBS::PLLAD_MD::write(0x768); // psx 256, 320, 384 pix
+    GBS::PLLAD_ICP::write(5);
+    if (rto->videoStandardInput <= 2) {
+      GBS::SP_CS_HS_ST::write(0);
+      GBS::SP_CS_HS_SP::write(0x80); // with PLLAD_MD = 0x768
+    }
+    else if (rto->videoStandardInput <= 4) {
+      GBS::SP_CS_HS_ST::write(0);
+      GBS::SP_CS_HS_SP::write(0x60); // with PLLAD_MD = 0x768
+    }
+    else if (rto->videoStandardInput <= 6) {
+      GBS::SP_CS_HS_ST::write(0x90);
+      GBS::SP_CS_HS_SP::write(0xf0); // with PLLAD_MD = 0x768
+    }
     latchPLLAD();
     delay(10);
     GBS::PB_BYPASS::write(1);
@@ -1902,7 +1922,8 @@ void passThroughWithIFModeSwitch() {
     GBS::VDS_VSCALE_BYPS::write(1);
     GBS::SP_HS_LOOP_SEL::write(0); // (5_57_6), is 1 normally
     GBS::PLL648_CONTROL_01::write(0x35);
-    rto->phaseSP = 6; setPhaseSP();
+    rto->phaseSP = 4; setPhaseSP();
+    rto->phaseADC = 18; setPhaseADC();
     GBS::SP_SDCS_VSST_REG_H::write(0x00); // S5_3B
     GBS::SP_SDCS_VSSP_REG_H::write(0x00); // S5_3B
     GBS::SP_SDCS_VSST_REG_L::write(3); // S5_3F
@@ -1915,18 +1936,20 @@ void passThroughWithIFModeSwitch() {
     GBS::IF_HSYNC_RST::write(0x7ff); // (lineLength) // must be set for 240p at least
     GBS::IF_HBIN_SP::write(0x02); // must be even for 240p, adjusts left border at 0xf1+
     GBS::IF_HB_ST::write(0); // S1_10
+    GBS::IF_HB_ST2::write(120); // S1_18 // just move the bar out of the way
     delay(30);
     SyncProcessorOffOn();
     GBS::VDS_SYNC_EN::write(1); // VDS sync to synclock
     GBS::SFTRST_VDS_RSTZ::write(0);
     GBS::SFTRST_VDS_RSTZ::write(1);
     delay(30);
-    rto->outModeSynclock = 1;
+    GBS::PAD_SYNC_OUT_ENZ::write(0); // sync out now
+    rto->outModePassThroughWithIf = 1;
   }
   else { // switch back
-    writeProgramArrayNew(ntsc_240p);
-    doPostPresetLoadSteps();
-    rto->outModeSynclock = 0;
+    SerialM.println("off");
+    applyPresets(getVideoMode());
+    rto->outModePassThroughWithIf = 0;
   }
 }
 
@@ -2151,7 +2174,7 @@ void setup() {
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->webSocketConnected = false;
-  rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
+  rto->autoBestHtotalEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->syncLockFailIgnore = 2; // allow syncLock to fail x-1 times in a row before giving up (sync glitch immunity)
   rto->forceRetime = false;
   rto->syncWatcherEnabled = true;  // continously checks the current sync status. required for normal operation
@@ -2162,7 +2185,7 @@ void setup() {
   rto->inputIsYpBpR = false;
   rto->videoStandardInput = 0;
   rto->currentSyncProcessorMode = 0;
-  rto->outModeSynclock = false;
+  rto->outModePassThroughWithIf = false;
   rto->deinterlacerWasTurnedOff = false;
   rto->clampWasTurnedOff = false;
   if (!rto->webServerEnabled) rto->webServerStarted = false;
@@ -2465,7 +2488,7 @@ void loop() {
       latchPLLAD();
       break;
     case 'K':
-      passThroughWithIFModeSwitch();
+      passThroughWithIfModeSwitch();
       break;
     case 'T':
       SerialM.print("auto gain ");
@@ -2884,7 +2907,7 @@ void loop() {
   globalCommand = 0; // in case the web server had this set
 
   // run FrameTimeLock if enabled
-  if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false && rto->syncLockEnabled && 
+  if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false && rto->autoBestHtotalEnabled && 
     rto->syncWatcherEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval) {
     
     uint8_t debugRegSPBackup = GBS::TEST_BUS_SP_SEL::read();
@@ -2987,13 +3010,14 @@ void loop() {
         }
         if (timeout > 0) {
           // going to apply the new preset now
-          boolean wantSyncLockMode = rto->outModeSynclock;
+          boolean wantPassThroughMode = rto->outModePassThroughWithIf;
           disableVDS();
           applyPresets(newVideoMode);
-          if (wantSyncLockMode) {
-            rto->outModeSynclock = 0; // passThroughWithIFModeSwitch() will set it to 1
-            passThroughWithIFModeSwitch();
+          if (wantPassThroughMode) {
+            // applyPresets (postpresetloadsteps()) prepared rto->outModePassThroughWithIf to be 0
+            passThroughWithIfModeSwitch(); 
           }
+          rto->videoStandardInput = newVideoMode;
           debugRegBackup = 0;
           delay(20); // only a brief delay
           rto->clampWasTurnedOff = 1; // make sure syncwatcher enables clamp
@@ -3103,8 +3127,8 @@ void loop() {
   // frame sync + besthtotal init routine. last step of applying a preset
   // (this only runs if !FrameSync::ready(), ie manual retiming, preset load, etc)
   if (!FrameSync::ready() && noSyncCounter == 0 && rto->sourceDisconnected == false  && rto->syncWatcherEnabled == true
-    && rto->syncLockEnabled == true && rto->videoStandardInput != 0 && rto->videoStandardInput != 15 
-    && rto->outModeSynclock != 1 && !rto->deinterlacerWasTurnedOff) {
+    && rto->autoBestHtotalEnabled == true && rto->videoStandardInput != 0 && rto->videoStandardInput != 15 
+    && !rto->deinterlacerWasTurnedOff) {
     //lastVsyncLock check removed
 
     // make very sure sync is stable!
@@ -3113,12 +3137,13 @@ void loop() {
       if (debugRegSPBackup != 0x0f) GBS::TEST_BUS_SP_SEL::write(0x0f);
       uint16_t bestHTotal = FrameSync::init();
       if (bestHTotal > 0) {
+        if (bestHTotal >= 4095) bestHTotal = 4095;
         applyBestHTotal(bestHTotal);
         rto->syncLockFailIgnore = 2;
       }
       else if (rto->syncLockFailIgnore-- == 0) {
         // frame time lock failed, most likely due to missing wires
-        rto->syncLockEnabled = false;
+        rto->autoBestHtotalEnabled = false;
         SerialM.println("lock failed, check debug wire!");
       }
       GBS::TEST_BUS_SP_SEL::write(debugRegSPBackup);
@@ -3157,7 +3182,7 @@ void loop() {
         rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
         SerialM.print("vlines: "); SerialM.println(rto->sourceVLines);
         if (rto->sourceVLines > 263 && rto->sourceVLines <= 274) {
-          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 18);
+          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 16);
           GBS::IF_VB_ST::write(0 /*GBS::IF_VB_ST::read() + 18*/); // better reset ST
         }
       }
