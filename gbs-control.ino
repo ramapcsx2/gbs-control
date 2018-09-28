@@ -128,6 +128,7 @@ struct runTimeOptions {
   boolean deinterlacerWasTurnedOff;
   boolean clampWasTurnedOff;
   boolean applyPresetDone;
+  boolean forceRetime;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -148,9 +149,9 @@ char globalCommand;
 class SerialMirror : public Stream {
   size_t write(const uint8_t *data, size_t size) {
 #if defined(ESP8266)
-    if (rto->webSocketConnected) {
+    //if (rto->webSocketConnected) {
       webSocket.sendTXT(0, data, size);
-    }
+    //}
 #endif
     Serial.write(data, size);
     //Serial1.write(data, size);
@@ -159,9 +160,9 @@ class SerialMirror : public Stream {
 
   size_t write(uint8_t data) {
 #if defined(ESP8266)
-    if (rto->webSocketConnected) {
+    //if (rto->webSocketConnected) {
       webSocket.sendTXT(0, &data);
-    }
+    //}
 #endif
     Serial.write(data);
     //Serial1.write(data);
@@ -247,7 +248,7 @@ void loadPresetMdSection() {
   writeBytes(8 * 16, bank, 4); // MD section ends at 0x83, not 0x90
 }
 
-void writeProgramArrayNew(const uint8_t* programArray, boolean hardReset = 1)
+void writeProgramArrayNew(const uint8_t* programArray)
 {
   uint16_t index = 0;
   uint8_t bank[16];
@@ -255,19 +256,10 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean hardReset = 1)
 
   // programs all valid registers (the register map has holes in it, so it's not straight forward)
   // 'index' keeps track of the current preset data location.
-
-  if (hardReset == 0) {
-    writeOneByte(0xF0, 0);
-    writeOneByte(0x41, getSingleByteFromPreset(programArray, 1)); // display clock only
-    y = 1;
-    index = 48;
-  }
-  else {
-    writeOneByte(0xF0, 0);
-    writeOneByte(0x46, 0x00); // reset controls 1
-    writeOneByte(0x47, 0x00); // reset controls 2
-    y = 0;
-  }
+  
+  writeOneByte(0xF0, 0);
+  writeOneByte(0x46, 0x00); // reset controls 1
+  writeOneByte(0x47, 0x00); // reset controls 2
 
   for (; y < 6; y++)
   {
@@ -340,8 +332,6 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean hardReset = 1)
       break;
     }
   }
-
-  if (hardReset == 1) resetDigital();
 }
 
 void setResetParameters() {
@@ -431,17 +421,12 @@ void setSpParameters() {
   GBS::SP_SDCS_VSSP_REG_L::write(12); // 5_40
 
   GBS::SP_CS_HS_ST::write(0x00);
-  GBS::SP_CS_HS_SP::write(0x05);
+  GBS::SP_CS_HS_SP::write(0x08); // was 0x05, 720p source needs 0x08, this is okay with other sources
 
   writeOneByte(0x49, 0x04); // 0x04 rgbhv: 20
   writeOneByte(0x4a, 0x00); // 0xc0
   writeOneByte(0x4b, 0x34); // 0x34 rgbhv: 50
   writeOneByte(0x4c, 0x00); // 0xc0
-
-  // 2 modes: 
-  // t5t55t7 on = auto clamp > start and stop pos should be the same
-  // t5t55t7 off = manual clamp > start and stop pos variable
-  updateClampPosition();
 
   writeOneByte(0x51, 0x02); // 0x00 rgbhv: 2
   writeOneByte(0x52, 0x00); // 0xc0
@@ -622,6 +607,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
       SerialM.print("found: "); SerialM.print(readout); SerialM.print(" getVideoMode: "); SerialM.print(getVideoMode());
       SerialM.print(" input: "); SerialM.print(currentInput);
       if (currentInput == 1) { // RGBS
+        SerialM.println(" RGBS");
         resetPLLAD();
         unsigned long timeOutStart = millis();
         unsigned long now = millis();
@@ -636,17 +622,16 @@ uint8_t detectAndSwitchToActiveInput() { // if any
           SerialM.print("\n");
           return 0;
         }
-        SerialM.println(" RGBS");
         rto->inputIsYpBpR = 0;
         rto->sourceDisconnected = false;
         LEDON;
         return 1;
       }
       else if (currentInput == 0) { // YUV
+        SerialM.println(" YUV");
         resetPLLAD();
         rto->inputIsYpBpR = 1;
         rto->sourceDisconnected = false;
-        SerialM.println(" YUV");
         if (GBS::SP_NO_CLAMP_REG::read() == 0) { SerialM.println("!!A"); } // assert: must be 1
         LEDON;
         unsigned long timeOutStart = millis();
@@ -714,7 +699,8 @@ static inline void readFromRegister(uint8_t reg, int bytesToRead, uint8_t* outpu
 void printReg(uint8_t seg, uint8_t reg) {
   uint8_t readout;
   readFromRegister(reg, 1, &readout);
-  SerialM.print(readout); SerialM.print(", // s"); SerialM.print(seg); SerialM.print("_"); SerialM.println(reg, HEX);
+  // didn't think this HEX trick would work, but it does! (?)
+  SerialM.print("0x"); SerialM.print(readout, HEX); SerialM.print(", // s"); SerialM.print(seg); SerialM.print("_"); SerialM.println(reg, HEX);
 }
 
 // dumps the current chip configuration in a format that's ready to use as new preset :)
@@ -770,6 +756,7 @@ void resetPLLAD() {
 
 void latchPLLAD() {
   GBS::PLLAD_LAT::write(0);
+  delay(1);
   GBS::PLLAD_LAT::write(1);
 }
 
@@ -777,9 +764,9 @@ void resetPLL() {
   GBS::PAD_OSC_CNTRL::write(2); // crystal drive
   GBS::PLL_LEN::write(0);
   GBS::PLL_VCORST::write(1);
-  delay(2);
+  delay(1);
   GBS::PLL_VCORST::write(0);
-  delay(2);
+  delay(1);
   GBS::PLL_LEN::write(1);
 }
 
@@ -1382,9 +1369,10 @@ void applyBestHTotal(uint16_t bestHTotal) {
   boolean syncIsNegative = GBS::VDS_HS_ST::read() > GBS::VDS_HS_SP::read(); // if HSST > HSSP then this preset was made to have neg. active HS (ie 640x480)
 
   // apply correction, but only if source is different than presets timings, ie: not a custom preset or source doesn't fit custom preset
-  // hack: rto->syncLockFailIgnore == 3 means the correction should be forced (command '.')
+  // rto->forceRetime = true means the correction should be forced (command '.')
   // timings checked against multi clock snes
-  if (((diffHTotal != 0 || requiresScalingCorrection) || rto->syncLockFailIgnore == 3) && bestHTotal > 400) {
+  if (((diffHTotal != 0 || requiresScalingCorrection) || rto->forceRetime == true) && bestHTotal > 400) {
+    rto->forceRetime = false;
     uint16_t h_blank_display_start_position = bestHTotal; //(bestHTotal - 1); // & 0xfffe;
     uint16_t h_blank_display_stop_position = GBS::VDS_DIS_HB_SP::read() + diffHTotal;
     if (isLargeDiff) {
@@ -1427,8 +1415,9 @@ void applyBestHTotal(uint16_t bestHTotal) {
     //GBS::IF_HB_SP2::write(0x08);
   }
   SerialM.print("Base: "); SerialM.print(orig_htotal);
-  SerialM.print(" Best: "); SerialM.print(bestHTotal);
-  SerialM.print(" Diff: "); SerialM.println(diffHTotal);
+  SerialM.print(" Best: "); SerialM.println(bestHTotal);
+  // todo: websocket breaks on this if diffHTotal is negative
+  //SerialM.print(" Diff: "); SerialM.println(diffHTotal);
 }
 
 void doPostPresetLoadSteps() {
@@ -1441,7 +1430,6 @@ void doPostPresetLoadSteps() {
       // p-scan ntsc, need to double adc data rate and halve vds scaling
     GBS::PLLAD_KS::write(1); // 5_16
     GBS::ADC_CLK_ICLK2X::write(0);
-    latchPLLAD();
     uint16_t newVerticalScale = GBS::VDS_VSCALE::read() << 1;
     if (newVerticalScale > 1023) { newVerticalScale = 1023; }
     GBS::VDS_VSCALE::write(newVerticalScale);
@@ -1450,7 +1438,6 @@ void doPostPresetLoadSteps() {
       // p-scan ntsc, need to double adc data rate and halve vds scaling
     GBS::PLLAD_KS::write(1); // 5_16
     GBS::ADC_CLK_ICLK2X::write(0);
-    latchPLLAD();
     uint16_t newVerticalScale = GBS::VDS_VSCALE::read() << 1;
     if (newVerticalScale > 1023) { newVerticalScale = 1023; }
     GBS::VDS_VSCALE::write(newVerticalScale);
@@ -1463,7 +1450,6 @@ void doPostPresetLoadSteps() {
     GBS::VDS_HSCALE::write(683); // hardcoded for now
     GBS::IF_PRGRSV_CNTRL::write(1);
     GBS::IF_HS_DEC_FACTOR::write(0);
-    latchPLLAD();
     // next: disable line doubling etc, IF stuff
     //GBS::IF_VB_ST::write(0);
     //GBS::IF_VB_SP::write(0x10); // v. position
@@ -1483,7 +1469,6 @@ void doPostPresetLoadSteps() {
     //SP_CS_CLP_SP 0x62 ?
     GBS::IF_PRGRSV_CNTRL::write(1);
     GBS::IF_HS_DEC_FACTOR::write(0);
-    latchPLLAD();
     //GBS::IF_VB_ST::write(0);
     //GBS::IF_VB_SP::write(0x10); // v. position
 
@@ -1495,45 +1480,51 @@ void doPostPresetLoadSteps() {
     //GBS::SP_CS_HS_SP::write(0x60);
   }
 
+  if (rto->videoStandardInput != 15) setSpParameters();
+  setAndUpdateSogLevel(rto->currentLevelSOG);
+
+  // 0 segment
+  GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC here, enable later (should already be off though)
+  GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 2); // IF initial position seems to be "ht" (on S1_0d)
+  // ADC
+  GBS::ADC_TR_RSEL::write(0); // in case it was set
+  GBS::ADC_TR_ISEL::write(0); // in case it was set
   // high color gain so auto adjust can work on it
   if (uopt->enableAutoGain == 1) {
     GBS::ADC_RGCTRL::write(0x3c);
     GBS::ADC_GGCTRL::write(0x3c);
     GBS::ADC_BGCTRL::write(0x3c);
   }
-
-  GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC here, enable later (should already be off though)
-  GBS::ADC_TR_RSEL::write(0); // in case it was set
-  GBS::ADC_TR_ISEL::write(0); // in case it was set
+  if (rto->inputIsYpBpR == true) {
+    applyYuvPatches();
+  }
+  else {
+    applyRGBPatches();
+  }
+  GBS::PLLAD_R::write(2);
+  GBS::PLLAD_S::write(2);
   GBS::PLLAD_PDZ::write(1); // in case it was off
-  GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
-  GBS::INTERRUPT_CONTROL_00::write(0x00);
   //update rto phase variables
   rto->phaseADC = GBS::PA_ADC_S::read();
   rto->phaseSP = GBS::PA_SP_S::read();
-  resetPLLAD(); // turns on pllad
-
-  rto->syncLockEnabled = true; // will re-detect whether debug wire is present
-  Menu::init();
-  enableDebugPort();
-  if (rto->videoStandardInput != 15) setSpParameters();
-  setAndUpdateSogLevel(rto->currentLevelSOG);
-
-  GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 2); // IF initial position seems to be "ht" (on S1_0d)
   GBS::DEC_WEN_MODE::write(1); // keeps ADC phase much more consistent. around 4 lock positions vs totally random
   GBS::DEC_IDREG_EN::write(1);
   // jitter sync off for all modes
   GBS::SP_JITTER_SYNC::write(0);
 
-  if (rto->inputIsYpBpR == true) {
-    applyYuvPatches();
-  }
+  resetPLLAD(); // turns on pllad
+  delay(20);
+  resetDigital();
+
+  rto->syncLockEnabled = true; // will re-detect whether debug wire is present
+  Menu::init();
+  enableDebugPort();
 
   GBS::PAD_SYNC_OUT_ENZ::write(1); // delay sync output
   enableVDS();
   FrameSync::reset();
   rto->syncLockFailIgnore = 2;
-  ResetSDRAM();
+  //ResetSDRAM(); // already done in resetPLL
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   unsigned long timeout = millis();
   while (getVideoMode() == 0 && millis() - timeout < 800) { delay(1); } // wifi stack // stability
@@ -1545,6 +1536,9 @@ void doPostPresetLoadSteps() {
     advancePhase();
   }
   GBS::PAD_SYNC_OUT_ENZ::write(0); // output sync > display goes on
+  delay(2);
+  GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
+  GBS::INTERRUPT_CONTROL_00::write(0x00);
   SerialM.println("post preset done");
   rto->clampWasTurnedOff = 1; // make sure syncwatcher enables clamp
   rto->applyPresetDone = 1;
@@ -1552,49 +1546,47 @@ void doPostPresetLoadSteps() {
 }
 
 void applyPresets(uint8_t result) {
-  boolean hardReset = rto->videoStandardInput == 0 ? 1 : 0; // todo: remove
-
   if (result == 1) {
     SerialM.println("60Hz ");
     if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(ntsc_240p, hardReset);
+      writeProgramArrayNew(ntsc_240p);
     }
     else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(ntsc_feedbackclock, hardReset);
+      writeProgramArrayNew(ntsc_feedbackclock);
     }
     else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(ntsc_1280x720, hardReset);
+      writeProgramArrayNew(ntsc_1280x720);
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
       SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset, hardReset);
+      writeProgramArrayNew(preset);
     }
     else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(ntsc_1280x1024, hardReset);
+      writeProgramArrayNew(ntsc_1280x1024);
     }
 #endif
   }
   else if (result == 2) {
     SerialM.println("50Hz ");
     if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(pal_240p, hardReset);
+      writeProgramArrayNew(pal_240p);
     }
     else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(pal_feedbackclock, hardReset);
+      writeProgramArrayNew(pal_feedbackclock);
     }
     else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(pal_1280x720, hardReset);
+      writeProgramArrayNew(pal_1280x720);
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
       SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset, hardReset);
+      writeProgramArrayNew(preset);
     }
     else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(pal_240p, hardReset);
+      writeProgramArrayNew(pal_240p);
     }
 #endif
   }
@@ -1602,22 +1594,22 @@ void applyPresets(uint8_t result) {
     SerialM.println("60Hz EDTV ");
     // ntsc base
     if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(ntsc_240p, hardReset);
+      writeProgramArrayNew(ntsc_240p);
     }
     else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(ntsc_feedbackclock, hardReset);
+      writeProgramArrayNew(ntsc_feedbackclock);
     }
     else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(ntsc_1280x720, hardReset);
+      writeProgramArrayNew(ntsc_1280x720);
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
       SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset, hardReset);
+      writeProgramArrayNew(preset);
     }
     else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(ntsc_1280x1024, hardReset);
+      writeProgramArrayNew(ntsc_1280x1024);
     }
 #endif
   }
@@ -1625,72 +1617,72 @@ void applyPresets(uint8_t result) {
     SerialM.println("50Hz EDTV ");
     // pal base
     if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(pal_240p, hardReset);
+      writeProgramArrayNew(pal_240p);
     }
     else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(pal_feedbackclock, hardReset);
+      writeProgramArrayNew(pal_feedbackclock);
     }
     else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(pal_1280x720, hardReset);
+      writeProgramArrayNew(pal_1280x720);
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
       SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset, hardReset);
+      writeProgramArrayNew(preset);
     }
     else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(pal_240p, hardReset);
+      writeProgramArrayNew(pal_240p);
     }
 #endif
   }
   else if (result == 5) {
     SerialM.println("720p 60Hz HDTV ");
     if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(ntsc_240p, hardReset);
+      writeProgramArrayNew(ntsc_240p);
     }
     else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(ntsc_feedbackclock, hardReset);
+      writeProgramArrayNew(ntsc_feedbackclock);
     }
     else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(ntsc_1280x720, hardReset);
+      writeProgramArrayNew(ntsc_1280x720);
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
       SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset, hardReset);
+      writeProgramArrayNew(preset);
     }
     else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(ntsc_1280x1024, hardReset);
+      writeProgramArrayNew(ntsc_1280x1024);
     }
 #endif
   }
   else if (result == 6) {
     SerialM.println("1080i 60Hz HDTV ");
     if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(ntsc_240p, hardReset);
+      writeProgramArrayNew(ntsc_240p);
     }
     else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(ntsc_feedbackclock, hardReset);
+      writeProgramArrayNew(ntsc_feedbackclock);
     }
     else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(ntsc_1280x720, hardReset);
+      writeProgramArrayNew(ntsc_1280x720);
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
       SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset, hardReset);
+      writeProgramArrayNew(preset);
     }
     else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(ntsc_1280x1024, hardReset);
+      writeProgramArrayNew(ntsc_1280x1024);
     }
 #endif
   }
   else if (result == 15) {
     SerialM.println("RGBHV bypass ");
-    writeProgramArrayNew(ntsc_240p, hardReset);
+    writeProgramArrayNew(ntsc_240p);
     bypassModeSwitch_RGBHV();
   }
   else {
@@ -1863,7 +1855,7 @@ void updateClampPosition() {
     // standard definition RGBS: clamp on sync tip
     GBS::SP_CLAMP_INV_REG::write(1); // invert clamp: positioning on sync tip more accurate
     uint16_t inHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
-    if (inHlength < 100) { SerialM.println("!!B"); } // assert: must be valid
+    if (inHlength < 100 || inHlength > 2800) { SerialM.println("!!B"); } // assert: must be valid
     GBS::SP_CS_CLP_ST::write(0);
     GBS::SP_CS_CLP_SP::write(inHlength - (inHlength >> 5));
   }
@@ -1878,8 +1870,17 @@ void updateClampPosition() {
 // use t5t00t2 and adjust t5t11t5 to find this sources ideal sampling clock for this preset (affected by htotal)
 // 2431 for psx, 2437 for MD
 // in this mode, sampling clock is free to choose
-void syncLockModeSwitch() {
-  SerialM.println("pass-through"); // todo: rename syncLock > pass-through
+void passThroughWithIFModeSwitch() {
+  SerialM.println("pass-through");
+  // first load default presets
+  if (rto->videoStandardInput == 2 || rto->videoStandardInput == 4) {
+    writeProgramArrayNew(pal_240p);
+    doPostPresetLoadSteps();
+  }
+  else {
+    writeProgramArrayNew(ntsc_240p);
+    doPostPresetLoadSteps();
+  }
   if (rto->outModeSynclock == 0) { // then enable pass-through mode
     delay(100); // stability
     uint16_t lineLength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
@@ -1899,7 +1900,7 @@ void syncLockModeSwitch() {
     GBS::PB_BYPASS::write(1);
     GBS::VDS_HSCALE_BYPS::write(1);
     GBS::VDS_VSCALE_BYPS::write(1);
-    GBS::SP_HS_LOOP_SEL::write(0);
+    GBS::SP_HS_LOOP_SEL::write(0); // (5_57_6), is 1 normally
     GBS::PLL648_CONTROL_01::write(0x35);
     rto->phaseSP = 6; setPhaseSP();
     GBS::SP_SDCS_VSST_REG_H::write(0x00); // S5_3B
@@ -1923,7 +1924,7 @@ void syncLockModeSwitch() {
     rto->outModeSynclock = 1;
   }
   else { // switch back
-    writeProgramArrayNew(ntsc_240p, 1); // with hard reset
+    writeProgramArrayNew(ntsc_240p);
     doPostPresetLoadSteps();
     rto->outModeSynclock = 0;
   }
@@ -2016,7 +2017,6 @@ void bypassModeSwitch_RGBHV() {
 }
 
 void applyYuvPatches() {
-  setAndUpdateSogLevel(rto->currentLevelSOG); // on one board this is good up to 26
   GBS::ADC_RYSEL_R::write(1); // midlevel clamp red
   GBS::ADC_RYSEL_B::write(1); // midlevel clamp blue
   //GBS::ADC_AUTO_OFST_EN::write(1);
@@ -2029,7 +2029,6 @@ void applyYuvPatches() {
 
 // undo yuvpatches if necessary
 void applyRGBPatches() {
-  setAndUpdateSogLevel(rto->currentLevelSOG);
   GBS::ADC_AUTO_OFST_EN::write(0);
   GBS::ADC_RYSEL_R::write(0); // gnd clamp red
   GBS::ADC_RYSEL_B::write(0); // gnd clamp blue
@@ -2148,12 +2147,13 @@ void setup() {
   uopt->presetGroup = 0; //
   uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
   uopt->frameTimeLockMethod = 0; // compatibility with more displays
-  uopt->enableAutoGain = 1;
+  uopt->enableAutoGain = 0; // todo: web ui option
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->webSocketConnected = false;
   rto->syncLockEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->syncLockFailIgnore = 2; // allow syncLock to fail x-1 times in a row before giving up (sync glitch immunity)
+  rto->forceRetime = false;
   rto->syncWatcherEnabled = true;  // continously checks the current sync status. required for normal operation
   rto->phaseADC = 16;
   rto->phaseSP = 6;
@@ -2438,18 +2438,19 @@ void loop() {
       latchPLLAD();
       GBS::VDS_HSCALE::write(512);
       delay(20);
+      rto->syncLockFailIgnore = 2;
       FrameSync::reset(); // adjust htotal to new display clock
-      rto->syncLockFailIgnore = 3; //
+      rto->forceRetime = true;
       //applyBestHTotal(FrameSync::init());
       //GBS::VDS_FLOCK_EN::write(1); //risky
       //delay(30);
       break;
     case 'Y':
-      writeProgramArrayNew(ntsc_1280x720, 1);
+      writeProgramArrayNew(ntsc_1280x720);
       doPostPresetLoadSteps();
       break;
     case 'y':
-      writeProgramArrayNew(pal_1280x720, 1);
+      writeProgramArrayNew(pal_1280x720);
       doPostPresetLoadSteps();
       break;
     case 'P':
@@ -2464,7 +2465,7 @@ void loop() {
       latchPLLAD();
       break;
     case 'K':
-      syncLockModeSwitch();
+      passThroughWithIFModeSwitch();
       break;
     case 'T':
       SerialM.print("auto gain ");
@@ -2481,17 +2482,18 @@ void loop() {
       }
       break;
     case 'e':
-      writeProgramArrayNew(ntsc_240p, 1);
+      writeProgramArrayNew(ntsc_240p);
       doPostPresetLoadSteps();
       break;
     case 'r':
-      writeProgramArrayNew(pal_240p, 1);
+      writeProgramArrayNew(pal_240p);
       doPostPresetLoadSteps();
       break;
     case '.':
       // timings recalculation with new bestHtotal
       FrameSync::reset();
-      rto->syncLockFailIgnore = 3;
+      rto->syncLockFailIgnore = 2;
+      rto->forceRetime = true;
       break;
     case 'j':
       resetPLL(); latchPLLAD(); //resetPLLAD();
@@ -2528,12 +2530,12 @@ void loop() {
 
         // regular output modes: apply IF corrections
         if (GBS::VDS_HSYNC_RST::read() != 0xfff) {
-          uint16_t IF_HSYNC_RST = GBS::IF_HSYNC_RST::read();
+          uint16_t IF_HSYNC_RST = GBS::IF_HSYNC_RST::read(); // 1_0E
           GBS::IF_HSYNC_RST::write(IF_HSYNC_RST + 1);
           // IF HB new stuff
           GBS::IF_INI_ST::write(IF_HSYNC_RST - 1); // initial position seems to be "ht" (on S1_0d)
           //GBS::IF_LINE_ST::write(GBS::IF_LINE_ST::read() + 1);
-          GBS::IF_LINE_SP::write(GBS::IF_LINE_SP::read() + 1); // important
+          GBS::IF_LINE_SP::write(GBS::IF_LINE_SP::read() + 1); // 1_22
         }
         latchPLLAD();
       }
@@ -2624,7 +2626,7 @@ void loop() {
       moveHS(1, false);
       break;
     case '2':
-      writeProgramArrayNew(pal_feedbackclock, 1); // ModeLine "720x576@50" 27 720 732 795 864 576 581 586 625 -hsync -vsync
+      writeProgramArrayNew(pal_feedbackclock); // ModeLine "720x576@50" 27 720 732 795 864 576 581 586 625 -hsync -vsync
       doPostPresetLoadSteps();
       break;
     case '3':
@@ -2647,7 +2649,7 @@ void loop() {
       invertHS(); invertVS();
       break;
     case '9':
-      writeProgramArrayNew(ntsc_feedbackclock, 1);
+      writeProgramArrayNew(ntsc_feedbackclock);
       doPostPresetLoadSteps();
       break;
     case 'o':
@@ -2900,9 +2902,9 @@ void loop() {
   }
 
   if (rto->printInfos == true) { // information mode
-    static uint8_t runningLocks = 0;
     static uint8_t runningNumber = 0;
-    static uint8_t lockDisplay = 0;
+    uint8_t lockCounter = 0;
+    static uint8_t buffer[99] = { 0 };
 
     uint8_t stat16 = GBS::STATUS_16::read();
     uint8_t stat5 = GBS::STATUS_05::read();
@@ -2915,18 +2917,23 @@ void loop() {
     uint16_t STATUS_SYNC_PROC_VTOTAL = GBS::STATUS_SYNC_PROC_VTOTAL::read();
     uint16_t STATUS_SYNC_PROC_HLOW_LEN = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
     boolean STATUS_MISC_PLL648_LOCK = GBS::STATUS_MISC_PLL648_LOCK::read();
-    boolean STATUS_MISC_PLLAD_LOCK = GBS::STATUS_MISC_PLLAD_LOCK::read();
     runningNumber++;
-    if (STATUS_MISC_PLLAD_LOCK) { runningLocks++; }
+    if (runningNumber == 99) { runningNumber = 0; }
+    buffer[runningNumber] = GBS::STATUS_MISC_PLLAD_LOCK::read();
+    for (uint8_t i = 0; i < 99; i++) {
+      lockCounter += buffer[i];
+    }
+    //lockDisplay /= 10;
+    //if (STATUS_MISC_PLLAD_LOCK) { runningLocks++; }
     
     String dbg = TEST_BUS < 0x10 ? "000" + String(TEST_BUS, HEX) : TEST_BUS < 0x100 ? "00" + String(TEST_BUS, HEX) : TEST_BUS < 0x1000 ? "0" + String(TEST_BUS, HEX) : String(TEST_BUS, HEX);
     String hv_stable = GBS::STATUS_IF_HVT_OK::read() == 1 ? " " : "!";
     String interlace_progressive = GBS::STATUS_IF_INP_INT::read() == 1 ? " laced" : " progr";
     String hpw = STATUS_SYNC_PROC_HLOW_LEN < 100 ? "00" + String(STATUS_SYNC_PROC_HLOW_LEN) : STATUS_SYNC_PROC_HLOW_LEN < 1000 ? "0" + String(STATUS_SYNC_PROC_HLOW_LEN) : String(STATUS_SYNC_PROC_HLOW_LEN);
+    String lockDisplay = lockCounter < 10 ? "0" + String(lockCounter) : String(lockCounter);
 
-    String output = "h:" + String(HPERIOD_IF) + " " + "v:" + String(VPERIOD_IF) + " PLL:" +
-      (STATUS_MISC_PLL648_LOCK ? "." : "x") + (STATUS_MISC_PLLAD_LOCK ? "^" : " ") +
-      String(lockDisplay) + " adc:" + String(adc_gain, HEX) +
+    String output = "h:" + String(HPERIOD_IF) + " " + "v:" + String(VPERIOD_IF) + " PLL" +
+      (STATUS_MISC_PLL648_LOCK ? "." : "x") + lockDisplay + " adc:" + String(adc_gain, HEX) +
       " stat:" + String(stat16, HEX) + String(".") + String(stat5, HEX) +
       " deb:" + dbg + " m:" + String(video_mode) + " ht:" + String(STATUS_SYNC_PROC_HTOTAL) +
       " vt:" + String(STATUS_SYNC_PROC_VTOTAL) + " hpw:" + hpw +
@@ -2936,7 +2943,6 @@ void loop() {
 #endif
       ;
 
-    if (runningNumber == 99) { runningNumber = 0; lockDisplay = runningLocks; runningLocks = 0; }
     SerialM.println(output);
   } // end information mode
 
@@ -2984,8 +2990,8 @@ void loop() {
           disableVDS();
           applyPresets(newVideoMode);
           if (wantSyncLockMode) {
-            rto->outModeSynclock = 0; // syncLockModeSwitch() will set it to 1
-            syncLockModeSwitch();
+            rto->outModeSynclock = 0; // passThroughWithIFModeSwitch() will set it to 1
+            passThroughWithIFModeSwitch();
           }
           debugRegBackup = 0;
           delay(20); // only a brief delay
@@ -3131,21 +3137,32 @@ void loop() {
   // need to reset ModeDetect shortly after loading a new preset
   // if the source has eq pulses, the image position needs correcting
   if (rto->applyPresetDone == 1 && (millis() - rto->applyPresetDoneTime > 250)) {
+    // 2 modes: 
+    // t5t55t7 on = auto clamp > start and stop pos should be the same
+    // t5t55t7 off = manual clamp > start and stop pos variable
+    updateClampPosition();
+    // SD modes // this doesn't work too well
+    //if (rto->videoStandardInput <= 2) {
+    //  uint16_t vLinexMin = rto->videoStandardInput == 1 ? 259 : 308;
+    //  uint16_t vLinexMax = rto->videoStandardInput == 1 ? 274 : 328;
+    //  rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+    //  unsigned long timeOutStart = millis();
+    //  while ((rto->sourceVLines <= vLinexMin || rto->sourceVLines >= vLinexMax) && (millis() - timeOutStart < 2500)) {
+    //    rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+    //    delay(1);
+    //  }
+    //  SerialM.print("vlines: "); SerialM.println(rto->sourceVLines);
+    //  if (rto->sourceVLines > 263 && rto->sourceVLines <= 274) {
+    //    GBS::SP_SDCS_VSST_REG_L::write(12); // 5_3f
+    //    GBS::SP_SDCS_VSSP_REG_L::write(21); // 5_40
+    //    // test! also lower pre coast
+    //    GBS::SP_PRE_COAST::write(3);
+    //    delay(50);
+    //  }
+    //}
+
     if (rto->clampWasTurnedOff) { GBS::SP_NO_CLAMP_REG::write(0); rto->clampWasTurnedOff = 0; delay(1); }
     rto->applyPresetDone = 0;
-    unsigned long timeOutStart = millis();
-    rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-    while (rto->sourceVLines == 0 && (millis() - timeOutStart < 500)) {
-      rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-      delay(1);
-    }
-    SerialM.print("vlines: "); SerialM.println(rto->sourceVLines);
-    if (rto->sourceVLines > 264 && rto->sourceVLines < 274) {
-      GBS::SP_SDCS_VSST_REG_L::write(12); // 5_3f
-      GBS::SP_SDCS_VSSP_REG_L::write(21); // 5_40
-      // test! also lower pre coast
-      GBS::SP_PRE_COAST::write(4);
-    }
 
     // todo: why is auto clamp failing unless this is done?
     resetModeDetect();
@@ -3220,7 +3237,7 @@ void handleType2Command() {
       if (rto->videoStandardInput == 0) SerialM.println("no input detected, aborting action");
       else {
         const uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
-        writeProgramArrayNew(preset, 1); // with hard reset
+        writeProgramArrayNew(preset);
         doPostPresetLoadSteps();
       }
     }
@@ -3472,11 +3489,11 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
   switch (type) {
   case WStype_DISCONNECTED:             // if the websocket is disconnected
     Serial.println("Websocket Disconnected");
-    rto->webSocketConnected = false;
+    //rto->webSocketConnected = false;
     break;
   case WStype_CONNECTED:               // if a new websocket connection is established
     SerialM.println("Websocket Connected");
-    rto->webSocketConnected = true;
+    //rto->webSocketConnected = true;
     break;
   case WStype_TEXT:                     // if new text data is received
     //SerialM.printf("[%u] get Text (length: %d): %s\n", num, lenght, payload);
@@ -3621,7 +3638,7 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
   while (tmp) {
     preset[i++] = (uint8_t)atoi(tmp);
     tmp = strtok(NULL, ",");
-    delay(1); // wifi stack
+    yield(); // wifi stack
   }
 
   return preset;
@@ -3675,7 +3692,6 @@ void savePresetToSPIFFS() {
   else {
     SerialM.println("preset file open ok");
 
-    writeOneByte(0xF0, 5);
     GBS::ADC_0X00_RESERVED_5::write(1); // use one reserved bit to mark this as a custom preset
 
     for (int i = 0; i <= 5; i++) {

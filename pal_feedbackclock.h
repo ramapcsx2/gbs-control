@@ -166,7 +166,7 @@ const uint8_t pal_feedbackclock[] PROGMEM = {
 56, // s3_4
 3, // s3_5
 6, // s3_6
-6, // s3_7
+5, // s3_7
 112, // s3_8
 0, // s3_9
 121, // s3_A
