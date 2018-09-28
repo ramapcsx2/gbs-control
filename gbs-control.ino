@@ -115,6 +115,7 @@ struct runTimeOptions {
   uint8_t currentLevelSOG;
   uint8_t syncLockFailIgnore;
   uint8_t currentSyncProcessorMode; // SD, HD, VGA // todo: replace
+  uint8_t applyPresetDoneStage;
   boolean inputIsYpBpR;
   boolean syncWatcherEnabled;
   boolean outModeSynclock;
@@ -127,7 +128,6 @@ struct runTimeOptions {
   boolean syncLockEnabled;
   boolean deinterlacerWasTurnedOff;
   boolean clampWasTurnedOff;
-  boolean applyPresetDone;
   boolean forceRetime;
 } rtos;
 struct runTimeOptions *rto = &rtos;
@@ -338,7 +338,7 @@ void setResetParameters() {
   SerialM.println("<reset>");
   rto->videoStandardInput = 0;
   rto->clampWasTurnedOff = 1;
-  rto->applyPresetDone = 0;
+  rto->applyPresetDoneStage = 0;
   rto->sourceVLines = 0;
   GBS::RESET_CONTROL_0x46::write(0x00); // all units off
   GBS::RESET_CONTROL_0x47::write(0x00);
@@ -410,8 +410,8 @@ void setSpParameters() {
 
   writeOneByte(0x37, 0x04); // SP_H_PULSE_IGNOR
 
-  GBS::SP_PRE_COAST::write(0x0a);
-  GBS::SP_POST_COAST::write(0x11);
+  GBS::SP_PRE_COAST::write(6);
+  GBS::SP_POST_COAST::write(15);
 
   writeOneByte(0x3a, 0x03); // was 0x0a // range depends on source vtiming, from 0x03 to xxx, some good effect at lower levels
 
@@ -443,8 +443,8 @@ void setSpParameters() {
   GBS::SP_H_CST_ST::write(30);
   GBS::SP_H_CST_SP::write(30);
   GBS::SP_HCST_AUTO_EN::write(1);
-  GBS::SP_PRE_COAST::write(9);
-  GBS::SP_POST_COAST::write(16);
+  GBS::SP_PRE_COAST::write(6);
+  GBS::SP_POST_COAST::write(15);
 
   // these regs seem to be shifted in the docs. doc 0x58 is actually 0x59 etc
   writeOneByte(0x58, 0x05); //rgbhv: 0
@@ -1541,7 +1541,7 @@ void doPostPresetLoadSteps() {
   GBS::INTERRUPT_CONTROL_00::write(0x00);
   SerialM.println("post preset done");
   rto->clampWasTurnedOff = 1; // make sure syncwatcher enables clamp
-  rto->applyPresetDone = 1;
+  rto->applyPresetDoneStage = 1;
   rto->applyPresetDoneTime = millis();
 }
 
@@ -1807,8 +1807,8 @@ void setPhaseADC() {
 
 void updateCoastPosition() {
   if (rto->videoStandardInput <= 2) { // including 0 (reset condition)
-    GBS::SP_PRE_COAST::write(0x0a);
-    GBS::SP_POST_COAST::write(0x11);
+    GBS::SP_PRE_COAST::write(6);
+    GBS::SP_POST_COAST::write(15);
   }
   else if (rto->videoStandardInput < 15) {
     GBS::SP_PRE_COAST::write(0x05);
@@ -2168,7 +2168,7 @@ void setup() {
   if (!rto->webServerEnabled) rto->webServerStarted = false;
   rto->printInfos = false;
   rto->sourceDisconnected = true;
-  rto->applyPresetDone = false;
+  rto->applyPresetDoneStage = 0;
   rto->applyPresetDoneTime = millis();
   rto->currentLevelSOG = 8;
   rto->sourceVLines = 0;
@@ -2986,6 +2986,7 @@ void loop() {
           delay(1); // rarely needed but better than not
         }
         if (timeout > 0) {
+          // going to apply the new preset now
           boolean wantSyncLockMode = rto->outModeSynclock;
           disableVDS();
           applyPresets(newVideoMode);
@@ -3047,8 +3048,8 @@ void loop() {
           else {
             toggle = 1;
             SerialM.print("SD? ");
-            GBS::SP_PRE_COAST::write(0x0a);
-            GBS::SP_POST_COAST::write(0x11);
+            GBS::SP_PRE_COAST::write(6);
+            GBS::SP_POST_COAST::write(15);
           }
           resetModeDetect();
           delay(30);
@@ -3135,38 +3136,36 @@ void loop() {
   }
 
   // need to reset ModeDetect shortly after loading a new preset
-  // if the source has eq pulses, the image position needs correcting
-  if (rto->applyPresetDone == 1 && (millis() - rto->applyPresetDoneTime > 250)) {
-    // 2 modes: 
-    // t5t55t7 on = auto clamp > start and stop pos should be the same
-    // t5t55t7 off = manual clamp > start and stop pos variable
-    updateClampPosition();
-    // SD modes // this doesn't work too well
-    //if (rto->videoStandardInput <= 2) {
-    //  uint16_t vLinexMin = rto->videoStandardInput == 1 ? 259 : 308;
-    //  uint16_t vLinexMax = rto->videoStandardInput == 1 ? 274 : 328;
-    //  rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-    //  unsigned long timeOutStart = millis();
-    //  while ((rto->sourceVLines <= vLinexMin || rto->sourceVLines >= vLinexMax) && (millis() - timeOutStart < 2500)) {
-    //    rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-    //    delay(1);
-    //  }
-    //  SerialM.print("vlines: "); SerialM.println(rto->sourceVLines);
-    //  if (rto->sourceVLines > 263 && rto->sourceVLines <= 274) {
-    //    GBS::SP_SDCS_VSST_REG_L::write(12); // 5_3f
-    //    GBS::SP_SDCS_VSSP_REG_L::write(21); // 5_40
-    //    // test! also lower pre coast
-    //    GBS::SP_PRE_COAST::write(3);
-    //    delay(50);
-    //  }
-    //}
+  if (rto->applyPresetDoneStage > 0 && (millis() - rto->applyPresetDoneTime < 3000)) {
+    if (rto->applyPresetDoneStage == 1 && (millis() - rto->applyPresetDoneTime > 250)) {
+      // 2 modes: 
+      // t5t55t7 on = auto clamp > start and stop pos should be the same
+      // t5t55t7 off = manual clamp > start and stop pos variable
+      updateClampPosition();
+      //SerialM.println("1");
+      if (rto->clampWasTurnedOff) { GBS::SP_NO_CLAMP_REG::write(0); rto->clampWasTurnedOff = 0; delay(1); }
 
-    if (rto->clampWasTurnedOff) { GBS::SP_NO_CLAMP_REG::write(0); rto->clampWasTurnedOff = 0; delay(1); }
-    rto->applyPresetDone = 0;
-
-    // todo: why is auto clamp failing unless this is done?
-    resetModeDetect();
-    delay(300);
+      // todo: why is auto clamp failing unless this is done?
+      resetModeDetect();
+      delay(300);
+      rto->applyPresetDoneStage = 2;
+    }
+    if (rto->applyPresetDoneStage == 2 && (millis() - rto->applyPresetDoneTime > 1000) &&
+      GBS::ADC_0X00_RESERVED_5::read() != 1) { // if this is not a custom preset
+      //SerialM.println("2");
+      if (rto->videoStandardInput == 1) { // only 480i for now (PAL seems to be fine without)
+        rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+        SerialM.print("vlines: "); SerialM.println(rto->sourceVLines);
+        if (rto->sourceVLines > 263 && rto->sourceVLines <= 274) {
+          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 18);
+          GBS::IF_VB_ST::write(0 /*GBS::IF_VB_ST::read() + 18*/); // better reset ST
+        }
+      }
+      rto->applyPresetDoneStage = 0; // turn off post-apply preset functions
+    }
+  }
+  else if (rto->applyPresetDoneStage > 0) {
+    rto->applyPresetDoneStage = 0; // timeout
   }
 
   if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true) {
