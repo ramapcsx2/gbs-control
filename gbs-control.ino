@@ -415,13 +415,13 @@ void setSpParameters() {
   writeOneByte(0x37, 0x04); // SP_H_PULSE_IGNOR
 
   GBS::SP_PRE_COAST::write(6);
-  GBS::SP_POST_COAST::write(15);
+  GBS::SP_POST_COAST::write(16);
 
   writeOneByte(0x3a, 0x03); // was 0x0a // range depends on source vtiming, from 0x03 to xxx, some good effect at lower levels
 
   GBS::SP_SDCS_VSST_REG_H::write(0);
   GBS::SP_SDCS_VSSP_REG_H::write(0);
-  GBS::SP_SDCS_VSST_REG_L::write(3); // 5_3f
+  GBS::SP_SDCS_VSST_REG_L::write(0); // 5_3f
   GBS::SP_SDCS_VSSP_REG_L::write(12); // 5_40
 
   GBS::SP_CS_HS_ST::write(0x00);
@@ -443,12 +443,12 @@ void setSpParameters() {
   //GBS::SP_HS_PROC_INV_REG::write(1); // appears that SOG processing inverts hsync, this corrects it // not needed when S5_57, 6 is on
   GBS::SP_SOG_MODE::write(1);
   GBS::SP_NO_CLAMP_REG::write(1); // yuv inputs need this
-  //GBS::SP_DIS_SUB_COAST::write(1);
+  GBS::SP_DIS_SUB_COAST::write(1); // disable initially, gets activated in updatecoastposition
   GBS::SP_H_CST_ST::write(30);
   GBS::SP_H_CST_SP::write(30);
-  GBS::SP_HCST_AUTO_EN::write(1);
+  GBS::SP_HCST_AUTO_EN::write(0); // auto coast isn't very reliable
   GBS::SP_PRE_COAST::write(6);
-  GBS::SP_POST_COAST::write(15);
+  GBS::SP_POST_COAST::write(16);
 
   // these regs seem to be shifted in the docs. doc 0x58 is actually 0x59 etc
   writeOneByte(0x58, 0x05); //rgbhv: 0
@@ -1427,10 +1427,7 @@ void applyBestHTotal(uint16_t bestHTotal) {
 
 void doPostPresetLoadSteps() {
   // to decide: prevent patching already customized presets again ?
-  if (rto->videoStandardInput > 0) {
-    GBS::SP_H_PROTECT::write(0);
-    GBS::SP_DIS_SUB_COAST::write(0);
-  }
+  GBS::SP_DIS_SUB_COAST::write(1); // disable initially, gets activated in updatecoastposition
   if (rto->videoStandardInput == 3) { // ED YUV 60
       // p-scan ntsc, need to double adc data rate and halve vds scaling
     GBS::PLLAD_KS::write(1); // 5_16
@@ -1741,10 +1738,13 @@ static uint8_t getVideoMode() {
   detectedMode = GBS::STATUS_00::read();
   // note: if stat0 == 0x07, it's supposedly stable. if we then can't find a mode, it must be an MD problem
   detectedMode &= 0x7f; // was 0x78 but 720p reports as 0x07
-  if ((detectedMode & 0x08) == 0x08) return 1; // ntsc interlace (progressive also, easier to deal with)
+  if ((detectedMode & 0x08) == 0x08) return 1; // ntsc interlace
   if ((detectedMode & 0x20) == 0x20) return 2; // pal interlace
   if ((detectedMode & 0x10) == 0x10) return 3; // edtv 60 progressive
   if ((detectedMode & 0x40) == 0x40) return 4; // edtv 50 progressive
+
+  detectedMode = GBS::STATUS_05::read();
+  if ((detectedMode & 0x01) == 0x01) return 1; // custom mode (ntsc-i also)
 
   detectedMode = GBS::STATUS_03::read();
   if ((detectedMode & 0x10) == 0x10) { return 5; } // hdtv 720p
@@ -1817,7 +1817,7 @@ void setPhaseADC() {
 void updateCoastPosition() {
   if (rto->videoStandardInput <= 2) { // including 0 (reset condition)
     GBS::SP_PRE_COAST::write(6);
-    GBS::SP_POST_COAST::write(15);
+    GBS::SP_POST_COAST::write(16);
   }
   else if (rto->videoStandardInput < 15) {
     GBS::SP_PRE_COAST::write(0x05);
@@ -1826,20 +1826,21 @@ void updateCoastPosition() {
   else {
     GBS::SP_PRE_COAST::write(0x00);
     GBS::SP_POST_COAST::write(0x00);
+    return;
   }
 
-  //int16_t inHlength = 0;
-  //uint8_t i = 0;
-  //if (rto->videoStandardInput == 15) return;
-  //for (; i < 8; i++) {
-  //    inHlength += ((GBS::HPERIOD_IF::read() + 1) & 0xfffe); // psx jitters between 427, 428
-  //}
-  //inHlength = inHlength >> 1; // /8 , *4
+  int16_t inHlength = 0;
+  for (uint8_t i = 0; i < 8; i++) {
+      inHlength += ((GBS::HPERIOD_IF::read() + 1) & 0xfffe); // psx jitters between 427, 428
+  }
+  inHlength = inHlength >> 1; // /8 , *4
 
-  //if (inHlength > 0) {
-  //    GBS::SP_H_CST_SP::write(inHlength >> 2); //snes minimum: inHlength -12 (only required in 239 mode)
-  //    GBS::SP_H_CST_ST::write(inHlength >> 2);
-  //}
+  if (inHlength > 0) {
+      GBS::SP_H_CST_SP::write(inHlength - 32); //snes minimum: inHlength -12 (only required in 239 mode)
+      GBS::SP_H_CST_ST::write(inHlength >> 4); // low but not near 0 (typical: 0x6a)
+      GBS::SP_H_PROTECT::write(0);
+      GBS::SP_DIS_SUB_COAST::write(0);
+  }
 }
 
 void updateClampPosition() {
@@ -1864,6 +1865,7 @@ void updateClampPosition() {
     // standard definition RGBS: clamp on sync tip
     GBS::SP_CLAMP_INV_REG::write(1); // invert clamp: positioning on sync tip more accurate
     uint16_t inHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+    //SerialM.print("clamp: "); SerialM.println(inHlength);
     if (inHlength < 100 || inHlength > 2800) { SerialM.println("!!B"); } // assert: must be valid
     GBS::SP_CS_CLP_ST::write(0);
     GBS::SP_CS_CLP_SP::write(inHlength - (inHlength >> 5));
@@ -1926,7 +1928,7 @@ void passThroughWithIfModeSwitch() {
     rto->phaseADC = 18; setPhaseADC();
     GBS::SP_SDCS_VSST_REG_H::write(0x00); // S5_3B
     GBS::SP_SDCS_VSSP_REG_H::write(0x00); // S5_3B
-    GBS::SP_SDCS_VSST_REG_L::write(3); // S5_3F
+    GBS::SP_SDCS_VSST_REG_L::write(0); // S5_3F
     GBS::SP_SDCS_VSSP_REG_L::write(12); // S5_40 (test with interlaced sources)
     // IF
     GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 bit 4 filter off looks better
@@ -1979,8 +1981,8 @@ void bypassModeSwitch_SOG() {
     //GBS::SP_CS_0x3E::write(0x20); // sub coast off, ovf protect off
     //GBS::PLL648_CONTROL_01::write(0x35); // display clock
     //GBS::PLLAD_MD::write(1802);
-    GBS::SP_SDCS_VSST_REG_L::write(0x00);
-    GBS::SP_SDCS_VSSP_REG_L::write(0x09);
+    GBS::SP_SDCS_VSST_REG_L::write(0);
+    GBS::SP_SDCS_VSSP_REG_L::write(12);
     //GBS::RESET_CONTROL_0x46::write(0); // none required
   }
   else {
@@ -2561,6 +2563,8 @@ void loop() {
           GBS::IF_LINE_SP::write(GBS::IF_LINE_SP::read() + 1); // 1_22
         }
         latchPLLAD();
+        updateClampPosition();
+        updateCoastPosition();
       }
     }
     break;
@@ -3034,7 +3038,8 @@ void loop() {
       if (rto->clampWasTurnedOff) { GBS::SP_NO_CLAMP_REG::write(0); rto->clampWasTurnedOff = 0; }
       if (rto->deinterlacerWasTurnedOff) {
         SerialM.print("ok ");
-        //updateCoastPosition();
+        updateClampPosition();
+        updateCoastPosition();
         if ((rto->currentSyncProcessorMode > 0) && (newVideoMode <= 2)) { // if HD mode loaded and source is SD
           SerialM.println("go SD (fixme)");
           GBS::PLLAD_FS::write(0); // low high
@@ -3073,7 +3078,7 @@ void loop() {
             toggle = 1;
             SerialM.print("SD? ");
             GBS::SP_PRE_COAST::write(6);
-            GBS::SP_POST_COAST::write(15);
+            GBS::SP_POST_COAST::write(16);
           }
           resetModeDetect();
           delay(30);
@@ -3128,8 +3133,7 @@ void loop() {
   // (this only runs if !FrameSync::ready(), ie manual retiming, preset load, etc)
   if (!FrameSync::ready() && noSyncCounter == 0 && rto->sourceDisconnected == false  && rto->syncWatcherEnabled == true
     && rto->autoBestHtotalEnabled == true && rto->videoStandardInput != 0 && rto->videoStandardInput != 15 
-    && !rto->deinterlacerWasTurnedOff) {
-    //lastVsyncLock check removed
+    && !rto->deinterlacerWasTurnedOff && millis() - lastVsyncLock > 500) {
 
     // make very sure sync is stable!
     if (getSyncStable() && getSyncStable() && getSyncStable()) {
@@ -3150,7 +3154,7 @@ void loop() {
     }
     else {
       SerialM.println("dl");
-      //lastVsyncLock = millis(); // else delay until stable // see above
+      delay(200);
     }
 
     if (GBS::PAD_SYNC_OUT_ENZ::read()) { // if 1 > sync still off
@@ -3486,11 +3490,11 @@ void handleType2Command() {
       SerialM.println(GBS::ADC_RGCTRL::read(), HEX);
       break;
     case 'A':
-      //GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 4);
+      GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 4);
       GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() + 4);
       break;
     case 'B':
-      //GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 4);
+      GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 4);
       GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 4);
       break;
     case 'C':
