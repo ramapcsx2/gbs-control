@@ -150,7 +150,7 @@ class SerialMirror : public Stream {
   size_t write(const uint8_t *data, size_t size) {
 #if defined(ESP8266)
     //if (rto->webSocketConnected) {
-      webSocket.sendTXT(0, data, size);
+      webSocket.broadcastTXT(data, size); // broadcast is best for cases where contact was lost
     //}
 #endif
     Serial.write(data, size);
@@ -161,7 +161,7 @@ class SerialMirror : public Stream {
   size_t write(uint8_t data) {
 #if defined(ESP8266)
     //if (rto->webSocketConnected) {
-      webSocket.sendTXT(0, &data);
+      webSocket.broadcastTXT(&data);
     //}
 #endif
     Serial.write(data);
@@ -377,10 +377,10 @@ void setResetParameters() {
   GBS::RESET_CONTROL_0x47::write(0x16); // decimation off
 }
 
-void setAdcParameters() {
-  GBS::ADC_ROFCTRL::write(0x41);
-  GBS::ADC_GOFCTRL::write(0x41);
-  GBS::ADC_BOFCTRL::write(0x41);
+void setAdcParametersGainAndOffset() {
+  GBS::ADC_ROFCTRL::write(0x3f); // 0x41 is most closely 0, but this never really looks good
+  GBS::ADC_GOFCTRL::write(0x3f);
+  GBS::ADC_BOFCTRL::write(0x3f);
   GBS::ADC_RGCTRL::write(0x7f);
   GBS::ADC_GGCTRL::write(0x7f);
   GBS::ADC_BGCTRL::write(0x7f);
@@ -1173,105 +1173,35 @@ void setDisplayVblankStopPosition(uint16_t value) {
 
 #if defined(ESP8266) // Arduino space saving
 void getVideoTimings() {
-  uint8_t  regLow;
-  uint8_t  regHigh;
-
-  uint16_t Vds_hsync_rst;
-  uint16_t Vds_vsync_rst;
-  uint16_t vds_dis_hb_st;
-  uint16_t vds_dis_hb_sp;
-  uint16_t VDS_HS_ST;
-  uint16_t VDS_HS_SP;
-  uint16_t VDS_DIS_VB_ST;
-  uint16_t VDS_DIS_VB_SP;
-  uint16_t VDS_DIS_VS_ST;
-  uint16_t VDS_DIS_VS_SP;
-
   // get HRST
-  writeOneByte(0xF0, 3);
-  readFromRegister(0x01, 1, &regLow);
-  readFromRegister(0x02, 1, &regHigh);
-  Vds_hsync_rst = (((((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  SerialM.print("htotal: "); SerialM.println(Vds_hsync_rst);
-
+  SerialM.print("htotal: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
   // get HS_ST
-  readFromRegister(0x0a, 1, &regLow);
-  readFromRegister(0x0b, 1, &regHigh);
-  VDS_HS_ST = (((((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  SerialM.print("HS ST: "); SerialM.println(VDS_HS_ST);
-
+  SerialM.print("HS ST: "); SerialM.println(GBS::VDS_HS_ST::read());
   // get HS_SP
-  readFromRegister(0x0b, 1, &regLow);
-  readFromRegister(0x0c, 1, &regHigh);
-  VDS_HS_SP = ((((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
-  SerialM.print("HS SP: "); SerialM.println(VDS_HS_SP);
-
+  SerialM.print("HS SP: "); SerialM.println(GBS::VDS_HS_SP::read());
   // get HBST
-  readFromRegister(0x10, 1, &regLow);
-  readFromRegister(0x11, 1, &regHigh);
-  vds_dis_hb_st = (((((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  SerialM.print("HB ST (display): "); SerialM.println(vds_dis_hb_st);
-
+  SerialM.print("HB ST (display): "); SerialM.println(GBS::VDS_DIS_HB_ST::read());
   // get HBSP
-  readFromRegister(0x11, 1, &regLow);
-  readFromRegister(0x12, 1, &regHigh);
-  vds_dis_hb_sp = ((((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
-  SerialM.print("HB SP (display): "); SerialM.println(vds_dis_hb_sp);
-
+  SerialM.print("HB SP (display): "); SerialM.println(GBS::VDS_DIS_HB_SP::read());
   // get HBST(memory)
-  readFromRegister(0x04, 1, &regLow);
-  readFromRegister(0x05, 1, &regHigh);
-  vds_dis_hb_st = (((((uint16_t)regHigh) & 0x000f) << 8) | (uint16_t)regLow);
-  SerialM.print("HB ST (memory): "); SerialM.println(vds_dis_hb_st);
-
+  SerialM.print("HB ST (memory): "); SerialM.println(GBS::VDS_HB_ST::read());
   // get HBSP(memory)
-  readFromRegister(0x05, 1, &regLow);
-  readFromRegister(0x06, 1, &regHigh);
-  vds_dis_hb_sp = ((((uint16_t)regHigh) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
-  SerialM.print("HB SP (memory): "); SerialM.println(vds_dis_hb_sp);
-
+  SerialM.print("HB SP (memory): "); SerialM.println(GBS::VDS_HB_SP::read());
   SerialM.println("----");
   // get VRST
-  readFromRegister(0x02, 1, &regLow);
-  readFromRegister(0x03, 1, &regHigh);
-  Vds_vsync_rst = ((((uint16_t)regHigh) & 0x007f) << 4) | ((((uint16_t)regLow) & 0x00f0) >> 4);
-  SerialM.print("vtotal: "); SerialM.println(Vds_vsync_rst);
-
+  SerialM.print("vtotal: "); SerialM.println(GBS::VDS_VSYNC_RST::read());
   // get V Sync Start
-  readFromRegister(0x0d, 1, &regLow);
-  readFromRegister(0x0e, 1, &regHigh);
-  VDS_DIS_VS_ST = (((uint16_t)regHigh & 0x0007) << 8) | ((uint16_t)regLow);
-  SerialM.print("VS ST: "); SerialM.println(VDS_DIS_VS_ST);
-
+  SerialM.print("VS ST: "); SerialM.println(GBS::VDS_VS_ST::read());
   // get V Sync Stop
-  readFromRegister(0x0e, 1, &regLow);
-  readFromRegister(0x0f, 1, &regHigh);
-  VDS_DIS_VS_SP = ((((uint16_t)regHigh & 0x007f) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
-  SerialM.print("VS SP: "); SerialM.println(VDS_DIS_VS_SP);
-
+  SerialM.print("VS SP: "); SerialM.println(GBS::VDS_VS_SP::read());
   // get VBST
-  readFromRegister(0x13, 1, &regLow);
-  readFromRegister(0x14, 1, &regHigh);
-  VDS_DIS_VB_ST = (((uint16_t)regHigh & 0x0007) << 8) | ((uint16_t)regLow);
-  SerialM.print("VB ST (display): "); SerialM.println(VDS_DIS_VB_ST);
-
+  SerialM.print("VB ST (display): "); SerialM.println(GBS::VDS_DIS_VB_ST::read());
   // get VBSP
-  readFromRegister(0x14, 1, &regLow);
-  readFromRegister(0x15, 1, &regHigh);
-  VDS_DIS_VB_SP = ((((uint16_t)regHigh & 0x007f) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
-  SerialM.print("VB SP (display): "); SerialM.println(VDS_DIS_VB_SP);
-
+  SerialM.print("VB SP (display): "); SerialM.println(GBS::VDS_DIS_VB_SP::read());
   // get VBST (memory)
-  readFromRegister(0x07, 1, &regLow);
-  readFromRegister(0x08, 1, &regHigh);
-  VDS_DIS_VB_ST = (((uint16_t)regHigh & 0x0007) << 8) | ((uint16_t)regLow);
-  SerialM.print("VB ST (memory): "); SerialM.println(VDS_DIS_VB_ST);
-
+  SerialM.print("VB ST (memory): "); SerialM.println(GBS::VDS_VB_ST::read());
   // get VBSP (memory)
-  readFromRegister(0x08, 1, &regLow);
-  readFromRegister(0x09, 1, &regHigh);
-  VDS_DIS_VB_SP = ((((uint16_t)regHigh & 0x007f) << 4) | ((uint16_t)regLow & 0x00f0) >> 4);
-  SerialM.print("VB SP (memory): "); SerialM.println(VDS_DIS_VB_SP);
+  SerialM.print("VB SP (memory): "); SerialM.println(GBS::VDS_VB_SP::read());
 }
 #endif
 
@@ -1427,7 +1357,10 @@ void applyBestHTotal(uint16_t bestHTotal) {
 
 void doPostPresetLoadSteps() {
   // to decide: prevent patching already customized presets again ?
+
   GBS::SP_DIS_SUB_COAST::write(1); // disable initially, gets activated in updatecoastposition
+  setAdcParametersGainAndOffset(); // 0x3f + 0x7f
+
   if (rto->videoStandardInput == 3) { // ED YUV 60
       // p-scan ntsc, need to double adc data rate and halve vds scaling
     GBS::PLLAD_KS::write(1); // 5_16
@@ -1866,7 +1799,7 @@ void updateClampPosition() {
     GBS::SP_CLAMP_INV_REG::write(1); // invert clamp: positioning on sync tip more accurate
     uint16_t inHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
     //SerialM.print("clamp: "); SerialM.println(inHlength);
-    if (inHlength < 100 || inHlength > 2800) { SerialM.println("!!B"); } // assert: must be valid
+    if (inHlength < 100 || inHlength > 4095) { SerialM.println("!!B"); } // assert: must be valid
     GBS::SP_CS_CLP_ST::write(0);
     GBS::SP_CS_CLP_SP::write(inHlength - (inHlength >> 5));
   }
@@ -1894,6 +1827,7 @@ void passThroughWithIfModeSwitch() {
       writeProgramArrayNew(ntsc_240p);
       doPostPresetLoadSteps();
     }
+    rto->autoBestHtotalEnabled = false; // disable while in this mode (need to set this after initial preset loading)
     GBS::PAD_SYNC_OUT_ENZ::write(1); // no sync out yet
     //GBS::PLL_MS::write(0x00); // memory clock 108mhz (many boards don't like fb clock) // not sure if required
     GBS::OUT_SYNC_SEL::write(2);
@@ -1950,8 +1884,9 @@ void passThroughWithIfModeSwitch() {
   }
   else { // switch back
     SerialM.println("off");
-    applyPresets(getVideoMode());
+    rto->autoBestHtotalEnabled = true; // enable again
     rto->outModePassThroughWithIf = 0;
+    applyPresets(getVideoMode());
   }
 }
 
@@ -2286,7 +2221,7 @@ void setup() {
   
   setResetParameters();
   loadPresetMdSection(); // fills 1_60 to 1_83 (mode detect segment, mostly static)
-  setAdcParameters();
+  setAdcParametersGainAndOffset();
   setSpParameters();
   setAndUpdateSogLevel(8);
   delay(300); // let everything settle first
@@ -3109,7 +3044,7 @@ void loop() {
         zeroAll();
         setResetParameters();
         loadPresetMdSection(); // fills 1_60 to 1_83 (mode detect segment, mostly static)
-        setAdcParameters();
+        setAdcParametersGainAndOffset();
         setSpParameters();
         setAndUpdateSogLevel(8);
         noSyncCounter = 0;
@@ -3293,9 +3228,9 @@ void handleType2Command() {
       readFromRegister(0x16, 1, &reg);
       if ((reg & 0x80) == 0x80) {
         writeOneByte(0x16, reg ^ (1 << 7));
-        GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() - 0x20);
-        GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() - 0x20);
-        GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() - 0x20);
+        GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() - 0x1c);
+        GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() - 0x1c);
+        GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() - 0x1c);
         writeOneByte(0xF0, 3);
         writeOneByte(0x35, 0xd0); // more luma gain
         writeOneByte(0xF0, 2);
@@ -3304,9 +3239,9 @@ void handleType2Command() {
       }
       else {
         writeOneByte(0x16, reg ^ (1 << 7));
-        GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 0x20);
-        GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 0x20);
-        GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 0x20);
+        GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 0x1c);
+        GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 0x1c);
+        GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 0x1c);
         writeOneByte(0xF0, 3);
         writeOneByte(0x35, 0x80);
         writeOneByte(0xF0, 2);
