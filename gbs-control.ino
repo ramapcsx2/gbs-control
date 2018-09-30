@@ -1803,14 +1803,21 @@ void updateClampPosition() {
     }
   }
   else if (!rto->inputIsYpBpR && rto->videoStandardInput != 15) {
-    //RGBS
-    // standard definition RGBS: clamp on sync tip
-    GBS::SP_CLAMP_INV_REG::write(1); // invert clamp: positioning on sync tip more accurate
+    //RGBS: clamp on sync tip
     uint16_t inHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
     //SerialM.print("clamp: "); SerialM.println(inHlength);
-    if (inHlength < 100 || inHlength > 4095) { SerialM.println("!!B"); } // assert: must be valid
-    GBS::SP_CS_CLP_ST::write(0);
-    GBS::SP_CS_CLP_SP::write(inHlength - (inHlength >> 5));
+    if (inHlength < 100 || inHlength > 4095) { 
+      SerialM.println("!!B"); // assert: must be valid
+      // fallback default clamp position
+      GBS::SP_CLAMP_INV_REG::write(0); // invert clamp: positioning on sync tip more accurate
+      GBS::SP_CS_CLP_ST::write(8);
+      GBS::SP_CS_CLP_SP::write(18);
+    }
+    else {
+      GBS::SP_CLAMP_INV_REG::write(1); // invert clamp: positioning on sync tip more accurate
+      GBS::SP_CS_CLP_ST::write(0);
+      GBS::SP_CS_CLP_SP::write(inHlength - (inHlength >> 5));
+    }
   }
   else if (rto->videoStandardInput == 15) {
     //RGBHV bypass
@@ -2521,7 +2528,7 @@ void loop() {
     }
     break;
     case 'A':
-      optimizeSogLevel();
+      //optimizeSogLevel();
       break;
     case 'M':
       zeroAll();
@@ -2994,24 +3001,17 @@ void loop() {
       if (rto->clampWasTurnedOff) { GBS::SP_NO_CLAMP_REG::write(0); rto->clampWasTurnedOff = 0; }
       if (rto->deinterlacerWasTurnedOff) {
         SerialM.print("ok ");
-        updateClampPosition();
+        delay(150); // stability, example: SOG level change fixed sync
+        //updateClampPosition(); // done later
         updateCoastPosition();
-        if ((rto->currentSyncProcessorMode > 0) && (newVideoMode <= 2)) { // if HD mode loaded and source is SD
-          SerialM.println("go SD (fixme)");
-          GBS::PLLAD_FS::write(0); // low high
-          delay(100);
-        }
-        else if ((rto->currentSyncProcessorMode == 0) && (newVideoMode > 2)) { // if HD mode loaded and source is SD
-          SerialM.println("go HD (fixme)");
-          GBS::PLLAD_FS::write(1); // gain high
-          delay(100);
-        }
         latchPLLAD();
         //togglePhaseAdjustUnits();
         setPhaseSP(); setPhaseADC();
         enableDeinterlacer();
+        rto->applyPresetDoneStage = 1; // treat this as if a preset was applied
+        rto->applyPresetDoneTime = millis();
         FrameSync::reset(); // corner case: source changed timings inbetween power cycles. won't affect display if timings are the same
-        delay(60);
+        lastVsyncLock = millis();
       }
     }
 
@@ -3019,8 +3019,11 @@ void loop() {
       if (noSyncCounter == 60) { // signal lost
         disableDeinterlacer();
       }
-      // todo: optimize optimizeSogLevel()
-      //if (noSyncCounter % 70 == 0) { optimizeSogLevel(); }
+      if (noSyncCounter % 60 == 0) {
+        //optimizeSogLevel();  // todo: optimize optimizeSogLevel()
+        setAndUpdateSogLevel(rto->currentLevelSOG / 2);
+        SerialM.print("SOG: "); SerialM.println(rto->currentLevelSOG);
+      }
       if (noSyncCounter % 20 == 0) {
         if (rto->videoStandardInput != 15) {
           static boolean toggle = 0;
@@ -3061,7 +3064,7 @@ void loop() {
 
       // couldn't recover, source is lost
       // restore initial conditions and move to input detect
-      if (noSyncCounter >= 220) {
+      if (noSyncCounter >= 250) {
         zeroAll();
         setResetParameters();
         loadPresetMdSection(); // fills 1_60 to 1_83 (mode detect segment, mostly static)
@@ -3127,7 +3130,6 @@ void loop() {
       // t5t55t7 on = auto clamp > start and stop pos should be the same
       // t5t55t7 off = manual clamp > start and stop pos variable
       updateClampPosition();
-      //SerialM.println("1");
       if (rto->clampWasTurnedOff) { GBS::SP_NO_CLAMP_REG::write(0); rto->clampWasTurnedOff = 0; delay(1); }
 
       // todo: why is auto clamp failing unless this is done?
@@ -3141,9 +3143,12 @@ void loop() {
       if (rto->videoStandardInput == 1) { // only 480i for now (PAL seems to be fine without)
         rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
         SerialM.print("vlines: "); SerialM.println(rto->sourceVLines);
-        if (rto->sourceVLines > 263 && rto->sourceVLines <= 274) {
+        if (rto->sourceVLines > 263 && rto->sourceVLines <= 274 && 
+          GBS::IF_AUTO_OFST_RESERVED_2::read() != 1) 
+        {
           GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 16);
           GBS::IF_VB_ST::write(0 /*GBS::IF_VB_ST::read() + 18*/); // better reset ST
+          GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as already adjusted
         }
       }
       rto->applyPresetDoneStage = 0; // turn off post-apply preset functions
