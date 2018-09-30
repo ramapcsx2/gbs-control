@@ -24,6 +24,11 @@ typedef TV5725<GBS_ADDR> GBS;
 #include "PersWiFiManager.h"
 #include <ESP8266mDNS.h>  // mDNS library for finding gbscontrol.local on the local network
 
+//#define HAVE_PINGER_LIBRARY // ESP8266-ping library to aid debugging WiFi issues, install via Arduino library manager
+#ifdef HAVE_PINGER_LIBRARY
+#include <Pinger.h>
+#include <PingerResponse.h>
+#endif
 // WebSockets library by Markus Sattler
 // to install: "Sketch" > "Include Library" > "Manage Libraries ..." > search for "websockets" and install "WebSockets for Arduino (Server + Client)"
 #include <WebSocketsServer.h>
@@ -34,6 +39,9 @@ ESP8266WebServer server(80);
 DNSServer dnsServer;
 WebSocketsServer webSocket(81);
 PersWiFiManager persWM(server, dnsServer);
+#ifdef HAVE_PINGER_LIBRARY
+Pinger pinger; // pinger global object to aid debugging WiFi issues
+#endif
 
 #define DEBUG_IN_PIN D6 // marked "D12/MISO/D6" (Wemos D1) or D6 (Lolin NodeMCU)
 // SCL = D1 (Lolin), D15 (Wemos D1) // ESP8266 Arduino default map: SCL
@@ -124,6 +132,7 @@ struct runTimeOptions {
   boolean webServerEnabled;
   boolean webServerStarted;
   boolean allowUpdatesOTA;
+  boolean enableDebugPings;
   boolean webSocketConnected;
   boolean autoBestHtotalEnabled;
   boolean deinterlacerWasTurnedOff;
@@ -2110,6 +2119,7 @@ void setup() {
   uopt->enableAutoGain = 0; // todo: web ui option
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
+  rto->enableDebugPings = false;
   rto->webSocketConnected = false;
   rto->autoBestHtotalEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->syncLockFailIgnore = 2; // allow syncLock to fail x-1 times in a row before giving up (sync glitch immunity)
@@ -2541,6 +2551,17 @@ void loop() {
       SerialM.println("OTA Updates on");
       initUpdateOTA();
       rto->allowUpdatesOTA = true;
+      break;
+    case 'G':
+      SerialM.print("Debug Pings ");
+      if (!rto->enableDebugPings) {
+        SerialM.println("on");
+        rto->enableDebugPings = 1;
+      }
+      else {
+        SerialM.println("off");
+        rto->enableDebugPings = 0;
+      }
       break;
 #endif
     case 'u':
@@ -3159,6 +3180,18 @@ void loop() {
     GBS::TEST_BUS_SEL::write(debugRegBackup);
     GBS::PAD_BOUT_EN::write(debugPinBackup); // debug output pin back on
   }
+
+#ifdef HAVE_PINGER_LIBRARY
+  // periodic pings for debugging WiFi issues
+  static unsigned long pingLastTime = millis();
+  if (rto->enableDebugPings && millis() - pingLastTime > 800) {
+    if (pinger.Ping(WiFi.gatewayIP(), 1, 799) == false)
+    {
+      Serial.println("Error during last ping command.");
+    }
+    pingLastTime = millis();
+  }
+#endif
 #endif
 }
 
@@ -3493,6 +3526,34 @@ void start_webserver()
   server.begin(); // Webserver for the site
   webSocket.begin();  // Websocket for interaction
   webSocket.onEvent(webSocketEvent);
+#ifdef HAVE_PINGER_LIBRARY
+  // pinger library
+  pinger.OnReceive([](const PingerResponse& response)
+  {
+    if (response.ReceivedResponse)
+    {
+      SerialM.printf(
+        "Reply from %s: time=%lums TTL=%d\n",
+        response.DestIPAddress.toString().c_str(),
+        response.ResponseTime,
+        response.TimeToLive);
+    }
+    else
+    {
+      SerialM.printf("Request timed out.\n");
+    }
+
+    // Return true to continue the ping sequence.
+    // If current event returns false, the ping sequence is interrupted.
+    return true;
+  });
+
+  pinger.OnEnd([](const PingerResponse& response)
+  {
+    // detailed info not necessary
+    return true;
+  });
+#endif
 }
 
 void initUpdateOTA() {
