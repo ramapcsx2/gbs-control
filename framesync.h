@@ -103,7 +103,7 @@ class FrameSyncManager {
 	  // the div2 rounds down, fix it
 	  if (bitRead(inTemp, 0)) inPeriod++;
 
-	  delay(2); // improves output stability
+	  //delay(2); // improves output stability
       if (!vsyncOutputSample(&outStart, &outStop)) {
         GBS::TEST_BUS_SEL::write(debugRegBackup);
         return false;
