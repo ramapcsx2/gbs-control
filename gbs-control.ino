@@ -2173,7 +2173,8 @@ void bypassModeSwitch_RGBHV() {
   GBS::SP_SOG_SRC_SEL::write(1); // 5_20 0 | 0: from ADC 1: hs is sog source // enables line length counting
   GBS::ADC_SOGEN::write(0); // 5_02 bit 0
   GBS::SP_CLAMP_MANUAL::write(1); // needs to be 1
-  GBS::SP_SYNC_BYPS::write(1); // use external (H+V) sync directly
+  GBS::SP_SYNC_BYPS::write(1); // use external (H+V) sync for decimator (and sync out?) 1 to mirror in sync
+  GBS::SP_HS_LOOP_SEL::write(0); // 5_57_6 | 0 enables retiming (required to fix short out sync pulses)
   GBS::SP_SOG_MODE::write(0); // 5_56 bit 0
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
   GBS::SP_H_PROTECT::write(0); // 5_3e 4
@@ -2189,7 +2190,7 @@ void bypassModeSwitch_RGBHV() {
   GBS::DEC2_BYPS::write(1);
   GBS::ADC_FLTR::write(0);
 
-  GBS::PLLAD_ICP::write(4);
+  GBS::PLLAD_ICP::write(3);
   GBS::PLLAD_FS::write(1); // high gain
   GBS::PLLAD_MD::write(1856); // 1349 perfect for for 1280x+ ; 1856 allows lower res to detect
   delay(100);
@@ -3139,8 +3140,10 @@ void loop() {
     uint8_t newVideoMode = getVideoMode();
     if (!getSyncStable() || newVideoMode == 0) {
       noSyncCounter++;
-      LEDOFF;
-      if (noSyncCounter == 1 && rto->printInfos == false) { SerialM.print("."); }
+      if (rto->videoStandardInput != 15) { 
+        LEDOFF; // always on sync loss, except if RGBHV
+        if (noSyncCounter == 1 && rto->printInfos == false) { SerialM.print("."); }
+      }
       //if (noSyncCounter == 6) { GBS::SP_NO_CLAMP_REG::write(1); rto->clampWasTurnedOff = 1; }
       if (noSyncCounter == 20) { SerialM.println("!"); }
       lastVsyncLock = millis(); // delay sync locking
@@ -3232,56 +3235,68 @@ void loop() {
       }
     }
 
+    if (rto->videoStandardInput == 15 && noSyncCounter > 0) { // RGBHV
+      // RGBHV sync optimization is 100% relying on the PLLAD lock
+      // this should be more sophisticated
+      uint8_t lockCounter = 0;
+      for (uint8_t i = 0; i < 30; i++) {
+        lockCounter += GBS::STATUS_MISC_PLLAD_LOCK::read();
+      }
+      if (lockCounter < 27) {
+        LEDOFF;
+        if (GBS::STATUS_SYNC_PROC_VTOTAL::read() > 608) { // crude
+          GBS::PLLAD_FS::write(1); // high gain
+          GBS::PLLAD_ICP::write((GBS::PLLAD_ICP::read() + 1) & 0x07);
+          GBS::PLLAD_MD::write(1349);
+        }
+        else {
+          GBS::PLLAD_FS::write(0);
+          GBS::PLLAD_ICP::write((GBS::PLLAD_ICP::read() + 1) & 0x07);
+          GBS::PLLAD_MD::write(1856);
+        }
+        latchPLLAD();
+        delay(20);
+        //togglePhaseAdjustUnits();
+        setPhaseSP(); setPhaseADC();
+        //SerialM.print("> "); SerialM.print(GBS::PLLAD_MD::read());
+        //SerialM.print(": "); SerialM.println(GBS::PLLAD_ICP::read());
+        delay(60);
+      }
+      noSyncCounter += 2; // speed this up when source is off
+    }
+
     if (noSyncCounter >= 20) { // clamp is already off, attempt something
       if (noSyncCounter == 60) { // signal lost
         disableDeinterlacer();
       }
-      if (getSyncPresent() || rto->videoStandardInput == 15) { // only if there's at least a signal
-        if (noSyncCounter % 60 == 0) {
+
+      if (getSyncPresent() && rto->videoStandardInput != 15) { // only if there's at least a signal
+        if ((noSyncCounter % 60) == 0) {
           //optimizeSogLevel();  // todo: optimize optimizeSogLevel()
           setAndUpdateSogLevel(rto->currentLevelSOG / 2);
           SerialM.print("SOG: "); SerialM.println(rto->currentLevelSOG);
         }
         if (noSyncCounter % 20 == 0) {
-          if (rto->videoStandardInput != 15) {
-            static boolean toggle = 0;
-            if (toggle) {
-              toggle = 0;
-              SerialM.print("HD? ");
-              GBS::SP_PRE_COAST::write(0x06);
-              GBS::SP_POST_COAST::write(0x07);
-            }
-            else {
-              toggle = 1;
-              SerialM.print("SD? ");
-              GBS::SP_PRE_COAST::write(6);
-              GBS::SP_POST_COAST::write(16);
-            }
-            GBS::SP_H_PROTECT::write(1); // can unstuck MD but needs to be off generally
-            GBS::SP_NO_CLAMP_REG::write(1); // helps if source is yuv
-            resetModeDetect();
-            delay(30);
+          static boolean toggle = 0;
+          if (toggle) {
+            toggle = 0;
+            SerialM.print("HD? ");
+            GBS::SP_PRE_COAST::write(0x06);
+            GBS::SP_POST_COAST::write(0x07);
           }
-          else { // is in RGBHV
-            if (GBS::STATUS_SYNC_PROC_VTOTAL::read() > 608) { // crude
-              GBS::PLLAD_FS::write(1); // high gain
-              GBS::PLLAD_ICP::write(6);
-              GBS::PLLAD_MD::write(1349);
-              delay(10);
-            }
-            else {
-              GBS::PLLAD_FS::write(0);
-              GBS::PLLAD_ICP::write(6);
-              GBS::PLLAD_MD::write(1856);
-              delay(10);
-            }
-            latchPLLAD();
-            //togglePhaseAdjustUnits();
-            setPhaseSP(); setPhaseADC();
-            SerialM.print("> "); SerialM.println(GBS::PLLAD_MD::read());
+          else {
+            toggle = 1;
+            SerialM.print("SD? ");
+            GBS::SP_PRE_COAST::write(6);
+            GBS::SP_POST_COAST::write(16);
           }
+          GBS::SP_H_PROTECT::write(1); // can unstuck MD but needs to be off generally
+          GBS::SP_NO_CLAMP_REG::write(1); // helps if source is yuv
+          resetModeDetect();
+          delay(30);
         }
       }
+
       // couldn't recover, source is lost
       // restore initial conditions and move to input detect
       if (noSyncCounter >= 250) {
