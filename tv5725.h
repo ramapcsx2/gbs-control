@@ -146,9 +146,13 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
 
     // Miscellaneous Registers
     typedef UReg<0x00, 0x40, 0,  1> PLL_CKIS;
+    typedef UReg<0x00, 0x40, 1,  1> PLL_DIVBY2Z;
+    typedef UReg<0x00, 0x40, 2,  1> PLL_IS;
     typedef UReg<0x00, 0x40, 3,  1> PLL_ADS;
     typedef UReg<0x00, 0x40, 4,  3> PLL_MS;
     typedef UReg<0x00, 0x41, 0,  8> PLL648_CONTROL_01;
+    typedef UReg<0x00, 0x43, 0,  2> PLL_R;
+    typedef UReg<0x00, 0x43, 2,  2> PLL_S;
     typedef UReg<0x00, 0x43, 4,  1> PLL_LEN;
     typedef UReg<0x00, 0x43, 5,  1> PLL_VCORST;
     typedef UReg<0x00, 0x44, 0,  1> DAC_RGBS_PWDNZ;
@@ -182,11 +186,13 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x00, 6,  1> IF_PRGRSV_CNTRL;
     typedef UReg<0x01, 0x00, 7,  1> IF_HS_FLIP;
     typedef UReg<0x01, 0x01, 7,  1> IF_SEL24BIT;
+    typedef UReg<0x01, 0x02, 0,  1> IF_SEL_WEN;
     typedef UReg<0x01, 0x02, 3,  1> IF_HS_PSHIFT_BYPS;
     typedef UReg<0x01, 0x02, 4,  1> IF_HS_TAP11_BYPS;
     typedef UReg<0x01, 0x02, 5,  2> IF_HS_Y_PDELAY;
     typedef UReg<0x01, 0x0b, 4,  2> IF_HS_DEC_FACTOR;
     typedef UReg<0x01, 0x0b, 6,  1> IF_SEL_HSCALE;
+    typedef UReg<0x01, 0x0b, 7,  1> IF_LD_SEL_PROV;
     typedef UReg<0x01, 0x0c, 0,  1> IF_LD_RAM_BYPS;
     typedef UReg<0x01, 0x0c, 1,  4> IF_LD_ST;
     typedef UReg<0x01, 0x0c, 5, 11> IF_INI_ST;
@@ -426,6 +432,8 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x2b, 3,  1> PB_BYPASS;
     typedef UReg<0x04, 0x2c, 0,  8> PB_MAST_FLAG_REG;
     typedef UReg<0x04, 0x2d, 0,  8> PB_GENERAL_FLAG_REG;
+    typedef UReg<0x04, 0x37, 0,  10> PB_CAP_OFFSET;
+    typedef UReg<0x04, 0x39, 0,  10> PB_FETCH_NUM;
 
     // OSD Registers
     typedef UReg<0x00, 0x90, 0,  1> OSD_SW_RESET;
@@ -507,6 +515,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x1F, 3,  1> DEC_TEST_ENABLE; // fake name
     typedef UReg<0x05, 0x1F, 4,  3> DEC_TEST_SEL;
     typedef UReg<0x05, 0x1F, 7,  1> DEC_IDREG_EN;
+    typedef UReg<0x05, 0x20, 0,  1> SP_SOG_SRC_SEL;
     typedef UReg<0x05, 0x20, 1,  1> SP_SOG_P_ATO;
     typedef UReg<0x05, 0x20, 3,  1> SP_EXT_SYNC_SEL;
     typedef UReg<0x05, 0x20, 4,  1> SP_JITTER_SYNC;
@@ -535,6 +544,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x56, 0,  1> SP_SOG_MODE;
     typedef UReg<0x05, 0x56, 2,  1> SP_CLAMP_MANUAL;
     typedef UReg<0x05, 0x56, 3,  1> SP_CLP_SRC_SEL;
+    typedef UReg<0x05, 0x56, 4,  1> SP_SYNC_BYPS;
     typedef UReg<0x05, 0x56, 5,  1> SP_HS_PROC_INV_REG;
     typedef UReg<0x05, 0x56, 6,  1> SP_VS_PROC_INV_REG;
     typedef UReg<0x05, 0x56, 7,  1> SP_CLAMP_INV_REG;
