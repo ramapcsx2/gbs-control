@@ -1195,11 +1195,10 @@ void shiftVerticalUpIF() {
   int16_t stop = GBS::IF_VB_SP::read();
   int16_t start = GBS::IF_VB_ST::read();
 
-  if (stop + 1 <= (int16_t)sourceLines) stop += 1;
-  else stop = 0 + 1;
-
-  if (start + 2 <= (int16_t)sourceLines) start += 1;
-  else start = 0 + 1;
+  if (stop < sourceLines && start < sourceLines) { stop += 1; start += 1; }
+  else {
+    start = 0; stop = 1;
+  }
 
   GBS::IF_VB_SP::write(stop);
   GBS::IF_VB_ST::write(start);
@@ -1210,11 +1209,10 @@ void shiftVerticalDownIF() {
   int16_t stop = GBS::IF_VB_SP::read();
   int16_t start = GBS::IF_VB_ST::read();
 
-  if (stop - 1 >= 0) stop -= 1;
-  else stop = sourceLines - 1;
-  // todo: if above happens, need to shift both below total lines!
-  if (start - 1 >= 0) start -= 1;
-  else start = sourceLines - 1;
+  if (stop > 0 && start > 0) { stop -= 1; start -= 1; }
+  else {
+    start = sourceLines - 1; stop = sourceLines;
+  }
 
   GBS::IF_VB_SP::write(stop);
   GBS::IF_VB_ST::write(start);
@@ -1476,13 +1474,14 @@ void doPostPresetLoadSteps() {
     // new: set a stop position (right border)
     GBS::IF_HBIN_ST::write(1104); // 1_24 // no effect seen but may be necessary
     // vertical shift
-    GBS::IF_VB_ST::write(0x00);
-    GBS::IF_VB_SP::write(0x04);
+    GBS::IF_VB_ST::write(514);
+    GBS::IF_VB_SP::write(515);
     // horizontal shift
-    GBS::IF_HB_SP2::write(0x80);
+    GBS::IF_HB_SP2::write(0x84);
     GBS::IF_HB_ST2::write(0x20); // 1_18 necessary
     // display lower blanking
-    //setDisplayVblankStartPosition(980);
+    setDisplayVblankStopPosition(40);
+    setDisplayVblankStartPosition(982);
     setMemoryVblankStartPosition(2);
     setMemoryVblankStopPosition(4);
   }
@@ -1501,15 +1500,16 @@ void doPostPresetLoadSteps() {
     GBS::IF_LD_SEL_PROV::write(1); // 1_0b 7
     GBS::IF_LD_RAM_BYPS::write(1); // no LD 1_0c 0
     // vertical shift
-    GBS::IF_VB_ST::write(0x00);
-    GBS::IF_VB_SP::write(0x04);
+    GBS::IF_VB_ST::write(605);
+    GBS::IF_VB_SP::write(606);
     // horizontal shift
-    GBS::IF_HB_SP2::write(0x68);
+    GBS::IF_HB_SP2::write(0x78);
+    GBS::IF_HB_ST2::write(0x20); // check!
     // display blanking
-    setDisplayVblankStopPosition(24);
-    setDisplayVblankStartPosition(952);
-    setMemoryVblankStartPosition(2);
-    setMemoryVblankStopPosition(4);
+    setDisplayVblankStopPosition(42);
+    setDisplayVblankStartPosition(934);
+    setMemoryVblankStartPosition(10);
+    setMemoryVblankStopPosition(12);
   }
   else if (rto->videoStandardInput == 5) { // 720p
     GBS::SP_HD_MODE::write(1); // tri level sync
@@ -1563,8 +1563,13 @@ void doPostPresetLoadSteps() {
   
   // IF initial position is 1_0e/0f IF_HSYNC_RST exactly. But IF_INI_ST needs to be a few pixels before that.
   // IF_INI_ST - 1 causes an interresting effect when the source switches to interlace.
-  // IF_INI_ST - 2 is the first safe setting
-  GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 4); 
+  // IF_INI_ST - 2 is the first safe setting // exception: edtv+ presets: need to be more exact
+  if (rto->videoStandardInput <= 2) {
+    GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 4);
+  }
+  else {
+    GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 1); // -0 also seems to work
+  }
   // ADC
   //GBS::ADC_TR_RSEL::write(2); // ADC_TR_RSEL = 2 test
   //GBS::ADC_TR_ISEL::write(0); // leave current at default
@@ -1971,8 +1976,8 @@ void updateClampPosition() {
       GBS::SP_CS_CLP_SP::write(0x40);
     }
     else if (rto->videoStandardInput <= 4) {
-      GBS::SP_CS_CLP_ST::write(0x08); // very small window
-      GBS::SP_CS_CLP_SP::write(0x1b); // check with ps2 vidmode tester in 480p
+      GBS::SP_CS_CLP_ST::write(0x18); // very small window
+      GBS::SP_CS_CLP_SP::write(0x22); // check with ps2 vidmode tester in 480p
     }
     else {
       GBS::SP_CS_CLP_ST::write(0x18);
@@ -3327,7 +3332,7 @@ void loop() {
   // (this only runs if !FrameSync::ready(), ie manual retiming, preset load, etc)
   if (!FrameSync::ready() && noSyncCounter == 0 && rto->sourceDisconnected == false  && rto->syncWatcherEnabled == true
     && rto->autoBestHtotalEnabled == true && rto->videoStandardInput != 0 && rto->videoStandardInput != 15 
-    && !rto->deinterlacerWasTurnedOff /*&& rto->applyPresetDoneStage == 0*/ && 
+    /*&& !rto->deinterlacerWasTurnedOff && rto->applyPresetDoneStage == 0*/ && 
     millis() - lastVsyncLock > 500) 
   {
     // make very sure sync is stable!
