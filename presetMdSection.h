@@ -1,6 +1,6 @@
 const uint8_t presetMdSection[] PROGMEM = {
-194, // s1_60
-194, // s1_61
+66, // s1_60
+66, // s1_61
 96, // s1_62
 38, // s1_63
 65, // s1_64

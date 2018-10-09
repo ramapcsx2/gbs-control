@@ -123,6 +123,9 @@ struct runTimeOptions {
   uint8_t currentLevelSOG;
   uint8_t syncLockFailIgnore;
   uint8_t applyPresetDoneStage;
+  uint8_t continousStableCounter;
+  boolean clampPositionIsSet;
+  boolean coastPositionIsSet;
   boolean inputIsYpBpR;
   boolean syncWatcherEnabled;
   boolean outModePassThroughWithIf;
@@ -262,12 +265,13 @@ void writeProgramArrayNew(const uint8_t* programArray)
   uint8_t bank[16];
   uint8_t y = 0;
 
+  // should only be possible if previously was in RGBHV bypass, then hit a manual preset switch
+  if (rto->videoStandardInput == 15) {
+    rto->videoStandardInput = 0;
+  }
   // programs all valid registers (the register map has holes in it, so it's not straight forward)
   // 'index' keeps track of the current preset data location.
-
-  writeOneByte(0xF0, 0);
-  writeOneByte(0x46, 0x00); // reset controls 1
-  writeOneByte(0x47, 0x00); // reset controls 2
+  disableDeinterlacer();
 
   for (; y < 6; y++)
   {
@@ -354,6 +358,9 @@ void setResetParameters() {
   rto->applyPresetDoneStage = 0;
   rto->sourceVLines = 0;
   rto->outModePassThroughWithIf = 0; // forget passthrough mode (could be option)
+  rto->clampPositionIsSet = 0;
+  rto->coastPositionIsSet = 0;
+  rto->continousStableCounter = 0;
   GBS::RESET_CONTROL_0x46::write(0x00); // all units off
   GBS::RESET_CONTROL_0x47::write(0x00);
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC (output)
@@ -371,6 +378,7 @@ void setResetParameters() {
   //GBS::ADC_TR_RSEL::write(2); // 5_04 // ADC_TR_RSEL = 2 test
   //GBS::ADC_TR_ISEL::write(0); // leave current at default
   //GBS::ADC_TEST::write(2); // 5_0c // should work now
+  GBS::SP_NO_CLAMP_REG::write(1);
   GBS::ADC_SOGEN::write(1);
   GBS::ADC_POWDZ::write(1); // ADC on
   GBS::PLLAD_ICP::write(1);
@@ -386,6 +394,7 @@ void setResetParameters() {
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
   GBS::RESET_CONTROL_0x47::write(0x16); // decimation off
+  GBS::PAD_SYNC_OUT_ENZ::write(0); // sync output enabled, will be low (HC125 fix)
 }
 
 void applyYuvPatches() {
@@ -456,13 +465,13 @@ void setSpParameters() {
   writeOneByte(0x33, 0x2e); // SP_H_TIMER_VAL    ! H timer value for h detect (was 0x28) // coupled with 5_2a and 5_21 // test bus 5_63 to 0x25 and scope dbg pin
   writeOneByte(0x34, 0x05); // SP_V_TIMER_VAL     V timer for V detect // affects 0_16 vsactive
   // Sync separation control
-  writeOneByte(0x35, 0x15); // SP_DLT_REG [7:0]   Sync pulse width difference threshold  (tweak point)
+  writeOneByte(0x35, 0x25); // SP_DLT_REG [7:0]   start at higher value, update later // SP test: a0
   writeOneByte(0x36, 0x00); // SP_DLT_REG [11:8]
 
-  writeOneByte(0x37, 0x04); // SP_H_PULSE_IGNOR
+  writeOneByte(0x37, 0x06); // SP_H_PULSE_IGNOR // SP test (snes needs 2+)
 
-  GBS::SP_PRE_COAST::write(6);
-  GBS::SP_POST_COAST::write(16);
+  GBS::SP_PRE_COAST::write(6); // SP test: 9
+  GBS::SP_POST_COAST::write(16); // SP test: 9
 
   writeOneByte(0x3a, 0x03); // was 0x0a // range depends on source vtiming, from 0x03 to xxx, some good effect at lower levels
 
@@ -484,26 +493,25 @@ void setSpParameters() {
   writeOneByte(0x53, 0x06); // 0x05 rgbhv: 6
   writeOneByte(0x54, 0x00); // 0xc0
 
-  writeOneByte(0x3e, 0x00); // SP sub coast on / with ofw protect disabled; snes 239 to normal rapid switches
-  GBS::SP_CLAMP_MANUAL::write(0); // 0 = automatic on/off possible
-  GBS::SP_CLP_SRC_SEL::write(1); // clamp source 1: pixel clock, 0: 27mhz
-  //GBS::SP_HS_PROC_INV_REG::write(1); // appears that SOG processing inverts hsync, this corrects it // not needed when S5_57, 6 is on
-  GBS::SP_SOG_MODE::write(1);
-  GBS::SP_NO_CLAMP_REG::write(0); // yuv inputs need this
-  GBS::SP_DIS_SUB_COAST::write(1); // disable initially, gets activated in updatecoastposition
-  GBS::SP_H_CST_ST::write(30);
-  GBS::SP_H_CST_SP::write(30);
-  GBS::SP_HCST_AUTO_EN::write(0); // auto coast isn't very reliable
-  GBS::SP_PRE_COAST::write(6);
-  GBS::SP_POST_COAST::write(16);
+  if (rto->videoStandardInput != 15) {
+    writeOneByte(0x3e, 0x00); // SP sub coast on / with ofw protect disabled; snes 239 to normal rapid switches
+    GBS::SP_CLAMP_MANUAL::write(0); // 0 = automatic on/off possible
+    GBS::SP_CLP_SRC_SEL::write(1); // clamp source 1: pixel clock, 0: 27mhz
+    GBS::SP_SOG_MODE::write(1);
+    //GBS::SP_NO_CLAMP_REG::write(0); // yuv inputs need this
+    GBS::SP_H_CST_SP::write(0x38); //snes minimum: inHlength -12 (only required in 239 mode)
+    GBS::SP_H_CST_ST::write(0x38); // low but not near 0 (typical: 0x6a)
+    GBS::SP_DIS_SUB_COAST::write(0); // for auto coast initially, later updated to manual
+    GBS::SP_HCST_AUTO_EN::write(1);
+    //GBS::SP_HS2PLL_INV_REG::write(0); // rgbhv is improved with = 1, but ADC sync might demand 0
+  }
 
-  // these regs seem to be shifted in the docs. doc 0x58 is actually 0x59 etc
   writeOneByte(0x58, 0x05); //rgbhv: 0
-  writeOneByte(0x59, 0x10); //rgbhv: 0
-  writeOneByte(0x5a, 0x00); //rgbhv: 0 // was 0x05 but 480p ps2 doesnt like it
-  writeOneByte(0x5b, 0x02); //rgbhv: 0
-  writeOneByte(0x5c, 0x00); //rgbhv: 0
-  writeOneByte(0x5d, 0x02); //rgbhv: 0
+  writeOneByte(0x59, 0x00); //rgbhv: 0
+  writeOneByte(0x5a, 0x01); //rgbhv: 0 // was 0x05 but 480p ps2 doesnt like it
+  writeOneByte(0x5b, 0x00); //rgbhv: 0
+  writeOneByte(0x5c, 0x03); //rgbhv: 0
+  writeOneByte(0x5d, 0x02); //rgbhv: 0 // range: 0 - 0x20 (how long should clamp stay off)
 }
 
 // Sync detect resolution: 5bits; comparator voltage range 10mv~320mv.
@@ -532,6 +540,8 @@ void goLowPowerWithInputDetection() {
   setAndUpdateSogLevel(rto->currentLevelSOG);
   setResetParameters();
   delay(300);
+  GBS::PAD_SYNC_OUT_ENZ::write(1);
+  GBS::PAD_SYNC_OUT_ENZ::write(0); // HC125 floating inputs fix
   LEDOFF;
 }
 
@@ -648,9 +658,10 @@ uint8_t detectAndSwitchToActiveInput() { // if any
       GBS::SP_SOG_MODE::write(0);
       GBS::ADC_SOGEN::write(0);
       writeOneByte(0xF0, 0);
+      //SerialM.println("RGBHV check");
       unsigned long timeOutStart = millis();
       uint8_t vsyncActive = 0;
-      while (!vsyncActive && millis() - timeOutStart < 500) {
+      while (!vsyncActive && millis() - timeOutStart < 400) {
         readFromRegister(0x16, 1, &readout);
         vsyncActive = readout & 0x08;
         delay(1); // wifi stack
@@ -664,8 +675,8 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         GBS::ADC_SOGEN::write(0);
         GBS::SP_SOG_MODE::write(0);
         rto->videoStandardInput = 15;
-        disableVDS();
         applyPresets(rto->videoStandardInput); // exception for this mode: apply it right here, not later in syncwatcher
+        rto->videoStandardInput = 15; // yes, twice
         LEDON;
         return 3;
       }
@@ -1456,6 +1467,11 @@ void doPostPresetLoadSteps() {
   setAdcParametersGainAndOffset(); // 0x3f + 0x7f
   GBS::ADC_TEST::write(0); // in case it was set
 
+  rto->clampPositionIsSet = false;
+  rto->coastPositionIsSet = false;
+  rto->continousStableCounter = 0;
+  GBS::SP_NO_CLAMP_REG::write(1); // (keep) clamp disabled, to be enabled when position determined
+
   if (rto->videoStandardInput == 3) { // ED YUV 60
     // p-scan ntsc, need to either double adc data rate and halve vds scaling
     // or disable line doubler (better)
@@ -1520,16 +1536,6 @@ void doPostPresetLoadSteps() {
     GBS::IF_PRGRSV_CNTRL::write(1); // progressive
     //GBS::IF_SEL_WEN::write(1); // and HD (not interlaced)
     GBS::IF_HS_DEC_FACTOR::write(0);
-    // next: disable line doubling etc, IF stuff
-    //GBS::IF_VB_ST::write(0);
-    //GBS::IF_VB_SP::write(0x10); // v. position
-
-    //GBS::IF_HB_SP2::write(0xf8);
-    //GBS::PLLAD_FS::write(1); // high gain
-    //GBS::PLLAD_ICP::write(7); // maximum charge pump current
-    //GBS::VDS_VSCALE::write(804);
-    //GBS::SP_CS_HS_ST::write(0x80);
-    //GBS::SP_CS_HS_SP::write(0xa0);
   }
   else if (rto->videoStandardInput == 6) { // 1080i
     GBS::SP_HD_MODE::write(1); // tri level sync
@@ -1539,19 +1545,10 @@ void doPostPresetLoadSteps() {
     //SP_CS_CLP_SP 0x62 ?
     GBS::IF_PRGRSV_CNTRL::write(1);
     GBS::IF_HS_DEC_FACTOR::write(0);
-    //GBS::IF_VB_ST::write(0);
-    //GBS::IF_VB_SP::write(0x10); // v. position
-
-    //GBS::IF_HB_SP2::write(216); // todo: (s1_1a) position depends on preset
-    //GBS::PLLAD_ICP::write(6); // high charge pump current
-    //GBS::PLLAD_FS::write(1); // high gain
-    //GBS::VDS_VSCALE::write(583);
-    //GBS::SP_CS_HS_ST::write(0x50);
-    //GBS::SP_CS_HS_SP::write(0x60);
   }
 
   rto->outModePassThroughWithIf = 0; // could be 1 if it was active, but overriden by preset load
-  if (rto->videoStandardInput != 15) setSpParameters();
+  setSpParameters();
   setAndUpdateSogLevel(rto->currentLevelSOG);
 
   // 0 segment
@@ -1614,7 +1611,7 @@ void doPostPresetLoadSteps() {
   enableDebugPort();
 
   GBS::PAD_SYNC_OUT_ENZ::write(1); // delay sync output
-  enableVDS();
+  //enableVDS();
   FrameSync::reset();
   rto->syncLockFailIgnore = 2;
   //ResetSDRAM(); // already done in resetPLL
@@ -1624,14 +1621,12 @@ void doPostPresetLoadSteps() {
   //SerialM.print("to1 is: "); SerialM.println(millis() - timeout);
 
   setPhaseSP(); setPhaseADC();
-  updateCoastPosition();
   for (uint8_t i = 0; i < 8; i++) { // somehow this increases phase position reliability
     advancePhase();
   }
-  GBS::PAD_SYNC_OUT_ENZ::write(0); // output sync > display goes on
-  delay(2);
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
+  GBS::PAD_SYNC_OUT_ENZ::write(0); // output sync > display goes on
   SerialM.println("post preset done");
   //rto->clampWasTurnedOff = 1; // make sure syncwatcher enables clamp
   rto->applyPresetDoneStage = 1;
@@ -1815,23 +1810,12 @@ void enableDeinterlacer() {
   rto->deinterlacerWasTurnedOff = false;
 }
 
+// acts as a coasting mechanism on sync disturbance
 void disableDeinterlacer() {
-  if (rto->outModePassThroughWithIf) {
-    return;
+  if (rto->deinterlacerWasTurnedOff == false) {
+    GBS::SFTRST_DEINT_RSTZ::write(0);
   }
-  GBS::SFTRST_DEINT_RSTZ::write(0);
   rto->deinterlacerWasTurnedOff = true;
-}
-
-void disableVDS() {
-  GBS::SFTRST_VDS_RSTZ::write(0);
-}
-
-void enableVDS() {
-  if (rto->videoStandardInput != 15 && !rto->outModePassThroughWithIf) {
-    GBS::SFTRST_VDS_RSTZ::write(0); delay(3);
-    GBS::SFTRST_VDS_RSTZ::write(1); delay(3);
-  }
 }
 
 static uint8_t getVideoMode() {
@@ -1901,8 +1885,9 @@ boolean getSyncStable() {
 
   uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
   GBS::TEST_BUS_SEL::write(0xa);
-  //todo: fix this to include other valids, ie RGBHV has 4 or 6
-  if ((GBS::TEST_BUS::read() & 0x0500) == 0x0500) {
+  //todo: intermittant sync loss can read as okay briefly
+  //if ((GBS::TEST_BUS::read() & 0x0500) == 0x0500) {
+  if (GBS::TEST_BUS::read() > 0x0480) {
     GBS::TEST_BUS_SEL::write(debug_backup);
     return true;
   }
@@ -1933,9 +1918,13 @@ void setPhaseADC() {
 }
 
 void updateCoastPosition() {
+  if (rto->coastPositionIsSet) {
+    return;
+  }
+
   if (rto->videoStandardInput <= 2) { // including 0 (reset condition)
-    GBS::SP_PRE_COAST::write(6);
-    GBS::SP_POST_COAST::write(16);
+    GBS::SP_PRE_COAST::write(6); // SP test: 9
+    GBS::SP_POST_COAST::write(16); // SP test: 9
   }
   else if (rto->videoStandardInput < 15) {
     GBS::SP_PRE_COAST::write(0x06);
@@ -1954,59 +1943,90 @@ void updateCoastPosition() {
   inHlength = inHlength >> 1; // /8 , *4
 
   if (inHlength > 0) {
-      GBS::SP_H_CST_SP::write(inHlength - 32); //snes minimum: inHlength -12 (only required in 239 mode)
       GBS::SP_H_CST_ST::write(inHlength >> 4); // low but not near 0 (typical: 0x6a)
+      GBS::SP_H_CST_SP::write(inHlength - 32); //snes minimum: inHlength -12 (only required in 239 mode)
+      SerialM.print("coast start: "); SerialM.println(inHlength >> 4);
+      SerialM.print("coast stop : "); SerialM.println(inHlength - 32);
       GBS::SP_H_PROTECT::write(0);
       GBS::SP_DIS_SUB_COAST::write(0);
+      GBS::SP_HCST_AUTO_EN::write(0);
+      rto->coastPositionIsSet = true;
   }
 }
 
 void updateClampPosition() {
-  if (rto->videoStandardInput == 0) {
-    GBS::SP_CLAMP_INV_REG::write(0); // clamp normal
-    GBS::SP_CS_CLP_ST::write(0x10);
-    GBS::SP_CS_CLP_SP::write(0x27);
+  if (rto->clampPositionIsSet) {
+    return;
   }
-  else if (rto->inputIsYpBpR && rto->videoStandardInput != 15) {
+  if (rto->videoStandardInput == 0) {
+    //GBS::SP_CLAMP_INV_REG::write(0); // clamp normal
+    //GBS::SP_CS_CLP_ST::write(0x10);
+    //GBS::SP_CS_CLP_SP::write(0x27);
+    //GBS::SP_NO_CLAMP_REG::write(0);
+    // don't do anything, clamp is disabled
+    return;
+  }
+
+  uint16_t inHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+  if (inHlength < 100 || inHlength > 4095) { 
+      SerialM.println("!!B"); // assert: must be valid
+      return;
+  }
+  GBS::SP_CLP_SRC_SEL::write(0); // 0: 27Mhz clock 1: pixel clock
+  if (rto->inputIsYpBpR && rto->videoStandardInput != 15) {
     // YUV
     GBS::SP_CLAMP_INV_REG::write(0); // clamp normal
-    GBS::SP_CLP_SRC_SEL::write(0); // 1: pixel clock 0: 27Mhz clock
+    // sources via composite > rca have a colorburst, but we don't care and optimize for on-spec
     if (rto->videoStandardInput <= 2) {
-      GBS::SP_CS_CLP_ST::write(0x20); 
-      GBS::SP_CS_CLP_SP::write(0x40);
+      uint16_t start = inHlength * 0.0136f;
+      uint16_t stop = inHlength * 0.041f;
+      GBS::SP_CS_CLP_ST::write(start);
+      GBS::SP_CS_CLP_SP::write(stop);
     }
-    else if (rto->videoStandardInput <= 4) {
-      GBS::SP_CS_CLP_ST::write(0x18); // very small window
-      GBS::SP_CS_CLP_SP::write(0x22); // check with ps2 vidmode tester in 480p
+    else if (rto->videoStandardInput == 3) {
+      uint16_t start = inHlength * 0.008f;
+      uint16_t stop = inHlength * 0.0168f;
+      GBS::SP_CS_CLP_ST::write(start); // very small window
+      GBS::SP_CS_CLP_SP::write(stop); // check with ps2 vidmode tester in 480p
     }
-    else {
-      GBS::SP_CS_CLP_ST::write(0x18);
-      GBS::SP_CS_CLP_SP::write(0x38);
+    else if (rto->videoStandardInput == 4) {
+      uint16_t start = inHlength * 0.018f;
+      uint16_t stop = inHlength * 0.030f;
+      GBS::SP_CS_CLP_ST::write(start); 
+      GBS::SP_CS_CLP_SP::write(stop); // check with ps2 OPL (not vidmodetester, has nonstandard sync!)
+    }
+    else if (rto->videoStandardInput == 5) { // HD / tri level sync
+      uint16_t start = inHlength * 0.0232f;
+      uint16_t stop = inHlength * 0.04f; // 720p
+      GBS::SP_CS_CLP_ST::write(start);
+      GBS::SP_CS_CLP_SP::write(stop);
+    }
+    else if (rto->videoStandardInput == 6) {
+      uint16_t start = inHlength * 0.012f;
+      uint16_t stop = inHlength * 0.0305f; // 1080i/p
+      GBS::SP_CS_CLP_ST::write(start);
+      GBS::SP_CS_CLP_SP::write(stop);
     }
   }
   else if (!rto->inputIsYpBpR && rto->videoStandardInput != 15) {
     //RGBS: clamp on sync tip
-    uint16_t inHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
-    //SerialM.print("clamp: "); SerialM.println(inHlength);
-    if (inHlength < 100 || inHlength > 4095) { 
-      SerialM.println("!!B"); // assert: must be valid
-      // fallback default clamp position
-      GBS::SP_CLAMP_INV_REG::write(0); // clamp normal
-      GBS::SP_CS_CLP_ST::write(8);
-      GBS::SP_CS_CLP_SP::write(18);
-    }
-    else {
-      GBS::SP_CLAMP_INV_REG::write(1); // invert clamp: positioning on sync tip more accurate
-      GBS::SP_CS_CLP_ST::write(0);
-      GBS::SP_CS_CLP_SP::write(inHlength - (inHlength >> 4));
-    }
+    GBS::SP_CLAMP_INV_REG::write(1); // invert clamp: positioning on sync tip more accurate
+    GBS::SP_CS_CLP_ST::write(0);
+    GBS::SP_CS_CLP_SP::write(inHlength - (inHlength >> 4));
   }
   else if (rto->videoStandardInput == 15) {
     //RGBHV bypass
+    uint16_t start = inHlength * 0.034f;
+    uint16_t stop = inHlength * 0.06f;
     GBS::SP_CLAMP_INV_REG::write(0); // clamp normal
-    GBS::SP_CS_CLP_ST::write(8);
-    GBS::SP_CS_CLP_SP::write(18);
+    GBS::SP_CS_CLP_ST::write(start);
+    GBS::SP_CS_CLP_SP::write(stop);
   }
+
+  SerialM.print("clamp start: "); SerialM.println(GBS::SP_CS_CLP_ST::read());
+  SerialM.print("clamp stop : "); SerialM.println(GBS::SP_CS_CLP_SP::read());
+  GBS::SP_NO_CLAMP_REG::write(0);
+  rto->clampPositionIsSet = true;
 }
 
 // use t5t00t2 and adjust t5t11t5 to find this sources ideal sampling clock for this preset (affected by htotal)
@@ -2033,13 +2053,13 @@ void passThroughWithIfModeSwitch() {
     if (!rto->inputIsYpBpR) { // RGB input (is fine atm)
       GBS::DAC_RGBS_ADC2DAC::write(1); // bypass IF + VDS for RGB sources (YUV needs the VDS for YUV > RGB)
       GBS::SP_HS_LOOP_SEL::write(0); // (5_57_6) // with = 0, 5_45 and 5_47 set output
-      GBS::SP_HS_PROC_INV_REG::write(0); // (5_56_5) do not invert HS (5_57_6 = 0)
+      //GBS::SP_HS_PROC_INV_REG::write(0); // (5_56_5) do not invert HS (5_57_6 = 0)
       //GBS::SP_CS_HS_ST::write(0x710); // invert sync detection
     }
     else { // YUV input (do sync inversion?)
       GBS::DAC_RGBS_ADC2DAC::write(0); // use IF + VDS for YUV sources (VDS for for YUV > RGB)
       GBS::SP_HS_LOOP_SEL::write(0); // (5_57_6) // with = 0, 5_45 and 5_47 set output
-      GBS::SP_HS_PROC_INV_REG::write(0); // (5_56_5) do not invert HS (5_57_6 = 0)
+      //GBS::SP_HS_PROC_INV_REG::write(0); // (5_56_5) do not invert HS (5_57_6 = 0)
       GBS::SFTRST_IF_RSTZ::write(1); // need IF
       GBS::SFTRST_VDS_RSTZ::write(1); // need VDS
     }
@@ -2068,12 +2088,12 @@ void passThroughWithIfModeSwitch() {
       GBS::SP_CS_HS_SP::write(0x60); // with PLLAD_MD = 0x768
     }
     else if (rto->videoStandardInput <= 6) {
-      GBS::SP_CS_HS_ST::write(0x70);
-      GBS::SP_CS_HS_SP::write(0xf0); // with PLLAD_MD = 0x768
+      GBS::SP_CS_HS_ST::write(0x6c);
+      GBS::SP_CS_HS_SP::write(0xc8); // with PLLAD_MD = 0x768
       GBS::PLLAD_KS::write(1);
       GBS::PLLAD_FS::write(1); // 720p and up do need high gain
-      GBS::SP_HS_PROC_INV_REG::write(1); // invert hs
-      GBS::SP_VS_PROC_INV_REG::write(1); // invert vs
+      //GBS::SP_HS_PROC_INV_REG::write(1); // invert hs
+      //GBS::SP_VS_PROC_INV_REG::write(1); // invert vs
     }
     latchPLLAD();
     delay(10);
@@ -2168,20 +2188,25 @@ void bypassModeSwitch_RGBHV() {
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC
 
   GBS::PLL_CKIS::write(0); // 0_40 0 //  0: PLL uses OSC clock | 1: PLL uses input clock
-  GBS::PLL_DIVBY2Z::write(1); // 0_40 1 //just a test. 1= no divider (full clock, ie 27Mhz)
+  GBS::PLL_DIVBY2Z::write(0); // 0_40 // 1= no divider (full clock, ie 27Mhz) 0 = halved clock
   GBS::PLL_R::write(2); // PLL lock detector skew
   GBS::PLL_S::write(2);
+  GBS::PLL_MS::write(2); // select feedback clock (but need to enable tri state!)
+  GBS::PAD_TRI_ENZ::write(1); // enable some pad's tri state (they become high-z / inputs), helps noise
+  GBS::MEM_PAD_CLK_INVERT::write(0); // helps also
   GBS::PLL648_CONTROL_01::write(0x35);
   GBS::DAC_RGBS_ADC2DAC::write(1);
-  GBS::OUT_SYNC_SEL::write(2); // S0_4F, 6+7 When = 0x10, H/V sync output from sync processor
+  GBS::OUT_SYNC_SEL::write(2); // S0_4F, 6+7 | 0x10, H/V sync output from sync processor | 00 from vds_proc
   
   GBS::SP_SOG_SRC_SEL::write(1); // 5_20 0 | 0: from ADC 1: hs is sog source // enables line length counting
-  GBS::ADC_SOGEN::write(0); // 5_02 bit 0
+  GBS::ADC_SOGEN::write(0); // 5_02 bit 0 // rgbhv bypass test: sog mode
   GBS::SP_CLAMP_MANUAL::write(1); // needs to be 1
   GBS::SP_SYNC_BYPS::write(1); // use external (H+V) sync for decimator (and sync out?) 1 to mirror in sync
-  GBS::SP_HS_LOOP_SEL::write(0); // 5_57_6 | 0 enables retiming (required to fix short out sync pulses)
-  GBS::SP_SOG_MODE::write(0); // 5_56 bit 0
+  GBS::SP_HS_LOOP_SEL::write(0); // 5_57_6 | 0 enables retiming (required to fix short out sync pulses + any inversion)
+  GBS::SP_SOG_MODE::write(0); // 5_56 bit 0 // rgbhv bypass test: sog mode
+  GBS::SP_CLP_SRC_SEL::write(1); // clamp source 1: pixel clock, 0: 27mhz // rgbhv bypass test: sog mode (unset before)
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
+  GBS::SP_HS2PLL_INV_REG::write(1); // rgbhv general test, seems more stable
   GBS::SP_H_PROTECT::write(0); // 5_3e 4
   GBS::SP_DIS_SUB_COAST::write(1); // 5_3e 5
   GBS::SP_NO_COAST_REG::write(1);
@@ -2202,12 +2227,12 @@ void bypassModeSwitch_RGBHV() {
   resetDigital(); // this will leave 0_46 reset controls with 0 (bypassed blocks disabled)
   resetPLLAD();
   delay(20);
-  updateClampPosition();
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   delay(10);
-
   setPhaseSP();
   setPhaseADC();
+  togglePhaseAdjustUnits();
+  delay(100);
   GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
   delay(100);
 }
@@ -2344,6 +2369,9 @@ void setup() {
   rto->applyPresetDoneTime = millis();
   rto->currentLevelSOG = 8;
   rto->sourceVLines = 0;
+  rto->clampPositionIsSet = 0;
+  rto->coastPositionIsSet = 0;
+  rto->continousStableCounter = 0;
 
   globalCommand = 0; // web server uses this to issue commands
 
@@ -2570,7 +2598,7 @@ void loop() {
       break;
     case 'q':
       resetDigital();
-      enableVDS();
+      //enableVDS();
       break;
     case 'D':
       //debug stuff: shift h blanking into good view, enhance noise
@@ -2715,8 +2743,8 @@ void loop() {
           GBS::IF_LINE_SP::write(GBS::IF_LINE_SP::read() + 1); // 1_22
         }
         latchPLLAD();
-        updateClampPosition();
-        updateCoastPosition();
+        rto->clampPositionIsSet = false;
+        rto->coastPositionIsSet = false;
       }
     }
     break;
@@ -3076,11 +3104,11 @@ void loop() {
 
   // run FrameTimeLock if enabled
   if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false && rto->autoBestHtotalEnabled && 
-    rto->syncWatcherEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval) {
+    rto->syncWatcherEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval
+    && rto->continousStableCounter > 5) {
     
     uint8_t debugRegSPBackup = GBS::TEST_BUS_SP_SEL::read();
     if (debugRegSPBackup != 0x0f) GBS::TEST_BUS_SP_SEL::write(0x0f);
-    lastVsyncLock = millis(); // todo: before actually doing it?
     if (!FrameSync::run(uopt->frameTimeLockMethod)) {
       if (rto->syncLockFailIgnore-- == 0) {
         FrameSync::reset(); // in case run() failed because we lost a sync signal
@@ -3090,6 +3118,7 @@ void loop() {
       rto->syncLockFailIgnore = 2;
     }
     GBS::TEST_BUS_SP_SEL::write(debugRegSPBackup);
+    lastVsyncLock = millis();
   }
 
   if (rto->printInfos == true) { // information mode
@@ -3122,13 +3151,14 @@ void loop() {
     String interlace_progressive = GBS::STATUS_IF_INP_INT::read() == 1 ? " laced" : " progr";
     String hpw = STATUS_SYNC_PROC_HLOW_LEN < 100 ? "00" + String(STATUS_SYNC_PROC_HLOW_LEN) : STATUS_SYNC_PROC_HLOW_LEN < 1000 ? "0" + String(STATUS_SYNC_PROC_HLOW_LEN) : String(STATUS_SYNC_PROC_HLOW_LEN);
     String lockDisplay = lockCounter < 10 ? "0" + String(lockCounter) : String(lockCounter);
+    String stableCounter = String(rto->continousStableCounter);
 
     String output = "h:" + String(HPERIOD_IF) + " " + "v:" + String(VPERIOD_IF) + " PLL" +
       (STATUS_MISC_PLL648_LOCK ? "." : "x") + lockDisplay + " adc:" + String(adc_gain, HEX) +
       " stat:" + String(stat0, HEX) + String(".") + String(stat5, HEX) +
       " deb:" + dbg + " m:" + String(video_mode) + " ht:" + String(STATUS_SYNC_PROC_HTOTAL) +
       " vt:" + String(STATUS_SYNC_PROC_VTOTAL) + " hpw:" + hpw +
-      interlace_progressive + hv_stable
+      interlace_progressive + hv_stable + "s:" + stableCounter 
 #if defined(ESP8266)
       +String(" WiFi:") + String(WiFi.RSSI())
 #endif
@@ -3138,23 +3168,33 @@ void loop() {
   } // end information mode
 
   // syncwatcher polls SP status. when necessary, initiates adjustments or preset changes
-  if (rto->sourceDisconnected == false && rto->syncWatcherEnabled == true && (millis() - lastTimeSyncWatcher) > 40) {
+  if (rto->sourceDisconnected == false && rto->syncWatcherEnabled == true 
+    && (millis() - lastTimeSyncWatcher) > 20) 
+  {
     uint8_t debugRegBackup = GBS::TEST_BUS_SP_SEL::read();
     if (debugRegBackup != 0x0f) GBS::TEST_BUS_SP_SEL::write(0x0f);
 
     uint8_t newVideoMode = getVideoMode();
     if (!getSyncStable() || newVideoMode == 0) {
       noSyncCounter++;
-      if (rto->videoStandardInput != 15) { 
-        LEDOFF; // always on sync loss, except if RGBHV
-        if (noSyncCounter == 1 && rto->printInfos == false) { SerialM.print("."); }
+      rto->continousStableCounter = 0;
+      if (rto->videoStandardInput != 15) {
+        LEDOFF; // always LEDOFF on sync loss, except if RGBHV
+        disableDeinterlacer(); // engage free run for VDS ("coasting"), helps displays keep sync
+        if (rto->printInfos == false) {
+          if (noSyncCounter == 1) {
+            SerialM.print(".");
+          }
+        }
       }
-      //if (noSyncCounter == 6) { GBS::SP_NO_CLAMP_REG::write(1); rto->clampWasTurnedOff = 1; }
-      if (noSyncCounter == 20) { SerialM.println("!"); }
-      lastVsyncLock = millis(); // delay sync locking
+      if (noSyncCounter % 20 == 0) {
+        enableDeinterlacer(); // briefly show image
+      }
+      if (noSyncCounter == 10) { SerialM.println("!"); }
     }
-    else LEDON;
-
+    else {
+      LEDON;
+    }
     // if format changed to valid
     if ((newVideoMode != 0 && newVideoMode != rto->videoStandardInput && getSyncStable()) ||
       (newVideoMode != 0 && rto->videoStandardInput == 0 /*&& getSyncPresent()*/)) {
@@ -3182,7 +3222,6 @@ void loop() {
           // going to apply the new preset now
           boolean wantPassThroughMode = (rto->outModePassThroughWithIf == 1 && rto->videoStandardInput <= 2);
           if (!wantPassThroughMode) {
-            disableVDS();
             applyPresets(newVideoMode);
           }
           else
@@ -3192,26 +3231,13 @@ void loop() {
               latchPLLAD(); // then this is enough
             }
             else {
-              disableVDS();
               applyPresets(newVideoMode); // we were in PT and new input is HD
             }
           }
-          
-          rto->videoStandardInput = newVideoMode;
-          
-          //boolean wantPassThroughMode = rto->outModePassThroughWithIf;
-          //disableVDS();
-          //applyPresets(newVideoMode);
-          //if (wantPassThroughMode) {
-          //  // applyPresets (postpresetloadsteps()) prepared rto->outModePassThroughWithIf to be 0
-          //  passThroughWithIfModeSwitch(); 
-          //}
 
           rto->videoStandardInput = newVideoMode;
           debugRegBackup = 0;
           delay(20); // only a brief delay
-         // rto->clampWasTurnedOff = 1; // make sure syncwatcher enables clamp
-          lastVsyncLock = millis(); // not all aspects stable enough yet
         }
         else {
           SerialM.println(" .. lost");
@@ -3220,68 +3246,79 @@ void loop() {
       }
     }
     else if (getSyncStable() && newVideoMode != 0) { // last used mode reappeared / stable again
+      if (rto->continousStableCounter < 255) {
+        rto->continousStableCounter++;
+      }
       noSyncCounter = 0;
-      //if (rto->clampWasTurnedOff) { GBS::SP_NO_CLAMP_REG::write(0); rto->clampWasTurnedOff = 0; }
       if (rto->deinterlacerWasTurnedOff) {
-        SerialM.print("ok ");
-        GBS::SP_H_PROTECT::write(0); // could have been set to unstuck MD
-        GBS::SP_NO_CLAMP_REG::write(0);
-        delay(150); // stability, example: SOG level change fixed sync
-        //updateClampPosition(); // done later
-        updateCoastPosition();
-        latchPLLAD();
-        //togglePhaseAdjustUnits();
-        setPhaseSP(); setPhaseADC();
         enableDeinterlacer();
-        rto->applyPresetDoneStage = 1; // treat this as if a preset was applied
-        rto->applyPresetDoneTime = millis();
-        FrameSync::reset(); // corner case: source changed timings inbetween power cycles. won't affect display if timings are the same
-        lastVsyncLock = millis();
+        if (noSyncCounter > 100) {
+          FrameSync::reset(); // corner case: source changed timings inbetween power cycles. won't affect display if timings are the same
+        }
       }
     }
 
-    if (rto->videoStandardInput == 15 && noSyncCounter > 0) { // RGBHV
+    if (rto->videoStandardInput == 15 && (GBS::STATUS_MISC_PLLAD_LOCK::read() != 1)) { // RGBHV
       // RGBHV sync optimization is 100% relying on the PLLAD lock
-      // this should be more sophisticated
+      // this could be more sophisticated
       uint8_t lockCounter = 0;
       for (uint8_t i = 0; i < 30; i++) {
         lockCounter += GBS::STATUS_MISC_PLLAD_LOCK::read();
       }
-      if (lockCounter < 27) {
+      if (lockCounter < 24) {
         LEDOFF;
-        if (GBS::STATUS_SYNC_PROC_VTOTAL::read() > 608) { // crude
-          GBS::PLLAD_FS::write(1); // high gain
+        static uint8_t toggle = 0;
+        if (toggle < 7) {
           GBS::PLLAD_ICP::write((GBS::PLLAD_ICP::read() + 1) & 0x07);
-          GBS::PLLAD_MD::write(1349);
+          toggle++;
         }
         else {
-          GBS::PLLAD_FS::write(0);
-          GBS::PLLAD_ICP::write((GBS::PLLAD_ICP::read() + 1) & 0x07);
-          GBS::PLLAD_MD::write(1856);
+          static uint8_t lowRun = 0;
+          GBS::PLLAD_ICP::write(4); // restart a little higher
+          GBS::PLLAD_FS::write(!GBS::PLLAD_FS::read());
+          if (lowRun > 1) {
+            GBS::PLLAD_MD::write(1349);
+            if (lowRun == 3) {
+              lowRun = 0;
+            }
+          }
+          else {
+            GBS::PLLAD_MD::write(1856);
+          }
+          lowRun++;
+          toggle = 0;
+          delay(10);
         }
         latchPLLAD();
-        delay(20);
-        //togglePhaseAdjustUnits();
-        setPhaseSP(); setPhaseADC();
-        //SerialM.print("> "); SerialM.print(GBS::PLLAD_MD::read());
-        //SerialM.print(": "); SerialM.println(GBS::PLLAD_ICP::read());
-        delay(60);
+        delay(30);
+        rto->clampPositionIsSet = false;
+        updateClampPosition();
+        delay(10);
+        //setPhaseSP(); setPhaseADC();
+        togglePhaseAdjustUnits();
+        SerialM.print("> "); SerialM.print(GBS::PLLAD_MD::read());
+        SerialM.print(": "); SerialM.print(GBS::PLLAD_ICP::read());
+        SerialM.print(":"); SerialM.println(GBS::PLLAD_FS::read());
+        delay(200);
       }
-      noSyncCounter += 2; // speed this up when source is off
+      noSyncCounter += 1; // speed this up when source is off
     }
 
-    if (noSyncCounter >= 20) { // clamp is already off, attempt something
-      if (noSyncCounter == 60) { // signal lost
-        disableDeinterlacer();
-      }
-
+    if (noSyncCounter >= 60) { // attempt fixes
       if (getSyncPresent() && rto->videoStandardInput != 15) { // only if there's at least a signal
-        if ((noSyncCounter % 60) == 0) {
+        if (noSyncCounter == 60) {
+          GBS::SP_NO_CLAMP_REG::write(1); // unlock clamp
+          rto->coastPositionIsSet = false;
+          rto->clampPositionIsSet = false;
+          SerialM.println("unlock clamp");
+          delay(10);
+        }
+        if ((noSyncCounter % 120) == 0) {
           //optimizeSogLevel();  // todo: optimize optimizeSogLevel()
           setAndUpdateSogLevel(rto->currentLevelSOG / 2);
           SerialM.print("SOG: "); SerialM.println(rto->currentLevelSOG);
         }
-        if (noSyncCounter % 20 == 0) {
+        if (noSyncCounter % 40 == 0) {
           static boolean toggle = 0;
           if (toggle) {
             toggle = 0;
@@ -3292,19 +3329,15 @@ void loop() {
           else {
             toggle = 1;
             SerialM.print("SD? ");
-            GBS::SP_PRE_COAST::write(6);
-            GBS::SP_POST_COAST::write(16);
+            GBS::SP_PRE_COAST::write(6); // SP test: 9
+            GBS::SP_POST_COAST::write(16); // SP test: 9
           }
-          GBS::SP_H_PROTECT::write(1); // can unstuck MD but needs to be off generally
-          GBS::SP_NO_CLAMP_REG::write(1); // helps if source is yuv
-          resetModeDetect();
-          delay(30);
         }
       }
 
       // couldn't recover, source is lost
       // restore initial conditions and move to input detect
-      if (noSyncCounter >= 250) {
+      if (noSyncCounter >= 500) {
         zeroAll();
         setResetParameters();
         loadPresetMdSection(); // fills 1_60 to 1_83 (mode detect segment, mostly static)
@@ -3312,6 +3345,7 @@ void loop() {
         setSpParameters();
         setAndUpdateSogLevel(8);
         noSyncCounter = 0;
+        rto->continousStableCounter = 0;
         debugRegBackup = 0;
         rto->sourceDisconnected = true;
       }
@@ -3321,88 +3355,80 @@ void loop() {
     lastTimeSyncWatcher = millis();
   }
 
-  //static unsigned long lastTimeMinimalStatus = millis();
-  //if (!rto->syncWatcherEnabled && (millis() - lastTimeMinimalStatus) > 20) { // just some status
-  //  if (getVideoMode() == 0) { LEDOFF; }
-  //  else { LEDON; }
-  //  lastTimeMinimalStatus = millis();
-  //}
-
-  // frame sync + besthtotal init routine. last step of applying a preset
-  // (this only runs if !FrameSync::ready(), ie manual retiming, preset load, etc)
-  if (!FrameSync::ready() && noSyncCounter == 0 && rto->sourceDisconnected == false  && rto->syncWatcherEnabled == true
-    && rto->autoBestHtotalEnabled == true && rto->videoStandardInput != 0 && rto->videoStandardInput != 15 
-    /*&& !rto->deinterlacerWasTurnedOff && rto->applyPresetDoneStage == 0*/ && 
-    millis() - lastVsyncLock > 500) 
+  // frame sync + besthtotal init routine. this only runs if !FrameSync::ready(), ie manual retiming, preset load, etc)
+  if (!FrameSync::ready() && rto->continousStableCounter > 20 && rto->syncWatcherEnabled == true
+    && rto->autoBestHtotalEnabled == true
+    && rto->videoStandardInput != 0 && rto->videoStandardInput != 15)
   {
-    // make very sure sync is stable!
-    if (getSyncStable() && getSyncStable() && getSyncStable()) {
-      uint8_t debugRegSPBackup = GBS::TEST_BUS_SP_SEL::read();
-      if (debugRegSPBackup != 0x0f) GBS::TEST_BUS_SP_SEL::write(0x0f);
-      uint16_t bestHTotal = FrameSync::init();
-      if (bestHTotal > 0) {
-        if (bestHTotal >= 4095) bestHTotal = 4095;
-        applyBestHTotal(bestHTotal);
-        rto->syncLockFailIgnore = 2;
-      }
-      else if (rto->syncLockFailIgnore-- == 0) {
-        // frame time lock failed, most likely due to missing wires
-        rto->autoBestHtotalEnabled = false;
-        SerialM.println("lock failed, check debug wire!");
-      }
-      GBS::TEST_BUS_SP_SEL::write(debugRegSPBackup);
+    uint8_t debugRegSPBackup = GBS::TEST_BUS_SP_SEL::read();
+    if (debugRegSPBackup != 0x0f) GBS::TEST_BUS_SP_SEL::write(0x0f);
+    uint16_t bestHTotal = FrameSync::init();
+    if (bestHTotal > 0) {
+      if (bestHTotal >= 4095) bestHTotal = 4095;
+      applyBestHTotal(bestHTotal);
+      rto->syncLockFailIgnore = 2;
     }
-    else {
-      SerialM.println("dl");
-      delay(200);
+    else if (rto->syncLockFailIgnore-- == 0) {
+      // frame time lock failed, most likely due to missing wires
+      rto->autoBestHtotalEnabled = false;
+      SerialM.println("lock failed, check debug wire!");
     }
+    GBS::TEST_BUS_SP_SEL::write(debugRegSPBackup);
 
     if (GBS::PAD_SYNC_OUT_ENZ::read()) { // if 1 > sync still off
       GBS::PAD_SYNC_OUT_ENZ::write(0); // output sync > display goes on
     }
-    lastVsyncLock = millis();
-    //delay(100);
   }
-
+  
+  // update clamp + coast positions after preset change
+  if (!rto->coastPositionIsSet && rto->continousStableCounter > 30) {
+      updateCoastPosition();
+  }
+  if (!rto->clampPositionIsSet && rto->continousStableCounter > 40) {
+    updateClampPosition();
+  }
+  
   // need to reset ModeDetect shortly after loading a new preset
-  if (rto->applyPresetDoneStage > 0 && (millis() - rto->applyPresetDoneTime < 5000)) {
-    if (rto->applyPresetDoneStage == 1 && (millis() - rto->applyPresetDoneTime > 250)) {
-      // 2 modes: 
-      // t5t55t7 on = auto clamp > start and stop pos should be the same
-      // t5t55t7 off = manual clamp > start and stop pos variable
-      updateClampPosition();
-      //GBS::SP_NO_CLAMP_REG::write(1);
-      // ADC_TR_RSEL = 2 test
-      //GBS::ADC_TEST::write(0); // toggle 5_0C bit 1
-      //GBS::ADC_TEST::write(1);
-      //GBS::ADC_TEST::write(0);
-      //delay(30);
-      resetModeDetect(); // todo: why is auto clamp failing unless this is done?
+  if (rto->applyPresetDoneStage > 0 && 
+    ((millis() - rto->applyPresetDoneTime < 5000)) && 
+    ((millis() - rto->applyPresetDoneTime > 200) || rto->continousStableCounter > 4)) 
+  {
+    
+    // todo: why is auto clamp failing unless MD is being reset manually?
+    // the 4 is chosen to do quickly skip this, if possible
+    if (rto->applyPresetDoneStage == 1 && rto->continousStableCounter <= 4) {
+      resetModeDetect();
       delay(300);
-      //GBS::SP_NO_CLAMP_REG::write(0);
-      //rto->clampWasTurnedOff = 0;
+      SerialM.println("reset MD");
       rto->applyPresetDoneStage = 2;
     }
-    if (rto->applyPresetDoneStage == 2 && (millis() - rto->applyPresetDoneTime > 1000) &&
-      GBS::ADC_0X00_RESERVED_5::read() != 1) { // if this is not a custom preset
-      //SerialM.println("2");
-      if (rto->videoStandardInput == 1) { // only 480i for now (PAL seems to be fine without)
-        rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-        SerialM.print("vlines: "); SerialM.println(rto->sourceVLines);
-        if (rto->sourceVLines > 263 && rto->sourceVLines <= 274 && 
-          GBS::IF_AUTO_OFST_RESERVED_2::read() != 1) 
-        {
-          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 16);
-          GBS::IF_VB_ST::write(0 /*GBS::IF_VB_ST::read() + 18*/); // better reset ST
-          GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as already adjusted
+    else if ((rto->applyPresetDoneStage == 1 && rto->continousStableCounter > 4)) {
+      rto->applyPresetDoneStage = 2;
+    }
+
+    // if this is not a custom preset AND offset has not yet been applied
+    if (rto->applyPresetDoneStage == 2 && rto->continousStableCounter > 40) 
+    {
+      if (GBS::ADC_0X00_RESERVED_5::read() != 1 && GBS::IF_AUTO_OFST_RESERVED_2::read() != 1) {
+        if (rto->videoStandardInput == 1) { // only 480i for now (PAL seems to be fine without)
+          rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+          SerialM.print("vlines: "); SerialM.println(rto->sourceVLines);
+          if (rto->sourceVLines > 263 && rto->sourceVLines <= 274)
+          {
+            GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 16);
+            GBS::IF_VB_ST::write(0 /*GBS::IF_VB_ST::read() + 18*/); // better reset ST
+            GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as already adjusted
+          }
         }
+        //delay(50);
+        rto->applyPresetDoneStage = 0;
       }
-      //optimizePhaseSP();
-      delay(50);
-      rto->applyPresetDoneStage = 0; // turn off post-apply preset functions
+      else {
+        rto->applyPresetDoneStage = 0;
+      }
     }
   }
-  else if (rto->applyPresetDoneStage > 0) {
+  else if (rto->applyPresetDoneStage > 0 && (millis() - rto->applyPresetDoneTime > 5000)) {
     rto->applyPresetDoneStage = 0; // timeout
   }
 

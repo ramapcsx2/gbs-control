@@ -167,6 +167,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x48, 0,  1> PAD_BOUT_EN; // aka debug pin
     typedef UReg<0x00, 0x49, 0,  8> PAD_CONTROL_01_0x49; // fake name
     typedef UReg<0x00, 0x49, 2,  1> PAD_SYNC_OUT_ENZ;
+    typedef UReg<0x00, 0x49, 4,  1> PAD_TRI_ENZ;
     typedef UReg<0x00, 0x4A, 0,  3> PAD_OSC_CNTRL;
     typedef UReg<0x00, 0x4B, 2,  1> DAC_RGBS_ADC2DAC;
     typedef UReg<0x00, 0x4D, 0,  5> TEST_BUS_SEL;
@@ -424,6 +425,9 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x12, 0,  1> MEM_INTER_DLYCELL_SEL;
     typedef UReg<0x04, 0x12, 1,  1> MEM_CLK_DLYCELL_SEL;
     typedef UReg<0x04, 0x12, 2,  1> MEM_FBK_CLK_DLYCELL_SEL;
+    typedef UReg<0x04, 0x13, 0,  1> MEM_PAD_CLK_INVERT;
+    typedef UReg<0x04, 0x13, 1,  1> MEM_RD_DATA_CLK_INVERT;
+    typedef UReg<0x04, 0x13, 2,  1> MEM_FBK_CLK_INVERT;
     typedef UReg<0x04, 0x1b, 0,  3> MEM_ADR_DLY_REG;
     typedef UReg<0x04, 0x1b, 4,  3> MEM_CLK_DLY_REG;
 
@@ -542,6 +546,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x55, 6,  1> SP_VS_POL_ATO;
     typedef UReg<0x05, 0x55, 7,  1> SP_HCST_AUTO_EN;
     typedef UReg<0x05, 0x56, 0,  1> SP_SOG_MODE;
+    typedef UReg<0x05, 0x56, 1,  1> SP_HS2PLL_INV_REG;
     typedef UReg<0x05, 0x56, 2,  1> SP_CLAMP_MANUAL;
     typedef UReg<0x05, 0x56, 3,  1> SP_CLP_SRC_SEL;
     typedef UReg<0x05, 0x56, 4,  1> SP_SYNC_BYPS;
