@@ -1202,7 +1202,8 @@ void shiftVerticalDown() {
 
 void shiftVerticalUpIF() {
   // -4 to allow variance in source line count
-  uint16_t sourceLines = GBS::VPERIOD_IF::read() - 4;
+  uint8_t offset = rto->videoStandardInput == 2 ? 4 : 1;
+  uint16_t sourceLines = GBS::VPERIOD_IF::read() - offset;
   int16_t stop = GBS::IF_VB_SP::read();
   int16_t start = GBS::IF_VB_ST::read();
 
@@ -1210,13 +1211,13 @@ void shiftVerticalUpIF() {
   else {
     start = 0; stop = 1;
   }
-
   GBS::IF_VB_SP::write(stop);
   GBS::IF_VB_ST::write(start);
 }
 
 void shiftVerticalDownIF() {
-  uint16_t sourceLines = GBS::VPERIOD_IF::read() - 4;
+  uint8_t offset = rto->videoStandardInput == 2 ? 4 : 1;
+  uint16_t sourceLines = GBS::VPERIOD_IF::read() - offset;
   int16_t stop = GBS::IF_VB_SP::read();
   int16_t start = GBS::IF_VB_ST::read();
 
@@ -1224,7 +1225,6 @@ void shiftVerticalDownIF() {
   else {
     start = sourceLines - 1; stop = sourceLines;
   }
-
   GBS::IF_VB_SP::write(stop);
   GBS::IF_VB_ST::write(start);
 }
@@ -3395,7 +3395,7 @@ void loop() {
           if (rto->sourceVLines > 263 && rto->sourceVLines <= 274)
           {
             GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 16);
-            GBS::IF_VB_ST::write(0 /*GBS::IF_VB_ST::read() + 18*/); // better reset ST
+            GBS::IF_VB_ST::write(GBS::IF_VB_SP::read() - 1);
             GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as already adjusted
           }
         }
