@@ -1279,35 +1279,33 @@ void setDisplayVblankStopPosition(uint16_t value) {
 
 #if defined(ESP8266) // Arduino space saving
 void getVideoTimings() {
+  SerialM.println("");
   // get HRST
   SerialM.print("htotal: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
   // get HS_ST
-  SerialM.print("HS ST: "); SerialM.println(GBS::VDS_HS_ST::read());
-  // get HS_SP
-  SerialM.print("HS SP: "); SerialM.println(GBS::VDS_HS_SP::read());
+  SerialM.print("HS ST/SP     : "); SerialM.print(GBS::VDS_HS_ST::read());
+  SerialM.print(" "); SerialM.println(GBS::VDS_HS_SP::read());
   // get HBST
-  SerialM.print("HB ST (display): "); SerialM.println(GBS::VDS_DIS_HB_ST::read());
-  // get HBSP
-  SerialM.print("HB SP (display): "); SerialM.println(GBS::VDS_DIS_HB_SP::read());
+  SerialM.print("HB ST/SP(dis): "); SerialM.print(GBS::VDS_DIS_HB_ST::read());
+  SerialM.print(" "); SerialM.println(GBS::VDS_DIS_HB_SP::read());
   // get HBST(memory)
-  SerialM.print("HB ST (memory): "); SerialM.println(GBS::VDS_HB_ST::read());
-  // get HBSP(memory)
-  SerialM.print("HB SP (memory): "); SerialM.println(GBS::VDS_HB_SP::read());
+  SerialM.print("HB ST        : "); SerialM.print(GBS::VDS_HB_ST::read());
+  SerialM.print(" "); SerialM.println(GBS::VDS_HB_SP::read());
   SerialM.println("----");
   // get VRST
   SerialM.print("vtotal: "); SerialM.println(GBS::VDS_VSYNC_RST::read());
   // get V Sync Start
-  SerialM.print("VS ST: "); SerialM.println(GBS::VDS_VS_ST::read());
-  // get V Sync Stop
-  SerialM.print("VS SP: "); SerialM.println(GBS::VDS_VS_SP::read());
+  SerialM.print("VS ST/SP     : "); SerialM.print(GBS::VDS_VS_ST::read());
+  SerialM.print(" "); SerialM.println(GBS::VDS_VS_SP::read());
   // get VBST
-  SerialM.print("VB ST (display): "); SerialM.println(GBS::VDS_DIS_VB_ST::read());
-  // get VBSP
-  SerialM.print("VB SP (display): "); SerialM.println(GBS::VDS_DIS_VB_SP::read());
+  SerialM.print("VB ST/SP(dis): "); SerialM.print(GBS::VDS_DIS_VB_ST::read());
+  SerialM.print(" "); SerialM.println(GBS::VDS_DIS_VB_SP::read());
   // get VBST (memory)
-  SerialM.print("VB ST (memory): "); SerialM.println(GBS::VDS_VB_ST::read());
-  // get VBSP (memory)
-  SerialM.print("VB SP (memory): "); SerialM.println(GBS::VDS_VB_SP::read());
+  SerialM.print("VB ST/SP     : "); SerialM.print(GBS::VDS_VB_ST::read());
+  SerialM.print(" "); SerialM.println(GBS::VDS_VB_SP::read());
+  // also IF offsets
+  SerialM.print("IF_VB_ST/SP  : "); SerialM.print(GBS::IF_VB_ST::read());
+  SerialM.print(" "); SerialM.println(GBS::IF_VB_SP::read());
 }
 #endif
 
@@ -1335,61 +1333,35 @@ void set_htotal(uint16_t htotal) {
 }
 
 void set_vtotal(uint16_t vtotal) {
-  uint8_t regLow, regHigh;
-  // ModeLine "1280x960" 108.00 1280 1376 1488 1800 960 961 964 1000 +HSync +VSync
-  // front porch: V2 - V1: 961 - 960 = 1
-  // back porch : V4 - V3: 1000 - 964 = 36
-  // sync pulse : V3 - V2: 964 - 961 = 3
-  // VB start: 960 / 1000 = (24/25)
-  // VB stop:  1000        = vtotal
-  // VS start: 961 / 1000 = (961/1000)
-  // VS stop : 964 / 1000 = (241/250)
-
   // VS stop - VB start must stay constant to avoid vertical wiggle
   // VS stop - VS start must stay constant to maintain sync
-  uint16_t v_blank_start_position = ((uint32_t)vtotal * 24) / 25;
-  uint16_t v_blank_stop_position = vtotal;
+  uint16_t VDS_DIS_VB_ST = ((uint32_t)vtotal * 24) / 25;
+  uint16_t VDS_DIS_VB_SP = vtotal;
   // Offset by maxCorrection to prevent front porch from going negative
   uint16_t v_sync_start_position = ((uint32_t)vtotal * 961) / 1000;
   uint16_t v_sync_stop_position = ((uint32_t)vtotal * 241) / 250;
+  // most low line count formats have negative sync!
+  // exception: 1024x768 (1048x806 total) has both sync neg.  
+  if (vtotal < 530 || (vtotal >=803 && vtotal <= 809)) {
+    uint16_t temp = v_sync_start_position;
+    v_sync_start_position = v_sync_stop_position;
+    v_sync_stop_position = temp;
+  }
 
-  // write vtotal
-  writeOneByte(0xF0, 3);
-  regHigh = (uint8_t)(vtotal >> 4);
-  readFromRegister(0x02, 1, &regLow);
-  regLow = ((regLow & 0x0f) | (uint8_t)(vtotal << 4));
-  writeOneByte(0x03, regHigh);
-  writeOneByte(0x02, regLow);
+  //uint16_t VDS_VB_ST = VDS_DIS_VB_SP - 4;
+  //uint16_t VDS_VB_SP = VDS_DIS_VB_SP - 2;
 
-  // NTSC 60Hz: 60 kHz ModeLine "1280x960" 108.00 1280 1376 1488 1800 960 961 964 1000 +HSync +VSync
-  // V-Front Porch: 961-960 = 1  = 0.1% of vtotal. Start at v_blank_start_position = vtotal - (vtotal*0.04) = 960
-  // V-Back Porch:  1000-964 = 36 = 3.6% of htotal (black top lines)
-  // -> vbi = 3.7 % of vtotal | almost all on top (> of 0 (vtotal+1 = 0. It wraps.))
-  // vblank interval PAL would be more
+  GBS::VDS_VSYNC_RST::write(vtotal);
+  GBS::VDS_VS_ST::write(v_sync_start_position);
+  GBS::VDS_VS_SP::write(v_sync_stop_position);
+  GBS::VDS_VB_ST::write(2);
+  GBS::VDS_VB_SP::write(4);
+  GBS::VDS_DIS_VB_ST::write(VDS_DIS_VB_ST);
+  GBS::VDS_DIS_VB_SP::write(VDS_DIS_VB_SP);
 
-  regLow = (uint8_t)v_sync_start_position;
-  regHigh = (uint8_t)((v_sync_start_position & 0x0700) >> 8);
-  writeOneByte(0x0d, regLow); // vs mixed
-  writeOneByte(0x0e, regHigh); // vs stop
-  readFromRegister(0x0e, 1, &regLow);
-  readFromRegister(0x0f, 1, &regHigh);
-  regLow = regLow | (uint8_t)(v_sync_stop_position << 4);
-  regHigh = (uint8_t)(v_sync_stop_position >> 4);
-  writeOneByte(0x0e, regLow); // vs mixed
-  writeOneByte(0x0f, regHigh); // vs stop
-
-  // VB ST
-  regLow = (uint8_t)v_blank_start_position;
-  readFromRegister(0x14, 1, &regHigh);
-  regHigh = (uint8_t)((regHigh & 0xf8) | (uint8_t)((v_blank_start_position & 0x0700) >> 8));
-  writeOneByte(0x13, regLow);
-  writeOneByte(0x14, regHigh);
-  //VB SP
-  regHigh = (uint8_t)(v_blank_stop_position >> 4);
-  readFromRegister(0x14, 1, &regLow);
-  regLow = ((regLow & 0x0f) | (uint8_t)(v_blank_stop_position << 4));
-  writeOneByte(0x15, regHigh);
-  writeOneByte(0x14, regLow);
+  // also reset IF offset here
+  GBS::IF_VB_ST::write(0);
+  GBS::IF_VB_SP::write(24);
 }
 
 void enableDebugPort() {
@@ -2011,6 +1983,7 @@ void updateClampPosition() {
   else if (!rto->inputIsYpBpR && rto->videoStandardInput != 15) {
     //RGBS: clamp on sync tip
     GBS::SP_CLAMP_INV_REG::write(1); // invert clamp: positioning on sync tip more accurate
+    GBS::SP_CLP_SRC_SEL::write(1); // 0: 27Mhz clock 1: pixel clock // was 1 necessary here? snes
     GBS::SP_CS_CLP_ST::write(0);
     GBS::SP_CS_CLP_SP::write(inHlength - (inHlength >> 4));
   }
@@ -2023,8 +1996,11 @@ void updateClampPosition() {
     GBS::SP_CS_CLP_SP::write(stop);
   }
 
-  SerialM.print("clamp start: "); SerialM.println(GBS::SP_CS_CLP_ST::read());
-  SerialM.print("clamp stop : "); SerialM.println(GBS::SP_CS_CLP_SP::read());
+  SerialM.print("clamp start: "); SerialM.print(GBS::SP_CS_CLP_ST::read());
+  SerialM.print(" 0x"); SerialM.println(GBS::SP_CS_CLP_ST::read(), HEX);
+  SerialM.print("clamp stop : "); SerialM.print(GBS::SP_CS_CLP_SP::read());
+  SerialM.print(" 0x"); SerialM.println(GBS::SP_CS_CLP_SP::read(), HEX);
+
   GBS::SP_NO_CLAMP_REG::write(0);
   rto->clampPositionIsSet = true;
 }
@@ -2778,7 +2754,6 @@ void loop() {
       break;
     case ',':
 #if defined(ESP8266) // Arduino space saving
-      SerialM.println("----");
       getVideoTimings();
 #endif
       break;
