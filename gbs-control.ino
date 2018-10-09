@@ -1335,14 +1335,15 @@ void set_htotal(uint16_t htotal) {
 void set_vtotal(uint16_t vtotal) {
   // VS stop - VB start must stay constant to avoid vertical wiggle
   // VS stop - VS start must stay constant to maintain sync
-  uint16_t VDS_DIS_VB_ST = ((uint32_t)vtotal * 24) / 25;
-  uint16_t VDS_DIS_VB_SP = vtotal;
+  uint16_t VDS_DIS_VB_ST = (((uint32_t)vtotal * 24) / 25) - 4; // just below vtotal
+  uint16_t VDS_DIS_VB_SP = 8; // positive, just above 0
   // Offset by maxCorrection to prevent front porch from going negative
   uint16_t v_sync_start_position = ((uint32_t)vtotal * 961) / 1000;
   uint16_t v_sync_stop_position = ((uint32_t)vtotal * 241) / 250;
   // most low line count formats have negative sync!
-  // exception: 1024x768 (1048x806 total) has both sync neg.  
-  if (vtotal < 530 || (vtotal >=803 && vtotal <= 809)) {
+  // exception: 1024x768 (1344x806 total) has both sync neg.
+  // also 1360x768 (1792x795 total)
+  if ((vtotal < 530) || (vtotal >=803 && vtotal <= 809) || (vtotal >=793 && vtotal <= 798)) {
     uint16_t temp = v_sync_start_position;
     v_sync_start_position = v_sync_stop_position;
     v_sync_stop_position = temp;
@@ -1354,14 +1355,14 @@ void set_vtotal(uint16_t vtotal) {
   GBS::VDS_VSYNC_RST::write(vtotal);
   GBS::VDS_VS_ST::write(v_sync_start_position);
   GBS::VDS_VS_SP::write(v_sync_stop_position);
-  GBS::VDS_VB_ST::write(2);
-  GBS::VDS_VB_SP::write(4);
+  GBS::VDS_VB_ST::write(0);
+  GBS::VDS_VB_SP::write(2);
   GBS::VDS_DIS_VB_ST::write(VDS_DIS_VB_ST);
   GBS::VDS_DIS_VB_SP::write(VDS_DIS_VB_SP);
 
   // also reset IF offset here
-  GBS::IF_VB_ST::write(0);
-  GBS::IF_VB_SP::write(24);
+  GBS::IF_VB_ST::write(21);
+  GBS::IF_VB_SP::write(22);
 }
 
 void enableDebugPort() {
