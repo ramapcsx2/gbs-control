@@ -2047,8 +2047,11 @@ void passThroughWithIfModeSwitch() {
     }
     rto->autoBestHtotalEnabled = false; // disable while in this mode (need to set this after initial preset loading)
     GBS::PAD_SYNC_OUT_ENZ::write(1); // no sync out yet
-    GBS::PLL_MS::write(4); // memory clock 144mhz for low noise (not the others, check with scope!)
     GBS::RESET_CONTROL_0x46::write(0); // 0_46 all off first, VDS + IF enabled later
+    // from RGBHV tests: the memory bus can be tri stated for noise reduction
+    GBS::PAD_TRI_ENZ::write(1); // enable tri state
+    GBS::PLL_MS::write(2); // select feedback clock (but need to enable tri state!)
+    GBS::MEM_PAD_CLK_INVERT::write(0); // helps also
     GBS::OUT_SYNC_SEL::write(2);
     if (!rto->inputIsYpBpR) { // RGB input (is fine atm)
       GBS::DAC_RGBS_ADC2DAC::write(1); // bypass IF + VDS for RGB sources (YUV needs the VDS for YUV > RGB)
