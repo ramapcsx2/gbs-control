@@ -515,11 +515,10 @@ void setSpParameters() {
 }
 
 // Sync detect resolution: 5bits; comparator voltage range 10mv~320mv.
-// -> 10mV per step; if cables and source are to standard, use 100mV (level 10)
+// -> 10mV per step; if cables and source are to standard (level 6 = 60mV)
 void setAndUpdateSogLevel(uint8_t level) {
   GBS::ADC_SOGCTRL::write(level);
   rto->currentLevelSOG = level;
-  //SerialM.print("sog level: "); SerialM.println(rto->currentLevelSOG);
 }
 
 // in operation: t5t04t1 for 10% lower power on ADC
@@ -797,11 +796,6 @@ void printReg(uint8_t seg, uint8_t reg) {
 // dumps the current chip configuration in a format that's ready to use as new preset :)
 void dumpRegisters(byte segment)
 {
-  boolean undoIfVertical = GBS::IF_AUTO_OFST_RESERVED_2::read(); // IF was adjusted
-  if (undoIfVertical) {
-    GBS::IF_AUTO_OFST_RESERVED_2::write(0);
-    GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() - 16);
-  }
   if (segment > 5) return;
   writeOneByte(0xF0, segment);
 
@@ -839,11 +833,6 @@ void dumpRegisters(byte segment)
       printReg(5, x);
     }
     break;
-  }
-
-  if (undoIfVertical) {
-    GBS::IF_AUTO_OFST_RESERVED_2::write(1);
-    GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 16);
   }
 }
 
@@ -1381,6 +1370,11 @@ void applyBestHTotal(uint16_t bestHTotal) {
   boolean requiresScalingCorrection = GBS::VDS_HSCALE::read() < 512; // output distorts if less than 512 but can be corrected
   boolean syncIsNegative = GBS::VDS_HS_ST::read() > GBS::VDS_HS_SP::read(); // if HSST > HSSP then this preset was made to have neg. active HS (ie 640x480)
 
+  /*uint16_t h_blank_display_start_position = bestHTotal * 0.71f;
+  uint16_t h_blank_display_stop_position = bestHTotal;
+  uint16_t h_sync_start_position = bestHTotal * 0.7645f;
+  uint16_t h_sync_stop_position = bestHTotal * 0.8267f;*/
+
   // apply correction, but only if source is different than presets timings, ie: not a custom preset or source doesn't fit custom preset
   // rto->forceRetime = true means the correction should be forced (command '.')
   // timings checked against multi clock snes
@@ -1393,8 +1387,8 @@ void applyBestHTotal(uint16_t bestHTotal) {
       h_blank_display_stop_position = h_blank_display_start_position / 5; // 1/5th of screen for blanking
     }
 
-    uint16_t h_sync_start_position = bestHTotal >> 5;
-    uint16_t h_sync_stop_position = bestHTotal >> 4;
+    uint16_t h_sync_start_position = 0;
+    uint16_t h_sync_stop_position = bestHTotal * 0.09f;
     uint16_t h_blank_memory_start_position = h_blank_display_start_position - (h_blank_display_start_position / 48); // at least h_blank_display_start_position - 1
     uint16_t h_blank_memory_stop_position = GBS::VDS_HB_SP::read() + diffHTotal; // have to rely on currently loaded preset
     if (isLargeDiff) {
@@ -1932,10 +1926,6 @@ void updateClampPosition() {
     return;
   }
   if (rto->videoStandardInput == 0) {
-    //GBS::SP_CLAMP_INV_REG::write(0); // clamp normal
-    //GBS::SP_CS_CLP_ST::write(0x10);
-    //GBS::SP_CS_CLP_SP::write(0x27);
-    //GBS::SP_NO_CLAMP_REG::write(0);
     // don't do anything, clamp is disabled
     return;
   }
@@ -1945,48 +1935,51 @@ void updateClampPosition() {
       SerialM.println("!!B"); // assert: must be valid
       return;
   }
+
   GBS::SP_CLP_SRC_SEL::write(0); // 0: 27Mhz clock 1: pixel clock
+  GBS::SP_CLAMP_INV_REG::write(0); // clamp normal (no invert)
+  uint16_t start = inHlength * 0.009f;
+  uint16_t stop = inHlength * 0.022f;
   if (rto->inputIsYpBpR && rto->videoStandardInput != 15) {
     // YUV
-    GBS::SP_CLAMP_INV_REG::write(0); // clamp normal
     // sources via composite > rca have a colorburst, but we don't care and optimize for on-spec
     if (rto->videoStandardInput <= 2) {
-      uint16_t start = inHlength * 0.0136f;
-      uint16_t stop = inHlength * 0.041f;
+      start = inHlength * 0.0136f;
+      stop = inHlength * 0.041f;
       GBS::SP_CS_CLP_ST::write(start);
       GBS::SP_CS_CLP_SP::write(stop);
     }
     else if (rto->videoStandardInput == 3) {
-      uint16_t start = inHlength * 0.008f;
-      uint16_t stop = inHlength * 0.0168f;
+      start = inHlength * 0.008f;
+      stop = inHlength * 0.0168f;
       GBS::SP_CS_CLP_ST::write(start); // very small window
       GBS::SP_CS_CLP_SP::write(stop); // check with ps2 vidmode tester in 480p
     }
     else if (rto->videoStandardInput == 4) {
-      uint16_t start = inHlength * 0.018f;
-      uint16_t stop = inHlength * 0.030f;
+      start = inHlength * 0.018f;
+      stop = inHlength * 0.030f;
       GBS::SP_CS_CLP_ST::write(start); 
       GBS::SP_CS_CLP_SP::write(stop); // check with ps2 OPL (not vidmodetester, has nonstandard sync!)
     }
     else if (rto->videoStandardInput == 5) { // HD / tri level sync
-      uint16_t start = inHlength * 0.0232f;
-      uint16_t stop = inHlength * 0.04f; // 720p
+      start = inHlength * 0.0232f;
+      stop = inHlength * 0.04f; // 720p
       GBS::SP_CS_CLP_ST::write(start);
       GBS::SP_CS_CLP_SP::write(stop);
     }
     else if (rto->videoStandardInput == 6) {
-      uint16_t start = inHlength * 0.012f;
-      uint16_t stop = inHlength * 0.0305f; // 1080i/p
+      start = inHlength * 0.012f;
+      stop = inHlength * 0.0305f; // 1080i/p
       GBS::SP_CS_CLP_ST::write(start);
       GBS::SP_CS_CLP_SP::write(stop);
     }
   }
   else if (!rto->inputIsYpBpR && rto->videoStandardInput != 15) {
-    //RGBS: clamp on sync tip
-    GBS::SP_CLAMP_INV_REG::write(1); // invert clamp: positioning on sync tip more accurate
-    GBS::SP_CLP_SRC_SEL::write(1); // 0: 27Mhz clock 1: pixel clock // was 1 necessary here? snes
-    GBS::SP_CS_CLP_ST::write(0);
-    GBS::SP_CS_CLP_SP::write(inHlength - (inHlength >> 4));
+    // regular RGBS
+    uint16_t start = inHlength * 0.009f;
+    uint16_t stop = inHlength * 0.022f;
+    GBS::SP_CS_CLP_ST::write(start);
+    GBS::SP_CS_CLP_SP::write(stop);
   }
   else if (rto->videoStandardInput == 15) {
     //RGBHV bypass
@@ -2200,7 +2193,7 @@ void bypassModeSwitch_RGBHV() {
   GBS::DEC2_BYPS::write(1);
   GBS::ADC_FLTR::write(0);
 
-  GBS::PLLAD_ICP::write(3);
+  GBS::PLLAD_ICP::write(6);
   GBS::PLLAD_FS::write(1); // high gain
   GBS::PLLAD_MD::write(1856); // 1349 perfect for for 1280x+ ; 1856 allows lower res to detect
   delay(100);
@@ -2347,7 +2340,6 @@ void setup() {
   rto->sourceDisconnected = true;
   rto->applyPresetDoneStage = 0;
   rto->applyPresetDoneTime = millis();
-  rto->currentLevelSOG = 8;
   rto->sourceVLines = 0;
   rto->clampPositionIsSet = 0;
   rto->coastPositionIsSet = 0;
@@ -2442,8 +2434,9 @@ void setup() {
   setResetParameters();
   loadPresetMdSection(); // fills 1_60 to 1_83 (mode detect segment, mostly static)
   setAdcParametersGainAndOffset();
+  rto->currentLevelSOG = 6;
+  setAndUpdateSogLevel(rto->currentLevelSOG);
   setSpParameters();
-  setAndUpdateSogLevel(8);
   delay(300); // let everything settle first
 
   //rto->syncWatcherEnabled = false;
@@ -3237,50 +3230,67 @@ void loop() {
       }
     }
 
-    if (rto->videoStandardInput == 15 && (GBS::STATUS_MISC_PLLAD_LOCK::read() != 1)) { // RGBHV
-      // RGBHV sync optimization is 100% relying on the PLLAD lock
-      // this could be more sophisticated
-      uint8_t lockCounter = 0;
-      for (uint8_t i = 0; i < 30; i++) {
-        lockCounter += GBS::STATUS_MISC_PLLAD_LOCK::read();
-      }
-      if (lockCounter < 24) {
-        LEDOFF;
-        static uint8_t toggle = 0;
-        if (toggle < 7) {
-          GBS::PLLAD_ICP::write((GBS::PLLAD_ICP::read() + 1) & 0x07);
-          toggle++;
+    if (rto->videoStandardInput == 15) { // RGBHV checks
+      static unsigned long lastTimeCheck = millis();
+
+      if (GBS::STATUS_MISC_PLLAD_LOCK::read() != 1) {
+        // RGBHV sync optimization is 100% relying on the PLLAD lock
+        // this could be more sophisticated
+        uint8_t lockCounter = 0;
+        for (uint8_t i = 0; i < 30; i++) {
+          lockCounter += GBS::STATUS_MISC_PLLAD_LOCK::read();
         }
-        else {
-          static uint8_t lowRun = 0;
-          GBS::PLLAD_ICP::write(4); // restart a little higher
-          GBS::PLLAD_FS::write(!GBS::PLLAD_FS::read());
-          if (lowRun > 1) {
-            GBS::PLLAD_MD::write(1349);
-            if (lowRun == 3) {
-              lowRun = 0;
-            }
+        if (lockCounter < 24) {
+          LEDOFF;
+          static uint8_t toggle = 0;
+          if (toggle < 7) {
+            GBS::PLLAD_ICP::write((GBS::PLLAD_ICP::read() + 1) & 0x07);
+            toggle++;
           }
           else {
-            GBS::PLLAD_MD::write(1856);
+            static uint8_t lowRun = 0;
+            GBS::PLLAD_ICP::write(4); // restart a little higher
+            GBS::PLLAD_FS::write(!GBS::PLLAD_FS::read());
+            if (lowRun > 1) {
+              GBS::PLLAD_MD::write(1349);
+              if (lowRun == 3) {
+                lowRun = 0;
+              }
+            }
+            else {
+              GBS::PLLAD_MD::write(1856);
+            }
+            lowRun++;
+            toggle = 0;
+            delay(10);
           }
-          lowRun++;
-          toggle = 0;
+          latchPLLAD();
+          delay(30);
+          rto->clampPositionIsSet = false;
+          updateClampPosition();
           delay(10);
+          //setPhaseSP(); setPhaseADC();
+          togglePhaseAdjustUnits();
+          SerialM.print("> "); SerialM.print(GBS::PLLAD_MD::read());
+          SerialM.print(": "); SerialM.print(GBS::PLLAD_ICP::read());
+          SerialM.print(":"); SerialM.println(GBS::PLLAD_FS::read());
+          delay(200);
         }
-        latchPLLAD();
-        delay(30);
-        rto->clampPositionIsSet = false;
-        updateClampPosition();
-        delay(10);
-        //setPhaseSP(); setPhaseADC();
-        togglePhaseAdjustUnits();
-        SerialM.print("> "); SerialM.print(GBS::PLLAD_MD::read());
-        SerialM.print(": "); SerialM.print(GBS::PLLAD_ICP::read());
-        SerialM.print(":"); SerialM.println(GBS::PLLAD_FS::read());
-        delay(200);
+        noSyncCounter += 1; // speed this up when source is off
       }
-      noSyncCounter += 1; // speed this up when source is off
+
+      // invert HPLL trigger?
+      if (millis() - lastTimeCheck > 2000) {
+        uint16_t STATUS_SYNC_PROC_VTOTAL = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+        boolean SP_HS2PLL_INV_REG = GBS::SP_HS2PLL_INV_REG::read();
+        if (SP_HS2PLL_INV_REG && (STATUS_SYNC_PROC_VTOTAL > 625 && STATUS_SYNC_PROC_VTOTAL < 629)) { // 800x600
+          GBS::SP_HS2PLL_INV_REG::write(0);
+        }
+        else if (!SP_HS2PLL_INV_REG) {
+          GBS::SP_HS2PLL_INV_REG::write(1);
+        }
+        lastTimeCheck = millis();
+      }
     }
 
     if (noSyncCounter >= 60) { // attempt fixes
@@ -3372,40 +3382,46 @@ void loop() {
     ((millis() - rto->applyPresetDoneTime < 5000)) && 
     ((millis() - rto->applyPresetDoneTime > 200) || rto->continousStableCounter > 4)) 
   {
-    
     // todo: why is auto clamp failing unless MD is being reset manually?
     // the 4 is chosen to do quickly skip this, if possible
     if (rto->applyPresetDoneStage == 1 && rto->continousStableCounter <= 4) {
+      // manual preset changes with syncwatcher disabled will leave clamp off, so use the chance to engage it
+      if (!rto->syncWatcherEnabled) { updateClampPosition(); }
       resetModeDetect();
       delay(300);
       SerialM.println("reset MD");
-      rto->applyPresetDoneStage = 2;
+      rto->applyPresetDoneStage = 0;
     }
     else if ((rto->applyPresetDoneStage == 1 && rto->continousStableCounter > 4)) {
-      rto->applyPresetDoneStage = 2;
+      // manual preset changes with syncwatcher disabled will leave clamp off, so use the chance to engage it
+      if (!rto->syncWatcherEnabled) { updateClampPosition(); }
+      rto->applyPresetDoneStage = 0;
     }
 
+    // update: don't do this automatically anymore. It only really applies to the 1Chip SNES, so "261" lines should
+    // be dealt with as a special condition, not the other way around
+
     // if this is not a custom preset AND offset has not yet been applied
-    if (rto->applyPresetDoneStage == 2 && rto->continousStableCounter > 40) 
-    {
-      if (GBS::ADC_0X00_RESERVED_5::read() != 1 && GBS::IF_AUTO_OFST_RESERVED_2::read() != 1) {
-        if (rto->videoStandardInput == 1) { // only 480i for now (PAL seems to be fine without)
-          rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-          SerialM.print("vlines: "); SerialM.println(rto->sourceVLines);
-          if (rto->sourceVLines > 263 && rto->sourceVLines <= 274)
-          {
-            GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 16);
-            GBS::IF_VB_ST::write(GBS::IF_VB_SP::read() - 1);
-            GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as already adjusted
-          }
-        }
-        //delay(50);
-        rto->applyPresetDoneStage = 0;
-      }
-      else {
-        rto->applyPresetDoneStage = 0;
-      }
-    }
+    //if (rto->applyPresetDoneStage == 2 && rto->continousStableCounter > 40) 
+    //{
+    //  if (GBS::ADC_0X00_RESERVED_5::read() != 1 && GBS::IF_AUTO_OFST_RESERVED_2::read() != 1) {
+    //    if (rto->videoStandardInput == 1) { // only 480i for now (PAL seems to be fine without)
+    //      rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+    //      SerialM.print("vlines: "); SerialM.println(rto->sourceVLines);
+    //      if (rto->sourceVLines > 263 && rto->sourceVLines <= 274)
+    //      {
+    //        GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 16);
+    //        GBS::IF_VB_ST::write(GBS::IF_VB_SP::read() - 1);
+    //        GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as already adjusted
+    //      }
+    //    }
+    //    //delay(50);
+    //    rto->applyPresetDoneStage = 0;
+    //  }
+    //  else {
+    //    rto->applyPresetDoneStage = 0;
+    //  }
+    //}
   }
   else if (rto->applyPresetDoneStage > 0 && (millis() - rto->applyPresetDoneTime > 5000)) {
     rto->applyPresetDoneStage = 0; // timeout
@@ -3961,12 +3977,6 @@ void savePresetToSPIFFS() {
     SerialM.println("preset file open ok");
 
     GBS::ADC_0X00_RESERVED_5::write(1); // use one reserved bit to mark this as a custom preset
-    // don't undo vertical IF shift, since this is by default a customized preset
-    //boolean undoIfVertical = GBS::IF_AUTO_OFST_RESERVED_2::read(); // IF was adjusted
-    //if (undoIfVertical) {
-    //  GBS::IF_AUTO_OFST_RESERVED_2::write(0);
-    //  GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() - 16);
-    //}
 
     for (int i = 0; i <= 5; i++) {
       writeOneByte(0xF0, i);
