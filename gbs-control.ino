@@ -468,7 +468,12 @@ void setSpParameters() {
   writeOneByte(0x35, 0x25); // SP_DLT_REG [7:0]   start at higher value, update later // SP test: a0
   writeOneByte(0x36, 0x00); // SP_DLT_REG [11:8]
 
-  writeOneByte(0x37, 0x06); // SP_H_PULSE_IGNOR // SP test (snes needs 2+)
+  if (rto->videoStandardInput <= 4) {
+    writeOneByte(0x37, 0x10); // SP_H_PULSE_IGNOR // SP test (snes needs 2+, MD in MS mode needs 0x0e)
+  }
+  else {
+    writeOneByte(0x37, 0x04);
+  }
 
   GBS::SP_PRE_COAST::write(6); // SP test: 9
   GBS::SP_POST_COAST::write(16); // SP test: 9
@@ -1278,7 +1283,7 @@ void getVideoTimings() {
   SerialM.print("HB ST/SP(dis): "); SerialM.print(GBS::VDS_DIS_HB_ST::read());
   SerialM.print(" "); SerialM.println(GBS::VDS_DIS_HB_SP::read());
   // get HBST(memory)
-  SerialM.print("HB ST        : "); SerialM.print(GBS::VDS_HB_ST::read());
+  SerialM.print("HB ST/SP     : "); SerialM.print(GBS::VDS_HB_ST::read());
   SerialM.print(" "); SerialM.println(GBS::VDS_HB_SP::read());
   SerialM.println("----");
   // get VRST
@@ -1387,8 +1392,8 @@ void applyBestHTotal(uint16_t bestHTotal) {
       h_blank_display_stop_position = h_blank_display_start_position / 5; // 1/5th of screen for blanking
     }
 
-    uint16_t h_sync_start_position = 0;
-    uint16_t h_sync_stop_position = bestHTotal * 0.09f;
+    uint16_t h_sync_start_position = bestHTotal * 0.121f; // don't anchor at 0, fb preset vs default
+    uint16_t h_sync_stop_position = bestHTotal * 0.187f;
     uint16_t h_blank_memory_start_position = h_blank_display_start_position - (h_blank_display_start_position / 48); // at least h_blank_display_start_position - 1
     uint16_t h_blank_memory_stop_position = GBS::VDS_HB_SP::read() + diffHTotal; // have to rely on currently loaded preset
     if (isLargeDiff) {
@@ -2434,7 +2439,7 @@ void setup() {
   setResetParameters();
   loadPresetMdSection(); // fills 1_60 to 1_83 (mode detect segment, mostly static)
   setAdcParametersGainAndOffset();
-  rto->currentLevelSOG = 6;
+  rto->currentLevelSOG = 4;
   setAndUpdateSogLevel(rto->currentLevelSOG);
   setSpParameters();
   delay(300); // let everything settle first
@@ -2692,20 +2697,6 @@ void loop() {
       if (pll_divider < 4095) {
         pll_divider += 1;
         GBS::PLLAD_MD::write(pll_divider);
-
-        //            uint8_t PLLAD_KS = GBS::PLLAD_KS::read();
-        //            uint16_t line_length = GBS::PLLAD_MD::read();
-        //            if (PLLAD_KS == 2) {
-        //              line_length *= 1;
-        //            }
-        //            if (PLLAD_KS == 1) {
-        //              line_length /= 2;
-        //            }
-        //
-        //            line_length = line_length / ((rto->currentSyncProcessorMode > 0 ? 1 : 2)); // half of pll_divider, but in linedouble mode only
-
-        SerialM.print("PLL div: "); SerialM.println(pll_divider, HEX);
-
         // regular output modes: apply IF corrections
         if (GBS::VDS_HSYNC_RST::read() != 0xfff) {
           uint16_t IF_HSYNC_RST = GBS::IF_HSYNC_RST::read(); // 1_0E
@@ -2716,17 +2707,17 @@ void loop() {
           GBS::IF_LINE_SP::write(GBS::IF_LINE_SP::read() + 1); // 1_22
         }
         latchPLLAD();
+        applyBestHTotal(GBS::VDS_HSYNC_RST::read());
+        SerialM.print("PLL div: "); SerialM.println(pll_divider, HEX);
         rto->clampPositionIsSet = false;
         rto->coastPositionIsSet = false;
       }
     }
     break;
     case 'a':
-    {
-      uint16_t VDS_HSYNC_RST = GBS::VDS_HSYNC_RST::read();
-      GBS::VDS_HSYNC_RST::write(VDS_HSYNC_RST + 1);
-      SerialM.print("HTotal++: "); SerialM.println(VDS_HSYNC_RST + 1);
-    }
+      applyBestHTotal(GBS::VDS_HSYNC_RST::read() + 1);
+      //GBS::VDS_HSYNC_RST::write(VDS_HSYNC_RST + 1);
+      SerialM.print("HTotal++: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
     break;
     case 'A':
       //optimizeSogLevel();
