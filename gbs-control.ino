@@ -5,6 +5,7 @@
 #include "pal_feedbackclock.h"
 #include "ntsc_1280x720.h"
 #include "ntsc_1280x1024.h"
+#include "pal_1280x1024.h"
 #include "pal_1280x720.h"
 #include "presetMdSection.h"
 
@@ -341,6 +342,12 @@ void writeProgramArrayNew(const uint8_t* programArray)
             if (rto->inputIsYpBpR)bitClear(bank[x], 6);
             else bitSet(bank[x], 6);
           }
+          if (index == 446) { // s5_3e
+            bitSet(bank[x], 5); // SP_DIS_SUB_COAST = 1
+          }
+          if (index == 471) { // s5_57
+            bitSet(bank[x], 0); // SP_NO_CLAMP_REG = 1
+          }
           index++;
         }
         writeBytes(j * 16, bank, 16);
@@ -407,8 +414,8 @@ void applyYuvPatches() {
   GBS::VDS_VCOS_GAIN::write(0x28); // red
   GBS::VDS_UCOS_GAIN::write(0x1c); // blue
   GBS::VDS_Y_OFST::write(0x00); // 0 3_3a
-  GBS::VDS_U_OFST::write(0x01); // 0 3_3b
-  GBS::VDS_V_OFST::write(0x01); // 0 3_3c
+  GBS::VDS_U_OFST::write(0x00); // 0 3_3b
+  GBS::VDS_V_OFST::write(0x00); // 0 3_3c
 }
 
 void applyRGBPatches() {
@@ -422,7 +429,7 @@ void applyRGBPatches() {
   GBS::VDS_UCOS_GAIN::write(0x1c); // blue
   GBS::VDS_USIN_GAIN::write(0x00); // 3_38
   GBS::VDS_VSIN_GAIN::write(0x00); // 3_39
-  GBS::VDS_Y_OFST::write(0x02); // 3_3a
+  GBS::VDS_Y_OFST::write(0x00); // 3_3a
   GBS::VDS_U_OFST::write(0x00); // 3_3b
   GBS::VDS_V_OFST::write(0x00); // 3_3c
 }
@@ -430,17 +437,17 @@ void applyRGBPatches() {
 void setAdcParametersGainAndOffset() {
   if (rto->inputIsYpBpR == 1) {
     GBS::ADC_ROFCTRL::write(0x3f); // R and B ADC channels are less offset
-    GBS::ADC_GOFCTRL::write(0x43);
+    GBS::ADC_GOFCTRL::write(0x3f);
     GBS::ADC_BOFCTRL::write(0x3f);
   }
   else {
-    GBS::ADC_ROFCTRL::write(0x3c); // R and B ADC channels seem to be offset from G in hardware
-    GBS::ADC_GOFCTRL::write(0x42);
-    GBS::ADC_BOFCTRL::write(0x3c);
+    GBS::ADC_ROFCTRL::write(0x3f); // R and B ADC channels seem to be offset from G in hardware
+    GBS::ADC_GOFCTRL::write(0x3f);
+    GBS::ADC_BOFCTRL::write(0x3f);
   }
-  GBS::ADC_RGCTRL::write(0x7d); // ADC_TR_RSEL = 2 test
-  GBS::ADC_GGCTRL::write(0x7f); // less gain for G
-  GBS::ADC_BGCTRL::write(0x7d);
+  GBS::ADC_RGCTRL::write(0x7b); // ADC_TR_RSEL = 2 test
+  GBS::ADC_GGCTRL::write(0x7b);
+  GBS::ADC_BGCTRL::write(0x7b);
 }
 
 void setSpParameters() {
@@ -468,7 +475,10 @@ void setSpParameters() {
   writeOneByte(0x35, 0x25); // SP_DLT_REG [7:0]   start at higher value, update later // SP test: a0
   writeOneByte(0x36, 0x00); // SP_DLT_REG [11:8]
 
-  if (rto->videoStandardInput <= 4) {
+  if (rto->videoStandardInput == 0) {
+    writeOneByte(0x37, 0x06); // need to detect tri level sync (max 0x0c in a test)
+  }
+  else if (rto->videoStandardInput <= 2) {
     writeOneByte(0x37, 0x10); // SP_H_PULSE_IGNOR // SP test (snes needs 2+, MD in MS mode needs 0x0e)
   }
   else {
@@ -506,8 +516,8 @@ void setSpParameters() {
     //GBS::SP_NO_CLAMP_REG::write(0); // yuv inputs need this
     GBS::SP_H_CST_SP::write(0x38); //snes minimum: inHlength -12 (only required in 239 mode)
     GBS::SP_H_CST_ST::write(0x38); // low but not near 0 (typical: 0x6a)
-    GBS::SP_DIS_SUB_COAST::write(0); // for auto coast initially, later updated to manual
-    GBS::SP_HCST_AUTO_EN::write(1);
+    GBS::SP_DIS_SUB_COAST::write(1); // auto coast initially off (hsync coast)
+    GBS::SP_HCST_AUTO_EN::write(0);
     //GBS::SP_HS2PLL_INV_REG::write(0); // rgbhv is improved with = 1, but ADC sync might demand 0
   }
 
@@ -1380,28 +1390,56 @@ void applyBestHTotal(uint16_t bestHTotal) {
   uint16_t h_sync_start_position = bestHTotal * 0.7645f;
   uint16_t h_sync_stop_position = bestHTotal * 0.8267f;*/
 
-  // apply correction, but only if source is different than presets timings, ie: not a custom preset or source doesn't fit custom preset
   // rto->forceRetime = true means the correction should be forced (command '.')
-  // timings checked against multi clock snes
-  if ((((diffHTotal != 0 || requiresScalingCorrection) && !rto->outModePassThroughWithIf) || rto->forceRetime == true) 
-    && bestHTotal > 400) {
+  // may want to check against multi clock snes
+  if ((!rto->outModePassThroughWithIf || rto->forceRetime == true) && bestHTotal > 400) {
     rto->forceRetime = false;
+    
+    // move blanking (display)
     uint16_t h_blank_display_start_position = bestHTotal; //(bestHTotal - 1); // & 0xfffe;
     uint16_t h_blank_display_stop_position = GBS::VDS_DIS_HB_SP::read() + diffHTotal;
     if (isLargeDiff) {
       h_blank_display_stop_position = h_blank_display_start_position / 5; // 1/5th of screen for blanking
     }
 
-    uint16_t h_sync_start_position = bestHTotal * 0.121f; // don't anchor at 0, fb preset vs default
-    uint16_t h_sync_stop_position = bestHTotal * 0.187f;
-    uint16_t h_blank_memory_start_position = h_blank_display_start_position - (h_blank_display_start_position / 48); // at least h_blank_display_start_position - 1
-    uint16_t h_blank_memory_stop_position = GBS::VDS_HB_SP::read() + diffHTotal; // have to rely on currently loaded preset
+    // move HSync
+    uint16_t h_sync_start_position = GBS::VDS_HS_ST::read();
+    uint16_t h_sync_stop_position = GBS::VDS_HS_SP::read();
+    if (diffHTotalUnsigned > 30) {
+      // new sync position
+      h_sync_start_position = bestHTotal * 0.124f; // don't anchor at 0, fb preset vs default
+      h_sync_stop_position = bestHTotal * 0.188f;
+    }
+    else {
+      h_sync_start_position -= diffHTotal;
+      h_sync_stop_position -= diffHTotal;
+    }
+    
+    // HSync within blanking? over/underflow? (rare)
+    if ((h_sync_stop_position > (h_blank_display_stop_position * 0.95f)) || 
+      h_sync_start_position > bestHTotal) 
+    {
+      h_sync_stop_position = h_blank_display_stop_position * 0.8f;
+      h_sync_start_position = h_blank_display_stop_position * 0.6f;
+    }
+
+    uint16_t h_blank_memory_start_position = GBS::VDS_HB_ST::read();
+    uint16_t h_blank_memory_stop_position = GBS::VDS_HB_SP::read(); // have to rely on currently loaded preset
+    h_blank_memory_start_position -= diffHTotal;
+    h_blank_memory_stop_position  -= diffHTotal;
+
     if (isLargeDiff) {
       // S4 test bus may have artifact detection!
       // probably better to hor. zoom instead of memory blank pos change
-      h_blank_memory_stop_position = (h_blank_display_stop_position / 2) - (h_blank_display_stop_position / 5);
-      if (diffHTotal > 0) h_blank_memory_stop_position = h_blank_display_stop_position + (h_blank_display_stop_position / 6);
+      //h_blank_memory_stop_position = (h_blank_display_stop_position / 2) - (h_blank_display_stop_position / 5);
+      //if (diffHTotal > 0) h_blank_memory_stop_position = h_blank_display_stop_position + (h_blank_display_stop_position / 6);
       SerialM.println("large diff!");
+    }
+
+    if (h_blank_memory_start_position > bestHTotal || h_blank_memory_stop_position > bestHTotal) {
+      // over/underflow. new positions for both required
+      h_blank_memory_start_position = bestHTotal * 0.97f;
+      h_blank_memory_stop_position = bestHTotal * 0.22f;
     }
 
     if (requiresScalingCorrection) {
@@ -1436,6 +1474,8 @@ void applyBestHTotal(uint16_t bestHTotal) {
 void doPostPresetLoadSteps() {
   // to decide: prevent patching already customized presets again ?
   GBS::SP_DIS_SUB_COAST::write(1); // disable initially, gets activated in updatecoastposition
+  GBS::SP_HCST_AUTO_EN::write(0); // needs to be off (making sure)
+  
   setAdcParametersGainAndOffset(); // 0x3f + 0x7f
   GBS::ADC_TEST::write(0); // in case it was set
 
@@ -1472,6 +1512,8 @@ void doPostPresetLoadSteps() {
     setDisplayVblankStartPosition(982);
     setMemoryVblankStartPosition(2);
     setMemoryVblankStopPosition(4);
+    // display hor. blanking
+    //setDisplayHblankStopPosition(480);
   }
   else if (rto->videoStandardInput == 4) { // ED YUV 50
     // p-scan pal, need to either double adc data rate and halve vds scaling
@@ -1493,6 +1535,7 @@ void doPostPresetLoadSteps() {
     // horizontal shift
     GBS::IF_HB_SP2::write(0x78);
     GBS::IF_HB_ST2::write(0x20); // check!
+    GBS::IF_HBIN_SP::write(0x6a);
     // display blanking
     setDisplayVblankStopPosition(42);
     setDisplayVblankStartPosition(934);
@@ -1567,6 +1610,7 @@ void doPostPresetLoadSteps() {
   GBS::SP_JITTER_SYNC::write(0);
 
   // memory timings, anti noise
+  //GBS::PB_CUT_REFRESH::write(1); // test, helps with PLL=ICLK mode artefacting
   GBS::PB_REQ_SEL::write(3); // PlayBack 11 High request Low request
   GBS::PB_GENERAL_FLAG_REG::write(0x3f); // 4_2D max
   //GBS::PB_MAST_FLAG_REG::write(0x16); // 4_2c should be set by preset
@@ -1646,7 +1690,7 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(preset);
     }
     else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(pal_240p);
+      writeProgramArrayNew(pal_1280x1024);
     }
 #endif
   }
@@ -1877,6 +1921,12 @@ void advancePhase() {
   setPhaseADC();
 }
 
+void movePhaseThroughRange() {
+  for (uint8_t i = 0; i < 128; i++) { // 4x for 4x oversampling?
+    advancePhase();
+  }
+}
+
 void setPhaseSP() {
   GBS::PA_SP_LAT::write(0); // latch off
   GBS::PA_SP_S::write(rto->phaseSP);
@@ -1917,11 +1967,11 @@ void updateCoastPosition() {
   if (inHlength > 0) {
       GBS::SP_H_CST_ST::write(inHlength >> 4); // low but not near 0 (typical: 0x6a)
       GBS::SP_H_CST_SP::write(inHlength - 32); //snes minimum: inHlength -12 (only required in 239 mode)
-      SerialM.print("coast start: "); SerialM.println(inHlength >> 4);
-      SerialM.print("coast stop : "); SerialM.println(inHlength - 32);
+      SerialM.print("coast ST: "); SerialM.print(inHlength >> 4); SerialM.print("  ");
+      SerialM.print("SP: "); SerialM.println(inHlength - 32);
       GBS::SP_H_PROTECT::write(0);
-      GBS::SP_DIS_SUB_COAST::write(0);
-      GBS::SP_HCST_AUTO_EN::write(0);
+      GBS::SP_DIS_SUB_COAST::write(0); // enable hsync coast
+      GBS::SP_HCST_AUTO_EN::write(0); // needs to be off (making sure)
       rto->coastPositionIsSet = true;
   }
 }
@@ -1995,9 +2045,9 @@ void updateClampPosition() {
     GBS::SP_CS_CLP_SP::write(stop);
   }
 
-  SerialM.print("clamp start: "); SerialM.print(GBS::SP_CS_CLP_ST::read());
-  SerialM.print(" 0x"); SerialM.println(GBS::SP_CS_CLP_ST::read(), HEX);
-  SerialM.print("clamp stop : "); SerialM.print(GBS::SP_CS_CLP_SP::read());
+  SerialM.print("clamp ST: "); SerialM.print(GBS::SP_CS_CLP_ST::read());
+  SerialM.print(" 0x"); SerialM.print(GBS::SP_CS_CLP_ST::read(), HEX); SerialM.print("  ");
+  SerialM.print("SP: "); SerialM.print(GBS::SP_CS_CLP_SP::read());
   SerialM.print(" 0x"); SerialM.println(GBS::SP_CS_CLP_SP::read(), HEX);
 
   GBS::SP_NO_CLAMP_REG::write(0);
@@ -2615,7 +2665,7 @@ void loop() {
       break;
     case 'C':
       SerialM.println("PLL: ICLK");
-      //GBS::PLL_MS::write(0); // not required anymore
+      GBS::PLL_MS::write(0); // required again (108Mhz)
       //GBS::MEM_ADR_DLY_REG::write(0x03); GBS::MEM_CLK_DLY_REG::write(0x03); // memory subtimings
       GBS::PLLAD_FS::write(1); // gain high
       GBS::PLLAD_ICP::write(3); // CPC was 5, but MD works with as low as 0 and it removes a glitch
@@ -2691,6 +2741,9 @@ void loop() {
       advancePhase(); latchPLLAD();
       SerialM.print("ADC: "); SerialM.println(rto->phaseADC);
       break;
+    case 'B':
+      movePhaseThroughRange();
+      break;
     case 'n':
     {
       uint16_t pll_divider = GBS::PLLAD_MD::read();
@@ -2716,12 +2769,13 @@ void loop() {
     break;
     case 'a':
       applyBestHTotal(GBS::VDS_HSYNC_RST::read() + 1);
-      //GBS::VDS_HSYNC_RST::write(VDS_HSYNC_RST + 1);
       SerialM.print("HTotal++: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
     break;
     case 'A':
       //optimizeSogLevel();
       //optimizePhaseSP();
+      applyBestHTotal(GBS::VDS_HSYNC_RST::read() - 1);
+      SerialM.print("HTotal--: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
       break;
     case 'M':
       zeroAll();
@@ -2992,6 +3046,7 @@ void loop() {
         SerialM.print("set "); SerialM.print(what); SerialM.print(" "); SerialM.println(value);
         if (what.equals("ht")) {
           set_htotal(value);
+          //applyBestHTotal(value);
         }
         else if (what.equals("vt")) {
           set_vtotal(value);
@@ -3092,7 +3147,9 @@ void loop() {
     uint8_t stat0 = GBS::STATUS_00::read();
     uint8_t stat5 = GBS::STATUS_05::read();
     uint8_t video_mode = getVideoMode();
-    uint8_t adc_gain = (GBS::ADC_RGCTRL::read() + GBS::ADC_GGCTRL::read() + GBS::ADC_BGCTRL::read()) / 3;
+    uint8_t adc_gain_r = GBS::ADC_RGCTRL::read();
+    uint8_t adc_gain_g = GBS::ADC_GGCTRL::read();
+    uint8_t adc_gain_b = GBS::ADC_BGCTRL::read();
     uint16_t HPERIOD_IF = GBS::HPERIOD_IF::read();
     uint16_t VPERIOD_IF = (rto->videoStandardInput == 15) ? 0: GBS::VPERIOD_IF::read();
     uint16_t TEST_BUS = GBS::TEST_BUS::read();
@@ -3117,7 +3174,8 @@ void loop() {
     String stableCounter = String(rto->continousStableCounter);
 
     String output = "h:" + String(HPERIOD_IF) + " " + "v:" + String(VPERIOD_IF) + " PLL" +
-      (STATUS_MISC_PLL648_LOCK ? "." : "x") + lockDisplay + " adc:" + String(adc_gain, HEX) +
+      (STATUS_MISC_PLL648_LOCK ? "." : "x") + lockDisplay + 
+      " R:" + String(adc_gain_r, HEX) + " G:" + String(adc_gain_g, HEX) + " B:" + String(adc_gain_b, HEX) +
       " stat:" + String(stat0, HEX) + String(".") + String(stat5, HEX) +
       " deb:" + dbg + " m:" + String(video_mode) + " ht:" + String(STATUS_SYNC_PROC_HTOTAL) +
       " vt:" + String(STATUS_SYNC_PROC_VTOTAL) + " hpw:" + hpw +

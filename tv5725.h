@@ -432,6 +432,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x1b, 4,  3> MEM_CLK_DLY_REG;
 
     // Playback / Capture / Memory Registers
+    typedef UReg<0x04, 0x2b, 0,  1> PB_CUT_REFRESH;
     typedef UReg<0x04, 0x2b, 1,  2> PB_REQ_SEL;
     typedef UReg<0x04, 0x2b, 3,  1> PB_BYPASS;
     typedef UReg<0x04, 0x2c, 0,  8> PB_MAST_FLAG_REG;
