@@ -1585,7 +1585,7 @@ void doPostPresetLoadSteps() {
   //GBS::ADC_TR_RSEL::write(2); // ADC_TR_RSEL = 2 test
   //GBS::ADC_TR_ISEL::write(0); // leave current at default
   // high color gain so auto adjust can work on it
-  if (uopt->enableAutoGain == 1) {
+  if (uopt->enableAutoGain == 1 && !rto->inputIsYpBpR) {
     GBS::ADC_RGCTRL::write(0x40);
     GBS::ADC_GGCTRL::write(0x40);
     GBS::ADC_BGCTRL::write(0x40);
@@ -2290,43 +2290,46 @@ void doAutoGain() {
   GBS::DEC_TEST_SEL::write(1); // 0x9c
   uint8_t blueValue = GBS::TEST_BUS_2E::read();
 
+  // red
   if (redValue == 0xff || redValue == 0x7f) { // full on found
     r_found++;
   }
-  else if (redValue == 0) { // black found
+  else if (redValue == 0x80 || redValue == 0) { // black found
     r_off_found++;
+  }
+  else if (redValue < 2) {
+    if (r_off_found > 0) { r_off_found--; }
   }
   if ((redValue >= 0xfd && redValue < 0xff) || (redValue >= 0x7d && redValue < 0x7f)) {
     if (r_found > 0) { r_found--; }
   }
-  if ((redValue >= 1 && redValue <= 3) ) {
-    if (r_off_found > 0) { r_off_found--; }
-  }
 
+  // green
   if (greenValue == 0xff || greenValue == 0x7f) {
     g_found++;
   }
-  else if (greenValue == 0x80) {
+  else if (greenValue == 0x80 || greenValue == 0) {
     g_off_found++;
+  }
+  else if (greenValue < 2) {
+    if (g_off_found > 0) { g_off_found--; }
   }
   if ((greenValue >= 0xfd && greenValue < 0xff) || (greenValue >= 0x7d && greenValue < 0x7f)) {
     if (g_found > 0) { g_found--; }
   }
-  if ((greenValue >= 1 && greenValue <= 3) ) {
-    if (g_off_found > 0) { g_off_found--; }
-  }
 
+  // blue
   if (blueValue == 0xff || blueValue == 0x7f) {
     b_found++;
   }
-  else if (blueValue == 0x80) {
+  else if (blueValue == 0x80 || blueValue == 0) {
     b_off_found++;
+  }
+  else if (blueValue < 2) {
+    if (b_off_found > 0) { b_off_found--; }
   }
   if ((blueValue >= 0xfd && blueValue < 0xff) || (blueValue >= 0x7d && blueValue < 0x7f)) {
     if (b_found > 0) { b_found--; }
-  }
-  if ((blueValue >= 1 && blueValue <= 3) ) {
-    if (b_off_found > 0) { b_off_found--; }
   }
 
   if (r_found > 2) {
@@ -2761,7 +2764,7 @@ void loop() {
       break;
     case 'T':
       SerialM.print("auto gain ");
-      if (uopt->enableAutoGain == 0) {
+      if (uopt->enableAutoGain == 0 && !rto->inputIsYpBpR) {
         uopt->enableAutoGain = 1;
         GBS::ADC_RGCTRL::write(0x40);
         GBS::ADC_GGCTRL::write(0x40);
@@ -3573,7 +3576,9 @@ void loop() {
 #if defined(ESP8266) // no more space on ATmega
   // run auto ADC gain feature (if enabled)
   if (rto->syncWatcherEnabled && uopt->enableAutoGain == 1 && !rto->sourceDisconnected 
-    && rto->videoStandardInput > 0 && rto->continousStableCounter > 80 && rto->clampPositionIsSet) {
+    && rto->videoStandardInput > 0 && rto->continousStableCounter > 80 && rto->clampPositionIsSet
+    && !rto->inputIsYpBpR) // only works for RGB atm
+  {
     uint8_t debugRegBackup = 0, debugPinBackup = 0;
     debugPinBackup = GBS::PAD_BOUT_EN::read();
     debugRegBackup = GBS::TEST_BUS_SEL::read();
