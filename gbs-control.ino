@@ -140,7 +140,6 @@ struct runTimeOptions {
   boolean webSocketConnected;
   boolean autoBestHtotalEnabled;
   boolean deinterlacerWasTurnedOff;
-  boolean clampWasTurnedOff;
   boolean forceRetime;
 } rtos;
 struct runTimeOptions *rto = &rtos;
@@ -361,10 +360,10 @@ void writeProgramArrayNew(const uint8_t* programArray)
 void setResetParameters() {
   SerialM.println("<reset>");
   rto->videoStandardInput = 0;
-  //rto->clampWasTurnedOff = 1;
   rto->deinterlacerWasTurnedOff = false;
   rto->applyPresetDoneStage = 0;
   rto->sourceVLines = 0;
+  rto->sourceDisconnected = true;
   rto->outModePassThroughWithIf = 0; // forget passthrough mode (could be option)
   rto->clampPositionIsSet = 0;
   rto->coastPositionIsSet = 0;
@@ -974,7 +973,7 @@ void shiftHorizontalLeftIF(uint8_t amount) {
   if (rto->videoStandardInput <= 2) {
     GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() / 2); // input line length from pll div
   }
-  else if (rto->videoStandardInput <= 6) {
+  else if (rto->videoStandardInput <= 7) {
     GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read());
   }
   uint16_t IF_HSYNC_RST = GBS::IF_HSYNC_RST::read();
@@ -1002,7 +1001,7 @@ void shiftHorizontalRightIF(uint8_t amount) {
   if (rto->videoStandardInput <= 2) {
     GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() / 2); // input line length from pll div
   }
-  else if (rto->videoStandardInput <= 6) {
+  else if (rto->videoStandardInput <= 7) {
     GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read());
   }
   int16_t IF_HSYNC_RST = GBS::IF_HSYNC_RST::read();
@@ -1551,12 +1550,10 @@ void doPostPresetLoadSteps() {
     //GBS::IF_SEL_WEN::write(1); // and HD (not interlaced)
     GBS::IF_HS_DEC_FACTOR::write(0);
   }
-  else if (rto->videoStandardInput == 6) { // 1080i
+  else if (rto->videoStandardInput == 6 || rto->videoStandardInput == 7) { // 1080i/p
     GBS::SP_HD_MODE::write(1); // tri level sync
     GBS::ADC_CLK_ICLK2X::write(0);
     GBS::PLLAD_KS::write(0); // 5_16
-    //SP_CS_CLP_ST 0x58  ?
-    //SP_CS_CLP_SP 0x62 ?
     GBS::IF_PRGRSV_CNTRL::write(1);
     GBS::IF_HS_DEC_FACTOR::write(0);
   }
@@ -1651,7 +1648,6 @@ void doPostPresetLoadSteps() {
   GBS::INTERRUPT_CONTROL_00::write(0x00);
   GBS::PAD_SYNC_OUT_ENZ::write(0); // output sync > display goes on
   SerialM.println("post preset done");
-  //rto->clampWasTurnedOff = 1; // make sure syncwatcher enables clamp
   rto->applyPresetDoneStage = 1;
   rto->applyPresetDoneTime = millis();
 }
@@ -1780,11 +1776,17 @@ void applyPresets(uint8_t result) {
     }
 #endif*/
   }
-  else if (result == 6) {
-    SerialM.println("1080i 60Hz HDTV ");
+  else if (result == 6 || result == 7) {
+    if (result == 6) {
+      SerialM.println("1080i 60Hz HDTV ");
+      rto->videoStandardInput = 6;
+    }
+    if (result == 7) {
+      SerialM.println("1080p 60Hz HDTV ");
+      rto->videoStandardInput = 7;
+    }
     // use bypass mode for all configs
     rto->outModePassThroughWithIf = 0;
-    rto->videoStandardInput = 6;
     passThroughWithIfModeSwitch();
     return;
 
@@ -1955,11 +1957,15 @@ void updateCoastPosition() {
     GBS::SP_PRE_COAST::write(6); // SP test: 9
     GBS::SP_POST_COAST::write(16); // SP test: 9
   }
-  else if (rto->videoStandardInput < 15) {
+  else if (rto->videoStandardInput <= 6) {
     GBS::SP_PRE_COAST::write(0x06);
     GBS::SP_POST_COAST::write(0x06);
   }
-  else {
+  else if (rto->videoStandardInput == 7) { // 1080p
+    GBS::SP_PRE_COAST::write(0x06);
+    GBS::SP_POST_COAST::write(0x16); // quite a lot
+  }
+  else if (rto->videoStandardInput == 15) {
     GBS::SP_PRE_COAST::write(0x00);
     GBS::SP_POST_COAST::write(0x00);
     return;
@@ -1974,8 +1980,9 @@ void updateCoastPosition() {
   if (inHlength > 0) {
       GBS::SP_H_CST_ST::write(inHlength >> 4); // low but not near 0 (typical: 0x6a)
       GBS::SP_H_CST_SP::write(inHlength - 32); //snes minimum: inHlength -12 (only required in 239 mode)
-      SerialM.print("coast ST: "); SerialM.print(inHlength >> 4); SerialM.print("  ");
-      SerialM.print("SP: "); SerialM.println(inHlength - 32);
+      SerialM.print("coast ST: "); SerialM.print("0x"); SerialM.print(inHlength >> 4, HEX); 
+      SerialM.print("  "); 
+      SerialM.print("SP: "); SerialM.print("0x"); SerialM.println(inHlength - 32, HEX);
       GBS::SP_H_PROTECT::write(0);
       GBS::SP_DIS_SUB_COAST::write(0); // enable hsync coast
       GBS::SP_HCST_AUTO_EN::write(0); // needs to be off (making sure)
@@ -2002,60 +2009,52 @@ void updateClampPosition() {
   GBS::SP_CLAMP_INV_REG::write(0); // clamp normal (no invert)
   uint16_t start = inHlength * 0.009f;
   uint16_t stop = inHlength * 0.022f;
-  if (rto->inputIsYpBpR && rto->videoStandardInput != 15) {
+  if (rto->videoStandardInput == 15) {
+    //RGBHV bypass
+    start = inHlength * 0.034f;
+    stop = inHlength * 0.06f;
+    GBS::SP_CLAMP_INV_REG::write(0); // clamp normal
+  }
+  else if (rto->inputIsYpBpR) {
     // YUV
     // sources via composite > rca have a colorburst, but we don't care and optimize for on-spec
     if (rto->videoStandardInput <= 2) {
       start = inHlength * 0.0136f;
       stop = inHlength * 0.041f;
-      GBS::SP_CS_CLP_ST::write(start);
-      GBS::SP_CS_CLP_SP::write(stop);
     }
     else if (rto->videoStandardInput == 3) {
       start = inHlength * 0.008f;
       stop = inHlength * 0.0168f;
-      GBS::SP_CS_CLP_ST::write(start); // very small window
-      GBS::SP_CS_CLP_SP::write(stop); // check with ps2 vidmode tester in 480p
     }
     else if (rto->videoStandardInput == 4) {
       start = inHlength * 0.018f;
       stop = inHlength * 0.030f;
-      GBS::SP_CS_CLP_ST::write(start); 
-      GBS::SP_CS_CLP_SP::write(stop); // check with ps2 OPL (not vidmodetester, has nonstandard sync!)
     }
     else if (rto->videoStandardInput == 5) { // HD / tri level sync
       start = inHlength * 0.0232f;
       stop = inHlength * 0.04f; // 720p
-      GBS::SP_CS_CLP_ST::write(start);
-      GBS::SP_CS_CLP_SP::write(stop);
     }
     else if (rto->videoStandardInput == 6) {
       start = inHlength * 0.012f;
-      stop = inHlength * 0.0305f; // 1080i/p
-      GBS::SP_CS_CLP_ST::write(start);
-      GBS::SP_CS_CLP_SP::write(stop);
+      stop = inHlength * 0.0305f; // 1080i
+    }
+    else if (rto->videoStandardInput == 7) {
+      start = inHlength * 0.0015f;
+      stop = inHlength * 0.01f; // 1080p
     }
   }
-  else if (!rto->inputIsYpBpR && rto->videoStandardInput != 15) {
+  else if (!rto->inputIsYpBpR) {
     // regular RGBS
-    uint16_t start = inHlength * 0.009f;
-    uint16_t stop = inHlength * 0.022f;
-    GBS::SP_CS_CLP_ST::write(start);
-    GBS::SP_CS_CLP_SP::write(stop);
-  }
-  else if (rto->videoStandardInput == 15) {
-    //RGBHV bypass
-    uint16_t start = inHlength * 0.034f;
-    uint16_t stop = inHlength * 0.06f;
-    GBS::SP_CLAMP_INV_REG::write(0); // clamp normal
-    GBS::SP_CS_CLP_ST::write(start);
-    GBS::SP_CS_CLP_SP::write(stop);
+    start = inHlength * 0.009f;
+    stop = inHlength * 0.022f;
   }
 
-  SerialM.print("clamp ST: "); SerialM.print(GBS::SP_CS_CLP_ST::read());
-  SerialM.print(" 0x"); SerialM.print(GBS::SP_CS_CLP_ST::read(), HEX); SerialM.print("  ");
-  SerialM.print("SP: "); SerialM.print(GBS::SP_CS_CLP_SP::read());
-  SerialM.print(" 0x"); SerialM.println(GBS::SP_CS_CLP_SP::read(), HEX);
+  GBS::SP_CS_CLP_ST::write(start);
+  GBS::SP_CS_CLP_SP::write(stop);
+
+  SerialM.print("clamp ST: "); SerialM.print("0x"); SerialM.print(start, HEX); 
+  SerialM.print("  ");
+  SerialM.print("SP: "); SerialM.print("0x"); SerialM.println(stop, HEX);
 
   GBS::SP_NO_CLAMP_REG::write(0);
   rto->clampPositionIsSet = true;
@@ -2122,11 +2121,15 @@ void passThroughWithIfModeSwitch() {
       GBS::SP_CS_HS_ST::write(0);
       GBS::SP_CS_HS_SP::write(0x60); // with PLLAD_MD = 0x768
     }
-    else if (rto->videoStandardInput <= 6) {
+    else if (rto->videoStandardInput <= 7) {
       GBS::SP_CS_HS_ST::write(0x6c);
       GBS::SP_CS_HS_SP::write(0xc8); // with PLLAD_MD = 0x768
+      GBS::PLLAD_FS::write(1); // 720p and up need high gain
       GBS::PLLAD_KS::write(1);
-      GBS::PLLAD_FS::write(1); // 720p and up do need high gain
+      if (rto->videoStandardInput == 7) {
+        GBS::SP_CS_HS_ST::write(0x44); // overwrite
+        GBS::SP_POST_COAST::write(0x16); // quite a lot ><
+      }
       //GBS::SP_HS_PROC_INV_REG::write(1); // invert hs
       //GBS::SP_VS_PROC_INV_REG::write(1); // invert vs
     }
@@ -2447,7 +2450,6 @@ void setup() {
   rto->videoStandardInput = 0;
   rto->outModePassThroughWithIf = false;
   rto->deinterlacerWasTurnedOff = false;
-  rto->clampWasTurnedOff = false;
   if (!rto->webServerEnabled) rto->webServerStarted = false;
   rto->printInfos = false;
   rto->sourceDisconnected = true;
@@ -2519,26 +2521,48 @@ void setup() {
   // i2c can get stuck
   if (digitalRead(SDA) == 0) {
     unsigned long timeout = millis();
-    while (digitalRead(SDA) == 0 && millis() - timeout < 5000) {
-      static uint8_t result = 0;
-      static boolean printDone = 0;
-      if (!printDone) {
-        SerialM.print("i2c: ");
-        printDone = 1;
+    while (millis() - timeout <= 30000) {
+      if (digitalRead(SDA) == 0) {
+        static uint8_t result = 0;
+        static boolean printDone = 0;
+        static uint8_t counter = 0;
+        if (!printDone) {
+          SerialM.print("i2c: ");
+          printDone = 1;
+        }
+        if (counter > 70) {
+          counter = 0;
+          SerialM.println("");
+        }
+        pinMode(SCL, INPUT); pinMode(SDA, INPUT);
+        delay(100);
+        pinMode(SCL, OUTPUT);
+        for (int i = 0; i < 10; i++) {
+          digitalWrite(SCL, HIGH); delayMicroseconds(5);
+          digitalWrite(SCL, LOW); delayMicroseconds(5);
+        }
+        pinMode(SCL, INPUT);
+        startWire();
+        writeOneByte(0xf0, 0); readFromRegister(0x0c, 1, &result);
+        SerialM.print(result, HEX);
+        // also keep web ui stuff going
+        handleWiFi(); // ESP8266 check, WiFi + OTA updates, checks for server enabled + started
+        counter++;
       }
-      pinMode(SCL, INPUT); pinMode(SDA, INPUT);
-      delay(100);
-      pinMode(SCL, OUTPUT);
-      for (int i = 0; i < 10; i++) {
-        digitalWrite(SCL, HIGH); delayMicroseconds(5);
-        digitalWrite(SCL, LOW); delayMicroseconds(5);
+      else {
+        break;
       }
-      pinMode(SCL, INPUT);
-      startWire();
-      writeOneByte(0xf0, 0); readFromRegister(0x0c, 1, &result);
-      Serial.print(result, HEX);
     }
     SerialM.print("\n");
+    if (millis() - timeout > 30000) {
+      // never got to see a pulled up SDA. Scaler board is probably not powered
+      // or SDA cable not connected
+      SerialM.println("\nCheck SDA, SCL connection! Check GBS for power!");
+      SerialM.println("Reboot\n");
+#if defined(ESP8266)
+      ESP.restart();
+#endif
+    }
   }
 
   zeroAll();
@@ -2614,20 +2638,7 @@ void handleButtons(void) {
 }
 #endif
 
-void loop() {
-  static uint8_t readout = 0;
-  static uint8_t segment = 0;
-  static uint8_t inputRegister = 0;
-  static uint8_t inputToogleBit = 0;
-  static uint8_t inputStage = 0;
-  static uint16_t noSyncCounter = 0;
-  static unsigned long lastTimeSyncWatcher = millis();
-  static unsigned long lastVsyncLock = millis();
-  static unsigned long lastTimeSourceCheck = millis();
-#ifdef HAVE_BUTTONS
-  static unsigned long lastButton = micros();
-#endif
-
+void handleWiFi() {
 #if defined(ESP8266)
   if (rto->webServerEnabled && rto->webServerStarted) {
     persWM.handleWiFi(); // if connected, returns instantly. otherwise it reconnects or opens AP
@@ -2642,6 +2653,23 @@ void loop() {
     ArduinoOTA.handle();
   }
 #endif
+}
+
+void loop() {
+  static uint8_t readout = 0;
+  static uint8_t segment = 0;
+  static uint8_t inputRegister = 0;
+  static uint8_t inputToogleBit = 0;
+  static uint8_t inputStage = 0;
+  static uint16_t noSyncCounter = 0;
+  static unsigned long lastTimeSyncWatcher = millis();
+  static unsigned long lastVsyncLock = millis();
+  static unsigned long lastTimeSourceCheck = millis();
+#ifdef HAVE_BUTTONS
+  static unsigned long lastButton = micros();
+#endif
+
+  handleWiFi(); // ESP8266 check, WiFi + OTA updates, checks for server enabled + started
 
 #ifdef HAVE_BUTTONS
   if (micros() - lastButton > buttonPollInterval) {
@@ -3258,6 +3286,9 @@ void loop() {
     SerialM.println(output);
   } // end information mode
 
+  // test
+  handleWiFi(); // ESP8266 check, WiFi + OTA updates, checks for server enabled + started
+
   // syncwatcher polls SP status. when necessary, initiates adjustments or preset changes
   if (rto->sourceDisconnected == false && rto->syncWatcherEnabled == true 
     && (millis() - lastTimeSyncWatcher) > 20) 
@@ -3369,8 +3400,12 @@ void loop() {
 
       if (RGBHVNoSyncCounter > 200) {
           RGBHVNoSyncCounter = 0;
-          rto->sourceDisconnected = true;
-          rto->videoStandardInput = 0;
+          setResetParameters();
+          setSpParameters();
+          resetSyncProcessor(); // todo: fix MD being stuck in last mode when sync disappears
+          resetModeDetect();
+          noSyncCounter = 0;
+          debugRegBackup = 0;
       }
 
       static unsigned long lastTimeCheck = millis();
@@ -3434,13 +3469,12 @@ void loop() {
       }
     }
 
-    if (noSyncCounter >= 60) { // attempt fixes
+    if (noSyncCounter >= 40) { // attempt fixes
       if (getSyncPresent() && rto->videoStandardInput != 15) { // only if there's at least a signal
-        if (noSyncCounter == 60) {
+        if (rto->inputIsYpBpR && noSyncCounter == 40) {
           GBS::SP_NO_CLAMP_REG::write(1); // unlock clamp
           rto->coastPositionIsSet = false;
           rto->clampPositionIsSet = false;
-          SerialM.println("unlock clamp");
           delay(10);
         }
         if ((noSyncCounter % 120) == 0) {
@@ -3449,19 +3483,20 @@ void loop() {
           SerialM.print("SOG: "); SerialM.println(rto->currentLevelSOG);
         }
         if (noSyncCounter % 40 == 0) {
-          static boolean toggle = 0;
+          static boolean toggle = rto->videoStandardInput > 2 ? 0 : 1;
           if (toggle) {
-            toggle = 0;
             SerialM.print("HD? ");
+            GBS::SP_H_PULSE_IGNOR::write(0x04);
             GBS::SP_PRE_COAST::write(0x06);
             GBS::SP_POST_COAST::write(0x07);
           }
           else {
-            toggle = 1;
             SerialM.print("SD? ");
+            GBS::SP_H_PULSE_IGNOR::write(0x10);
             GBS::SP_PRE_COAST::write(6); // SP test: 9
             GBS::SP_POST_COAST::write(16); // SP test: 9
           }
+          toggle = !toggle;
         }
       }
 
@@ -3469,13 +3504,12 @@ void loop() {
       // restore initial conditions and move to input detect
       if (noSyncCounter >= 400) {
         disableDeinterlacer();
+        setResetParameters();
+        setSpParameters();
         resetSyncProcessor(); // todo: fix MD being stuck in last mode when sync disappears
         resetModeDetect();
         noSyncCounter = 0;
-        rto->continousStableCounter = 0;
         debugRegBackup = 0;
-        rto->sourceDisconnected = true;
-        rto->videoStandardInput = 0;
       }
     }
 
@@ -3484,7 +3518,7 @@ void loop() {
   }
 
   // frame sync + besthtotal init routine. this only runs if !FrameSync::ready(), ie manual retiming, preset load, etc)
-  if (!FrameSync::ready() && rto->continousStableCounter > 20 && rto->syncWatcherEnabled == true
+  if (!FrameSync::ready() && rto->continousStableCounter > 6 && rto->syncWatcherEnabled == true
     && rto->autoBestHtotalEnabled == true
     && rto->videoStandardInput != 0 && rto->videoStandardInput != 15)
   {
@@ -3508,32 +3542,27 @@ void loop() {
     }
   }
   
-  // update clamp + coast positions after preset change
-  if (!rto->coastPositionIsSet && rto->continousStableCounter > 30) {
+  // update clamp + coast positions after preset change // do it quickly
+  if (!rto->coastPositionIsSet && rto->continousStableCounter > 10) {
       updateCoastPosition();
   }
-  if (!rto->clampPositionIsSet && rto->continousStableCounter > 40) {
+  if (!rto->clampPositionIsSet && rto->continousStableCounter > 10) {
     updateClampPosition();
   }
   
   // need to reset ModeDetect shortly after loading a new preset
   if (rto->applyPresetDoneStage > 0 && 
     ((millis() - rto->applyPresetDoneTime < 5000)) && 
-    ((millis() - rto->applyPresetDoneTime > 200) || rto->continousStableCounter > 4)) 
+    ((millis() - rto->applyPresetDoneTime > 500))) 
   {
     // todo: why is auto clamp failing unless MD is being reset manually?
     // the 4 is chosen to do quickly skip this, if possible
-    if (rto->applyPresetDoneStage == 1 && rto->continousStableCounter <= 4) {
+    if (rto->applyPresetDoneStage == 1) {
       // manual preset changes with syncwatcher disabled will leave clamp off, so use the chance to engage it
       if (!rto->syncWatcherEnabled) { updateClampPosition(); }
       resetModeDetect();
       delay(300);
-      SerialM.println("reset MD");
-      rto->applyPresetDoneStage = 0;
-    }
-    else if ((rto->applyPresetDoneStage == 1 && rto->continousStableCounter > 4)) {
-      // manual preset changes with syncwatcher disabled will leave clamp off, so use the chance to engage it
-      if (!rto->syncWatcherEnabled) { updateClampPosition(); }
+      //SerialM.println("reset MD");
       rto->applyPresetDoneStage = 0;
     }
 
