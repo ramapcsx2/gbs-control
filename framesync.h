@@ -91,22 +91,24 @@ class FrameSyncManager {
       unsigned long inStart, inStop, inTemp, outStart, outStop, inPeriod, outPeriod,
                diff;
 
-      GBS::TEST_BUS_SEL::write(0x0a); // 0x20 is already set
+      uint8_t debugRegBackup = GBS::TEST_BUS_SEL::read();
+      GBS::TEST_BUS_SEL::write(0xa);
       if (!vsyncInputSample(&inStart, &inStop)) {
+        GBS::TEST_BUS_SEL::write(debugRegBackup);
         return false;
       }
-      GBS::TEST_BUS_SEL::write(0x02); // switch to show sync output right away
+      GBS::TEST_BUS_SEL::write(0x2); // switch to show sync output right away
 	  inTemp = inStop - inStart;
 	  inPeriod = inTemp >> 1;
 	  // the div2 rounds down, fix it
 	  if (bitRead(inTemp, 0)) inPeriod++;
 
-	  delay(2); // improves output stability
+	  //delay(2); // improves output stability
       if (!vsyncOutputSample(&outStart, &outStop)) {
-        GBS::TEST_BUS_SEL::write(10);
+        GBS::TEST_BUS_SEL::write(debugRegBackup);
         return false;
       }
-      GBS::TEST_BUS_SEL::write(0x0a);
+      GBS::TEST_BUS_SEL::write(debugRegBackup);
       outPeriod = outStop - outStart;
       diff = (outStart - inStart) % inPeriod;
       if (periodInput)
