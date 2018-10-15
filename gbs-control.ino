@@ -1990,9 +1990,9 @@ void updateCoastPosition() {
   if (inHlength > 0) {
       GBS::SP_H_CST_ST::write(inHlength >> 4); // low but not near 0 (typical: 0x6a)
       GBS::SP_H_CST_SP::write(inHlength - 32); //snes minimum: inHlength -12 (only required in 239 mode)
-      SerialM.print("coast ST: "); SerialM.print("0x"); SerialM.print(inHlength >> 4, HEX); 
+      /*SerialM.print("coast ST: "); SerialM.print("0x"); SerialM.print(inHlength >> 4, HEX); 
       SerialM.print("  "); 
-      SerialM.print("SP: "); SerialM.print("0x"); SerialM.println(inHlength - 32, HEX);
+      SerialM.print("SP: "); SerialM.print("0x"); SerialM.println(inHlength - 32, HEX);*/
       GBS::SP_H_PROTECT::write(0);
       GBS::SP_DIS_SUB_COAST::write(0); // enable hsync coast
       GBS::SP_HCST_AUTO_EN::write(0); // needs to be off (making sure)
@@ -2062,9 +2062,9 @@ void updateClampPosition() {
   GBS::SP_CS_CLP_ST::write(start);
   GBS::SP_CS_CLP_SP::write(stop);
 
-  SerialM.print("clamp ST: "); SerialM.print("0x"); SerialM.print(start, HEX); 
+  /*SerialM.print("clamp ST: "); SerialM.print("0x"); SerialM.print(start, HEX); 
   SerialM.print("  ");
-  SerialM.print("SP: "); SerialM.print("0x"); SerialM.println(stop, HEX);
+  SerialM.print("SP: "); SerialM.print("0x"); SerialM.println(stop, HEX);*/
 
   GBS::SP_NO_CLAMP_REG::write(0);
   rto->clampPositionIsSet = true;
@@ -3256,7 +3256,7 @@ void loop() {
     uint8_t adc_gain_r = GBS::ADC_RGCTRL::read();
     uint8_t adc_gain_g = GBS::ADC_GGCTRL::read();
     uint8_t adc_gain_b = GBS::ADC_BGCTRL::read();
-    uint16_t HPERIOD_IF = GBS::HPERIOD_IF::read();
+    uint16_t HPERIOD_IF = (rto->videoStandardInput == 15) ? 0: GBS::HPERIOD_IF::read();
     uint16_t VPERIOD_IF = (rto->videoStandardInput == 15) ? 0: GBS::VPERIOD_IF::read();
     uint16_t TEST_BUS = GBS::TEST_BUS::read();
     uint16_t STATUS_SYNC_PROC_HTOTAL = GBS::STATUS_SYNC_PROC_HTOTAL::read();
@@ -3415,13 +3415,16 @@ void loop() {
 
       static unsigned long lastTimeCheck = millis();
 
-      if (rto->continousStableCounter > 3 && (GBS::STATUS_MISC_PLLAD_LOCK::read() != 1)) {
+      if (rto->continousStableCounter > 3 && (GBS::STATUS_MISC_PLLAD_LOCK::read() != 1)
+        && (millis() - lastTimeCheck > 750)) 
+      {
         // RGBHV PLLAD optimization by looking at he PLLAD lock counter
         uint8_t lockCounter = 0;
         for (uint8_t i = 0; i < 10; i++) {
           lockCounter += GBS::STATUS_MISC_PLLAD_LOCK::read();
+          delay(1);
         }
-        if (lockCounter < 4) {
+        if (lockCounter < 9) {
           LEDOFF;
           static uint8_t toggle = 0;
           if (toggle < 7) {
@@ -3434,12 +3437,16 @@ void loop() {
             GBS::PLLAD_FS::write(!GBS::PLLAD_FS::read());
             if (lowRun > 1) {
               GBS::PLLAD_MD::write(1349); // should also enable the 30Mhz ADC filter
+              rto->clampPositionIsSet = false;
+              //updateClampPosition();
               if (lowRun == 3) {
                 lowRun = 0;
               }
             }
             else {
               GBS::PLLAD_MD::write(1856);
+              rto->clampPositionIsSet = false;
+              //updateClampPosition();
             }
             lowRun++;
             toggle = 0;
@@ -3447,31 +3454,30 @@ void loop() {
           }
           latchPLLAD();
           delay(30);
-          rto->clampPositionIsSet = false;
-          updateClampPosition();
-          delay(10);
           //setPhaseSP(); setPhaseADC();
           togglePhaseAdjustUnits();
           SerialM.print("> "); 
-          //SerialM.print(GBS::PLLAD_MD::read());
-          //SerialM.print(": "); SerialM.print(GBS::PLLAD_ICP::read());
-          //SerialM.print(":"); SerialM.println(GBS::PLLAD_FS::read());
+          SerialM.print(GBS::PLLAD_MD::read());
+          SerialM.print(": "); SerialM.print(GBS::PLLAD_ICP::read());
+          SerialM.print(":"); SerialM.println(GBS::PLLAD_FS::read());
           delay(200);
+          // invert HPLL trigger?
+          uint16_t STATUS_SYNC_PROC_VTOTAL = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+          boolean SP_HS2PLL_INV_REG = GBS::SP_HS2PLL_INV_REG::read();
+          if (SP_HS2PLL_INV_REG && 
+            (STATUS_SYNC_PROC_VTOTAL >= 626 && STATUS_SYNC_PROC_VTOTAL <= 628) || // 800x600
+            (STATUS_SYNC_PROC_VTOTAL >= 523 && STATUS_SYNC_PROC_VTOTAL <= 525))   // 640x480
+          { 
+            GBS::SP_HS2PLL_INV_REG::write(0);
+          }
+          else if (!SP_HS2PLL_INV_REG) {
+            GBS::SP_HS2PLL_INV_REG::write(1);
+          }
+          lastTimeCheck = millis();
         }
       }
 
-      // invert HPLL trigger?
-      if (millis() - lastTimeCheck > 2000) {
-        uint16_t STATUS_SYNC_PROC_VTOTAL = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-        boolean SP_HS2PLL_INV_REG = GBS::SP_HS2PLL_INV_REG::read();
-        if (SP_HS2PLL_INV_REG && (STATUS_SYNC_PROC_VTOTAL > 625 && STATUS_SYNC_PROC_VTOTAL < 629)) { // 800x600
-          GBS::SP_HS2PLL_INV_REG::write(0);
-        }
-        else if (!SP_HS2PLL_INV_REG) {
-          GBS::SP_HS2PLL_INV_REG::write(1);
-        }
-        lastTimeCheck = millis();
-      }
+      
     }
 
     if (noSyncCounter >= 40) { // attempt fixes
