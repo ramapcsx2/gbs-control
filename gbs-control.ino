@@ -2531,7 +2531,7 @@ void setup() {
   // i2c can get stuck
   if (digitalRead(SDA) == 0) {
     unsigned long timeout = millis();
-    while (millis() - timeout <= 30000) {
+    while (millis() - timeout <= 20000) {
       if (digitalRead(SDA) == 0) {
         static uint8_t result = 0;
         static boolean printDone = 0;
@@ -2564,14 +2564,12 @@ void setup() {
       }
     }
     SerialM.print("\n");
-    if (millis() - timeout > 30000) {
+    if (millis() - timeout > 20000) {
       // never got to see a pulled up SDA. Scaler board is probably not powered
       // or SDA cable not connected
       SerialM.println("\nCheck SDA, SCL connection! Check GBS for power!");
-      SerialM.println("Reboot\n");
-#if defined(ESP8266)
-      ESP.restart();
-#endif
+      // don't reboot, go into loop instead (allow for config changes via web ui)
+      rto->syncWatcherEnabled = false;
     }
   }
 
@@ -3275,21 +3273,18 @@ void loop() {
     //if (STATUS_MISC_PLLAD_LOCK) { runningLocks++; }
     
     String dbg = TEST_BUS < 0x10 ? "000" + String(TEST_BUS, HEX) : TEST_BUS < 0x100 ? "00" + String(TEST_BUS, HEX) : TEST_BUS < 0x1000 ? "0" + String(TEST_BUS, HEX) : String(TEST_BUS, HEX);
-    String hv_stable = GBS::STATUS_IF_HVT_OK::read() == 1 ? " " : "!";
-    String interlace_progressive = GBS::STATUS_IF_INP_INT::read() == 1 ? " laced" : " progr";
     String hpw = STATUS_SYNC_PROC_HLOW_LEN < 100 ? "00" + String(STATUS_SYNC_PROC_HLOW_LEN) : STATUS_SYNC_PROC_HLOW_LEN < 1000 ? "0" + String(STATUS_SYNC_PROC_HLOW_LEN) : String(STATUS_SYNC_PROC_HLOW_LEN);
     String lockDisplay = lockCounter < 10 ? "0" + String(lockCounter) : String(lockCounter);
-    String stableCounter = String(rto->continousStableCounter);
+    String stableCounter = String(rto->continousStableCounter, HEX);
 
     String output = "h:" + String(HPERIOD_IF) + " " + "v:" + String(VPERIOD_IF) + " PLL" +
       (STATUS_MISC_PLL648_LOCK ? "." : "x") + lockDisplay + 
-      " R:" + String(adc_gain_r, HEX) + " G:" + String(adc_gain_g, HEX) + " B:" + String(adc_gain_b, HEX) +
-      " stat:" + String(stat0, HEX) + String(".") + String(stat5, HEX) +
-      " deb:" + dbg + " m:" + String(video_mode) + " ht:" + String(STATUS_SYNC_PROC_HTOTAL) +
-      " vt:" + String(STATUS_SYNC_PROC_VTOTAL) + " hpw:" + hpw +
-      interlace_progressive + hv_stable + "s:" + stableCounter 
+      " A:" + String(adc_gain_r, HEX) + String(adc_gain_g, HEX) + String(adc_gain_b, HEX) +
+      " S:" + String(stat0, HEX) + String(".") + String(stat5, HEX) +
+      " D:" + dbg + " m:" + String(video_mode) + " ht:" + String(STATUS_SYNC_PROC_HTOTAL) +
+      " vt:" + String(STATUS_SYNC_PROC_VTOTAL) + " hpw:" + hpw + "s:" + stableCounter 
 #if defined(ESP8266)
-      +String(" WiFi:") + String(WiFi.RSSI())
+      +String(" W:") + String(WiFi.RSSI())
 #endif
       ;
 
@@ -3745,8 +3740,9 @@ void handleType2Command() {
       saveUserPrefs();
       break;
     case 'a':
-      // restart ESP MCU (due to an SDK bug, this does not work reliably after programming. It needs a power cycle or reset button push first.)
-      SerialM.print("Attempting to restart MCU. If it hangs, reset manually!"); SerialM.println("\n");
+      // restart ESP MCU (due to an SDK bug, this does not work reliably after programming. 
+      // It needs a power cycle or reset button push first.)
+      SerialM.println("Restarting MCU");
       ESP.restart();
       break;
     case 'b':
