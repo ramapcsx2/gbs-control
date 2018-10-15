@@ -1375,6 +1375,10 @@ void enableDebugPort() {
 }
 
 void applyBestHTotal(uint16_t bestHTotal) {
+  boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
+  if (isCustomPreset) {
+    return;
+  }
   uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
   int diffHTotal = bestHTotal - orig_htotal;
   uint16_t diffHTotalUnsigned = abs(diffHTotal);
@@ -1469,11 +1473,13 @@ void applyBestHTotal(uint16_t bestHTotal) {
 }
 
 void doPostPresetLoadSteps() {
-  // to decide: prevent patching already customized presets again ?
+  boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
   GBS::SP_DIS_SUB_COAST::write(1); // disable initially, gets activated in updatecoastposition
   GBS::SP_HCST_AUTO_EN::write(0); // needs to be off (making sure)
   
-  setAdcParametersGainAndOffset(); // 0x3f + 0x7f
+  if (!isCustomPreset) {
+    setAdcParametersGainAndOffset(); // 0x3f + 0x7f
+  }
   GBS::ADC_TEST::write(0); // in case it was set
   GBS::GPIO_CONTROL_00::write(0xff); // all GPIO pins regular GPIO
   GBS::GPIO_CONTROL_01::write(0x00); // all GPIO outputs disabled
@@ -1482,82 +1488,83 @@ void doPostPresetLoadSteps() {
   rto->continousStableCounter = 0;
   GBS::SP_NO_CLAMP_REG::write(1); // (keep) clamp disabled, to be enabled when position determined
 
-  if (rto->videoStandardInput == 3) { // ED YUV 60
-    // p-scan ntsc, need to either double adc data rate and halve vds scaling
-    // or disable line doubler (better)
-    GBS::PLLAD_KS::write(1); // 5_16
-    GBS::PB_CAP_OFFSET::write(0x100); // 4_37
-    GBS::PB_FETCH_NUM::write(0x100); // 4_39
-    GBS::VDS_VSCALE::write(548);
-    GBS::VDS_HSCALE::write(768);
-    GBS::VDS_V_DELAY::write(0); // filter 3_24 2 off
-    GBS::VDS_TAP6_BYPS::write(1); // 3_24 3 disable filter (jailbars)
-    GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 4 disable filter
-    GBS::IF_PRGRSV_CNTRL::write(1); // 1_00 6
-    GBS::IF_HS_DEC_FACTOR::write(0); // 1_0b 4+5
-    GBS::IF_LD_SEL_PROV::write(1); // 1_0b 7
-    GBS::IF_LD_RAM_BYPS::write(1); // no LD 1_0c 0
-    // new: set a stop position (right border)
-    GBS::IF_HBIN_ST::write(1104); // 1_24 // no effect seen but may be necessary
-    // vertical shift
-    GBS::IF_VB_ST::write(514);
-    GBS::IF_VB_SP::write(515);
-    // horizontal shift
-    GBS::IF_HB_SP2::write(0x84);
-    GBS::IF_HB_ST2::write(0x20); // 1_18 necessary
-    // display lower blanking
-    setDisplayVblankStopPosition(40);
-    setDisplayVblankStartPosition(982);
-    setMemoryVblankStartPosition(2);
-    setMemoryVblankStopPosition(4);
-    // display hor. blanking
-    //setDisplayHblankStopPosition(480);
+  if (!isCustomPreset) {
+    if (rto->videoStandardInput == 3) { // ED YUV 60
+      // p-scan ntsc, need to either double adc data rate and halve vds scaling
+      // or disable line doubler (better)
+      GBS::PLLAD_KS::write(1); // 5_16
+      GBS::PB_CAP_OFFSET::write(0x100); // 4_37
+      GBS::PB_FETCH_NUM::write(0x100); // 4_39
+      GBS::VDS_VSCALE::write(548);
+      GBS::VDS_HSCALE::write(768);
+      GBS::VDS_V_DELAY::write(0); // filter 3_24 2 off
+      GBS::VDS_TAP6_BYPS::write(1); // 3_24 3 disable filter (jailbars)
+      GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 4 disable filter
+      GBS::IF_PRGRSV_CNTRL::write(1); // 1_00 6
+      GBS::IF_HS_DEC_FACTOR::write(0); // 1_0b 4+5
+      GBS::IF_LD_SEL_PROV::write(1); // 1_0b 7
+      GBS::IF_LD_RAM_BYPS::write(1); // no LD 1_0c 0
+      // new: set a stop position (right border)
+      GBS::IF_HBIN_ST::write(1104); // 1_24 // no effect seen but may be necessary
+      // vertical shift
+      GBS::IF_VB_ST::write(514);
+      GBS::IF_VB_SP::write(515);
+      // horizontal shift
+      GBS::IF_HB_SP2::write(0x84);
+      GBS::IF_HB_ST2::write(0x20); // 1_18 necessary
+      // display lower blanking
+      setDisplayVblankStopPosition(40);
+      setDisplayVblankStartPosition(982);
+      setMemoryVblankStartPosition(2);
+      setMemoryVblankStopPosition(4);
+      // display hor. blanking
+      //setDisplayHblankStopPosition(480);
+    }
+    else if (rto->videoStandardInput == 4) { // ED YUV 50
+      // p-scan pal, need to either double adc data rate and halve vds scaling
+      // or disable line doubler (better)
+      GBS::PLLAD_KS::write(1); // 5_16
+      GBS::VDS_VSCALE::write(683);
+      GBS::VDS_HSCALE::write(548);
+      GBS::VDS_V_DELAY::write(1); // filter 3_24 2 on
+      GBS::VDS_TAP6_BYPS::write(1); // 3_24 3 disable filter (jailbars)
+      GBS::MADPT_Y_DELAY::write(1); // some shift
+      GBS::IF_HS_TAP11_BYPS::write(0); // 1_02 4 enable filter
+      GBS::IF_PRGRSV_CNTRL::write(1); // 1_00 6
+      GBS::IF_HS_DEC_FACTOR::write(0); // 1_0b 4+5
+      GBS::IF_LD_SEL_PROV::write(1); // 1_0b 7
+      GBS::IF_LD_RAM_BYPS::write(1); // no LD 1_0c 0
+      // vertical shift
+      GBS::IF_VB_ST::write(605);
+      GBS::IF_VB_SP::write(606);
+      // horizontal shift
+      GBS::IF_HB_SP2::write(0x78);
+      GBS::IF_HB_ST2::write(0x20); // check!
+      GBS::IF_HBIN_SP::write(0x6a);
+      // display blanking
+      setDisplayVblankStopPosition(42);
+      setDisplayVblankStartPosition(934);
+      setMemoryVblankStartPosition(10);
+      setMemoryVblankStopPosition(12);
+    }
+    else if (rto->videoStandardInput == 5) { // 720p
+      GBS::SP_HD_MODE::write(1); // tri level sync
+      GBS::ADC_CLK_ICLK2X::write(0);
+      GBS::PLLAD_KS::write(0); // 5_16
+      GBS::VDS_VSCALE::write(768); // hardcoded for now
+      GBS::VDS_HSCALE::write(683); // hardcoded for now
+      GBS::IF_PRGRSV_CNTRL::write(1); // progressive
+      //GBS::IF_SEL_WEN::write(1); // and HD (not interlaced)
+      GBS::IF_HS_DEC_FACTOR::write(0);
+    }
+    else if (rto->videoStandardInput == 6 || rto->videoStandardInput == 7) { // 1080i/p
+      GBS::SP_HD_MODE::write(1); // tri level sync
+      GBS::ADC_CLK_ICLK2X::write(0);
+      GBS::PLLAD_KS::write(0); // 5_16
+      GBS::IF_PRGRSV_CNTRL::write(1);
+      GBS::IF_HS_DEC_FACTOR::write(0);
+    }
   }
-  else if (rto->videoStandardInput == 4) { // ED YUV 50
-    // p-scan pal, need to either double adc data rate and halve vds scaling
-    // or disable line doubler (better)
-    GBS::PLLAD_KS::write(1); // 5_16
-    GBS::VDS_VSCALE::write(683);
-    GBS::VDS_HSCALE::write(548);
-    GBS::VDS_V_DELAY::write(1); // filter 3_24 2 on
-    GBS::VDS_TAP6_BYPS::write(1); // 3_24 3 disable filter (jailbars)
-    GBS::MADPT_Y_DELAY::write(1); // some shift
-    GBS::IF_HS_TAP11_BYPS::write(0); // 1_02 4 enable filter
-    GBS::IF_PRGRSV_CNTRL::write(1); // 1_00 6
-    GBS::IF_HS_DEC_FACTOR::write(0); // 1_0b 4+5
-    GBS::IF_LD_SEL_PROV::write(1); // 1_0b 7
-    GBS::IF_LD_RAM_BYPS::write(1); // no LD 1_0c 0
-    // vertical shift
-    GBS::IF_VB_ST::write(605);
-    GBS::IF_VB_SP::write(606);
-    // horizontal shift
-    GBS::IF_HB_SP2::write(0x78);
-    GBS::IF_HB_ST2::write(0x20); // check!
-    GBS::IF_HBIN_SP::write(0x6a);
-    // display blanking
-    setDisplayVblankStopPosition(42);
-    setDisplayVblankStartPosition(934);
-    setMemoryVblankStartPosition(10);
-    setMemoryVblankStopPosition(12);
-  }
-  else if (rto->videoStandardInput == 5) { // 720p
-    GBS::SP_HD_MODE::write(1); // tri level sync
-    GBS::ADC_CLK_ICLK2X::write(0);
-    GBS::PLLAD_KS::write(0); // 5_16
-    GBS::VDS_VSCALE::write(768); // hardcoded for now
-    GBS::VDS_HSCALE::write(683); // hardcoded for now
-    GBS::IF_PRGRSV_CNTRL::write(1); // progressive
-    //GBS::IF_SEL_WEN::write(1); // and HD (not interlaced)
-    GBS::IF_HS_DEC_FACTOR::write(0);
-  }
-  else if (rto->videoStandardInput == 6 || rto->videoStandardInput == 7) { // 1080i/p
-    GBS::SP_HD_MODE::write(1); // tri level sync
-    GBS::ADC_CLK_ICLK2X::write(0);
-    GBS::PLLAD_KS::write(0); // 5_16
-    GBS::IF_PRGRSV_CNTRL::write(1);
-    GBS::IF_HS_DEC_FACTOR::write(0);
-  }
-
   rto->outModePassThroughWithIf = 0; // could be 1 if it was active, but overriden by preset load
   setSpParameters();
   setAndUpdateSogLevel(rto->currentLevelSOG);
@@ -1595,11 +1602,13 @@ void doPostPresetLoadSteps() {
     GBS::DEC_TEST_ENABLE::write(0);
   }
 
-  if (rto->inputIsYpBpR == true) {
-    applyYuvPatches();
-  }
-  else {
-    applyRGBPatches();
+  if (!isCustomPreset) {
+    if (rto->inputIsYpBpR == true) {
+      applyYuvPatches();
+    }
+    else {
+      applyRGBPatches();
+    }
   }
   GBS::PLLAD_R::write(2);
   GBS::PLLAD_S::write(2);
@@ -1613,15 +1622,16 @@ void doPostPresetLoadSteps() {
   // jitter sync off for all modes
   GBS::SP_JITTER_SYNC::write(0);
 
-  // memory timings, anti noise
-  GBS::PB_CUT_REFRESH::write(1); // test, helps with PLL=ICLK mode artefacting
-  GBS::PB_REQ_SEL::write(3); // PlayBack 11 High request Low request
-  GBS::PB_GENERAL_FLAG_REG::write(0x3f); // 4_2D max
-  //GBS::PB_MAST_FLAG_REG::write(0x16); // 4_2c should be set by preset
-  GBS::MEM_INTER_DLYCELL_SEL::write(1); // 4_12 to 0x05
-  GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x05
-  GBS::MEM_FBK_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x05
-
+  if (!isCustomPreset) {
+    // memory timings, anti noise
+    GBS::PB_CUT_REFRESH::write(1); // test, helps with PLL=ICLK mode artefacting
+    GBS::PB_REQ_SEL::write(3); // PlayBack 11 High request Low request
+    GBS::PB_GENERAL_FLAG_REG::write(0x3f); // 4_2D max
+    //GBS::PB_MAST_FLAG_REG::write(0x16); // 4_2c should be set by preset
+    GBS::MEM_INTER_DLYCELL_SEL::write(1); // 4_12 to 0x05
+    GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x05
+    GBS::MEM_FBK_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x05
+  }
   resetPLLAD(); // turns on pllad
   delay(20);
   resetDigital();
