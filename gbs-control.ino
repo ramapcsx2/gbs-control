@@ -411,7 +411,9 @@ void setResetParameters() {
 }
 
 void applyYuvPatches() {
-  //GBS::ADC_AUTO_OFST_EN::write(1); //GBS::IF_AUTO_OFST_EN::write(1);
+  GBS::ADC_AUTO_OFST_EN::write(1); 
+  GBS::IF_AUTO_OFST_EN::write(1);
+
   GBS::ADC_RYSEL_R::write(1); // midlevel clamp red
   GBS::ADC_RYSEL_B::write(1); // midlevel clamp blue
   GBS::IF_MATRIX_BYPS::write(1);
@@ -425,7 +427,8 @@ void applyYuvPatches() {
 }
 
 void applyRGBPatches() {
-  //GBS::ADC_AUTO_OFST_EN::write(0); //GBS::IF_AUTO_OFST_EN::write(0);
+  GBS::ADC_AUTO_OFST_EN::write(0); 
+  GBS::IF_AUTO_OFST_EN::write(0);
   GBS::ADC_RYSEL_R::write(0); // gnd clamp red
   GBS::ADC_RYSEL_B::write(0); // gnd clamp blue
   GBS::IF_MATRIX_BYPS::write(0);
@@ -443,7 +446,7 @@ void applyRGBPatches() {
 void setAdcParametersGainAndOffset() {
   if (rto->inputIsYpBpR == 1) {
     GBS::ADC_ROFCTRL::write(0x3f); // R and B ADC channels are less offset
-    GBS::ADC_GOFCTRL::write(0x3f);
+    GBS::ADC_GOFCTRL::write(0x43); // calibrate with VP2 in 480p mode
     GBS::ADC_BOFCTRL::write(0x3f);
   }
   else {
@@ -499,11 +502,13 @@ void setSpParameters() {
 
   GBS::SP_SDCS_VSST_REG_H::write(0);
   GBS::SP_SDCS_VSSP_REG_H::write(0);
-  GBS::SP_SDCS_VSST_REG_L::write(0); // 5_3f
-  GBS::SP_SDCS_VSSP_REG_L::write(12); // 5_40
-
+  GBS::SP_SDCS_VSST_REG_L::write(0x02); // 5_3f // 0 and 1 not good in passthrough modes, assume same for regular
+  GBS::SP_SDCS_VSSP_REG_L::write(0x0b); // 5_40 0x0b=11
+  if (rto->videoStandardInput == 1 || rto->videoStandardInput == 6) {
+    GBS::SP_SDCS_VSSP_REG_L::write(0x0c); // S5_40 (interlaced)
+  }
   GBS::SP_CS_HS_ST::write(0x00);
-  GBS::SP_CS_HS_SP::write(0x08); // was 0x05, 720p source needs 0x08, this is okay with other sources
+  GBS::SP_CS_HS_SP::write(0x08); // was 0x05, 720p source needs 0x08
 
   writeOneByte(0x49, 0x04); // 0x04 rgbhv: 20
   writeOneByte(0x4a, 0x00); // 0xc0
@@ -1482,21 +1487,39 @@ void doPostPresetLoadSteps() {
     setAdcParametersGainAndOffset(); // 0x3f + 0x7f
   }
   GBS::ADC_TEST::write(0); // in case it was set
+  
+  // 0 segment
   GBS::GPIO_CONTROL_00::write(0xff); // all GPIO pins regular GPIO
   GBS::GPIO_CONTROL_01::write(0x00); // all GPIO outputs disabled
   rto->clampPositionIsSet = false;
   rto->coastPositionIsSet = false;
   rto->continousStableCounter = 0;
   GBS::SP_NO_CLAMP_REG::write(1); // (keep) clamp disabled, to be enabled when position determined
+  GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC here, enable later (should already be off though)
+  
+  // test: set IF_HSYNC_RST based on pll divider 5_12/13
+  //GBS::IF_LINE_SP::write((GBS::PLLAD_MD::read() / 2) - 1);
+  //GBS::IF_HSYNC_RST::write((GBS::PLLAD_MD::read() / 2) - 2); // remember: 1_0e always -1
+  
+  // IF initial position is 1_0e/0f IF_HSYNC_RST exactly. But IF_INI_ST needs to be a few pixels before that.
+  // IF_INI_ST - 1 causes an interresting effect when the source switches to interlace.
+  // IF_INI_ST - 2 is the first safe setting // exception: edtv+ presets: need to be more exact
+  if (rto->videoStandardInput <= 2) {
+    GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 4);
+    if (rto->videoStandardInput == 2) {  // exception for PAL (with i.e. PSX) default preset
+      GBS::IF_INI_ST::write(GBS::IF_INI_ST::read() - 64);
+    }
+  }
+  else {
+    GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 1); // -0 also seems to work
+  }
 
   if (!isCustomPreset) {
     if (rto->videoStandardInput == 3) { // ED YUV 60
       // p-scan ntsc, need to either double adc data rate and halve vds scaling
       // or disable line doubler (better)
       GBS::PLLAD_KS::write(1); // 5_16
-      GBS::PB_CAP_OFFSET::write(0x100); // 4_37
-      GBS::PB_FETCH_NUM::write(0x100); // 4_39
-      GBS::VDS_VSCALE::write(548);
+      GBS::VDS_VSCALE::write(512); // 548
       GBS::VDS_HSCALE::write(768);
       GBS::VDS_V_DELAY::write(0); // filter 3_24 2 off
       GBS::VDS_TAP6_BYPS::write(1); // 3_24 3 disable filter (jailbars)
@@ -1505,43 +1528,49 @@ void doPostPresetLoadSteps() {
       GBS::IF_HS_DEC_FACTOR::write(0); // 1_0b 4+5
       GBS::IF_LD_SEL_PROV::write(1); // 1_0b 7
       GBS::IF_LD_RAM_BYPS::write(1); // no LD 1_0c 0
-      // new: set a stop position (right border)
-      GBS::IF_HBIN_ST::write(1104); // 1_24 // no effect seen but may be necessary
-      // vertical shift
-      GBS::IF_VB_ST::write(514);
-      GBS::IF_VB_SP::write(515);
       // horizontal shift
-      GBS::IF_HB_SP2::write(0x84);
+      GBS::IF_HB_SP2::write(0xb0); // a bit too much to the left
       GBS::IF_HB_ST2::write(0x20); // 1_18 necessary
+      //GBS::IF_HBIN_ST::write(1104); // 1_24 // no effect seen but may be necessary
+      GBS::IF_HBIN_SP::write(0x78); // 1_26
+      // vertical shift
+      GBS::IF_VB_ST::write(6); // 514
+      GBS::IF_VB_SP::write(7); // 514
       // display lower blanking
       setDisplayVblankStopPosition(40);
       setDisplayVblankStartPosition(982);
       setMemoryVblankStartPosition(2);
       setMemoryVblankStopPosition(4);
       // display hor. blanking
-      //setDisplayHblankStopPosition(480);
+      GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 44);
+      GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 34);
     }
     else if (rto->videoStandardInput == 4) { // ED YUV 50
       // p-scan pal, need to either double adc data rate and halve vds scaling
       // or disable line doubler (better)
       GBS::PLLAD_KS::write(1); // 5_16
       GBS::VDS_VSCALE::write(683);
-      GBS::VDS_HSCALE::write(548);
+      GBS::VDS_HSCALE::write(576);
       GBS::VDS_V_DELAY::write(1); // filter 3_24 2 on
       GBS::VDS_TAP6_BYPS::write(1); // 3_24 3 disable filter (jailbars)
       GBS::MADPT_Y_DELAY::write(1); // some shift
+      GBS::IF_INI_ST::write(0x4d0);
       GBS::IF_HS_TAP11_BYPS::write(0); // 1_02 4 enable filter
       GBS::IF_PRGRSV_CNTRL::write(1); // 1_00 6
       GBS::IF_HS_DEC_FACTOR::write(0); // 1_0b 4+5
       GBS::IF_LD_SEL_PROV::write(1); // 1_0b 7
       GBS::IF_LD_RAM_BYPS::write(1); // no LD 1_0c 0
       // vertical shift
-      GBS::IF_VB_ST::write(605);
-      GBS::IF_VB_SP::write(606);
+      GBS::IF_VB_ST::write(610);
+      GBS::IF_VB_SP::write(611);
       // horizontal shift
-      GBS::IF_HB_SP2::write(0x78);
+      GBS::IF_HB_SP2::write(0xc0);
       GBS::IF_HB_ST2::write(0x20); // check!
-      GBS::IF_HBIN_SP::write(0x6a);
+      GBS::IF_HBIN_SP::write(0x90); // 1_26
+      GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 64);
+      GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() + 64);
+      GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 46);
+      GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() + 2);
       // display blanking
       setDisplayVblankStopPosition(42);
       setDisplayVblankStartPosition(934);
@@ -1570,22 +1599,6 @@ void doPostPresetLoadSteps() {
   setSpParameters();
   setAndUpdateSogLevel(rto->currentLevelSOG);
 
-  // 0 segment
-  GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC here, enable later (should already be off though)
-  
-  // test: set IF_HSYNC_RST based on pll divider 5_12/13
-  //GBS::IF_LINE_SP::write((GBS::PLLAD_MD::read() / 2) - 1);
-  //GBS::IF_HSYNC_RST::write((GBS::PLLAD_MD::read() / 2) - 2); // remember: 1_0e always -1
-  
-  // IF initial position is 1_0e/0f IF_HSYNC_RST exactly. But IF_INI_ST needs to be a few pixels before that.
-  // IF_INI_ST - 1 causes an interresting effect when the source switches to interlace.
-  // IF_INI_ST - 2 is the first safe setting // exception: edtv+ presets: need to be more exact
-  if (rto->videoStandardInput <= 2) {
-    GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 4);
-  }
-  else {
-    GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 1); // -0 also seems to work
-  }
   // ADC
   //GBS::ADC_TR_RSEL::write(2); // ADC_TR_RSEL = 2 test
   //GBS::ADC_TR_ISEL::write(0); // leave current at default
@@ -2044,7 +2057,7 @@ void updateClampPosition() {
 
   uint16_t inHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
   if (inHlength < 100 || inHlength > 4095) { 
-      SerialM.println("!!B"); // assert: must be valid
+      SerialM.println("updateClampPosition: not stable yet"); // assert: must be valid
       return;
   }
 
@@ -2070,8 +2083,8 @@ void updateClampPosition() {
       stop = inHlength * 0.0168f;
     }
     else if (rto->videoStandardInput == 4) {
-      start = inHlength * 0.018f;
-      stop = inHlength * 0.030f;
+      start = inHlength * 0.010f; // 0.014f
+      stop = inHlength * 0.027f;
     }
     else if (rto->videoStandardInput == 5) { // HD / tri level sync
       start = inHlength * 0.0232f;
@@ -2158,11 +2171,15 @@ void passThroughWithIfModeSwitch() {
     GBS::PLLAD_FS::write(0); // high gain needs to be off, else sync dropouts on LCD with SNES
     if (rto->videoStandardInput <= 2) {
       GBS::SP_CS_HS_ST::write(0);
-      GBS::SP_CS_HS_SP::write(0x88); // with PLLAD_MD = 0x768
+      GBS::SP_CS_HS_SP::write(0x6c); // with PLLAD_MD = 0x768
     }
-    else if (rto->videoStandardInput <= 4) {
-      GBS::SP_CS_HS_ST::write(0);
-      GBS::SP_CS_HS_SP::write(0x60); // with PLLAD_MD = 0x768
+    else if (rto->videoStandardInput == 3) {
+      GBS::SP_CS_HS_ST::write(0x50);
+      GBS::SP_CS_HS_SP::write(0xb0); // with PLLAD_MD = 0x768
+    }
+    else if (rto->videoStandardInput == 4) {
+      GBS::SP_CS_HS_ST::write(0x78);
+      GBS::SP_CS_HS_SP::write(0xcc); // with PLLAD_MD = 0x768
     }
     else if (rto->videoStandardInput <= 7) {
       GBS::SP_CS_HS_ST::write(0x6c);
@@ -2182,11 +2199,14 @@ void passThroughWithIfModeSwitch() {
     GBS::PLL648_CONTROL_01::write(0x35);
     rto->phaseSP = 15; // eventhough i had this fancy bestphase function :p
     setPhaseSP(); // snes likes 12, was 4. if misplaced, creates single wiggly line
-    rto->phaseADC = 18; setPhaseADC();
+    rto->phaseADC = 0; setPhaseADC(); // was 18, exactly what causes issues every 4 attempts!
     GBS::SP_SDCS_VSST_REG_H::write(0x00); // S5_3B
     GBS::SP_SDCS_VSSP_REG_H::write(0x00); // S5_3B
-    GBS::SP_SDCS_VSST_REG_L::write(3); // S5_3F (3 for passthrough mode, fixes uneven display)
-    GBS::SP_SDCS_VSSP_REG_L::write(12); // S5_40 (test with interlaced sources)
+    GBS::SP_SDCS_VSST_REG_L::write(0x02); // S5_3F
+    GBS::SP_SDCS_VSSP_REG_L::write(0x0b); // S5_40 (test with interlaced sources)
+    if (rto->videoStandardInput == 1 || rto->videoStandardInput == 6) {
+      GBS::SP_SDCS_VSSP_REG_L::write(0x0c); // S5_40 (interlaced)
+    }
     // IF
     GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 bit 4 filter off looks better
     GBS::IF_HS_Y_PDELAY::write(3); // 1_02 bits 5+6
@@ -3295,7 +3315,7 @@ void loop() {
       " A:" + String(adc_gain_r, HEX) + String(adc_gain_g, HEX) + String(adc_gain_b, HEX) +
       " S:" + String(stat0, HEX) + String(".") + String(stat5, HEX) +
       " D:" + dbg + " m:" + String(video_mode) + " ht:" + String(STATUS_SYNC_PROC_HTOTAL) +
-      " vt:" + String(STATUS_SYNC_PROC_VTOTAL) + " hpw:" + hpw + "s:" + stableCounter 
+      " vt:" + String(STATUS_SYNC_PROC_VTOTAL) + " hpw:" + hpw + " s:" + stableCounter 
 #if defined(ESP8266)
       +String(" W:") + String(WiFi.RSSI())
 #endif
