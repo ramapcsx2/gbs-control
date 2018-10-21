@@ -25,16 +25,15 @@ class FrameSyncManager {
     //static const uint8_t vsyncInPin = Attrs::vsyncInPin;
     static const uint32_t syncTimeout = Attrs::timeout;
     static const int16_t syncCorrection = Attrs::correction;
-    static const uint32_t syncTargetPhase = Attrs::targetPhase;
+    static const int32_t syncTargetPhase = Attrs::targetPhase;
     //static const uint8_t syncHtotalStable = Attrs::htotalStable;
     static const uint8_t syncSamples = Attrs::samples;
 
     static bool syncLockReady;
     static int16_t syncLastCorrection;
 
-    // Sample vsync start and stop times (for two consecutive frames)
-    // from debug pin A timeout prevents deadlocks in case of bad
-    // signals.
+    // Sample vsync start and stop times (for two consecutive frames) from debug pin.
+    // A timeout prevents deadlocks in case of bad signals.
     // Sources can disappear while in sampling, so keep the timeout.
     static bool vsyncInputSample(unsigned long *start, unsigned long *stop) {
       unsigned long timeoutStart = micros();
@@ -80,36 +79,34 @@ class FrameSyncManager {
       while (!digitalRead(debugInPin))
         if (micros() - timeoutStart >= syncTimeout)
           return false;
+      // sample twice
+      while (digitalRead(debugInPin))
+        if (micros() - timeoutStart >= syncTimeout)
+          return false;
+      while (!digitalRead(debugInPin))
+        if (micros() - timeoutStart >= syncTimeout)
+          return false;
       *stop = micros();
       return true;
     }
 
     // Sample input and output vsync periods and their phase
     // difference in microseconds
-    static bool vsyncPeriodAndPhase(uint32_t *periodInput,
-                                    uint32_t *periodOutput, int32_t *phase) {
-      unsigned long inStart, inStop, inTemp, outStart, outStop, inPeriod, outPeriod,
-               diff;
+    static bool vsyncPeriodAndPhase(int32_t *periodInput, int32_t *periodOutput, int32_t *phase) {
+      unsigned long inStart, inStop, outStart, outStop;
+      signed long inPeriod, outPeriod, diff;
 
-      uint8_t debugRegBackup = GBS::TEST_BUS_SEL::read();
-      GBS::TEST_BUS_SEL::write(0xa);
+      GBS::TEST_BUS_SEL::write(0x0);
       if (!vsyncInputSample(&inStart, &inStop)) {
-        GBS::TEST_BUS_SEL::write(debugRegBackup);
         return false;
       }
       GBS::TEST_BUS_SEL::write(0x2); // switch to show sync output right away
-	  inTemp = inStop - inStart;
-	  inPeriod = inTemp >> 1;
-	  // the div2 rounds down, fix it
-	  if (bitRead(inTemp, 0)) inPeriod++;
+      inPeriod = (inStop - inStart) >> 1;
 
-	  //delay(2); // improves output stability
       if (!vsyncOutputSample(&outStart, &outStop)) {
-        GBS::TEST_BUS_SEL::write(debugRegBackup);
         return false;
       }
-      GBS::TEST_BUS_SEL::write(debugRegBackup);
-      outPeriod = outStop - outStart;
+      outPeriod = (outStop - outStart) >> 1;
       diff = (outStart - inStart) % inPeriod;
       if (periodInput)
         *periodInput = inPeriod;
@@ -118,78 +115,45 @@ class FrameSyncManager {
       if (phase)
         *phase = (diff < inPeriod / 2) ? diff : diff - inPeriod;
 
-      // good for jitter tests
-        //static uint32_t minseen = 100000, maxseen = 0;
-        //static uint8_t initialHold = 22;
-        //if (initialHold-- < 3) {
-        //  if (inPeriod < minseen) minseen = inPeriod;
-        //  if (inPeriod > maxseen) maxseen = inPeriod;
-        //  initialHold = 2;
-        //}
-        //Serial.print("inPeriod: "); Serial.println(inPeriod);
-        //Serial.print(" min|max: "); Serial.print(minseen);
-        //Serial.print(" | "); Serial.println(maxseen);
+      //Serial.print(" inPeriod: "); Serial.println(inPeriod);
+      //Serial.print("outPeriod: "); Serial.println(outPeriod);
 
       return true;
     }
 
-    static bool sampleVsyncPeriods(uint32_t *input, uint32_t *output) {
-      uint32_t inPeriod, outPeriod;
-      uint32_t inSum = 0;
-      uint32_t outSum = 0;
+    static bool sampleVsyncPeriods(int32_t *input, int32_t *output) {
+      int32_t inPeriod, outPeriod;
 
-      for (uint8_t i = 0; i < syncSamples; ++i) {
-        if (!vsyncPeriodAndPhase(&inPeriod, &outPeriod, NULL))
-          return false;
-        inSum += inPeriod;
-        outSum += outPeriod;
-      }
+      if (!vsyncPeriodAndPhase(&inPeriod, &outPeriod, NULL))
+        return false;
 
-      *input = inSum / syncSamples;
-      *output = outSum / syncSamples;
+      *input = inPeriod;
+      *output = outPeriod;
 
       return true;
     }
 
     // Find the largest htotal that makes output frame time less than
     // the input.
+    // update: has to be less for the soft frame time lock to work (but not for hard frame lock)
     static bool findBestHTotal(uint32_t &bestHtotal) {
-      uint16_t htotal = HSYNC_RST::read();
-      uint32_t inPeriod, outPeriod;
+      uint16_t inHtotal = HSYNC_RST::read();
+      int32_t inPeriod, outPeriod;
 
-      if (htotal == 0) { // safety
-        return false;
+      if (inHtotal == 0) { return false; } // safety
+      if (!sampleVsyncPeriods(&inPeriod, &outPeriod)) { return false; }
+
+      int32 difference = outPeriod - inPeriod;
+      //Serial.print("diff: "); Serial.println(difference);
+      // 1: this usually happens when source is interlaced and is a fluke
+      // -5: don't recalculate htotal for small values, avoids ripple effect
+      if (difference <= 1 && difference > -5) {
+        bestHtotal = inHtotal;
       }
-
-      if (!sampleVsyncPeriods(&inPeriod, &outPeriod)) return false;
-      
-      //Serial.println((htotal * inPeriod));
-      //Serial.println(outPeriod);
-      //Serial.println((htotal * inPeriod) / outPeriod);
-      //Serial.println("");
-      
-      bestHtotal = (htotal * inPeriod) / outPeriod;
+      else {
+        bestHtotal = (inHtotal * inPeriod) / outPeriod;
+      }
       return true;
-
-      // deprecated
-      //uint16_t candHtotal;
-      //uint8_t stable = 0;
-      //unsigned long timeout = millis();
-      //while ((stable < syncHtotalStable) && (millis() - timeout) < 5000) {
-      //  yield();
-      //  if (!sampleVsyncPeriods(&inPeriod, &outPeriod))
-      //    return false;
-      //  candHtotal = (htotal * inPeriod) / outPeriod;
-      //  //Serial.print("Candidate htotal: "); Serial.println(candHtotal);
-
-      //  if (candHtotal == bestHtotal)
-      //    stable++;
-      //  else
-      //    stable = 1;
-      //  bestHtotal = candHtotal;
-      //}
-
-      //return true;
     }
 
   public:
@@ -229,10 +193,11 @@ class FrameSyncManager {
     // frequency) to bring the phase offset closer to the desired
     // value.
     static bool run(uint8_t frameTimeLockMethod) {
-      uint32_t period;
+      int32_t period;
       int32_t phase;
       int32_t target;
       int16_t correction;
+      static uint8_t ignoreRun = 0;
 
       if (!syncLockReady)
         return false;
@@ -240,7 +205,37 @@ class FrameSyncManager {
       if (!vsyncPeriodAndPhase(&period, NULL, &phase))
         return false;
 
-      //Serial.print("Phase offset: "); Serial.println(phase);
+      if (ignoreRun) {
+        ignoreRun--;
+      }
+      if ((phase < -1000) && !ignoreRun) { //htotal might be wrong (source interlace/p-scan switch)
+        //Serial.println("re-init");
+        ignoreRun = 4;
+        if (syncLastCorrection != 0) { // todo: clean up
+          uint16_t vtotal = 0, vsst = 0, vssp = 0;
+          uint16_t currentLineNumber, earlyFrameBoundary;
+          uint16_t timeout = 10;
+          VRST_SST_SSP::read(vtotal, vsst, vssp);
+          earlyFrameBoundary = vtotal / 4;
+          vtotal -= syncLastCorrection;
+          //Serial.println("with undo correction");
+          if (frameTimeLockMethod == 0) { // the default: moves VS position
+            vsst -= syncLastCorrection;
+            vssp -= syncLastCorrection;
+          }
+          // else it is method 1: don't move VS position
+
+          do {
+            // wait for next frame start + 20 lines for stability
+            currentLineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
+          } while ((currentLineNumber > earlyFrameBoundary || currentLineNumber < 20) && --timeout > 0);
+          VRST_SST_SSP::write(vtotal, vsst, vssp);
+        }
+
+        reset();
+
+        return true;
+      }
 
       target = (syncTargetPhase * period) / 360; // -300; //debug
 
