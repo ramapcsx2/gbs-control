@@ -451,7 +451,7 @@ void setAdcParametersGainAndOffset() {
   }
   else {
     GBS::ADC_ROFCTRL::write(0x3f); // R and B ADC channels seem to be offset from G in hardware
-    GBS::ADC_GOFCTRL::write(0x3f);
+    GBS::ADC_GOFCTRL::write(0x43);
     GBS::ADC_BOFCTRL::write(0x3f);
   }
   GBS::ADC_RGCTRL::write(0x7b); // ADC_TR_RSEL = 2 test
@@ -1607,9 +1607,9 @@ void doPostPresetLoadSteps() {
     GBS::ADC_RGCTRL::write(0x40);
     GBS::ADC_GGCTRL::write(0x40);
     GBS::ADC_BGCTRL::write(0x40);
-    GBS::ADC_ROFCTRL::write(0x43);
+    /*GBS::ADC_ROFCTRL::write(0x43);
     GBS::ADC_GOFCTRL::write(0x43);
-    GBS::ADC_BOFCTRL::write(0x43);
+    GBS::ADC_BOFCTRL::write(0x43);*/
     GBS::DEC_TEST_ENABLE::write(1);
   }
   else {
@@ -2343,7 +2343,7 @@ void doAutoGain() {
   static uint8_t r_off_found = 0, g_off_found = 0, b_off_found = 0;
   static unsigned long lastTime = millis();
 
-  if (millis() - lastTime > 30) {
+  if (millis() - lastTime > 60) {
     r_found = 0; g_found = 0; b_found = 0;
     r_off_found = 0; g_off_found = 0; b_off_found = 0;
     lastTime = millis();
@@ -2402,27 +2402,28 @@ void doAutoGain() {
     }
   }
 
-  if (r_off_found > 2) {
-    if (GBS::ADC_ROFCTRL::read() > 0x3b) {
-      GBS::ADC_ROFCTRL::write(GBS::ADC_ROFCTRL::read() - 1);
-      //SerialM.print("Roffs: "); SerialM.println(GBS::ADC_ROFCTRL::read(), HEX);
-      r_off_found = 0;
-    }
-  }
-  if (g_off_found > 2) {
-    if (GBS::ADC_GOFCTRL::read() > 0x3b) {
-      GBS::ADC_GOFCTRL::write(GBS::ADC_GOFCTRL::read() - 1);
-      //SerialM.print("Goffs: "); SerialM.println(GBS::ADC_GOFCTRL::read(), HEX);
-      g_off_found = 0;
-    }
-  }
-  if (b_off_found > 2) {
-    if (GBS::ADC_BOFCTRL::read() > 0x3b) {
-      GBS::ADC_BOFCTRL::write(GBS::ADC_BOFCTRL::read() - 1);
-      //SerialM.print("Boffs: "); SerialM.println(GBS::ADC_BOFCTRL::read(), HEX);
-      b_off_found = 0;
-    }
-  }
+  // disabled for now
+  //if (r_off_found > 2) {
+  //  if (GBS::ADC_ROFCTRL::read() > 0x3b) {
+  //    GBS::ADC_ROFCTRL::write(GBS::ADC_ROFCTRL::read() - 1);
+  //    //SerialM.print("Roffs: "); SerialM.println(GBS::ADC_ROFCTRL::read(), HEX);
+  //    r_off_found = 0;
+  //  }
+  //}
+  //if (g_off_found > 2) {
+  //  if (GBS::ADC_GOFCTRL::read() > 0x3b) {
+  //    GBS::ADC_GOFCTRL::write(GBS::ADC_GOFCTRL::read() - 1);
+  //    //SerialM.print("Goffs: "); SerialM.println(GBS::ADC_GOFCTRL::read(), HEX);
+  //    g_off_found = 0;
+  //  }
+  //}
+  //if (b_off_found > 2) {
+  //  if (GBS::ADC_BOFCTRL::read() > 0x3b) {
+  //    GBS::ADC_BOFCTRL::write(GBS::ADC_BOFCTRL::read() - 1);
+  //    //SerialM.print("Boffs: "); SerialM.println(GBS::ADC_BOFCTRL::read(), HEX);
+  //    b_off_found = 0;
+  //  }
+  //}
 }
 
 void startWire() {
@@ -2841,9 +2842,9 @@ void loop() {
         GBS::ADC_RGCTRL::write(0x40);
         GBS::ADC_GGCTRL::write(0x40);
         GBS::ADC_BGCTRL::write(0x40);
-        GBS::ADC_ROFCTRL::write(0x43);
+        /*GBS::ADC_ROFCTRL::write(0x43);
         GBS::ADC_GOFCTRL::write(0x43);
-        GBS::ADC_BOFCTRL::write(0x43);
+        GBS::ADC_BOFCTRL::write(0x43);*/
         GBS::DEC_TEST_ENABLE::write(1);
         SerialM.println("on");
       }
