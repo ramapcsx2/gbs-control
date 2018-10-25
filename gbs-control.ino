@@ -8,6 +8,7 @@
 #include "pal_1280x1024.h"
 #include "pal_1280x720.h"
 #include "presetMdSection.h"
+#include "ofw_RGBS.h"
 
 #include "tv5725.h"
 #include "framesync.h"
@@ -141,6 +142,7 @@ struct runTimeOptions {
   boolean autoBestHtotalEnabled;
   boolean deinterlacerWasTurnedOff;
   boolean forceRetime;
+  boolean optimizeSOG;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -370,10 +372,11 @@ void setResetParameters() {
   rto->continousStableCounter = 0;
   rto->isInLowPowerMode = false;
   rto->currentLevelSOG = 4;
+  rto->optimizeSOG = false;
   setAndUpdateSogLevel(rto->currentLevelSOG);
   GBS::RESET_CONTROL_0x46::write(0x00); // all units off
   GBS::RESET_CONTROL_0x47::write(0x00);
-  GBS::GPIO_CONTROL_00::write(0xff); // all GPIO pins regular GPIO
+  GBS::GPIO_CONTROL_00::write(0x67); // most GPIO pins regular GPIO
   GBS::GPIO_CONTROL_01::write(0x00); // all GPIO outputs disabled
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC (output)
   GBS::PLL648_CONTROL_01::write(0x00); // VCLK(1/2/4) display clock // needs valid for debug bus
@@ -546,6 +549,7 @@ void setSpParameters() {
 void setAndUpdateSogLevel(uint8_t level) {
   GBS::ADC_SOGCTRL::write(level);
   rto->currentLevelSOG = level;
+  //SerialM.print("sog: "); SerialM.println(rto->currentLevelSOG);
 }
 
 // in operation: t5t04t1 for 10% lower power on ADC
@@ -875,6 +879,8 @@ void dumpRegisters(byte segment)
 void resetPLLAD() {
   GBS::PLLAD_VCORST::write(1);
   delay(1);
+  latchPLLAD();
+  delay(1);
   GBS::PLLAD_VCORST::write(0);
   delay(1);
   latchPLLAD();
@@ -887,7 +893,6 @@ void latchPLLAD() {
 }
 
 void resetPLL() {
-  GBS::PAD_OSC_CNTRL::write(2); // crystal drive
   GBS::PLL_LEN::write(0);
   GBS::PLL_VCORST::write(1);
   delay(1);
@@ -1489,11 +1494,12 @@ void doPostPresetLoadSteps() {
   GBS::ADC_TEST::write(0); // in case it was set
   
   // 0 segment
-  GBS::GPIO_CONTROL_00::write(0xff); // all GPIO pins regular GPIO
+  GBS::GPIO_CONTROL_00::write(0x67); // most GPIO pins regular GPIO
   GBS::GPIO_CONTROL_01::write(0x00); // all GPIO outputs disabled
   rto->clampPositionIsSet = false;
   rto->coastPositionIsSet = false;
   rto->continousStableCounter = 0;
+  GBS::PAD_OSC_CNTRL::write(2); // crystal drive
   GBS::SP_NO_CLAMP_REG::write(1); // (keep) clamp disabled, to be enabled when position determined
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC here, enable later (should already be off though)
   
@@ -2490,6 +2496,7 @@ void setup() {
   rto->syncWatcherEnabled = true;  // continously checks the current sync status. required for normal operation
   rto->phaseADC = 16;
   rto->phaseSP = 15;
+  rto->optimizeSOG = false;
 
   // the following is just run time variables. don't change!
   rto->inputIsYpBpR = false;
@@ -2709,6 +2716,7 @@ void loop() {
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastVsyncLock = millis();
   static unsigned long lastTimeSourceCheck = millis();
+  static unsigned long lastTimeSOG = millis();
 #ifdef HAVE_BUTTONS
   static unsigned long lastButton = micros();
 #endif
@@ -2869,8 +2877,20 @@ void loop() {
       rto->forceRetime = true;
     break;
     case 'j':
-      resetPLL(); latchPLLAD(); //resetPLLAD();
+      //resetPLL();
+      //resetPLLAD();
+      latchPLLAD();
     break;
+    case 'J':
+      rto->optimizeSOG = !rto->optimizeSOG;
+      SerialM.print("optimizeSOG ");
+      if (rto->optimizeSOG) {
+        SerialM.println("on");
+      }
+      else {
+        SerialM.println("off");
+      }
+      break;
     case 'v':
       rto->phaseSP += 1; rto->phaseSP &= 0x1f;
       SerialM.print("SP: "); SerialM.println(rto->phaseSP);
@@ -2882,7 +2902,9 @@ void loop() {
       SerialM.print("ADC: "); SerialM.println(rto->phaseADC);
     break;
     case 'B':
-      movePhaseThroughRange();
+      writeProgramArrayNew(ofw_RGBS);
+      doPostPresetLoadSteps();
+      //movePhaseThroughRange();
     break;
     case 'n':
     {
@@ -2940,6 +2962,20 @@ void loop() {
       rto->printInfos = !rto->printInfos;
     break;
 #if defined(ESP8266)
+    case 'I':
+      // deinterlace attempt
+    {
+      //2_0a_7 motion detect on of for refinement. 1=bypass
+      //2_18 seems to affect the wobbling in movement
+      //1_10 to 2, 1_12 to 4 rest 0
+      //1_1a blanking time is used for memory access, can't be too small (maybe 18 to 10, 1b to 4, 1a to 40 or so)
+      //1_1c needs to be 2 lower than 1_1e, else flicker
+      //1_14 to 0, 1_15 to 4, 1_16 to 0x20, 1_17 to 0   all may need actual preset adjusts
+      GBS::PLL_MS::write(4); // need higher memclock for more data
+      ResetSDRAM();
+
+    }
+    break;
     case 'c':
       SerialM.println("OTA Updates on");
       initUpdateOTA();
@@ -3277,6 +3313,11 @@ void loop() {
       GBS::TEST_BUS_SEL::write(debug_backup);
     }
     lastVsyncLock = millis();
+  }
+
+  if (rto->optimizeSOG && (millis() - lastTimeSOG > 1000)) {
+    setAndUpdateSogLevel((rto->currentLevelSOG + 1) & 0x0f); // goes 0 to 15
+    lastTimeSOG = millis();
   }
 
   if (rto->printInfos == true) { // information mode
