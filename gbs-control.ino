@@ -506,10 +506,7 @@ void setSpParameters() {
   GBS::SP_SDCS_VSST_REG_H::write(0);
   GBS::SP_SDCS_VSSP_REG_H::write(0);
   GBS::SP_SDCS_VSST_REG_L::write(0x02); // 5_3f // 0 and 1 not good in passthrough modes, assume same for regular
-  GBS::SP_SDCS_VSSP_REG_L::write(0x0b); // 5_40 0x0b=11
-  if (rto->videoStandardInput == 1 || rto->videoStandardInput == 6) {
-    GBS::SP_SDCS_VSSP_REG_L::write(0x0c); // S5_40 (interlaced)
-  }
+  GBS::SP_SDCS_VSSP_REG_L::write(0x0c); // 5_40 0x0c=12 // not 0x0b, test pal feedback clock preset
   GBS::SP_CS_HS_ST::write(0x00);
   GBS::SP_CS_HS_SP::write(0x08); // was 0x05, 720p source needs 0x08
 
@@ -1512,8 +1509,9 @@ void doPostPresetLoadSteps() {
   // IF_INI_ST - 2 is the first safe setting // exception: edtv+ presets: need to be more exact
   if (rto->videoStandardInput <= 2) {
     GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 4);
+    // todo: the -48 below is pretty narrow. check with ps2 yuv in all pal presets
     if (rto->videoStandardInput == 2) {  // exception for PAL (with i.e. PSX) default preset
-      GBS::IF_INI_ST::write(GBS::IF_INI_ST::read() - 64);
+      GBS::IF_INI_ST::write(GBS::IF_INI_ST::read() - 48);
     }
   }
   else {
@@ -1534,6 +1532,7 @@ void doPostPresetLoadSteps() {
       GBS::IF_HS_DEC_FACTOR::write(0); // 1_0b 4+5
       GBS::IF_LD_SEL_PROV::write(1); // 1_0b 7
       GBS::IF_LD_RAM_BYPS::write(1); // no LD 1_0c 0
+      GBS::IF_HB_SP::write(0); // cancel deinterlace offset, fixes colors
       // horizontal shift
       GBS::IF_HB_SP2::write(0xb0); // a bit too much to the left
       GBS::IF_HB_ST2::write(0x20); // 1_18 necessary
@@ -1566,6 +1565,7 @@ void doPostPresetLoadSteps() {
       GBS::IF_HS_DEC_FACTOR::write(0); // 1_0b 4+5
       GBS::IF_LD_SEL_PROV::write(1); // 1_0b 7
       GBS::IF_LD_RAM_BYPS::write(1); // no LD 1_0c 0
+      GBS::IF_HB_SP::write(0); // cancel deinterlace offset, fixes colors
       // vertical shift
       GBS::IF_VB_ST::write(610);
       GBS::IF_VB_SP::write(611);
@@ -1648,9 +1648,9 @@ void doPostPresetLoadSteps() {
     GBS::PB_REQ_SEL::write(3); // PlayBack 11 High request Low request
     GBS::PB_GENERAL_FLAG_REG::write(0x3f); // 4_2D max
     //GBS::PB_MAST_FLAG_REG::write(0x16); // 4_2c should be set by preset
-    GBS::MEM_INTER_DLYCELL_SEL::write(1); // 4_12 to 0x05
-    GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x05
-    GBS::MEM_FBK_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x05
+    GBS::MEM_INTER_DLYCELL_SEL::write(0); // 4_12 to 0x02
+    GBS::MEM_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x02
+    GBS::MEM_FBK_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x02
   }
   resetPLLAD(); // turns on pllad
   delay(20);
@@ -2223,6 +2223,7 @@ void passThroughWithIfModeSwitch() {
     GBS::IF_HB_ST::write(0); // S1_10
     GBS::IF_HB_ST2::write(0); // S1_18 // just move the bar out of the way
     GBS::IF_HB_SP2::write(8); // S1_1a // just move the bar out of the way
+    GBS::IF_LINE_SP::write(0); // may be related to RFF / WFF and 2_16_7 = 0
     delay(30);
     GBS::SFTRST_SYNC_RSTZ::write(0); // reset SP 0_47 bit 2
     GBS::SFTRST_SYNC_RSTZ::write(1);
@@ -2430,6 +2431,44 @@ void doAutoGain() {
   //    b_off_found = 0;
   //  }
   //}
+}
+
+void toggleMotionAdaptDeinterlace() {
+  SerialM.print("deinterlace mode ");
+  if (GBS::RFF_ENABLE::read() == 0) {
+    GBS::MAPDT_VT_SEL_PRGV::write(0);
+    GBS::MADPT_VIIR_BYPS::write(1); // todo: check
+    GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x00 (so fb clock is usable)
+    GBS::PB_DB_BUFFER_EN::write(1);
+    GBS::CAP_FF_HALF_REQ::write(1);
+    GBS::WFF_ENABLE::write(1);
+    GBS::WFF_FF_STA_INV::write(0);
+    GBS::WFF_YUV_DEINTERLACE::write(1);
+    GBS::WFF_LINE_FLIP::write(0);
+    GBS::WFF_HB_DELAY::write(4);
+    GBS::WFF_VB_DELAY::write(0);
+    GBS::RFF_REQ_SEL::write(3);
+    GBS::RFF_ENABLE::write(1);
+    GBS::RFF_YUV_DEINTERLACE::write(1);
+    GBS::RFF_LREQ_CUT::write(1);
+    //GBS::PLL_MS::write(4); // need higher memclock for more data // may work as is
+    SerialM.println("on");
+  }
+  else {
+    GBS::MAPDT_VT_SEL_PRGV::write(1);
+    GBS::MADPT_VIIR_BYPS::write(0); // todo: check
+    GBS::MEM_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x02
+    GBS::PB_DB_BUFFER_EN::write(0);
+    GBS::CAP_FF_HALF_REQ::write(0);
+    GBS::WFF_ENABLE::write(0);
+    GBS::WFF_FF_STA_INV::write(1);
+    GBS::WFF_YUV_DEINTERLACE::write(0);
+    GBS::WFF_LINE_FLIP::write(1);
+    GBS::RFF_ENABLE::write(0);
+    GBS::RFF_YUV_DEINTERLACE::write(0);
+    SerialM.println("off");
+  }
+  //ResetSDRAM();
 }
 
 void startWire() {
@@ -2834,7 +2873,7 @@ void loop() {
       //
     break;
     case 'p':
-      //
+      toggleMotionAdaptDeinterlace();
     break;
     case 'k':
       bypassModeSwitch_RGBHV();
@@ -2962,20 +3001,6 @@ void loop() {
       rto->printInfos = !rto->printInfos;
     break;
 #if defined(ESP8266)
-    case 'I':
-      // deinterlace attempt
-    {
-      //2_0a_7 motion detect on of for refinement. 1=bypass
-      //2_18 seems to affect the wobbling in movement
-      //1_10 to 2, 1_12 to 4 rest 0
-      //1_1a blanking time is used for memory access, can't be too small (maybe 18 to 10, 1b to 4, 1a to 40 or so)
-      //1_1c needs to be 2 lower than 1_1e, else flicker
-      //1_14 to 0, 1_15 to 4, 1_16 to 0x20, 1_17 to 0   all may need actual preset adjusts
-      GBS::PLL_MS::write(4); // need higher memclock for more data
-      ResetSDRAM();
-
-    }
-    break;
     case 'c':
       SerialM.println("OTA Updates on");
       initUpdateOTA();
@@ -3795,10 +3820,11 @@ void handleType2Command() {
         GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() - 0x1c);
         GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() - 0x1c);
         writeOneByte(0xF0, 3);
-        writeOneByte(0x35, 0xd0); // more luma gain
+        writeOneByte(0x35, 0xd8); // more luma gain // was 0xd0
         writeOneByte(0xF0, 2);
         writeOneByte(0x27, 0x28); // set up VIIR filter (no need to undo later)
         writeOneByte(0x26, 0x00);
+        GBS::RFF_LINE_FLIP::write(1); // clears potential garbage in rff buffer
       }
       else {
         writeOneByte(0x16, reg ^ (1 << 7));
@@ -3809,6 +3835,7 @@ void handleType2Command() {
         writeOneByte(0x35, 0x80);
         writeOneByte(0xF0, 2);
         writeOneByte(0x26, 0x40); // disables VIIR filter
+        GBS::RFF_LINE_FLIP::write(0); // back to default
       }
     }
     break;
