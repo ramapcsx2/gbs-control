@@ -143,6 +143,8 @@ struct runTimeOptions {
   boolean deinterlacerWasTurnedOff;
   boolean forceRetime;
   boolean optimizeSOG;
+  boolean motionAdaptiveDeinterlace;
+  boolean deinterlaceAutoEnabled;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -373,6 +375,7 @@ void setResetParameters() {
   rto->isInLowPowerMode = false;
   rto->currentLevelSOG = 4;
   rto->optimizeSOG = false;
+  rto->motionAdaptiveDeinterlace = false;
   setAndUpdateSogLevel(rto->currentLevelSOG);
   GBS::RESET_CONTROL_0x46::write(0x00); // all units off
   GBS::RESET_CONTROL_0x47::write(0x00);
@@ -1496,6 +1499,7 @@ void doPostPresetLoadSteps() {
   rto->clampPositionIsSet = false;
   rto->coastPositionIsSet = false;
   rto->continousStableCounter = 0;
+  rto->motionAdaptiveDeinterlace = false;
   GBS::PAD_OSC_CNTRL::write(2); // crystal drive
   GBS::SP_NO_CLAMP_REG::write(1); // (keep) clamp disabled, to be enabled when position determined
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC here, enable later (should already be off though)
@@ -2063,7 +2067,7 @@ void updateClampPosition() {
 
   uint16_t inHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
   if (inHlength < 100 || inHlength > 4095) { 
-      SerialM.println("updateClampPosition: not stable yet"); // assert: must be valid
+      //SerialM.println("updateClampPosition: not stable yet"); // assert: must be valid
       return;
   }
 
@@ -2223,7 +2227,10 @@ void passThroughWithIfModeSwitch() {
     GBS::IF_HB_ST::write(0); // S1_10
     GBS::IF_HB_ST2::write(0); // S1_18 // just move the bar out of the way
     GBS::IF_HB_SP2::write(8); // S1_1a // just move the bar out of the way
-    GBS::IF_LINE_SP::write(0); // may be related to RFF / WFF and 2_16_7 = 0
+    //GBS::IF_LINE_SP::write(0); // may be related to RFF / WFF and 2_16_7 = 0
+    GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2
+    GBS::MADPT_VIIR_BYPS::write(1); // 2_26_6
+
     delay(30);
     GBS::SFTRST_SYNC_RSTZ::write(0); // reset SP 0_47 bit 2
     GBS::SFTRST_SYNC_RSTZ::write(1);
@@ -2434,8 +2441,8 @@ void doAutoGain() {
 }
 
 void toggleMotionAdaptDeinterlace() {
-  SerialM.print("deinterlace mode ");
-  if (GBS::RFF_ENABLE::read() == 0) {
+  SerialM.print("deinterlace: ");
+  if (!rto->motionAdaptiveDeinterlace) {
     GBS::MAPDT_VT_SEL_PRGV::write(0);
     GBS::MADPT_VIIR_BYPS::write(1); // todo: check
     GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x00 (so fb clock is usable)
@@ -2452,6 +2459,7 @@ void toggleMotionAdaptDeinterlace() {
     GBS::RFF_YUV_DEINTERLACE::write(1);
     GBS::RFF_LREQ_CUT::write(1);
     //GBS::PLL_MS::write(4); // need higher memclock for more data // may work as is
+    rto->motionAdaptiveDeinterlace = true;
     SerialM.println("on");
   }
   else {
@@ -2466,6 +2474,7 @@ void toggleMotionAdaptDeinterlace() {
     GBS::WFF_LINE_FLIP::write(1);
     GBS::RFF_ENABLE::write(0);
     GBS::RFF_YUV_DEINTERLACE::write(0);
+    rto->motionAdaptiveDeinterlace = false;
     SerialM.println("off");
   }
   //ResetSDRAM();
@@ -2536,6 +2545,8 @@ void setup() {
   rto->phaseADC = 16;
   rto->phaseSP = 15;
   rto->optimizeSOG = false;
+  rto->motionAdaptiveDeinterlace = false;
+  rto->deinterlaceAutoEnabled = true;
 
   // the following is just run time variables. don't change!
   rto->inputIsYpBpR = false;
@@ -2870,7 +2881,14 @@ void loop() {
       doPostPresetLoadSteps();
     break;
     case 'P':
-      //
+      SerialM.print("auto deinterlace: ");
+      rto->deinterlaceAutoEnabled = !rto->deinterlaceAutoEnabled;
+      if (rto->deinterlaceAutoEnabled) {
+        SerialM.println("on");
+      }
+      else {
+        SerialM.println("off");
+      }
     break;
     case 'p':
       toggleMotionAdaptDeinterlace();
@@ -3476,6 +3494,24 @@ void loop() {
       noSyncCounter = 0;
       if (rto->deinterlacerWasTurnedOff) {
         enableDeinterlacer();
+      }
+
+      // new: attempt to switch in deinterlacing automatically, when required
+      // only do this for pal/ntsc, which can be 240p or 480i
+      if (rto->deinterlaceAutoEnabled && newVideoMode <= 2) {
+        uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read();
+        if (!rto->motionAdaptiveDeinterlace && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts
+          disableDeinterlacer();
+          toggleMotionAdaptDeinterlace();
+          delay(1);
+          enableDeinterlacer();
+        }
+        else if (rto->motionAdaptiveDeinterlace && VPERIOD_IF % 2 == 1) { // ie v:523 or other, uneven counts
+          disableDeinterlacer();
+          toggleMotionAdaptDeinterlace();
+          delay(1);
+          enableDeinterlacer();
+        }
       }
     }
 

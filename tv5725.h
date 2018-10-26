@@ -219,6 +219,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     // Deinterlacer / Scaledown registers
     typedef UReg<0x02, 0x16, 7,  1> MAPDT_VT_SEL_PRGV;
     typedef UReg<0x02, 0x17, 0,  4> MADPT_Y_DELAY;
+    typedef UReg<0x02, 0x24, 2,  1> MADPT_PD_RAM_BYPS;
     typedef UReg<0x02, 0x26, 6,  1> MADPT_VIIR_BYPS;
 
     // VDS Registers
