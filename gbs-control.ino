@@ -145,6 +145,7 @@ struct runTimeOptions {
   boolean optimizeSOG;
   boolean motionAdaptiveDeinterlace;
   boolean deinterlaceAutoEnabled;
+  boolean scanlinesEnabled;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -376,6 +377,7 @@ void setResetParameters() {
   rto->currentLevelSOG = 4;
   rto->optimizeSOG = false;
   rto->motionAdaptiveDeinterlace = false;
+  rto->scanlinesEnabled = false;
   setAndUpdateSogLevel(rto->currentLevelSOG);
   GBS::RESET_CONTROL_0x46::write(0x00); // all units off
   GBS::RESET_CONTROL_0x47::write(0x00);
@@ -2440,6 +2442,37 @@ void doAutoGain() {
   //}
 }
 
+void toggleScanlines() {
+  uint8_t reg;
+  writeOneByte(0xF0, 2);
+  readFromRegister(0x16, 1, &reg);
+  if (!rto->scanlinesEnabled) {
+    uopt->enableAutoGain = 0; // incompatible
+    writeOneByte(0x16, reg ^ (1 << 7));
+    GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() - 0x1c);
+    GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() - 0x1c);
+    GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() - 0x1c);
+    writeOneByte(0xF0, 3);
+    writeOneByte(0x35, 0xd8); // more luma gain // was 0xd0
+    writeOneByte(0xF0, 2);
+    writeOneByte(0x27, 0x28); // set up VIIR filter
+    GBS::MADPT_VIIR_BYPS::write(0); // enable VIIR 
+    GBS::RFF_LINE_FLIP::write(1); // clears potential garbage in rff buffer
+    rto->scanlinesEnabled = true;
+  }
+  else {
+    writeOneByte(0x16, reg ^ (1 << 7));
+    GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 0x1c);
+    GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 0x1c);
+    GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 0x1c);
+    writeOneByte(0xF0, 3);
+    writeOneByte(0x35, 0x80);
+    GBS::MADPT_VIIR_BYPS::write(1); // disable VIIR 
+    GBS::RFF_LINE_FLIP::write(0); // back to default
+    rto->scanlinesEnabled = false;
+  }
+}
+
 void toggleMotionAdaptDeinterlace() {
   SerialM.print("deinterlace: ");
   if (!rto->motionAdaptiveDeinterlace) {
@@ -2464,7 +2497,6 @@ void toggleMotionAdaptDeinterlace() {
   }
   else {
     GBS::MAPDT_VT_SEL_PRGV::write(1);
-    GBS::MADPT_VIIR_BYPS::write(0); // todo: check
     GBS::MEM_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x02
     GBS::PB_DB_BUFFER_EN::write(0);
     GBS::CAP_FF_HALF_REQ::write(0);
@@ -2473,7 +2505,6 @@ void toggleMotionAdaptDeinterlace() {
     GBS::WFF_YUV_DEINTERLACE::write(0);
     GBS::WFF_LINE_FLIP::write(1);
     GBS::RFF_ENABLE::write(0);
-    GBS::RFF_YUV_DEINTERLACE::write(0);
     rto->motionAdaptiveDeinterlace = false;
     SerialM.println("off");
   }
@@ -2547,6 +2578,7 @@ void setup() {
   rto->optimizeSOG = false;
   rto->motionAdaptiveDeinterlace = false;
   rto->deinterlaceAutoEnabled = true;
+  rto->scanlinesEnabled = false;
 
   // the following is just run time variables. don't change!
   rto->inputIsYpBpR = false;
@@ -3499,16 +3531,27 @@ void loop() {
       // new: attempt to switch in deinterlacing automatically, when required
       // only do this for pal/ntsc, which can be 240p or 480i
       if (rto->deinterlaceAutoEnabled && newVideoMode <= 2) {
+        static boolean wantedScanlines = false;
         uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read();
-        if (!rto->motionAdaptiveDeinterlace && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts
+        if (!rto->motionAdaptiveDeinterlace && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts > enable
           disableDeinterlacer();
+          if (rto->scanlinesEnabled) {
+            wantedScanlines = true;
+            toggleScanlines();
+          }
+          else {
+            wantedScanlines = false;
+          }
           toggleMotionAdaptDeinterlace();
           delay(1);
           enableDeinterlacer();
         }
-        else if (rto->motionAdaptiveDeinterlace && VPERIOD_IF % 2 == 1) { // ie v:523 or other, uneven counts
+        else if (rto->motionAdaptiveDeinterlace && VPERIOD_IF % 2 == 1) { // ie v:523 or other, uneven counts > disable
           disableDeinterlacer();
           toggleMotionAdaptDeinterlace();
+          if (wantedScanlines) {
+            toggleScanlines();
+          }
           delay(1);
           enableDeinterlacer();
         }
@@ -3844,36 +3887,7 @@ void handleType2Command() {
       saveUserPrefs();
       break;
     case '7':
-    {
-      // scanline toggle
-      uopt->enableAutoGain = 0; // incompatible
-      uint8_t reg;
-      writeOneByte(0xF0, 2);
-      readFromRegister(0x16, 1, &reg);
-      if ((reg & 0x80) == 0x80) {
-        writeOneByte(0x16, reg ^ (1 << 7));
-        GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() - 0x1c);
-        GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() - 0x1c);
-        GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() - 0x1c);
-        writeOneByte(0xF0, 3);
-        writeOneByte(0x35, 0xd8); // more luma gain // was 0xd0
-        writeOneByte(0xF0, 2);
-        writeOneByte(0x27, 0x28); // set up VIIR filter (no need to undo later)
-        writeOneByte(0x26, 0x00);
-        GBS::RFF_LINE_FLIP::write(1); // clears potential garbage in rff buffer
-      }
-      else {
-        writeOneByte(0x16, reg ^ (1 << 7));
-        GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 0x1c);
-        GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 0x1c);
-        GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 0x1c);
-        writeOneByte(0xF0, 3);
-        writeOneByte(0x35, 0x80);
-        writeOneByte(0xF0, 2);
-        writeOneByte(0x26, 0x40); // disables VIIR filter
-        GBS::RFF_LINE_FLIP::write(0); // back to default
-      }
-    }
+      toggleScanlines();
     break;
     case '9':
       uopt->presetPreference = 3; // prefer 720p preset
