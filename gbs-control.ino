@@ -145,7 +145,6 @@ struct runTimeOptions {
   boolean optimizeSOG;
   boolean motionAdaptiveDeinterlace;
   boolean deinterlaceAutoEnabled;
-  boolean scanlinesEnabled;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -377,7 +376,6 @@ void setResetParameters() {
   rto->currentLevelSOG = 4;
   rto->optimizeSOG = false;
   rto->motionAdaptiveDeinterlace = false;
-  rto->scanlinesEnabled = false;
   setAndUpdateSogLevel(rto->currentLevelSOG);
   GBS::RESET_CONTROL_0x46::write(0x00); // all units off
   GBS::RESET_CONTROL_0x47::write(0x00);
@@ -1493,6 +1491,7 @@ void doPostPresetLoadSteps() {
   if (!isCustomPreset) {
     setAdcParametersGainAndOffset(); // 0x3f + 0x7f
   }
+
   GBS::ADC_TEST::write(0); // in case it was set
   
   // 0 segment
@@ -2446,7 +2445,7 @@ void toggleScanlines() {
   uint8_t reg;
   writeOneByte(0xF0, 2);
   readFromRegister(0x16, 1, &reg);
-  if (!rto->scanlinesEnabled) {
+  if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 0) {
     uopt->enableAutoGain = 0; // incompatible
     writeOneByte(0x16, reg ^ (1 << 7));
     GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() - 0x1c);
@@ -2458,7 +2457,7 @@ void toggleScanlines() {
     writeOneByte(0x27, 0x28); // set up VIIR filter
     GBS::MADPT_VIIR_BYPS::write(0); // enable VIIR 
     GBS::RFF_LINE_FLIP::write(1); // clears potential garbage in rff buffer
-    rto->scanlinesEnabled = true;
+    GBS::MAPDT_RESERVED_SCANLINES_ENABLED::write(1);
   }
   else {
     writeOneByte(0x16, reg ^ (1 << 7));
@@ -2469,7 +2468,7 @@ void toggleScanlines() {
     writeOneByte(0x35, 0x80);
     GBS::MADPT_VIIR_BYPS::write(1); // disable VIIR 
     GBS::RFF_LINE_FLIP::write(0); // back to default
-    rto->scanlinesEnabled = false;
+    GBS::MAPDT_RESERVED_SCANLINES_ENABLED::write(0);
   }
 }
 
@@ -2578,7 +2577,6 @@ void setup() {
   rto->optimizeSOG = false;
   rto->motionAdaptiveDeinterlace = false;
   rto->deinterlaceAutoEnabled = true;
-  rto->scanlinesEnabled = false;
 
   // the following is just run time variables. don't change!
   rto->inputIsYpBpR = false;
@@ -3535,7 +3533,7 @@ void loop() {
         uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read();
         if (!rto->motionAdaptiveDeinterlace && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts > enable
           disableDeinterlacer();
-          if (rto->scanlinesEnabled) {
+          if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) {
             wantedScanlines = true;
             toggleScanlines();
           }
