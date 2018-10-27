@@ -1647,6 +1647,9 @@ void doPostPresetLoadSteps() {
   // jitter sync off for all modes
   GBS::SP_JITTER_SYNC::write(0);
 
+  // 4 segment 
+  GBS::CAP_SAFE_GUARD_EN::write(1); // 4_21_5
+  GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2 vertical scale down line buffer bypass (not the vds one, the internal one for reduction)
   if (!isCustomPreset) {
     // memory timings, anti noise
     GBS::PB_CUT_REFRESH::write(1); // test, helps with PLL=ICLK mode artefacting
@@ -1866,6 +1869,7 @@ void applyPresets(uint8_t result) {
 void enableDeinterlacer() {
   if (rto->videoStandardInput != 15 && !rto->outModePassThroughWithIf) {
     GBS::SFTRST_DEINT_RSTZ::write(1);
+    //GBS::CAP_REQ_FREEZ::write(0); // don't use, occasionally capture doesn't recover
   }
   rto->deinterlacerWasTurnedOff = false;
 }
@@ -1874,6 +1878,7 @@ void enableDeinterlacer() {
 void disableDeinterlacer() {
   if (rto->deinterlacerWasTurnedOff == false) {
     GBS::SFTRST_DEINT_RSTZ::write(0);
+    //GBS::CAP_REQ_FREEZ::write(1); // don't use, occasionally capture doesn't recover
   }
   rto->deinterlacerWasTurnedOff = true;
 }
@@ -2229,7 +2234,7 @@ void passThroughWithIfModeSwitch() {
     GBS::IF_HB_ST2::write(0); // S1_18 // just move the bar out of the way
     GBS::IF_HB_SP2::write(8); // S1_1a // just move the bar out of the way
     //GBS::IF_LINE_SP::write(0); // may be related to RFF / WFF and 2_16_7 = 0
-    GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2
+    //GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2
     GBS::MADPT_VIIR_BYPS::write(1); // 2_26_6
 
     delay(30);
@@ -2442,30 +2447,27 @@ void doAutoGain() {
 }
 
 void toggleScanlines() {
-  uint8_t reg;
-  writeOneByte(0xF0, 2);
-  readFromRegister(0x16, 1, &reg);
   if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 0) {
     uopt->enableAutoGain = 0; // incompatible
-    writeOneByte(0x16, reg ^ (1 << 7));
-    GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() - 0x1c);
-    GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() - 0x1c);
-    GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() - 0x1c);
-    writeOneByte(0xF0, 3);
-    writeOneByte(0x35, 0xd8); // more luma gain // was 0xd0
-    writeOneByte(0xF0, 2);
-    writeOneByte(0x27, 0x28); // set up VIIR filter
+    GBS::MAPDT_VT_SEL_PRGV::write(0);
+    GBS::VDS_Y_GAIN::write(0xc0); // more luma gain
+    GBS::VDS_UCOS_GAIN::write(0x1f);
+    GBS::VDS_VCOS_GAIN::write(0x2a);
+    GBS::MADPT_VIIR_COEF::write(0x18); // set up VIIR filter 2_27
+    GBS::MADPT_Y_MI_DET_BYPS::write(1); // make sure, so that mixing works
+    GBS::MADPT_Y_MI_OFFSET::write(0x28); // 2_0b offset (mixing factor here)
+    GBS::MADPT_PD_RAM_BYPS::write(0);
     GBS::MADPT_VIIR_BYPS::write(0); // enable VIIR 
     GBS::RFF_LINE_FLIP::write(1); // clears potential garbage in rff buffer
     GBS::MAPDT_RESERVED_SCANLINES_ENABLED::write(1);
   }
   else {
-    writeOneByte(0x16, reg ^ (1 << 7));
-    GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 0x1c);
-    GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 0x1c);
-    GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 0x1c);
-    writeOneByte(0xF0, 3);
-    writeOneByte(0x35, 0x80);
+    GBS::MAPDT_VT_SEL_PRGV::write(1);
+    GBS::VDS_Y_GAIN::write(0x80); //writeOneByte(0x35, 0x80);
+    GBS::VDS_UCOS_GAIN::write(0x1c);
+    GBS::VDS_VCOS_GAIN::write(0x28);
+    GBS::MADPT_Y_MI_OFFSET::write(0xff); // 2_0b offset 0xff disables mixing
+    GBS::MADPT_PD_RAM_BYPS::write(1);
     GBS::MADPT_VIIR_BYPS::write(1); // disable VIIR 
     GBS::RFF_LINE_FLIP::write(0); // back to default
     GBS::MAPDT_RESERVED_SCANLINES_ENABLED::write(0);
@@ -2476,8 +2478,15 @@ void toggleMotionAdaptDeinterlace() {
   SerialM.print("deinterlace: ");
   if (!rto->motionAdaptiveDeinterlace) {
     GBS::MAPDT_VT_SEL_PRGV::write(0);
-    GBS::MADPT_VIIR_BYPS::write(1); // todo: check
-    GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x00 (so fb clock is usable)
+    GBS::MADPT_Y_MI_DET_BYPS::write(0); //2_0a_7
+    GBS::MADPT_Y_MI_OFFSET::write(0x00); //2_0b // try 0x0b
+    GBS::MADPT_VIIR_BYPS::write(1);
+    GBS::MADPT_MI_1BIT_BYPS::write(0);
+    GBS::MADPT_BIT_STILL_EN::write(1);
+    GBS::MADPT_EN_NOUT_FOR_STILL::write(1);
+    GBS::MADPT_EN_NOUT_FOR_LESS_STILL::write(1);
+    GBS::MADPT_UV_MI_DET_BYPS::write(0); // 2_3a_7
+    GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x00 (so fb clock is usable) // requires sdram reset
     GBS::PB_DB_BUFFER_EN::write(1);
     GBS::CAP_FF_HALF_REQ::write(1);
     GBS::WFF_ENABLE::write(1);
@@ -2496,6 +2505,13 @@ void toggleMotionAdaptDeinterlace() {
   }
   else {
     GBS::MAPDT_VT_SEL_PRGV::write(1);
+    GBS::MADPT_Y_MI_OFFSET::write(0xff);
+    GBS::MADPT_Y_MI_DET_BYPS::write(1);
+    GBS::MADPT_MI_1BIT_BYPS::write(1);
+    GBS::MADPT_BIT_STILL_EN::write(0);
+    GBS::MADPT_EN_NOUT_FOR_STILL::write(0);
+    GBS::MADPT_EN_NOUT_FOR_LESS_STILL::write(0);
+    GBS::MADPT_UV_MI_DET_BYPS::write(1); // 2_3a_7
     GBS::MEM_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x02
     GBS::PB_DB_BUFFER_EN::write(0);
     GBS::CAP_FF_HALF_REQ::write(0);
@@ -2507,7 +2523,12 @@ void toggleMotionAdaptDeinterlace() {
     rto->motionAdaptiveDeinterlace = false;
     SerialM.println("off");
   }
-  //ResetSDRAM();
+
+  GBS::SDRAM_RESET_SIGNAL::write(1); // short sdram reset
+  GBS::SDRAM_START_INITIAL_CYCLE::write(1);
+  GBS::SDRAM_RESET_SIGNAL::write(0);
+  GBS::SDRAM_START_INITIAL_CYCLE::write(0); //
+  delay(4);
 }
 
 void startWire() {
@@ -3531,8 +3552,14 @@ void loop() {
       if (rto->deinterlaceAutoEnabled && newVideoMode <= 2) {
         static boolean wantedScanlines = false;
         uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read();
-        if (!rto->motionAdaptiveDeinterlace && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts > enable
+        static uint16_t VPERIOD_IF_OLD = VPERIOD_IF; // glitch filter on line count change (but otherwise stable)
+        if (VPERIOD_IF_OLD != VPERIOD_IF) {
           disableDeinterlacer();
+        }
+        // else will trigger next run, whenever line count is stable
+        //
+        // actual deinterlace trigger
+        if (!rto->motionAdaptiveDeinterlace && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts > enable
           if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) {
             wantedScanlines = true;
             toggleScanlines();
@@ -3541,18 +3568,15 @@ void loop() {
             wantedScanlines = false;
           }
           toggleMotionAdaptDeinterlace();
-          delay(1);
-          enableDeinterlacer();
         }
         else if (rto->motionAdaptiveDeinterlace && VPERIOD_IF % 2 == 1) { // ie v:523 or other, uneven counts > disable
-          disableDeinterlacer();
           toggleMotionAdaptDeinterlace();
           if (wantedScanlines) {
             toggleScanlines();
           }
-          delay(1);
-          enableDeinterlacer();
         }
+
+        VPERIOD_IF_OLD = VPERIOD_IF; // glitch filter
       }
     }
 

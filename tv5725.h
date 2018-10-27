@@ -217,11 +217,19 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x29, 2,  1> IF_AUTO_OFST_RESERVED_2;
 
     // Deinterlacer / Scaledown registers
+    typedef UReg<0x02, 0x0A, 7,  1> MADPT_Y_MI_DET_BYPS;
+    typedef UReg<0x02, 0x0B, 0,  7> MADPT_Y_MI_OFFSET;
+    typedef UReg<0x02, 0x0C, 4,  1> MADPT_MI_1BIT_BYPS;
     typedef UReg<0x02, 0x16, 2,  1> MAPDT_RESERVED_SCANLINES_ENABLED;
     typedef UReg<0x02, 0x16, 7,  1> MAPDT_VT_SEL_PRGV;
     typedef UReg<0x02, 0x17, 0,  4> MADPT_Y_DELAY;
+    typedef UReg<0x02, 0x19, 0,  1> MADPT_BIT_STILL_EN;
+    typedef UReg<0x02, 0x21, 4,  1> MADPT_EN_NOUT_FOR_STILL;
+    typedef UReg<0x02, 0x21, 5,  1> MADPT_EN_NOUT_FOR_LESS_STILL;
     typedef UReg<0x02, 0x24, 2,  1> MADPT_PD_RAM_BYPS;
     typedef UReg<0x02, 0x26, 6,  1> MADPT_VIIR_BYPS;
+    typedef UReg<0x02, 0x27, 0,  7> MADPT_VIIR_COEF;
+    typedef UReg<0x02, 0x3a, 7,  1> MADPT_UV_MI_DET_BYPS;
 
     // VDS Registers
     typedef UReg<0x03, 0x00, 0,  1> VDS_SYNC_EN;
@@ -440,7 +448,12 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x1b, 4,  3> MEM_CLK_DLY_REG;
 
     // Playback / Capture / Memory Registers
+    typedef UReg<0x04, 0x21, 0,  1> CAPTURE_ENABLE;
     typedef UReg<0x04, 0x21, 1,  1> CAP_FF_HALF_REQ;
+    typedef UReg<0x04, 0x21, 5,  1> CAP_SAFE_GUARD_EN;
+    typedef UReg<0x04, 0x22, 3,  1> CAP_REQ_FREEZ;
+    typedef UReg<0x04, 0x24, 0,  21> CAP_SAFE_GUARD_A;
+    typedef UReg<0x04, 0x27, 0,  21> CAP_SAFE_GUARD_B;
     typedef UReg<0x04, 0x2b, 0,  1> PB_CUT_REFRESH;
     typedef UReg<0x04, 0x2b, 1,  2> PB_REQ_SEL;
     typedef UReg<0x04, 0x2b, 3,  1> PB_BYPASS;
@@ -451,6 +464,8 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x39, 0,  10> PB_FETCH_NUM;
     typedef UReg<0x04, 0x42, 0,  1> WFF_ENABLE;
     typedef UReg<0x04, 0x42, 2,  1> WFF_FF_STA_INV;
+    typedef UReg<0x04, 0x44, 0,  21> WFF_SAFE_GUARD_A;
+    typedef UReg<0x04, 0x47, 0,  21> WFF_SAFE_GUARD_B;
     typedef UReg<0x04, 0x4a, 0,  1> WFF_YUV_DEINTERLACE;
     typedef UReg<0x04, 0x4a, 4,  1> WFF_LINE_FLIP;
     typedef UReg<0x04, 0x4b, 0,  3> WFF_HB_DELAY;
