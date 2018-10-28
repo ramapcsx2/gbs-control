@@ -1514,9 +1514,10 @@ void doPostPresetLoadSteps() {
   // IF_INI_ST - 2 is the first safe setting // exception: edtv+ presets: need to be more exact
   if (rto->videoStandardInput <= 2) {
     GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 4);
-    // todo: the -48 below is pretty narrow. check with ps2 yuv in all pal presets
+    // todo: the -46 below is pretty narrow. check with ps2 yuv in all pal presets
+    // -46 for pal 640x480, -48 for ps2?
     if (rto->videoStandardInput == 2) {  // exception for PAL (with i.e. PSX) default preset
-      GBS::IF_INI_ST::write(GBS::IF_INI_ST::read() - 48);
+      GBS::IF_INI_ST::write(GBS::IF_INI_ST::read() - 46);
     }
   }
   else {
@@ -2478,13 +2479,16 @@ void toggleMotionAdaptDeinterlace() {
   SerialM.print("deinterlace: ");
   if (!rto->motionAdaptiveDeinterlace) {
     GBS::MAPDT_VT_SEL_PRGV::write(0);
+    GBS::DIAG_BOB_PLDY_RAM_BYPS::write(0); // enable deinterlacer line buffer (check UV vertical offset)
     GBS::MADPT_Y_MI_DET_BYPS::write(0); //2_0a_7
     GBS::MADPT_Y_MI_OFFSET::write(0x00); //2_0b // try 0x0b
     GBS::MADPT_VIIR_BYPS::write(1);
     GBS::MADPT_MI_1BIT_BYPS::write(0);
     GBS::MADPT_BIT_STILL_EN::write(1);
+    GBS::MADPT_VTAP2_BYPS::write(0); // 2_19_2
     GBS::MADPT_EN_NOUT_FOR_STILL::write(1);
     GBS::MADPT_EN_NOUT_FOR_LESS_STILL::write(1);
+    GBS::MADPT_EN_UV_DEINT::write(1);
     GBS::MADPT_UV_MI_DET_BYPS::write(0); // 2_3a_7
     GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x00 (so fb clock is usable) // requires sdram reset
     GBS::PB_DB_BUFFER_EN::write(1);
@@ -2505,12 +2509,15 @@ void toggleMotionAdaptDeinterlace() {
   }
   else {
     GBS::MAPDT_VT_SEL_PRGV::write(1);
+    GBS::DIAG_BOB_PLDY_RAM_BYPS::write(1);
     GBS::MADPT_Y_MI_OFFSET::write(0xff);
     GBS::MADPT_Y_MI_DET_BYPS::write(1);
     GBS::MADPT_MI_1BIT_BYPS::write(1);
     GBS::MADPT_BIT_STILL_EN::write(0);
+    GBS::MADPT_VTAP2_BYPS::write(1); // 2_19_2
     GBS::MADPT_EN_NOUT_FOR_STILL::write(0);
     GBS::MADPT_EN_NOUT_FOR_LESS_STILL::write(0);
+    GBS::MADPT_EN_UV_DEINT::write(0);
     GBS::MADPT_UV_MI_DET_BYPS::write(1); // 2_3a_7
     GBS::MEM_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x02
     GBS::PB_DB_BUFFER_EN::write(0);
