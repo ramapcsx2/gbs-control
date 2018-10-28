@@ -221,6 +221,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x02, 0x0A, 7,  1> MADPT_Y_MI_DET_BYPS;
     typedef UReg<0x02, 0x0B, 0,  7> MADPT_Y_MI_OFFSET;
     typedef UReg<0x02, 0x0C, 4,  1> MADPT_MI_1BIT_BYPS;
+    typedef UReg<0x02, 0x0C, 5,  1> MADPT_MI_1BIT_FRAME2_EN;
     typedef UReg<0x02, 0x16, 2,  1> MAPDT_RESERVED_SCANLINES_ENABLED;
     typedef UReg<0x02, 0x16, 7,  1> MAPDT_VT_SEL_PRGV;
     typedef UReg<0x02, 0x17, 0,  4> MADPT_Y_DELAY;

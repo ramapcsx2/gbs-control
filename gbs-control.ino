@@ -2481,13 +2481,14 @@ void toggleMotionAdaptDeinterlace() {
     GBS::MAPDT_VT_SEL_PRGV::write(0);
     GBS::DIAG_BOB_PLDY_RAM_BYPS::write(0); // enable deinterlacer line buffer (check UV vertical offset)
     GBS::MADPT_Y_MI_DET_BYPS::write(0); //2_0a_7
-    GBS::MADPT_Y_MI_OFFSET::write(0x00); //2_0b // try 0x0b
+    GBS::MADPT_Y_MI_OFFSET::write(0x1C); //2_0b // 0 none, ff max // shimmering ps2 memcard browser
     GBS::MADPT_VIIR_BYPS::write(1);
-    GBS::MADPT_MI_1BIT_BYPS::write(0);
+    GBS::MADPT_MI_1BIT_BYPS::write(1); // 1 looks better
+    GBS::MADPT_MI_1BIT_FRAME2_EN::write(0); // together with 0 here
     GBS::MADPT_BIT_STILL_EN::write(1);
     GBS::MADPT_VTAP2_BYPS::write(0); // 2_19_2
     GBS::MADPT_EN_NOUT_FOR_STILL::write(1);
-    GBS::MADPT_EN_NOUT_FOR_LESS_STILL::write(1);
+    //GBS::MADPT_EN_NOUT_FOR_LESS_STILL::write(1);
     GBS::MADPT_EN_UV_DEINT::write(1);
     GBS::MADPT_UV_MI_DET_BYPS::write(0); // 2_3a_7
     GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x00 (so fb clock is usable) // requires sdram reset
@@ -2516,7 +2517,7 @@ void toggleMotionAdaptDeinterlace() {
     GBS::MADPT_BIT_STILL_EN::write(0);
     GBS::MADPT_VTAP2_BYPS::write(1); // 2_19_2
     GBS::MADPT_EN_NOUT_FOR_STILL::write(0);
-    GBS::MADPT_EN_NOUT_FOR_LESS_STILL::write(0);
+    //::MADPT_EN_NOUT_FOR_LESS_STILL::write(0);
     GBS::MADPT_EN_UV_DEINT::write(0);
     GBS::MADPT_UV_MI_DET_BYPS::write(1); // 2_3a_7
     GBS::MEM_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x02
