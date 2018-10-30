@@ -217,21 +217,29 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x29, 2,  1> IF_AUTO_OFST_RESERVED_2;
 
     // Deinterlacer / Scaledown registers
+    typedef UReg<0x02, 0x00, 0,  8> DEINT_00;
     typedef UReg<0x02, 0x00, 7,  1> DIAG_BOB_PLDY_RAM_BYPS;
     typedef UReg<0x02, 0x0A, 7,  1> MADPT_Y_MI_DET_BYPS;
     typedef UReg<0x02, 0x0B, 0,  7> MADPT_Y_MI_OFFSET;
     typedef UReg<0x02, 0x0C, 4,  1> MADPT_MI_1BIT_BYPS;
     typedef UReg<0x02, 0x0C, 5,  1> MADPT_MI_1BIT_FRAME2_EN;
     typedef UReg<0x02, 0x16, 2,  1> MAPDT_RESERVED_SCANLINES_ENABLED;
+    typedef UReg<0x02, 0x16, 6,  1> MADPT_VT_FILTER_CNTRL;
     typedef UReg<0x02, 0x16, 7,  1> MAPDT_VT_SEL_PRGV;
     typedef UReg<0x02, 0x17, 0,  4> MADPT_Y_DELAY;
+    typedef UReg<0x02, 0x18, 3,  1> MADPT_HTAP_BYPS;
     typedef UReg<0x02, 0x19, 0,  1> MADPT_BIT_STILL_EN;
     typedef UReg<0x02, 0x19, 2,  1> MADPT_VTAP2_BYPS;
+    typedef UReg<0x02, 0x19, 3,  1> MADPT_VTAP2_ROUND_SEL;
     typedef UReg<0x02, 0x21, 4,  1> MADPT_EN_NOUT_FOR_STILL;
     typedef UReg<0x02, 0x21, 5,  1> MADPT_EN_NOUT_FOR_LESS_STILL;
     typedef UReg<0x02, 0x24, 2,  1> MADPT_PD_RAM_BYPS;
     typedef UReg<0x02, 0x26, 6,  1> MADPT_VIIR_BYPS;
     typedef UReg<0x02, 0x27, 0,  7> MADPT_VIIR_COEF;
+    typedef UReg<0x02, 0x35, 3,  1> MADPT_DD0_SEL;
+    typedef UReg<0x02, 0x35, 4,  1> MADPT_NRD_VIIR_PD_BYPS;
+    typedef UReg<0x02, 0x35, 5,  1> MADPT_UVDLY_PD_BYPS;
+    typedef UReg<0x02, 0x35, 6,  1> MADPT_CMP_EN;
     typedef UReg<0x02, 0x3a, 0,  1> MADPT_EN_UV_DEINT;
     typedef UReg<0x02, 0x3a, 7,  1> MADPT_UV_MI_DET_BYPS;
 

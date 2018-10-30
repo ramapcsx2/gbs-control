@@ -2478,28 +2478,32 @@ void toggleScanlines() {
 void toggleMotionAdaptDeinterlace() {
   SerialM.print("deinterlace: ");
   if (!rto->motionAdaptiveDeinterlace) {
-    GBS::MAPDT_VT_SEL_PRGV::write(0);
-    GBS::DIAG_BOB_PLDY_RAM_BYPS::write(0); // enable deinterlacer line buffer (check UV vertical offset)
+    GBS::DEINT_00::write(0); // 2_00
+    GBS::MAPDT_VT_SEL_PRGV::write(0); // 2_16
+    GBS::MADPT_VT_FILTER_CNTRL::write(1); // 2_16
     GBS::MADPT_Y_MI_DET_BYPS::write(0); //2_0a_7
-    GBS::MADPT_Y_MI_OFFSET::write(0x1C); //2_0b // 0 none, ff max // shimmering ps2 memcard browser
+    GBS::MADPT_Y_MI_OFFSET::write(0x04); // 0 none, ff max // shimmering ps2 memcard browser
     GBS::MADPT_VIIR_BYPS::write(1);
-    GBS::MADPT_MI_1BIT_BYPS::write(1); // 1 looks better
-    GBS::MADPT_MI_1BIT_FRAME2_EN::write(0); // together with 0 here
+    GBS::MADPT_MI_1BIT_BYPS::write(0);
+    GBS::MADPT_MI_1BIT_FRAME2_EN::write(1);
     GBS::MADPT_BIT_STILL_EN::write(1);
-    GBS::MADPT_VTAP2_BYPS::write(0); // 2_19_2
-    GBS::MADPT_EN_NOUT_FOR_STILL::write(1);
-    //GBS::MADPT_EN_NOUT_FOR_LESS_STILL::write(1);
-    GBS::MADPT_EN_UV_DEINT::write(1);
+    GBS::MADPT_HTAP_BYPS::write(0); // 2_18_3
+    GBS::MADPT_VTAP2_BYPS::write(0); // 2_19_2 // don't bypass
+    GBS::MADPT_VTAP2_ROUND_SEL::write(1); // 2_19_3 // but reduce input by 2
+    GBS::MADPT_DD0_SEL::write(0); // 2_35_3 0 if NRD off 
+    GBS::MADPT_NRD_VIIR_PD_BYPS::write(1); // 2_35_4
+    GBS::MADPT_UVDLY_PD_BYPS::write(1); // 2_35_5
+    GBS::MADPT_CMP_EN::write(1); // 2_35_6
+    GBS::MADPT_EN_UV_DEINT::write(0); // 2_3a:0 test: disabled
     GBS::MADPT_UV_MI_DET_BYPS::write(0); // 2_3a_7
     GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x00 (so fb clock is usable) // requires sdram reset
-    GBS::PB_DB_BUFFER_EN::write(1);
     GBS::CAP_FF_HALF_REQ::write(1);
     GBS::WFF_ENABLE::write(1);
     GBS::WFF_FF_STA_INV::write(0);
     GBS::WFF_YUV_DEINTERLACE::write(1);
     GBS::WFF_LINE_FLIP::write(0);
     GBS::WFF_HB_DELAY::write(4);
-    GBS::WFF_VB_DELAY::write(0);
+    GBS::WFF_VB_DELAY::write(4);
     GBS::RFF_REQ_SEL::write(3);
     GBS::RFF_ENABLE::write(1);
     GBS::RFF_YUV_DEINTERLACE::write(1);
@@ -2509,6 +2513,7 @@ void toggleMotionAdaptDeinterlace() {
     SerialM.println("on");
   }
   else {
+    GBS::DEINT_00::write(0xff); // 2_00
     GBS::MAPDT_VT_SEL_PRGV::write(1);
     GBS::DIAG_BOB_PLDY_RAM_BYPS::write(1);
     GBS::MADPT_Y_MI_OFFSET::write(0xff);
@@ -2516,12 +2521,10 @@ void toggleMotionAdaptDeinterlace() {
     GBS::MADPT_MI_1BIT_BYPS::write(1);
     GBS::MADPT_BIT_STILL_EN::write(0);
     GBS::MADPT_VTAP2_BYPS::write(1); // 2_19_2
-    GBS::MADPT_EN_NOUT_FOR_STILL::write(0);
-    //::MADPT_EN_NOUT_FOR_LESS_STILL::write(0);
+    GBS::MADPT_CMP_EN::write(0); // 2_35_6
     GBS::MADPT_EN_UV_DEINT::write(0);
     GBS::MADPT_UV_MI_DET_BYPS::write(1); // 2_3a_7
     GBS::MEM_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x02
-    GBS::PB_DB_BUFFER_EN::write(0);
     GBS::CAP_FF_HALF_REQ::write(0);
     GBS::WFF_ENABLE::write(0);
     GBS::WFF_FF_STA_INV::write(1);
