@@ -146,7 +146,6 @@ struct runTimeOptions {
   boolean motionAdaptiveDeinterlaceActive;
   boolean deinterlaceAutoEnabled;
   boolean scanlinesEnabled;
-  boolean wantScanlines; // todo: this needs to be a user option (but get it working first)
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -157,6 +156,7 @@ struct userOptions {
   uint8_t enableFrameTimeLock;
   uint8_t frameTimeLockMethod;
   uint8_t enableAutoGain;
+  uint8_t wantScanlines;
 } uopts;
 struct userOptions *uopt = &uopts;
 
@@ -1444,7 +1444,6 @@ void fastGetBestHtotal() {
 void applyBestHTotal(uint16_t bestHTotal) {
   boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
   if (isCustomPreset) {
-    SerialM.println("custom preset: no htotal change");
     return;
   }
   uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
@@ -1650,20 +1649,16 @@ void doPostPresetLoadSteps() {
   setSpParameters();
   setAndUpdateSogLevel(rto->currentLevelSOG);
 
-  // ADC
+  // auto ADC gain
   //GBS::ADC_TR_RSEL::write(2); // ADC_TR_RSEL = 2 test
   //GBS::ADC_TR_ISEL::write(0); // leave current at default
-  // high color gain so auto adjust can work on it
-  if (uopt->enableAutoGain == 1 && !rto->inputIsYpBpR) {
+  if (uopt->enableAutoGain == 1 && !isCustomPreset && !rto->inputIsYpBpR) {
     GBS::ADC_RGCTRL::write(0x40);
     GBS::ADC_GGCTRL::write(0x40);
     GBS::ADC_BGCTRL::write(0x40);
-    /*GBS::ADC_ROFCTRL::write(0x43);
-    GBS::ADC_GOFCTRL::write(0x43);
-    GBS::ADC_BOFCTRL::write(0x43);*/
     GBS::DEC_TEST_ENABLE::write(1);
   }
-  else {
+  else if (!isCustomPreset) {
     GBS::DEC_TEST_ENABLE::write(0);
   }
 
@@ -1680,16 +1675,17 @@ void doPostPresetLoadSteps() {
 
   GBS::PLLAD_PDZ::write(1); // in case it was off
   resetPLLAD(); // turns on pllad
-  rto->phaseADC = GBS::PA_ADC_S::read();
-  rto->phaseSP = 15; // can hardcode this to 15 now
-  GBS::DEC_WEN_MODE::write(1); // keeps ADC phase much more consistent. around 4 lock positions vs totally random
-  GBS::DEC_IDREG_EN::write(1);
-  GBS::SP_JITTER_SYNC::write(0);
 
-  // 4 segment 
-  GBS::CAP_SAFE_GUARD_EN::write(1); // 4_21_5
-  GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2 vertical scale down line buffer bypass (not the vds one, the internal one for reduction)
   if (!isCustomPreset) {
+    rto->phaseADC = GBS::PA_ADC_S::read();
+    rto->phaseSP = 15; // can hardcode this to 15 now
+    GBS::DEC_WEN_MODE::write(1); // keeps ADC phase much more consistent. around 4 lock positions vs totally random
+    GBS::DEC_IDREG_EN::write(1);
+    GBS::SP_JITTER_SYNC::write(0);
+
+    // 4 segment 
+    GBS::CAP_SAFE_GUARD_EN::write(1); // 4_21_5
+    GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2 vertical scale down line buffer bypass (not the vds one, the internal one for reduction)
     // memory timings, anti noise
     GBS::PB_CUT_REFRESH::write(1); // test, helps with PLL=ICLK mode artefacting
     GBS::PB_REQ_SEL::write(3); // PlayBack 11 High request Low request
@@ -2396,12 +2392,10 @@ void bypassModeSwitch_RGBHV() {
 
 void doAutoGain() {
   static uint8_t r_found = 0, g_found = 0, b_found = 0;
-  static uint8_t r_off_found = 0, g_off_found = 0, b_off_found = 0;
   static unsigned long lastTime = millis();
 
   if (millis() - lastTime > 60) {
     r_found = 0; g_found = 0; b_found = 0;
-    r_off_found = 0; g_off_found = 0; b_off_found = 0;
     lastTime = millis();
   }
 
@@ -2416,24 +2410,15 @@ void doAutoGain() {
   if (redValue == 0x7f) { // full on found
     r_found++;
   }
-  else if (redValue == 0) { // black found
-    r_off_found++;
-  }
 
   // green
   if (greenValue == 0x7f) {
     g_found++;
   }
-  else if (greenValue == 0) {
-    g_off_found++;
-  }
 
   // blue
   if (blueValue == 0x7f) {
     b_found++;
-  }
-  else if (blueValue == 0) {
-    b_off_found++;
   }
 
   if (r_found > 1) {
@@ -2457,29 +2442,6 @@ void doAutoGain() {
       b_found = 0;
     }
   }
-
-  // disabled for now
-  //if (r_off_found > 2) {
-  //  if (GBS::ADC_ROFCTRL::read() > 0x3b) {
-  //    GBS::ADC_ROFCTRL::write(GBS::ADC_ROFCTRL::read() - 1);
-  //    //SerialM.print("Roffs: "); SerialM.println(GBS::ADC_ROFCTRL::read(), HEX);
-  //    r_off_found = 0;
-  //  }
-  //}
-  //if (g_off_found > 2) {
-  //  if (GBS::ADC_GOFCTRL::read() > 0x3b) {
-  //    GBS::ADC_GOFCTRL::write(GBS::ADC_GOFCTRL::read() - 1);
-  //    //SerialM.print("Goffs: "); SerialM.println(GBS::ADC_GOFCTRL::read(), HEX);
-  //    g_off_found = 0;
-  //  }
-  //}
-  //if (b_off_found > 2) {
-  //  if (GBS::ADC_BOFCTRL::read() > 0x3b) {
-  //    GBS::ADC_BOFCTRL::write(GBS::ADC_BOFCTRL::read() - 1);
-  //    //SerialM.print("Boffs: "); SerialM.println(GBS::ADC_BOFCTRL::read(), HEX);
-  //    b_off_found = 0;
-  //  }
-  //}
 }
 
 void enableScanlines() {
@@ -2495,7 +2457,6 @@ void enableScanlines() {
     GBS::MADPT_VIIR_BYPS::write(0); // enable VIIR 
     GBS::RFF_LINE_FLIP::write(1); // clears potential garbage in rff buffer
 
-    uopt->enableAutoGain = 0; // incompatible
     GBS::MAPDT_RESERVED_SCANLINES_ENABLED::write(1);
   }
   rto->scanlinesEnabled = 1;
@@ -2634,7 +2595,8 @@ void setup() {
   uopt->presetGroup = 0; //
   uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
   uopt->frameTimeLockMethod = 0; // compatibility with more displays
-  uopt->enableAutoGain = 0; // todo: web ui option
+  uopt->enableAutoGain = 0;
+  uopt->wantScanlines = 0;
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->enableDebugPings = false;
@@ -2649,7 +2611,6 @@ void setup() {
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->deinterlaceAutoEnabled = true;
   rto->scanlinesEnabled = false;
-  rto->wantScanlines = false;
 
   // the following is just run time variables. don't change!
   rto->inputIsYpBpR = false;
@@ -2689,13 +2650,15 @@ void setup() {
       uopt->enableFrameTimeLock = 0;
       uopt->presetGroup = 0;
       uopt->frameTimeLockMethod = 0;
+      uopt->enableAutoGain = 0;
+      uopt->wantScanlines = 0;
       saveUserPrefs(); // if this fails, there must be a spiffs problem
     }
     else {
       SerialM.println("userprefs open ok");
       //on a fresh / spiffs not formatted yet MCU:
       //userprefs.txt open ok //result[0] = 207 //result[1] = 207
-      char result[4];
+      char result[6];
       result[0] = f.read(); result[0] -= '0'; // file streams with their chars..
       uopt->presetPreference = (uint8_t)result[0];
       SerialM.print("presetPreference = "); SerialM.println(uopt->presetPreference);
@@ -2709,12 +2672,22 @@ void setup() {
       result[2] = f.read(); result[2] -= '0';
       uopt->presetGroup = (uint8_t)result[2];
       SerialM.print("presetGroup = "); SerialM.println(uopt->presetGroup); // custom preset group
-      if (uopt->presetGroup > 4) uopt->presetGroup = 0;
+      if (uopt->presetGroup > 4) uopt->presetGroup = 0; // fresh spiffs ?
 
       result[3] = f.read(); result[3] -= '0';
       uopt->frameTimeLockMethod = (uint8_t)result[3];
       SerialM.print("frameTimeLockMethod = "); SerialM.println(uopt->frameTimeLockMethod);
-      if (uopt->frameTimeLockMethod > 1) uopt->frameTimeLockMethod = 0;
+      if (uopt->frameTimeLockMethod > 1) uopt->frameTimeLockMethod = 0; // fresh spiffs ?
+
+      result[4] = f.read(); result[4] -= '0';
+      uopt->enableAutoGain = (uint8_t)result[4];
+      SerialM.print("enableAutoGain = "); SerialM.println(uopt->enableAutoGain);
+      if (uopt->enableAutoGain > 1) uopt->enableAutoGain = 0; // fresh spiffs ?
+
+      result[5] = f.read(); result[5] -= '0';
+      uopt->wantScanlines = (uint8_t)result[5];
+      SerialM.print("wantScanlines = "); SerialM.println(uopt->wantScanlines);
+      if (uopt->wantScanlines > 1) uopt->wantScanlines = 0; // fresh spiffs ?
 
       f.close();
     }
@@ -3020,6 +2993,7 @@ void loop() {
         GBS::DEC_TEST_ENABLE::write(0);
         SerialM.println("off");
       }
+      saveUserPrefs();
     break;
     case 'e':
       writeProgramArrayNew(ntsc_240p);
@@ -3037,7 +3011,7 @@ void loop() {
     break;
     case '!':
       fastGetBestHtotal();
-      break;
+    break;
     case 'j':
       //resetPLL();
       //resetPLLAD();
@@ -3052,7 +3026,7 @@ void loop() {
       else {
         SerialM.println("off");
       }
-      break;
+    break;
     case 'v':
       rto->phaseSP += 1; rto->phaseSP &= 0x1f;
       SerialM.print("SP: "); SerialM.println(rto->phaseSP);
@@ -3631,10 +3605,10 @@ void loop() {
       }
 
       // scanlines
-      if (rto->wantScanlines && !rto->scanlinesEnabled && !rto->motionAdaptiveDeinterlaceActive) {
+      if (uopt->wantScanlines && !rto->scanlinesEnabled && !rto->motionAdaptiveDeinterlaceActive) {
         enableScanlines();
       }
-      else if (!rto->wantScanlines && rto->scanlinesEnabled) {
+      else if (!uopt->wantScanlines && rto->scanlinesEnabled) {
         disableScanlines();
       }
     }
@@ -3780,6 +3754,7 @@ void loop() {
   }
 
   // frame sync + besthtotal init routine. this only runs if !FrameSync::ready(), ie manual retiming, preset load, etc)
+  // also do this with a custom preset (applyBestHTotal will bail out, but FrameSync will be readied)
   if (!FrameSync::ready() && rto->continousStableCounter > 1 && rto->syncWatcherEnabled == true
     && rto->autoBestHtotalEnabled == true
     && rto->videoStandardInput != 0 && rto->videoStandardInput != 15)
@@ -3972,14 +3947,15 @@ void handleType2Command() {
       saveUserPrefs();
       break;
     case '7':
-      rto->wantScanlines = !rto->wantScanlines;
+      uopt->wantScanlines = !uopt->wantScanlines;
       SerialM.print("scanlines ");
-      if (rto->wantScanlines) {
+      if (uopt->wantScanlines) {
         SerialM.println("on");
       }
       else {
         SerialM.println("off");
       }
+      saveUserPrefs();
     break;
     case '9':
       uopt->presetPreference = 3; // prefer 720p preset
@@ -4029,7 +4005,7 @@ void handleType2Command() {
         SerialM.println("userprefs open failed");
       }
       else {
-        char result[4];
+        char result[6];
         result[0] = f.read(); result[0] -= '0'; // file streams with their chars..
         SerialM.print("presetPreference = "); SerialM.println((uint8_t)result[0]);
         result[1] = f.read(); result[1] -= '0';
@@ -4038,6 +4014,10 @@ void handleType2Command() {
         SerialM.print("presetGroup = "); SerialM.println((uint8_t)result[2]);
         result[3] = f.read(); result[3] -= '0';
         SerialM.print("frameTimeLockMethod = "); SerialM.println((uint8_t)result[3]);
+        result[4] = f.read(); result[4] -= '0';
+        SerialM.print("enableAutoGain = "); SerialM.println((uint8_t)result[4]);
+        result[5] = f.read(); result[5] -= '0';
+        SerialM.print("wantScanlines = "); SerialM.println((uint8_t)result[5]);
         f.close();
       }
     }
@@ -4457,6 +4437,8 @@ void saveUserPrefs() {
   f.write(uopt->enableFrameTimeLock + '0');
   f.write(uopt->presetGroup + '0');
   f.write(uopt->frameTimeLockMethod + '0');
+  f.write(uopt->enableAutoGain + '0');
+  f.write(uopt->wantScanlines + '0');
   SerialM.println("userprefs saved: ");
   f.close();
 
@@ -4466,7 +4448,7 @@ void saveUserPrefs() {
     SerialM.println("userprefs open failed");
   }
   else {
-    char result[4];
+    char result[6];
     result[0] = f.read(); result[0] -= '0'; // file streams with their chars..
     SerialM.print("  presetPreference = "); SerialM.println((uint8_t)result[0]);
     result[1] = f.read(); result[1] -= '0';
@@ -4475,6 +4457,10 @@ void saveUserPrefs() {
     SerialM.print("  presetGroup = "); SerialM.println((uint8_t)result[2]);
     result[3] = f.read(); result[3] -= '0';
     SerialM.print("  frameTimeLockMethod = "); SerialM.println((uint8_t)result[3]);
+    result[4] = f.read(); result[4] -= '0';
+    SerialM.print("  enableAutoGain = "); SerialM.println((uint8_t)result[4]);
+    result[5] = f.read(); result[5] -= '0';
+    SerialM.print("  wantScanlines = "); SerialM.println((uint8_t)result[5]);
     f.close();
   }
 }
