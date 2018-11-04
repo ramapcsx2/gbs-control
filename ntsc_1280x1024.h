@@ -102,7 +102,7 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x0, // s2_4
 0x7F, // s2_5
 0x5, // s2_6
-0x0, // s2_7
+0x8, // s2_7
 0x0, // s2_8
 0x0, // s2_9
 0x0, // s2_A
@@ -110,7 +110,7 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x24, // s2_C
 0x6, // s2_D
 0x78, // s2_E
-0x39, // s2_F
+0x38, // s2_F
 0x0, // s2_10 // less still detection off
 0x0, // s2_11
 0x8E, // s2_12
@@ -119,8 +119,8 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x0, // s2_15
 0x80, // s2_16
 0x00, // s2_17
-0xC6, // s2_18 //d6 (more MADPT_HTAP_COEFF)
-0xA0, // s2_19
+0xB6, // s2_18
+0xB0, // s2_19
 0x5, // s2_1A
 0x24, // s2_1B
 0x0, // s2_1C
@@ -128,7 +128,7 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x0, // s2_1E
 0x10, // s2_1F
 0x31, // s2_20
-0x32, // s2_21
+0x2, // s2_21
 0x4, // s2_22
 0xF, // s2_23
 0x0, // s2_24
@@ -152,7 +152,7 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x3, // s2_36
 0xB, // s2_37
 0x4, // s2_38
-0x22, // s2_39
+0x33, // s2_39
 0x0, // s2_3A
 0x4, // s2_3B
 0xF, // s2_3C
