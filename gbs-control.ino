@@ -140,11 +140,13 @@ struct runTimeOptions {
   boolean enableDebugPings;
   boolean webSocketConnected;
   boolean autoBestHtotalEnabled;
-  boolean deinterlacerWasTurnedOff;
+  boolean deinterlacerUnitWasTurnedOff;
   boolean forceRetime;
   boolean optimizeSOG;
-  boolean motionAdaptiveDeinterlace;
+  boolean motionAdaptiveDeinterlaceActive;
   boolean deinterlaceAutoEnabled;
+  boolean scanlinesEnabled;
+  boolean wantScanlines; // todo: this needs to be a user option (but get it working first)
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -368,7 +370,7 @@ void writeProgramArrayNew(const uint8_t* programArray)
 void setResetParameters() {
   SerialM.println("<reset>");
   rto->videoStandardInput = 0;
-  rto->deinterlacerWasTurnedOff = false;
+  rto->deinterlacerUnitWasTurnedOff = false;
   rto->applyPresetDoneStage = 0;
   rto->sourceVLines = 0;
   rto->sourceDisconnected = true;
@@ -379,7 +381,8 @@ void setResetParameters() {
   rto->isInLowPowerMode = false;
   rto->currentLevelSOG = 4;
   rto->optimizeSOG = false;
-  rto->motionAdaptiveDeinterlace = false;
+  rto->motionAdaptiveDeinterlaceActive = false;
+  rto->scanlinesEnabled = false;
   setAndUpdateSogLevel(rto->currentLevelSOG);
   GBS::RESET_CONTROL_0x46::write(0x00); // all units off
   GBS::RESET_CONTROL_0x47::write(0x00);
@@ -1538,7 +1541,8 @@ void doPostPresetLoadSteps() {
   rto->clampPositionIsSet = false;
   rto->coastPositionIsSet = false;
   rto->continousStableCounter = 0;
-  rto->motionAdaptiveDeinterlace = false;
+  rto->motionAdaptiveDeinterlaceActive = false;
+  rto->scanlinesEnabled = false;
   
   // test: set IF_HSYNC_RST based on pll divider 5_12/13
   //GBS::IF_LINE_SP::write((GBS::PLLAD_MD::read() / 2) - 1);
@@ -1898,21 +1902,21 @@ void applyPresets(uint8_t result) {
   doPostPresetLoadSteps();
 }
 
-void enableDeinterlacer() {
+void enableDeinterlacerUnit() {
   if (rto->videoStandardInput != 15 && !rto->outModePassThroughWithIf) {
     GBS::SFTRST_DEINT_RSTZ::write(1);
     //GBS::CAP_REQ_FREEZ::write(0); // don't use, occasionally capture doesn't recover
   }
-  rto->deinterlacerWasTurnedOff = false;
+  rto->deinterlacerUnitWasTurnedOff = false;
 }
 
 // acts as a coasting mechanism on sync disturbance
-void disableDeinterlacer() {
-  if (rto->deinterlacerWasTurnedOff == false) {
+void disableDeinterlacerUnit() {
+  if (rto->deinterlacerUnitWasTurnedOff == false) {
     GBS::SFTRST_DEINT_RSTZ::write(0);
     //GBS::CAP_REQ_FREEZ::write(1); // don't use, occasionally capture doesn't recover
   }
-  rto->deinterlacerWasTurnedOff = true;
+  rto->deinterlacerUnitWasTurnedOff = true;
 }
 
 static uint8_t getVideoMode() {
@@ -2478,9 +2482,8 @@ void doAutoGain() {
   //}
 }
 
-void toggleScanlines() {
+void enableScanlines() {
   if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 0) {
-    uopt->enableAutoGain = 0; // incompatible
     GBS::MAPDT_VT_SEL_PRGV::write(0);
     GBS::VDS_Y_GAIN::write(0xc0); // more luma gain
     GBS::VDS_UCOS_GAIN::write(0x1f);
@@ -2491,9 +2494,15 @@ void toggleScanlines() {
     GBS::MADPT_PD_RAM_BYPS::write(0);
     GBS::MADPT_VIIR_BYPS::write(0); // enable VIIR 
     GBS::RFF_LINE_FLIP::write(1); // clears potential garbage in rff buffer
+
+    uopt->enableAutoGain = 0; // incompatible
     GBS::MAPDT_RESERVED_SCANLINES_ENABLED::write(1);
   }
-  else {
+  rto->scanlinesEnabled = 1;
+}
+
+void disableScanlines() {
+  if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) {
     GBS::MAPDT_VT_SEL_PRGV::write(1);
     GBS::VDS_Y_GAIN::write(0x80); //writeOneByte(0x35, 0x80);
     GBS::VDS_UCOS_GAIN::write(0x1c);
@@ -2502,13 +2511,14 @@ void toggleScanlines() {
     GBS::MADPT_PD_RAM_BYPS::write(1);
     GBS::MADPT_VIIR_BYPS::write(1); // disable VIIR 
     GBS::RFF_LINE_FLIP::write(0); // back to default
+
     GBS::MAPDT_RESERVED_SCANLINES_ENABLED::write(0);
   }
+  rto->scanlinesEnabled = 0;
 }
 
 void toggleMotionAdaptDeinterlace() {
-  //SerialM.print("deinterlace: ");
-  if (!rto->motionAdaptiveDeinterlace) {
+  if (!rto->motionAdaptiveDeinterlaceActive) {
     GBS::DEINT_00::write(0); // 2_00
     GBS::MAPDT_VT_SEL_PRGV::write(0); // 2_16
     GBS::MADPT_VT_FILTER_CNTRL::write(1); // 2_16
@@ -2539,9 +2549,7 @@ void toggleMotionAdaptDeinterlace() {
     GBS::RFF_ENABLE::write(1);
     GBS::RFF_YUV_DEINTERLACE::write(1);
     GBS::RFF_LREQ_CUT::write(1);
-    //GBS::PLL_MS::write(4); // need higher memclock for more data // may work as is
-    rto->motionAdaptiveDeinterlace = true;
-    //SerialM.println("on");
+    rto->motionAdaptiveDeinterlaceActive = true;
   }
   else {
     GBS::DEINT_00::write(0xff); // 2_00
@@ -2563,8 +2571,7 @@ void toggleMotionAdaptDeinterlace() {
     GBS::WFF_YUV_DEINTERLACE::write(0);
     GBS::WFF_LINE_FLIP::write(1);
     GBS::RFF_ENABLE::write(0);
-    rto->motionAdaptiveDeinterlace = false;
-    //SerialM.println("off");
+    rto->motionAdaptiveDeinterlaceActive = false;
   }
 
   GBS::SDRAM_RESET_SIGNAL::write(1); // short sdram reset
@@ -2639,14 +2646,16 @@ void setup() {
   rto->phaseADC = 16;
   rto->phaseSP = 15;
   rto->optimizeSOG = false;
-  rto->motionAdaptiveDeinterlace = false;
+  rto->motionAdaptiveDeinterlaceActive = false;
   rto->deinterlaceAutoEnabled = true;
+  rto->scanlinesEnabled = false;
+  rto->wantScanlines = false;
 
   // the following is just run time variables. don't change!
   rto->inputIsYpBpR = false;
   rto->videoStandardInput = 0;
   rto->outModePassThroughWithIf = false;
-  rto->deinterlacerWasTurnedOff = false;
+  rto->deinterlacerUnitWasTurnedOff = false;
   if (!rto->webServerEnabled) rto->webServerStarted = false;
   rto->printInfos = false;
   rto->sourceDisconnected = true;
@@ -3162,10 +3171,10 @@ void loop() {
     break;
     case 'l':
       SerialM.println("resetSyncProcessor");
-      //disableDeinterlacer();
+      //disableDeinterlacerUnit();
       resetSyncProcessor();
       //delay(10);
-      //enableDeinterlacer();
+      //enableDeinterlacerUnit();
     break;
     case 'W':
       uopt->enableFrameTimeLock = !uopt->enableFrameTimeLock;
@@ -3517,14 +3526,14 @@ void loop() {
       noSyncCounter++;
       rto->continousStableCounter = 0;
       LEDOFF; // always LEDOFF on sync loss, except if RGBHV
-      disableDeinterlacer(); // engage free run for VDS ("coasting"), helps displays keep sync
+      disableDeinterlacerUnit(); // engage free run for VDS ("coasting"), helps displays keep sync
       if (rto->printInfos == false) {
         if (noSyncCounter == 1) {
           SerialM.print(".");
         }
       }
       if (noSyncCounter % 80 == 0) {
-        enableDeinterlacer(); // briefly show image
+        enableDeinterlacerUnit(); // briefly show image
         rto->clampPositionIsSet = false;
         rto->coastPositionIsSet = false;
         FrameSync::reset(); // corner case: source quickly changed. this won't affect display if timings are the same
@@ -3538,7 +3547,7 @@ void loop() {
     if ((detectedVideoMode != 0 && detectedVideoMode != rto->videoStandardInput && getSyncStable()) ||
       (detectedVideoMode != 0 && rto->videoStandardInput == 0 /*&& getSyncPresent()*/)) {
       
-      disableDeinterlacer();
+      disableDeinterlacerUnit();
       noSyncCounter = 0;
 
       uint8_t test = 10;
@@ -3591,42 +3600,42 @@ void loop() {
         rto->continousStableCounter++;
       }
       noSyncCounter = 0;
-      if (rto->deinterlacerWasTurnedOff && (rto->videoStandardInput == detectedVideoMode)) {
-        enableDeinterlacer();
+      if (rto->deinterlacerUnitWasTurnedOff && (rto->videoStandardInput == detectedVideoMode)) {
+        enableDeinterlacerUnit();
       }
 
       // new: attempt to switch in deinterlacing automatically, when required
       // only do this for pal/ntsc, which can be 240p or 480i
       if (rto->deinterlaceAutoEnabled && detectedVideoMode <= 2) {
-        static boolean wantedScanlines = false;
         uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read();
         static uint16_t VPERIOD_IF_OLD = VPERIOD_IF; // glitch filter on line count change (but otherwise stable)
         if (VPERIOD_IF_OLD != VPERIOD_IF) {
-          disableDeinterlacer();
+          disableDeinterlacerUnit();
         }
         // else will trigger next run, whenever line count is stable
         //
         if (rto->continousStableCounter > 2) {
           // actual deinterlace trigger
-          if (!rto->motionAdaptiveDeinterlace && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts > enable
-            if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) {
-              wantedScanlines = true;
-              toggleScanlines();
-            }
-            else {
-              wantedScanlines = false;
+          if (!rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts > enable
+            if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
+              disableScanlines();
             }
             toggleMotionAdaptDeinterlace();
           }
-          else if (rto->motionAdaptiveDeinterlace && VPERIOD_IF % 2 == 1) { // ie v:523 or other, uneven counts > disable
+          else if (rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 1) { // ie v:523 or other, uneven counts > disable
             toggleMotionAdaptDeinterlace();
-            if (wantedScanlines) {
-              toggleScanlines();
-            }
           }
         }
 
-        VPERIOD_IF_OLD = VPERIOD_IF; // glitch filter
+        VPERIOD_IF_OLD = VPERIOD_IF; // part of glitch filter
+      }
+
+      // scanlines
+      if (rto->wantScanlines && !rto->scanlinesEnabled && !rto->motionAdaptiveDeinterlaceActive) {
+        enableScanlines();
+      }
+      else if (!rto->wantScanlines && rto->scanlinesEnabled) {
+        disableScanlines();
       }
     }
 
@@ -3758,7 +3767,7 @@ void loop() {
       // couldn't recover, source is lost
       // restore initial conditions and move to input detect
       if (noSyncCounter >= 400) {
-        disableDeinterlacer();
+        disableDeinterlacerUnit();
         setResetParameters();
         setSpParameters();
         resetSyncProcessor(); // todo: fix MD being stuck in last mode when sync disappears
@@ -3963,7 +3972,14 @@ void handleType2Command() {
       saveUserPrefs();
       break;
     case '7':
-      toggleScanlines();
+      rto->wantScanlines = !rto->wantScanlines;
+      SerialM.print("scanlines ");
+      if (rto->wantScanlines) {
+        SerialM.println("on");
+      }
+      else {
+        SerialM.println("off");
+      }
     break;
     case '9':
       uopt->presetPreference = 3; // prefer 720p preset
