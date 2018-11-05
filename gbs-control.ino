@@ -1900,8 +1900,9 @@ void applyPresets(uint8_t result) {
 
 void enableDeinterlacerUnit() {
   if (rto->videoStandardInput != 15 && !rto->outModePassThroughWithIf) {
-    GBS::SFTRST_DEINT_RSTZ::write(1);
+    //GBS::SFTRST_DEINT_RSTZ::write(1);
     //GBS::CAP_REQ_FREEZ::write(0); // don't use, occasionally capture doesn't recover
+    GBS::CAPTURE_ENABLE::write(1);
   }
   rto->deinterlacerUnitWasTurnedOff = false;
 }
@@ -1909,8 +1910,9 @@ void enableDeinterlacerUnit() {
 // acts as a coasting mechanism on sync disturbance
 void disableDeinterlacerUnit() {
   if (rto->deinterlacerUnitWasTurnedOff == false) {
-    GBS::SFTRST_DEINT_RSTZ::write(0);
+    //GBS::SFTRST_DEINT_RSTZ::write(0);
     //GBS::CAP_REQ_FREEZ::write(1); // don't use, occasionally capture doesn't recover
+    GBS::CAPTURE_ENABLE::write(0);
   }
   rto->deinterlacerUnitWasTurnedOff = true;
 }
@@ -2391,55 +2393,54 @@ void bypassModeSwitch_RGBHV() {
 }
 
 void doAutoGain() {
-  static uint8_t r_found = 0, g_found = 0, b_found = 0;
-  static unsigned long lastTime = millis();
-
-  if (millis() - lastTime > 60) {
-    r_found = 0; g_found = 0; b_found = 0;
-    lastTime = millis();
-  }
+  uint8_t r_found = 0, g_found = 0, b_found = 0;
 
   GBS::DEC_TEST_SEL::write(3); // 0xbc
-  uint8_t redValue = GBS::TEST_BUS_2E::read();
+  for (uint8_t i = 0; i < 7; i++) {
+    uint8_t redValue = GBS::TEST_BUS_2E::read();
+    if (redValue == 0x7f) { // full on found
+      r_found++;
+    }
+  }
   GBS::DEC_TEST_SEL::write(2); // 0xac
-  uint8_t greenValue = GBS::TEST_BUS_2E::read();
+  for (uint8_t i = 0; i < 7; i++) {
+    uint8_t greenValue = GBS::TEST_BUS_2E::read();
+    if (greenValue == 0x7f) {
+      g_found++;
+    }
+  }
   GBS::DEC_TEST_SEL::write(1); // 0x9c
-  uint8_t blueValue = GBS::TEST_BUS_2E::read();
-
-  // red
-  if (redValue == 0x7f) { // full on found
-    r_found++;
-  }
-
-  // green
-  if (greenValue == 0x7f) {
-    g_found++;
-  }
-
-  // blue
-  if (blueValue == 0x7f) {
-    b_found++;
-  }
-
-  if (r_found > 1) {
-    if (GBS::ADC_RGCTRL::read() < 0x90) {
-      GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + r_found);
-      //SerialM.print("Rgain: "); SerialM.println(GBS::ADC_RGCTRL::read(), HEX);
-      r_found = 0;
+  for (uint8_t i = 0; i < 7; i++) {
+    uint8_t blueValue = GBS::TEST_BUS_2E::read();
+    if (blueValue == 0x7f) {
+      b_found++;
     }
   }
-  if (g_found > 1) {
-    if (GBS::ADC_GGCTRL::read() < 0x90) {
-      GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + g_found);
-      //SerialM.print("Ggain: "); SerialM.println(GBS::ADC_GGCTRL::read(), HEX);
-      g_found = 0;
+
+  if ((r_found > 1) || (g_found > 1) || (b_found > 1)) {
+    uint8_t red = GBS::ADC_RGCTRL::read();
+    uint8_t green = GBS::ADC_GGCTRL::read();
+    uint8_t blue = GBS::ADC_BGCTRL::read();
+    if ((red < (blue - 8)) || (red < (green - 8))) {
+      red += 1;
+      GBS::ADC_RGCTRL::write(red);
     }
-  }
-  if (b_found > 1) {
-    if (GBS::ADC_BGCTRL::read() < 0x90) {
-      GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + b_found);
-      //SerialM.print("Bgain: "); SerialM.println(GBS::ADC_BGCTRL::read(), HEX);
-      b_found = 0;
+    if ((green < (blue - 8)) || (green < (red - 8))) {
+      green += 1;
+      GBS::ADC_GGCTRL::write(green);
+    }
+    if ((blue < (red - 8)) || (blue < (green - 8))) {
+      blue += 1;
+      GBS::ADC_BGCTRL::write(blue);
+    }
+    if (r_found > 1 && red < 0x90) {
+      GBS::ADC_RGCTRL::write(red + 1);
+    }
+    if (g_found > 1 && green < 0x90) {
+      GBS::ADC_GGCTRL::write(green + 1);
+    }
+    if (b_found > 1 && blue < 0x90) {
+      GBS::ADC_BGCTRL::write(blue + 1);
     }
   }
 }
@@ -2447,12 +2448,12 @@ void doAutoGain() {
 void enableScanlines() {
   if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 0) {
     GBS::MAPDT_VT_SEL_PRGV::write(0);
-    GBS::VDS_Y_GAIN::write(0xc0); // more luma gain
-    GBS::VDS_UCOS_GAIN::write(0x1f);
-    GBS::VDS_VCOS_GAIN::write(0x2a);
-    GBS::MADPT_VIIR_COEF::write(0x18); // set up VIIR filter 2_27
+    GBS::VDS_Y_GAIN::write(0x98); // more luma gain
+    GBS::VDS_UCOS_GAIN::write(0x1e);
+    GBS::VDS_VCOS_GAIN::write(0x2d);
+    GBS::MADPT_VIIR_COEF::write(0x14); // set up VIIR filter 2_27
     GBS::MADPT_Y_MI_DET_BYPS::write(1); // make sure, so that mixing works
-    GBS::MADPT_Y_MI_OFFSET::write(0x28); // 2_0b offset (mixing factor here)
+    GBS::MADPT_Y_MI_OFFSET::write(0x50); // 2_0b offset (mixing factor here)
     GBS::MADPT_PD_RAM_BYPS::write(0);
     GBS::MADPT_VIIR_BYPS::write(0); // enable VIIR 
     GBS::RFF_LINE_FLIP::write(1); // clears potential garbage in rff buffer
@@ -2482,7 +2483,7 @@ void toggleMotionAdaptDeinterlace() {
   if (!rto->motionAdaptiveDeinterlaceActive) {
     GBS::DEINT_00::write(0); // 2_00
     GBS::MAPDT_VT_SEL_PRGV::write(0); // 2_16
-    GBS::MADPT_VT_FILTER_CNTRL::write(1); // 2_16
+    GBS::MADPT_VT_FILTER_CNTRL::write(0); // 2_16
     GBS::MADPT_Y_MI_DET_BYPS::write(0); //2_0a_7
     GBS::MADPT_Y_MI_OFFSET::write(0x04); // 0 none, ff max // shimmering ps2 memcard browser
     GBS::MADPT_VIIR_BYPS::write(1);
@@ -2496,7 +2497,10 @@ void toggleMotionAdaptDeinterlace() {
     GBS::MADPT_NRD_VIIR_PD_BYPS::write(1); // 2_35_4
     GBS::MADPT_UVDLY_PD_BYPS::write(0); // 2_35_5 // off
     GBS::MADPT_CMP_EN::write(1); // 2_35_6
-    GBS::MADPT_EN_UV_DEINT::write(0); // 2_3a:0 test: disabled
+    GBS::MADPT_UVDLY_PD_SP::write(4); // 2_39 [0..3]
+    GBS::MADPT_UVDLY_PD_ST::write(0); // 2_39 [4..7]
+    GBS::MADPT_EN_UV_DEINT::write(1); // 2_3a 0
+    GBS::MADPT_MI_1BIT_DLY::write(2); // 2_3a [5..6]
     GBS::MADPT_UV_MI_DET_BYPS::write(0); // 2_3a_7
     GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x00 (so fb clock is usable) // requires sdram reset
     GBS::CAP_FF_HALF_REQ::write(1);
@@ -2504,7 +2508,7 @@ void toggleMotionAdaptDeinterlace() {
     GBS::WFF_FF_STA_INV::write(0);
     GBS::WFF_YUV_DEINTERLACE::write(1);
     GBS::WFF_LINE_FLIP::write(0);
-    GBS::WFF_HB_DELAY::write(4);
+    GBS::WFF_HB_DELAY::write(5);
     GBS::WFF_VB_DELAY::write(4);
     GBS::RFF_REQ_SEL::write(3);
     GBS::RFF_ENABLE::write(1);
@@ -2523,7 +2527,10 @@ void toggleMotionAdaptDeinterlace() {
     GBS::MADPT_VTAP2_BYPS::write(1); // 2_19_2
     GBS::MADPT_UVDLY_PD_BYPS::write(1); // 2_35_5
     GBS::MADPT_CMP_EN::write(0); // 2_35_6
+    GBS::MADPT_UVDLY_PD_SP::write(0); // 2_39 [0..3]
+    GBS::MADPT_UVDLY_PD_ST::write(0); // 2_39 [4..7]
     GBS::MADPT_EN_UV_DEINT::write(0);
+    GBS::MADPT_MI_1BIT_DLY::write(0); // 2_3a [5..6]
     GBS::MADPT_UV_MI_DET_BYPS::write(1); // 2_3a_7
     GBS::MEM_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x02
     GBS::CAP_FF_HALF_REQ::write(0);
@@ -2841,6 +2848,7 @@ void loop() {
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastVsyncLock = millis();
   static unsigned long lastTimeSourceCheck = millis();
+  static unsigned long lastTimeAutoGain = millis();
   static unsigned long lastTimeSOG = millis();
 #ifdef HAVE_BUTTONS
   static unsigned long lastButton = micros();
@@ -3787,10 +3795,10 @@ void loop() {
   }
   
   // update clamp + coast positions after preset change // do it quickly
-  if (!rto->coastPositionIsSet && rto->continousStableCounter > 10) {
+  if (!rto->coastPositionIsSet && rto->continousStableCounter > 7) {
       updateCoastPosition();
   }
-  if (!rto->clampPositionIsSet && rto->continousStableCounter > 10) {
+  if (!rto->clampPositionIsSet && rto->continousStableCounter > 5) {
     updateClampPosition();
   }
   
@@ -3851,8 +3859,8 @@ void loop() {
 #if defined(ESP8266) // no more space on ATmega
   // run auto ADC gain feature (if enabled)
   if (rto->syncWatcherEnabled && uopt->enableAutoGain == 1 && !rto->sourceDisconnected 
-    && rto->videoStandardInput > 0 && rto->continousStableCounter > 80 && rto->clampPositionIsSet
-    && !rto->inputIsYpBpR) // only works for RGB atm
+    && rto->videoStandardInput > 0 && rto->continousStableCounter > 8 && rto->clampPositionIsSet
+    && !rto->inputIsYpBpR && (millis() - lastTimeAutoGain > 8))
   {
     uint8_t debugRegBackup = 0, debugPinBackup = 0;
     debugPinBackup = GBS::PAD_BOUT_EN::read();
@@ -3864,6 +3872,7 @@ void loop() {
     //GBS::DEC_TEST_ENABLE::write(0);
     GBS::TEST_BUS_SEL::write(debugRegBackup);
     GBS::PAD_BOUT_EN::write(debugPinBackup); // debug output pin back on
+    lastTimeAutoGain = millis();
   }
 
 #ifdef HAVE_PINGER_LIBRARY

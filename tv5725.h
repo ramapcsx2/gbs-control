@@ -240,7 +240,10 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x02, 0x35, 4,  1> MADPT_NRD_VIIR_PD_BYPS;
     typedef UReg<0x02, 0x35, 5,  1> MADPT_UVDLY_PD_BYPS;
     typedef UReg<0x02, 0x35, 6,  1> MADPT_CMP_EN;
+    typedef UReg<0x02, 0x39, 0,  4> MADPT_UVDLY_PD_SP;
+    typedef UReg<0x02, 0x39, 4,  4> MADPT_UVDLY_PD_ST;
     typedef UReg<0x02, 0x3a, 0,  1> MADPT_EN_UV_DEINT;
+    typedef UReg<0x02, 0x3a, 5,  2> MADPT_MI_1BIT_DLY;
     typedef UReg<0x02, 0x3a, 7,  1> MADPT_UV_MI_DET_BYPS;
 
     // VDS Registers
