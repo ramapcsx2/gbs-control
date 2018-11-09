@@ -160,6 +160,14 @@ struct userOptions {
 } uopts;
 struct userOptions *uopt = &uopts;
 
+// remember adc options across presets
+struct adcOptions {
+  uint8_t r_gain;
+  uint8_t g_gain;
+  uint8_t b_gain;
+} adcopts;
+struct adcOptions *adco = &adcopts;
+
 char globalCommand;
 
 #if defined(ESP8266)
@@ -383,6 +391,11 @@ void setResetParameters() {
   rto->optimizeSOG = false;
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->scanlinesEnabled = false;
+
+  adco->r_gain = 0;
+  adco->g_gain = 0;
+  adco->b_gain = 0;
+
   setAndUpdateSogLevel(rto->currentLevelSOG);
   GBS::RESET_CONTROL_0x46::write(0x00); // all units off
   GBS::RESET_CONTROL_0x47::write(0x00);
@@ -1655,10 +1668,20 @@ void doPostPresetLoadSteps() {
   // auto ADC gain
   //GBS::ADC_TR_RSEL::write(2); // ADC_TR_RSEL = 2 test
   //GBS::ADC_TR_ISEL::write(0); // leave current at default
-  if (uopt->enableAutoGain == 1 && !isCustomPreset && !rto->inputIsYpBpR) {
+  if (uopt->enableAutoGain == 1 && !isCustomPreset && !rto->inputIsYpBpR && adco->r_gain == 0) {
     GBS::ADC_RGCTRL::write(0x40);
     GBS::ADC_GGCTRL::write(0x40);
     GBS::ADC_BGCTRL::write(0x40);
+    GBS::DEC_TEST_ENABLE::write(1);
+  }
+  else if (uopt->enableAutoGain == 1 && !isCustomPreset && !rto->inputIsYpBpR && adco->r_gain != 0) {
+    /*SerialM.println("remembered adc gain: ");
+    SerialM.print(adco->r_gain, HEX); SerialM.print(" ");
+    SerialM.print(adco->g_gain, HEX); SerialM.print(" ");
+    SerialM.print(adco->b_gain, HEX); SerialM.println(" ");*/
+    GBS::ADC_RGCTRL::write(adco->r_gain);
+    GBS::ADC_GGCTRL::write(adco->g_gain);
+    GBS::ADC_BGCTRL::write(adco->b_gain);
     GBS::DEC_TEST_ENABLE::write(1);
   }
   else if (!isCustomPreset) {
@@ -2347,6 +2370,7 @@ void bypassModeSwitch_RGBHV() {
 
   GBS::PLL_CKIS::write(0); // 0_40 0 //  0: PLL uses OSC clock | 1: PLL uses input clock
   GBS::PLL_DIVBY2Z::write(0); // 0_40 // 1= no divider (full clock, ie 27Mhz) 0 = halved clock
+  GBS::PLL_ADS::write(0); // test:  input clock is from PCLKIN (disconnected, not ADC clock)
   GBS::PLL_R::write(2); // PLL lock detector skew
   GBS::PLL_S::write(2);
   GBS::PLL_MS::write(2); // select feedback clock (but need to enable tri state!)
@@ -2445,6 +2469,11 @@ void doAutoGain() {
     if (b_found > 1 && blue < 0x90) {
       GBS::ADC_BGCTRL::write(blue + 1);
     }
+
+    // remember these gain settings
+    adco->r_gain = GBS::ADC_RGCTRL::read();
+    adco->g_gain = GBS::ADC_GGCTRL::read();
+    adco->b_gain = GBS::ADC_BGCTRL::read();
   }
 }
 
@@ -2644,6 +2673,10 @@ void setup() {
   rto->clampPositionIsSet = 0;
   rto->coastPositionIsSet = 0;
   rto->continousStableCounter = 0;
+
+  adco->r_gain = 0;
+  adco->g_gain = 0;
+  adco->b_gain = 0;
 
   globalCommand = 0; // web server uses this to issue commands
 
@@ -3676,6 +3709,9 @@ void loop() {
       if (rto->continousStableCounter > 3 && (GBS::STATUS_MISC_PLLAD_LOCK::read() != 1)
         && (millis() - lastTimeCheck > 750)) 
       {
+        //static uint16_t currentPllDivider = GBS::PLLAD_MD::read();
+        //uint16_t STATUS_SYNC_PROC_HTOTAL = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+        //if (STATUS_SYNC_PROC_HTOTAL != currentPllDivider) { // then it can't keep lock
         // RGBHV PLLAD optimization by looking at he PLLAD lock counter
         uint8_t lockCounter = 0;
         for (uint8_t i = 0; i < 10; i++) {
@@ -3731,7 +3767,7 @@ void loop() {
           else if (!SP_HS2PLL_INV_REG) {
             GBS::SP_HS2PLL_INV_REG::write(1);
           }
-          lastTimeCheck = millis();
+          lastTimeCheck = millis() + 700; // had to adjust, check again sooner
         }
       }
     }
