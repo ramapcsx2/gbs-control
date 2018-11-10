@@ -32,35 +32,6 @@ class FrameSyncManager {
     static bool syncLockReady;
     static int16_t syncLastCorrection;
 
-    // Sample vsync start and stop times (for two consecutive frames) from debug pin.
-    // A timeout prevents deadlocks in case of bad signals.
-    // Sources can disappear while in sampling, so keep the timeout.
-    static bool vsyncInputSample(unsigned long *start, unsigned long *stop) {
-      unsigned long timeoutStart = micros();
-      while (digitalRead(debugInPin))
-        if (micros() - timeoutStart >= syncTimeout)
-          return false;
-      while (!digitalRead(debugInPin))
-        if (micros() - timeoutStart >= syncTimeout)
-          return false;
-      *start = micros();
-      while (digitalRead(debugInPin))
-        if (micros() - timeoutStart >= syncTimeout)
-          return false;
-      while (!digitalRead(debugInPin))
-        if (micros() - timeoutStart >= syncTimeout)
-          return false;
-      // sample twice
-      while (digitalRead(debugInPin))
-        if (micros() - timeoutStart >= syncTimeout)
-          return false;
-      while (!digitalRead(debugInPin))
-        if (micros() - timeoutStart >= syncTimeout)
-          return false;
-      *stop = micros();
-      return true;
-    }
-
     // Sample vsync start and stop times from output vsync pin A
     // timeout prevents deadlocks in case of bad signals.
     // Sources can disappear while in sampling, so keep the timeout.
@@ -162,6 +133,11 @@ class FrameSyncManager {
       syncLastCorrection = 0;
     }
 
+    static void resetWithoutRecalculation() {
+      syncLockReady = true;
+      syncLastCorrection = 0;
+    }
+
     // Initialize sync locking
     static uint16_t init() {
       uint32_t bestHTotal = 0;
@@ -185,6 +161,35 @@ class FrameSyncManager {
 
     static int16_t getSyncLastCorrection() {
       return syncLastCorrection;
+    }
+
+    // Sample vsync start and stop times (for two consecutive frames) from debug pin.
+    // A timeout prevents deadlocks in case of bad signals.
+    // Sources can disappear while in sampling, so keep the timeout.
+    static bool vsyncInputSample(unsigned long *start, unsigned long *stop) {
+      unsigned long timeoutStart = micros();
+      while (digitalRead(debugInPin))
+        if (micros() - timeoutStart >= syncTimeout)
+          return false;
+      while (!digitalRead(debugInPin))
+        if (micros() - timeoutStart >= syncTimeout)
+          return false;
+      *start = micros();
+      while (digitalRead(debugInPin))
+        if (micros() - timeoutStart >= syncTimeout)
+          return false;
+      while (!digitalRead(debugInPin))
+        if (micros() - timeoutStart >= syncTimeout)
+          return false;
+      // sample twice
+      while (digitalRead(debugInPin))
+        if (micros() - timeoutStart >= syncTimeout)
+          return false;
+      while (!digitalRead(debugInPin))
+        if (micros() - timeoutStart >= syncTimeout)
+          return false;
+      *stop = micros();
+      return true;
     }
 
     // Perform vsync phase locking.  This is accomplished by measuring
