@@ -2523,7 +2523,6 @@ void enableMotionAdaptDeinterlace() {
   GBS::MADPT_BIT_STILL_EN::write(1);
   GBS::MADPT_HTAP_BYPS::write(0); // 2_18_3
   GBS::MADPT_VTAP2_BYPS::write(0); // 2_19_2 // don't bypass
-  GBS::MADPT_VTAP2_ROUND_SEL::write(1); // 2_19_3 // but reduce input by 2
   GBS::MADPT_NRD_VIIR_PD_BYPS::write(1); // 2_35_4
   GBS::MADPT_UVDLY_PD_BYPS::write(0); // 2_35_5 // off
   GBS::MADPT_CMP_EN::write(1); // 2_35_6 // no effect?
