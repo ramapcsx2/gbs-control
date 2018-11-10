@@ -2514,11 +2514,9 @@ void disableScanlines() {
 }
 
 void enableMotionAdaptDeinterlace() {
-  GBS::DEINT_00::write(0); // 2_00
+  GBS::DEINT_00::write(0x7f); // 2_00
   GBS::MAPDT_VT_SEL_PRGV::write(0); // 2_16
-  GBS::MADPT_VT_FILTER_CNTRL::write(0); // 2_16
   GBS::MADPT_Y_MI_DET_BYPS::write(0); //2_0a_7
-  GBS::MADPT_Y_MI_OFFSET::write(0x04); // 0 none, ff max // shimmering ps2 memcard browser
   GBS::MADPT_VIIR_BYPS::write(1);
   GBS::MADPT_MI_1BIT_BYPS::write(0);
   GBS::MADPT_MI_1BIT_FRAME2_EN::write(1);
@@ -2526,34 +2524,33 @@ void enableMotionAdaptDeinterlace() {
   GBS::MADPT_HTAP_BYPS::write(0); // 2_18_3
   GBS::MADPT_VTAP2_BYPS::write(0); // 2_19_2 // don't bypass
   GBS::MADPT_VTAP2_ROUND_SEL::write(1); // 2_19_3 // but reduce input by 2
-  GBS::MADPT_DD0_SEL::write(0); // 2_35_3 0 if NRD off 
   GBS::MADPT_NRD_VIIR_PD_BYPS::write(1); // 2_35_4
   GBS::MADPT_UVDLY_PD_BYPS::write(0); // 2_35_5 // off
-  GBS::MADPT_CMP_EN::write(1); // 2_35_6
+  GBS::MADPT_CMP_EN::write(1); // 2_35_6 // no effect?
   GBS::MADPT_UVDLY_PD_SP::write(4); // 2_39 [0..3]
   GBS::MADPT_UVDLY_PD_ST::write(0); // 2_39 [4..7]
-  GBS::MADPT_EN_UV_DEINT::write(1); // 2_3a 0
-  GBS::MADPT_MI_1BIT_DLY::write(2); // 2_3a [5..6]
-  GBS::MADPT_UV_MI_DET_BYPS::write(0); // 2_3a_7
-  GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x00 (so fb clock is usable) // requires sdram reset
+  GBS::MADPT_MI_1BIT_DLY::write(1); // 2_3a [5..6]
+  //GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x00 (so fb clock is usable) // requires sdram reset
+  GBS::MEM_CLK_DLY_REG::write(1); // use this instead
   GBS::CAP_FF_HALF_REQ::write(1);
-  GBS::WFF_ENABLE::write(1);
   GBS::WFF_FF_STA_INV::write(0);
   GBS::WFF_YUV_DEINTERLACE::write(1);
   GBS::WFF_LINE_FLIP::write(0);
   GBS::WFF_HB_DELAY::write(5);
   GBS::WFF_VB_DELAY::write(4);
   GBS::RFF_REQ_SEL::write(3);
-  GBS::RFF_ENABLE::write(1);
-  GBS::RFF_YUV_DEINTERLACE::write(1);
   GBS::RFF_LREQ_CUT::write(1);
+  GBS::RFF_YUV_DEINTERLACE::write(1);
+  GBS::WFF_ENABLE::write(1);
+  GBS::RFF_ENABLE::write(1);
+
   rto->motionAdaptiveDeinterlaceActive = true;
 
-  GBS::SDRAM_RESET_SIGNAL::write(1); // short sdram reset
-  GBS::SDRAM_START_INITIAL_CYCLE::write(1);
-  GBS::SDRAM_RESET_SIGNAL::write(0);
-  GBS::SDRAM_START_INITIAL_CYCLE::write(0); //
-  delay(4);
+  //GBS::SDRAM_RESET_SIGNAL::write(1); // short sdram reset
+  //GBS::SDRAM_START_INITIAL_CYCLE::write(1);
+  //GBS::SDRAM_RESET_SIGNAL::write(0);
+  //GBS::SDRAM_START_INITIAL_CYCLE::write(0); //
+  //delay(4);
 }
 
 void disableMotionAdaptDeinterlace() {
@@ -2569,23 +2566,22 @@ void disableMotionAdaptDeinterlace() {
   GBS::MADPT_CMP_EN::write(0); // 2_35_6
   GBS::MADPT_UVDLY_PD_SP::write(0); // 2_39 [0..3]
   GBS::MADPT_UVDLY_PD_ST::write(0); // 2_39 [4..7]
-  GBS::MADPT_EN_UV_DEINT::write(0);
   GBS::MADPT_MI_1BIT_DLY::write(0); // 2_3a [5..6]
-  GBS::MADPT_UV_MI_DET_BYPS::write(1); // 2_3a_7
-  GBS::MEM_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x02
+  //GBS::MEM_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x02
+  GBS::MEM_CLK_DLY_REG::write(3); // use this instead
   GBS::CAP_FF_HALF_REQ::write(0);
   GBS::WFF_ENABLE::write(0);
+  GBS::RFF_ENABLE::write(0);
   GBS::WFF_FF_STA_INV::write(1);
   GBS::WFF_YUV_DEINTERLACE::write(0);
   GBS::WFF_LINE_FLIP::write(1);
-  GBS::RFF_ENABLE::write(0);
   rto->motionAdaptiveDeinterlaceActive = false;
 
-  GBS::SDRAM_RESET_SIGNAL::write(1); // short sdram reset
-  GBS::SDRAM_START_INITIAL_CYCLE::write(1);
-  GBS::SDRAM_RESET_SIGNAL::write(0);
-  GBS::SDRAM_START_INITIAL_CYCLE::write(0); //
-  delay(4);
+  //GBS::SDRAM_RESET_SIGNAL::write(1); // short sdram reset
+  //GBS::SDRAM_START_INITIAL_CYCLE::write(1);
+  //GBS::SDRAM_RESET_SIGNAL::write(0);
+  //GBS::SDRAM_START_INITIAL_CYCLE::write(0); //
+  //delay(4);
 }
 
 void startWire() {
@@ -4020,6 +4016,7 @@ void handleType2Command() {
       }
       else {
         SerialM.println("off");
+        disableScanlines();
       }
       saveUserPrefs();
     break;

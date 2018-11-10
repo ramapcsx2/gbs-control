@@ -107,11 +107,11 @@ const uint8_t ntsc_1280x720[] PROGMEM = {
 0x44, // s2_9
 0x30, // s2_A
 0x4, // s2_B
-0x24, // s2_C
-0x6, // s2_D
-0x78, // s2_E
-0x39, // s2_F
-0x25, // s2_10
+0x2F, // s2_C
+0x3, // s2_D
+0x7F, // s2_E
+0x38, // s2_F
+0x24, // s2_10
 0x0, // s2_11
 0x8E, // s2_12
 0x0, // s2_13
@@ -127,7 +127,7 @@ const uint8_t ntsc_1280x720[] PROGMEM = {
 0x0, // s2_1D
 0x0, // s2_1E
 0x10, // s2_1F
-0x31, // s2_20
+0x30, // s2_20
 0x2, // s2_21
 0x4, // s2_22
 0xF, // s2_23
@@ -148,7 +148,7 @@ const uint8_t ntsc_1280x720[] PROGMEM = {
 0x34, // s2_32 // NRD bypass on according to guide
 0x34, // s2_33 // NRD bypass on according to guide
 0x99, // s2_34 // Bypass Y noise reduction mixer Bypass UV noise reduction mixer
-0x8, // s2_35  DD0_SEL S2_35 [3] 1 NRD bypass on according to guide
+0x0, // s2_35
 0x3, // s2_36
 0xB, // s2_37
 0x4, // s2_38
@@ -292,7 +292,7 @@ const uint8_t ntsc_1280x720[] PROGMEM = {
 0x0, // s4_2
 0x0, // s4_3
 0x30, // s4_4
-0x11, // s4_5
+0x10, // s4_5
 0x42, // s4_6
 0x30, // s4_7
 0x1, // s4_8
