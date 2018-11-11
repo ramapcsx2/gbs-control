@@ -282,6 +282,8 @@ void writeProgramArrayNew(const uint8_t* programArray)
   uint8_t bank[16];
   uint8_t y = 0;
 
+  disableDeinterlacerUnit();
+
   // should only be possible if previously was in RGBHV bypass, then hit a manual preset switch
   if (rto->videoStandardInput == 15) {
     rto->videoStandardInput = 0;
@@ -294,10 +296,10 @@ void writeProgramArrayNew(const uint8_t* programArray)
     case 0:
       for (int j = 0; j <= 1; j++) { // 2 times
         for (int x = 0; x <= 15; x++) {
-          //if (j == 0 && x == 4) {
-          //  // keep DAC off for now
-          //  bank[x] = pgm_read_byte(programArray + index) & ~(1 << 0);
-          //}
+          if (j == 0 && x == 4) {
+            // keep DAC off for now
+            bank[x] = pgm_read_byte(programArray + index) & ~(1 << 0);
+          }
           //else if (j == 0 && (x == 6 || x == 7)) {
           //  // keep reset controls active
           //  bank[x] = 0;
@@ -306,14 +308,9 @@ void writeProgramArrayNew(const uint8_t* programArray)
           //  // keep sync output off
           //  bank[x] = pgm_read_byte(programArray + index) | (1 << 2);
           //}
-          //else {
+          else {
             // use preset values
             bank[x] = pgm_read_byte(programArray + index);
-          //}
-
-          if (j == 0 && x == 6) {
-            // keep deinterlacer off
-            bitClear(bank[x], 1);
           }
 
           index++;
@@ -1535,10 +1532,10 @@ void applyBestHTotal(uint16_t bestHTotal) {
 }
 
 void doPostPresetLoadSteps() {
+  disableDeinterlacerUnit();
   boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
   GBS::SP_DIS_SUB_COAST::write(1); // disable initially, gets activated in updatecoastposition
   GBS::SP_HCST_AUTO_EN::write(0); // needs to be off (making sure)
-  //GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC here, enable later (should already be off)
   GBS::PAD_SYNC_OUT_ENZ::write(0); // sync output on asap, necessary to keep HDMI transcoder happy
   
   if (!isCustomPreset) {
@@ -1735,13 +1732,13 @@ void doPostPresetLoadSteps() {
   while (getVideoMode() == 0 && millis() - timeout < 800) { delay(1); } // wifi stack // stability
   //SerialM.print("to1 is: "); SerialM.println(millis() - timeout);
 
+  GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   setPhaseSP(); setPhaseADC();
   //for (uint8_t i = 0; i < 8; i++) { // somehow this increases phase position reliability
   //  advancePhase();
   //}
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
-  GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC (should already be on, make sure)
   
   SerialM.println("post preset done");
   rto->applyPresetDoneStage = 1;
@@ -2526,8 +2523,8 @@ void enableMotionAdaptDeinterlace() {
   GBS::MADPT_NRD_VIIR_PD_BYPS::write(1); // 2_35_4
   GBS::MADPT_UVDLY_PD_BYPS::write(0); // 2_35_5 // off
   GBS::MADPT_CMP_EN::write(1); // 2_35_6 // no effect?
-  GBS::MADPT_UVDLY_PD_SP::write(4); // 2_39 [0..3]
-  GBS::MADPT_UVDLY_PD_ST::write(0); // 2_39 [4..7]
+  //GBS::MADPT_UVDLY_PD_SP::write(4); // 2_39 [0..3] // do this in presets
+  //GBS::MADPT_UVDLY_PD_ST::write(0); // 2_39 [4..7]
   GBS::MADPT_MI_1BIT_DLY::write(1); // 2_3a [5..6]
   //GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x00 (so fb clock is usable) // requires sdram reset
   GBS::MEM_CLK_DLY_REG::write(1); // use this instead
@@ -2542,14 +2539,7 @@ void enableMotionAdaptDeinterlace() {
   GBS::RFF_YUV_DEINTERLACE::write(1);
   GBS::WFF_ENABLE::write(1);
   GBS::RFF_ENABLE::write(1);
-
   rto->motionAdaptiveDeinterlaceActive = true;
-
-  //GBS::SDRAM_RESET_SIGNAL::write(1); // short sdram reset
-  //GBS::SDRAM_START_INITIAL_CYCLE::write(1);
-  //GBS::SDRAM_RESET_SIGNAL::write(0);
-  //GBS::SDRAM_START_INITIAL_CYCLE::write(0); //
-  //delay(4);
 }
 
 void disableMotionAdaptDeinterlace() {
@@ -2563,8 +2553,6 @@ void disableMotionAdaptDeinterlace() {
   GBS::MADPT_VTAP2_BYPS::write(1); // 2_19_2
   GBS::MADPT_UVDLY_PD_BYPS::write(1); // 2_35_5
   GBS::MADPT_CMP_EN::write(0); // 2_35_6
-  GBS::MADPT_UVDLY_PD_SP::write(0); // 2_39 [0..3]
-  GBS::MADPT_UVDLY_PD_ST::write(0); // 2_39 [4..7]
   GBS::MADPT_MI_1BIT_DLY::write(0); // 2_3a [5..6]
   //GBS::MEM_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x02
   GBS::MEM_CLK_DLY_REG::write(3); // use this instead
@@ -2575,12 +2563,6 @@ void disableMotionAdaptDeinterlace() {
   GBS::WFF_YUV_DEINTERLACE::write(0);
   GBS::WFF_LINE_FLIP::write(1);
   rto->motionAdaptiveDeinterlaceActive = false;
-
-  //GBS::SDRAM_RESET_SIGNAL::write(1); // short sdram reset
-  //GBS::SDRAM_START_INITIAL_CYCLE::write(1);
-  //GBS::SDRAM_RESET_SIGNAL::write(0);
-  //GBS::SDRAM_START_INITIAL_CYCLE::write(0); //
-  //delay(4);
 }
 
 void startWire() {
