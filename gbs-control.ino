@@ -126,6 +126,7 @@ struct runTimeOptions {
   uint8_t syncLockFailIgnore;
   uint8_t applyPresetDoneStage;
   uint8_t continousStableCounter;
+  uint8_t failRetryAttempts;
   boolean isInLowPowerMode;
   boolean clampPositionIsSet;
   boolean coastPositionIsSet;
@@ -385,6 +386,7 @@ void setResetParameters() {
   rto->continousStableCounter = 0;
   rto->isInLowPowerMode = false;
   rto->currentLevelSOG = 4;
+  rto->failRetryAttempts = 0;
   rto->optimizeSOG = false;
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->scanlinesEnabled = false;
@@ -644,8 +646,7 @@ void optimizePhaseSP() {
 
 void optimizeSogLevel() {
   if (rto->videoStandardInput == 15 || GBS::SP_SOG_MODE::read() != 1) return;
-  uint8_t jitter = 10;
-  GBS::PLLAD_PDZ::write(1);
+  uint8_t noJitter = 0;
   uint8_t debugRegSp = GBS::TEST_BUS_SP_SEL::read();
   uint8_t debugRegBus = GBS::TEST_BUS_SEL::read();
   GBS::TEST_BUS_SP_SEL::write(0x5b); // # 5 cs_sep module
@@ -653,22 +654,22 @@ void optimizeSogLevel() {
   GBS::PLLAD_PDZ::write(1);
   GBS::TEST_BUS_SEL::write(0xa);
 
-  rto->currentLevelSOG = 31;
+  rto->currentLevelSOG = 9; // anything above not useful
   setAndUpdateSogLevel(rto->currentLevelSOG);
   delay(80);
   while (1) {
-    jitter = 0;
+    noJitter = 0;
     for (uint8_t i = 0; i < 10; i++) {
       uint16_t test1 = GBS::TEST_BUS::read() & 0x07ff;
       delay(random(2, 6)); // random(inclusive, exclusive));
       uint16_t test2 = GBS::TEST_BUS::read() & 0x07ff;
       if (((test1 & 0x00ff) == (test2 & 0x00ff)) && ((test1 > 0x00d0) && (test1 < 0x0180))) {
-        jitter++;
+        noJitter++;
         //Serial.print("1: ");Serial.print(test1, HEX);Serial.print(" 2: ");Serial.println(test2, HEX);
       }
     }
-    if (jitter >= 10) { break; } // found
-    SerialM.print("+");
+    if (noJitter >= 10) { break; } // found
+    //SerialM.print("sog: "); SerialM.println(rto->currentLevelSOG);
     setAndUpdateSogLevel(rto->currentLevelSOG);
     delay(10);
     if (rto->currentLevelSOG >= 1) rto->currentLevelSOG -= 1;
@@ -677,9 +678,6 @@ void optimizeSogLevel() {
     }
   }
 
-  if (rto->currentLevelSOG < 31 && rto->currentLevelSOG > 16) { rto->currentLevelSOG = 9; }
-  else if (rto->currentLevelSOG >= 12) { rto->currentLevelSOG -= 7; }
-  else if (rto->currentLevelSOG >= 3) { rto->currentLevelSOG -= 2; }
   SerialM.print("\nsog level: "); SerialM.println(rto->currentLevelSOG);
   setAndUpdateSogLevel(rto->currentLevelSOG);
 
@@ -707,7 +705,17 @@ uint8_t detectAndSwitchToActiveInput() { // if any
       SerialM.print("found: "); SerialM.print(GBS::TEST_BUS_2F::read()); SerialM.print(" getVideoMode: "); SerialM.print(getVideoMode());
       SerialM.print(" input: "); SerialM.println(currentInput);
       if (currentInput == 1) { // RGBS or RGBHV
+        boolean vsyncActive = 0;
         unsigned long timeOutStart = millis();
+        while (!vsyncActive && millis() - timeOutStart < 10) { // very short vsync test
+          vsyncActive = GBS::STATUS_SYNC_PROC_VSACT::read();
+          delay(1); // wifi stack
+        }
+        if (!vsyncActive) {
+          optimizeSogLevel(); // test: placing it here okay?
+          delay(50);
+        }
+        timeOutStart = millis();
         while ((millis() - timeOutStart) < 300) {
           delay(8);
           if (getVideoMode() > 0) {
@@ -717,7 +725,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         }
         // is it RGBHV instead?
         GBS::SP_SOG_MODE::write(0);
-        boolean vsyncActive = 0;
+        vsyncActive = 0;
         timeOutStart = millis();
         while (!vsyncActive && millis() - timeOutStart < 400) {
           vsyncActive = GBS::STATUS_SYNC_PROC_VSACT::read();
@@ -752,6 +760,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
       }
       else if (currentInput == 0) { // YUV
         SerialM.println(" YUV");
+        optimizeSogLevel(); // test: placing it here okay?
         delay(200); // give yuv a chance to recognize the video mode as well (not just activity)
         unsigned long timeOutStart = millis();
         while ((millis() - timeOutStart) < 600) {
@@ -762,6 +771,10 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         }
       }
       SerialM.println(" lost..");
+      rto->currentLevelSOG = 4;
+      setAndUpdateSogLevel(rto->currentLevelSOG);
+      //SerialM.println(" lost, attempt auto SOG");
+      //optimizeSogLevel();
     }
     
     GBS::ADC_INPUT_SEL::write(!currentInput); // can only be 1 or 0
@@ -1483,8 +1496,19 @@ void applyBestHTotal(uint16_t bestHTotal) {
     h_blank_memory_stop_position  += diffHTotal;
 
     if (isLargeDiff) {
-      SerialM.println("large diff!");
+      SerialM.print("ABHT bad: ");
+      rto->failRetryAttempts++;
+      if (rto->failRetryAttempts < 5) {
+        SerialM.println("retry");
+        FrameSync::reset();
+        return;
+      }
+      else {
+        SerialM.println("give up");
+        return; // just return, will give up FrameSync
+      }
     }
+    rto->failRetryAttempts = 0; // else all okay!, reset to 0
 
     if (requiresScalingCorrection) {
       h_blank_memory_start_position &= 0xfffe;
@@ -1552,6 +1576,7 @@ void doPostPresetLoadSteps() {
   rto->continousStableCounter = 0;
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->scanlinesEnabled = false;
+  rto->failRetryAttempts = 0;
   
   // test: set IF_HSYNC_RST based on pll divider 5_12/13
   //GBS::IF_LINE_SP::write((GBS::PLLAD_MD::read() / 2) - 1);
@@ -1560,16 +1585,18 @@ void doPostPresetLoadSteps() {
   // IF initial position is 1_0e/0f IF_HSYNC_RST exactly. But IF_INI_ST needs to be a few pixels before that.
   // IF_INI_ST - 1 causes an interresting effect when the source switches to interlace.
   // IF_INI_ST - 2 is the first safe setting // exception: edtv+ presets: need to be more exact
-  if (rto->videoStandardInput <= 2) {
-    GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 4);
-    // todo: the -46 below is pretty narrow. check with ps2 yuv in all pal presets
-    // -46 for pal 640x480, -48 for ps2?
-    if (rto->videoStandardInput == 2) {  // exception for PAL (with i.e. PSX) default preset
-      GBS::IF_INI_ST::write(GBS::IF_INI_ST::read() - 42);
+  if (!isCustomPreset) {
+    if (rto->videoStandardInput <= 2) {
+      GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 4);
+      // todo: the -46 below is pretty narrow. check with ps2 yuv in all pal presets
+      // -46 for pal 640x480, -48 for ps2?
+      if (rto->videoStandardInput == 2) {  // exception for PAL (with i.e. PSX) default preset
+        GBS::IF_INI_ST::write(GBS::IF_INI_ST::read() - 42);
+      }
     }
-  }
-  else {
-    GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 1); // -0 also seems to work
+    else {
+      GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 1); // -0 also seems to work
+    }
   }
 
   if (!isCustomPreset) {
@@ -1655,27 +1682,26 @@ void doPostPresetLoadSteps() {
       GBS::IF_HS_DEC_FACTOR::write(0);
     }
   }
+
   rto->outModePassThroughWithIf = 0; // could be 1 if it was active, but overriden by preset load
   setSpParameters();
-  if (rto->inputIsYpBpR) {
-    rto->currentLevelSOG = 10;
-  }
-  setAndUpdateSogLevel(rto->currentLevelSOG);
+  setAndUpdateSogLevel(rto->currentLevelSOG); // update to previously determined sog level
 
   // auto ADC gain
   //GBS::ADC_TR_RSEL::write(2); // ADC_TR_RSEL = 2 test
   //GBS::ADC_TR_ISEL::write(0); // leave current at default
   if (uopt->enableAutoGain == 1 && !isCustomPreset && !rto->inputIsYpBpR && adco->r_gain == 0) {
+    SerialM.println("default adc gain");
     GBS::ADC_RGCTRL::write(0x40);
     GBS::ADC_GGCTRL::write(0x40);
     GBS::ADC_BGCTRL::write(0x40);
     GBS::DEC_TEST_ENABLE::write(1);
   }
   else if (uopt->enableAutoGain == 1 && !isCustomPreset && !rto->inputIsYpBpR && adco->r_gain != 0) {
-    /*SerialM.println("remembered adc gain: ");
+    SerialM.println("remembered adc gain: ");
     SerialM.print(adco->r_gain, HEX); SerialM.print(" ");
     SerialM.print(adco->g_gain, HEX); SerialM.print(" ");
-    SerialM.print(adco->b_gain, HEX); SerialM.println(" ");*/
+    SerialM.print(adco->b_gain, HEX); SerialM.println(" ");
     GBS::ADC_RGCTRL::write(adco->r_gain);
     GBS::ADC_GGCTRL::write(adco->g_gain);
     GBS::ADC_BGCTRL::write(adco->b_gain);
@@ -1915,6 +1941,13 @@ void applyPresets(uint8_t result) {
     //resetModeDetect();
     delay(300);
     return;
+  }
+
+  // get auto gain prefs
+  if (uopt->presetPreference == 2 && uopt->enableAutoGain) {
+    adco->r_gain = GBS::ADC_RGCTRL::read();
+    adco->g_gain = GBS::ADC_GGCTRL::read();
+    adco->b_gain = GBS::ADC_BGCTRL::read();
   }
 
   rto->videoStandardInput = result;
@@ -2630,6 +2663,7 @@ void setup() {
   rto->syncWatcherEnabled = true;  // continously checks the current sync status. required for normal operation
   rto->phaseADC = 16;
   rto->phaseSP = 15;
+  rto->failRetryAttempts = 0;
   rto->optimizeSOG = false;
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->deinterlaceAutoEnabled = true;
@@ -3749,6 +3783,13 @@ void loop() {
       }
     }
 
+    // quick sog level check
+    if (noSyncCounter == 4) {
+      if (rto->currentLevelSOG >= 7 && getSyncPresent()) { // if initial sog detection was unrepresentative of video levels
+        optimizeSogLevel();
+      }
+    }
+
     if (noSyncCounter >= 40) { // attempt fixes
       if (getSyncPresent() && rto->videoStandardInput != 15) { // only if there's at least a signal
         if (rto->inputIsYpBpR && noSyncCounter == 40) {
@@ -3758,9 +3799,9 @@ void loop() {
           delay(10);
         }
         if ((noSyncCounter % 120) == 0) {
-          //optimizeSogLevel();  // todo: optimize optimizeSogLevel()
-          setAndUpdateSogLevel(rto->currentLevelSOG / 2);
-          SerialM.print("SOG: "); SerialM.println(rto->currentLevelSOG);
+          optimizeSogLevel();
+          //setAndUpdateSogLevel(rto->currentLevelSOG / 2);
+          //SerialM.print("SOG: "); SerialM.println(rto->currentLevelSOG);
         }
         if (noSyncCounter % 40 == 0) {
           static boolean toggle = rto->videoStandardInput > 2 ? 0 : 1;
@@ -3815,7 +3856,7 @@ void loop() {
         rto->syncLockFailIgnore = 2;
       }
       else {
-        SerialM.println("ABHT prevented");
+        FrameSync::reset();
       }
     }
     else if (rto->syncLockFailIgnore-- == 0) {
