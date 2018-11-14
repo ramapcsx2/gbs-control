@@ -661,14 +661,14 @@ void optimizeSogLevel() {
     noJitter = 0;
     for (uint8_t i = 0; i < 10; i++) {
       uint16_t test1 = GBS::TEST_BUS::read() & 0x07ff;
-      delay(random(2, 6)); // random(inclusive, exclusive));
+      delay(random(1, 5)); // random(inclusive, exclusive));
       uint16_t test2 = GBS::TEST_BUS::read() & 0x07ff;
       if (((test1 & 0x00ff) == (test2 & 0x00ff)) && ((test1 > 0x00d0) && (test1 < 0x0180))) {
         noJitter++;
         //Serial.print("1: ");Serial.print(test1, HEX);Serial.print(" 2: ");Serial.println(test2, HEX);
       }
     }
-    if (noJitter >= 10) { break; } // found
+    if (noJitter >= 9) { break; } // found
     //SerialM.print("sog: "); SerialM.println(rto->currentLevelSOG);
     setAndUpdateSogLevel(rto->currentLevelSOG);
     delay(10);
@@ -3140,13 +3140,12 @@ void loop() {
       SerialM.print("HTotal++: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
     break;
     case 'A':
-      //optimizeSogLevel();
       //optimizePhaseSP();
       applyBestHTotal(GBS::VDS_HSYNC_RST::read() - 1);
       SerialM.print("HTotal--: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
     break;
     case 'M':
-      zeroAll();
+      optimizeSogLevel();
     break;
     case 'm':
       SerialM.print("syncwatcher ");
