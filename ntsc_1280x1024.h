@@ -17,7 +17,7 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x2C, // s0_4F
 0x0, // s0_50
 0x0, // s0_51
-0xFF, // s0_52
+0x67, // s0_52
 0x0, // s0_53
 0x0, // s0_54
 0x0, // s0_55
@@ -118,7 +118,7 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x0, // s2_14
 0x0, // s2_15
 0x80, // s2_16
-0x00, // s2_17
+0x0, // s2_17
 0xB6, // s2_18
 0x60, // s2_19
 0x5, // s2_1A
@@ -131,7 +131,7 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x2, // s2_21
 0x4, // s2_22
 0xF, // s2_23
-0x0, // s2_24
+0x4, // s2_24
 0x0, // s2_25
 0x4C, // s2_26
 0xC, // s2_27
@@ -145,9 +145,9 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x0, // s2_2F
 0x0, // s2_30
 0x0, // s2_31
-0x34, // s2_32 // NRD bypass on according to guide
-0x34, // s2_33 // NRD bypass on according to guide
-0x99, // s2_34 // Bypass Y noise reduction mixer Bypass UV noise reduction mixer
+0x34, // s2_32
+0x34, // s2_33
+0x99, // s2_34
 0x0, // s2_35
 0x3, // s2_36
 0xB, // s2_37
@@ -163,9 +163,9 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x9B, // s3_1
 0xA6, // s3_2
 0x42, // s3_3
-0x36, // s3_4
-0x6, // s3_5
-0xF, // s3_6
+0xC8, // s3_4
+0x5, // s3_5
+0x8, // s3_6
 0x0, // s3_7
 0x20, // s3_8
 0x0, // s3_9
@@ -175,9 +175,9 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x0, // s3_D
 0x34, // s3_E
 0x40, // s3_F
-0x68, // s3_10
-0x66, // s3_11
-0x16, // s3_12
+0x2, // s3_10
+0x46, // s3_11
+0xF, // s3_12
 0xE5, // s3_13
 0x23, // s3_14
 0x2, // s3_15
@@ -305,7 +305,7 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x6, // s4_F
 0x0, // s4_10
 0x92, // s4_11
-0x5, // s4_12
+0x2, // s4_12
 0x1, // s4_13
 0x96, // s4_14
 0x5, // s4_15
@@ -320,7 +320,7 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x0, // s4_1E
 0x0, // s4_1F
 0x0, // s4_20
-0x41, // s4_21
+0x61, // s4_21
 0x1, // s4_22
 0x1F, // s4_23
 0x0, // s4_24
@@ -355,10 +355,10 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x0, // s4_41
 0x68, // s4_42
 0x0, // s4_43
-0x00, // s4_44
+0x0, // s4_44
 0xD0, // s4_45
 0x4, // s4_46
-0x00, // s4_47
+0x0, // s4_47
 0xD0, // s4_48
 0x4, // s4_49
 0x0, // s4_4A
@@ -371,13 +371,13 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x0, // s4_51
 0x0, // s4_52
 0x0, // s4_53
-0xf0, // s4_54
+0xF0, // s4_54
 0x1, // s4_55
 0x0, // s4_56
 0x0, // s4_57
-0x01, // s4_58
+0x1, // s4_58
 0x80, // s4_59
-0x00, // s4_5A
+0x0, // s4_5A
 0x4C, // s4_5B
 0x0, // s4_5C
 0x0, // s4_5D
@@ -385,12 +385,12 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x0, // s4_5F
 0x18, // s5_0
 0x0, // s5_1
-0x49, // s5_2
+0x53, // s5_2
 0x31, // s5_3
 0x0, // s5_4
 0x0, // s5_5
 0x3F, // s5_6
-0x3F, // s5_7
+0x43, // s5_7
 0x3F, // s5_8
 0x7B, // s5_9
 0x7B, // s5_A
@@ -446,7 +446,7 @@ const uint8_t ntsc_1280x1024[] PROGMEM = {
 0x0, // s5_3C
 0x0, // s5_3D
 0x0, // s5_3E
-0x0, // s5_3F
+0x2, // s5_3F
 0xC, // s5_40
 0x17, // s5_41
 0x0, // s5_42

@@ -85,7 +85,7 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 0x3, // s1_23
 0x0, // s1_24
 0x0, // s1_25
-0xB0, // s1_26
+0xB2, // s1_26
 0x0, // s1_27
 0x3C, // s1_28
 0x0, // s1_29
@@ -118,7 +118,7 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 0x0, // s2_14
 0x0, // s2_15
 0x80, // s2_16
-0x00, // s2_17
+0x0, // s2_17
 0xB6, // s2_18
 0x60, // s2_19
 0x5, // s2_1A
@@ -131,7 +131,7 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 0x2, // s2_21
 0x4, // s2_22
 0xF, // s2_23
-0x0, // s2_24
+0x4, // s2_24
 0x0, // s2_25
 0x4C, // s2_26
 0xC, // s2_27
@@ -145,9 +145,9 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 0x0, // s2_2F
 0x0, // s2_30
 0x0, // s2_31
-0x34, // s2_32 // NRD bypass on according to guide
-0x34, // s2_33 // NRD bypass on according to guide
-0x99, // s2_34 // Bypass Y noise reduction mixer Bypass UV noise reduction mixer
+0x34, // s2_32
+0x34, // s2_33
+0x99, // s2_34
 0x0, // s2_35
 0x3, // s2_36
 0xB, // s2_37
@@ -169,9 +169,9 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 0x2, // s3_7
 0x40, // s3_8
 0x0, // s3_9
-0xA0, // s3_A
-0x80, // s3_B
-0x6, // s3_C
+0x78, // s3_A
+0x0, // s3_B
+0x4, // s3_C
 0xF9, // s3_D
 0x71, // s3_E
 0x1F, // s3_F
@@ -385,7 +385,7 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 0x0, // s4_5F
 0x18, // s5_0
 0x0, // s5_1
-0x49, // s5_2
+0x53, // s5_2
 0x31, // s5_3
 0x0, // s5_4
 0x0, // s5_5

@@ -3785,7 +3785,7 @@ void loop() {
 
     // quick sog level check
     if (noSyncCounter == 4) {
-      if (rto->currentLevelSOG >= 7 && getSyncPresent()) { // if initial sog detection was unrepresentative of video levels
+      if ((rto->currentLevelSOG >= 7 || rto->currentLevelSOG <= 1) && getSyncPresent()) { // if initial sog detection was unrepresentative of video levels
         optimizeSogLevel();
       }
     }
@@ -3933,9 +3933,10 @@ void loop() {
 
 #if defined(ESP8266) // no more space on ATmega
   // run auto ADC gain feature (if enabled)
+  static uint8_t nextTimeAutoGain = 8;
   if (rto->syncWatcherEnabled && uopt->enableAutoGain == 1 && !rto->sourceDisconnected 
     && rto->videoStandardInput > 0 && rto->continousStableCounter > 8 && rto->clampPositionIsSet
-    && !rto->inputIsYpBpR && (millis() - lastTimeAutoGain > 8))
+    && !rto->inputIsYpBpR && (millis() - lastTimeAutoGain > nextTimeAutoGain))
   {
     uint8_t debugRegBackup = 0, debugPinBackup = 0;
     debugPinBackup = GBS::PAD_BOUT_EN::read();
@@ -3948,6 +3949,7 @@ void loop() {
     GBS::TEST_BUS_SEL::write(debugRegBackup);
     GBS::PAD_BOUT_EN::write(debugPinBackup); // debug output pin back on
     lastTimeAutoGain = millis();
+    nextTimeAutoGain = random(4, 13);
   }
 
 #ifdef HAVE_PINGER_LIBRARY
