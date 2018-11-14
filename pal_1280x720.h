@@ -155,7 +155,7 @@ const uint8_t pal_1280x720[] PROGMEM = {
 0x64, // s2_39
 0x0, // s2_3A
 0x4, // s2_3B
-0xF, // s2_3C
+0x4F, // s2_3C
 0x0, // s2_3D
 0x0, // s2_3E
 0x0, // s2_3F

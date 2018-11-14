@@ -3134,7 +3134,9 @@ void loop() {
     }
     break;
     case 'a':
-      applyBestHTotal(GBS::VDS_HSYNC_RST::read() + 1);
+      if (GBS::VDS_HSYNC_RST::read() < 4095) {
+        applyBestHTotal(GBS::VDS_HSYNC_RST::read() + 1);
+      }
       SerialM.print("HTotal++: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
     break;
     case 'A':
