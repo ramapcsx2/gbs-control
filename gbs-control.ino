@@ -424,6 +424,7 @@ void setResetParameters() {
   GBS::PLLAD_5_16::write(0x1f); // this maybe needs to be the sog detection default
   GBS::PLLAD_MD::write(0x700);
   resetPLL(); // cycles PLL648
+  delay(2);
   resetPLLAD(); // same for PLLAD
   GBS::PLL_VCORST::write(1); // reset on
   GBS::PLLAD_CONTROL_00_5x11::write(0x01); // reset on
@@ -487,6 +488,7 @@ void setAdcParametersGainAndOffset() {
 void setSpParameters() {
   writeOneByte(0xF0, 5);
   GBS::SP_SOG_P_ATO::write(1); // 5_20 enable sog auto polarity
+  GBS::SP_JITTER_SYNC::write(0);
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input 0 ( 5_20 bit 3 )
   // H active detect control
   writeOneByte(0x21, 0x20); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20 // ! lower than 5_33, 4 ticks (ie 20 < 24)  !
@@ -961,9 +963,6 @@ void resetDigital() {
   // enable
   if (rto->videoStandardInput != 15) GBS::RESET_CONTROL_0x46::write(0x7f);
   GBS::RESET_CONTROL_0x47::write(0x17);  // all on except HD bypass
-  delay(1);
-  ResetSDRAM();
-  resetPLL();
 }
 
 void resetSyncProcessor() {
@@ -1721,6 +1720,8 @@ void doPostPresetLoadSteps() {
   }
   GBS::PLLAD_R::write(2);
   GBS::PLLAD_S::write(2);
+  GBS::DEC_IDREG_EN::write(1);
+  GBS::DEC_WEN_MODE::write(1); // keeps ADC phase consistent. around 4 lock positions vs totally random
 
   GBS::PLLAD_PDZ::write(1); // in case it was off
   resetPLLAD(); // turns on pllad
@@ -1728,9 +1729,6 @@ void doPostPresetLoadSteps() {
   if (!isCustomPreset) {
     rto->phaseADC = GBS::PA_ADC_S::read();
     rto->phaseSP = 15; // can hardcode this to 15 now
-    GBS::DEC_WEN_MODE::write(1); // keeps ADC phase much more consistent. around 4 lock positions vs totally random
-    GBS::DEC_IDREG_EN::write(1);
-    GBS::SP_JITTER_SYNC::write(0);
 
     // 4 segment 
     GBS::CAP_SAFE_GUARD_EN::write(1); // 4_21_5
@@ -1745,7 +1743,9 @@ void doPostPresetLoadSteps() {
     GBS::MEM_FBK_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x02
   }
 
+  resetPLL();
   resetDigital();
+  ResetSDRAM();
   delay(20);
 
   rto->autoBestHtotalEnabled = true; // will re-detect whether debug wire is present
@@ -2080,6 +2080,56 @@ boolean getSyncStable() {
     GBS::TEST_BUS_SP_SEL::write(debug_backup_SP);
   }
   return false;
+}
+
+uint8_t getOverSampleRatio() {
+  boolean dec1bypass = GBS::DEC1_BYPS::read();
+  boolean dec2bypass = GBS::DEC2_BYPS::read();
+  if (dec1bypass == false && dec2bypass == false) { // is in OSR4
+    return 4;
+  }
+  else if (dec1bypass == true && dec2bypass == true) {
+    return 1;
+  }
+  else if (dec1bypass == true && dec2bypass == false) {
+    return 2;
+  }
+
+  SerialM.println("?");
+  return 1;
+}
+
+void setOverSampleRatio(uint8_t ratio) {
+  switch (ratio) {
+  case 1:
+    GBS::ADC_CLK_ICLK2X::write(0);
+    GBS::ADC_CLK_ICLK1X::write(0);
+    GBS::PLLAD_KS::write(2); // 0 - 3
+    GBS::PLLAD_CKOS::write(2); // 0 - 3
+    GBS::DEC1_BYPS::write(1);
+    GBS::DEC2_BYPS::write(1);
+  break;
+  case 2:
+    GBS::ADC_CLK_ICLK2X::write(0);
+    GBS::ADC_CLK_ICLK1X::write(1);
+    GBS::PLLAD_KS::write(2);
+    GBS::PLLAD_CKOS::write(1);
+    GBS::DEC1_BYPS::write(1);
+    GBS::DEC2_BYPS::write(0);
+  break;
+  case 4:
+    GBS::ADC_CLK_ICLK2X::write(1);
+    GBS::ADC_CLK_ICLK1X::write(1);
+    GBS::PLLAD_KS::write(2);
+    GBS::PLLAD_CKOS::write(0);
+    GBS::DEC1_BYPS::write(0);
+    GBS::DEC2_BYPS::write(0);
+  break;
+  default:
+  break;
+  }
+
+  latchPLLAD();
 }
 
 void togglePhaseAdjustUnits() {
@@ -2436,7 +2486,11 @@ void bypassModeSwitch_RGBHV() {
   GBS::PLLAD_FS::write(1); // high gain
   GBS::PLLAD_MD::write(1856); // 1349 perfect for for 1280x+ ; 1856 allows lower res to detect
   delay(100);
+  resetPLL();
   resetDigital(); // this will leave 0_46 reset controls with 0 (bypassed blocks disabled)
+  delay(2);
+  ResetSDRAM();
+  delay(2);
   resetPLLAD();
   delay(20);
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
@@ -2957,6 +3011,8 @@ void loop() {
     break;
     case 'q':
       resetDigital();
+      delay(2);
+      ResetSDRAM();
       //enableVDS();
     break;
     case 'D':
@@ -3082,18 +3138,10 @@ void loop() {
     break;
     case 'j':
       //resetPLL();
-      //resetPLLAD();
       latchPLLAD();
     break;
     case 'J':
-      rto->optimizeSOG = !rto->optimizeSOG;
-      SerialM.print("optimizeSOG ");
-      if (rto->optimizeSOG) {
-        SerialM.println("on");
-      }
-      else {
-        SerialM.println("off");
-      }
+      resetPLLAD();
     break;
     case 'v':
       rto->phaseSP += 1; rto->phaseSP &= 0x1f;
@@ -3260,41 +3308,19 @@ void loop() {
     break;
     case 'o':
     {
-      switch (GBS::PLLAD_CKOS::read()) {
-      case 0:
-        SerialM.println("OSR 1x"); // oversampling ratio
-        GBS::ADC_CLK_ICLK2X::write(0);
-        GBS::ADC_CLK_ICLK1X::write(0);
-        GBS::PLLAD_KS::write(2); // 0 - 3
-        GBS::PLLAD_CKOS::write(2); // 0 - 3
-        GBS::DEC1_BYPS::write(1); // 1 = bypassed
-        GBS::DEC2_BYPS::write(1);
-        break;
-      case 1:
-        SerialM.println("OSR 4x");
-        GBS::ADC_CLK_ICLK2X::write(1);
-        GBS::ADC_CLK_ICLK1X::write(1);
-        GBS::PLLAD_KS::write(2); // 0 - 3
-        GBS::PLLAD_CKOS::write(0); // 0 - 3
-        GBS::DEC1_BYPS::write(0);
-        GBS::DEC2_BYPS::write(0);
-        break;
-      case 2:
-        SerialM.println("OSR 2x");
-        GBS::ADC_CLK_ICLK2X::write(0);
-        GBS::ADC_CLK_ICLK1X::write(1);
-        GBS::PLLAD_KS::write(2); // 0 - 3
-        GBS::PLLAD_CKOS::write(1); // 0 - 3
-        GBS::DEC1_BYPS::write(1);
-        GBS::DEC2_BYPS::write(0);
-        break;
-      default:
-        break;
+      uint8_t osr = getOverSampleRatio();
+      if (osr == 4) {
+        setOverSampleRatio(1);
+        SerialM.println("OSR 1x");
       }
-      //resetPLLAD(); // just latching not good enough, shifts h offset
-      //ResetSDRAM(); // sdram sometimes locks up going from x4 to x1
-      // test!
-      latchPLLAD();
+      else if (osr == 1) {
+        setOverSampleRatio(2);
+        SerialM.println("OSR 2x");
+      }
+      else if (osr == 2) {
+        setOverSampleRatio(4);
+        SerialM.println("OSR 4x");
+      }
     }
     break;
     case 'g':
