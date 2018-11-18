@@ -155,7 +155,7 @@ const uint8_t pal_feedbackclock[] PROGMEM = {
 0x64, // s2_39
 0x0, // s2_3A
 0x4, // s2_3B
-0x4F, // s2_3C
+0x2F, // s2_3C
 0x0, // s2_3D
 0x0, // s2_3E
 0x0, // s2_3F
@@ -324,8 +324,8 @@ const uint8_t pal_feedbackclock[] PROGMEM = {
 0x1, // s4_22
 0x1F, // s4_23
 0x0, // s4_24
-0x0, // s4_25
-0x76, // s4_26
+0x40, // s4_25
+0x13, // s4_26
 0xFF, // s4_27
 0xFF, // s4_28
 0x1F, // s4_29

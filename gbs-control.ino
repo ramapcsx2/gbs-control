@@ -1615,13 +1615,13 @@ void doPostPresetLoadSteps() {
       GBS::IF_LD_RAM_BYPS::write(1); // no LD 1_0c 0
       GBS::IF_HB_SP::write(0); // cancel deinterlace offset, fixes colors
       // horizontal shift
-      GBS::IF_HB_SP2::write(0xb0); // 1_1a
-      GBS::IF_HB_ST2::write(0xa0); // 1_18 necessary
+      GBS::IF_HB_SP2::write(0xa8); // 1_1a
+      GBS::IF_HB_ST2::write(0x98); // 1_18 necessary
       //GBS::IF_HBIN_ST::write(1104); // 1_24 // no effect seen but may be necessary
       GBS::IF_HBIN_SP::write(0x98); // 1_26
       // vertical shift
-      GBS::IF_VB_ST::write(16); // 514
-      GBS::IF_VB_SP::write(18); // 514
+      GBS::IF_VB_ST::write(0x0e);
+      GBS::IF_VB_SP::write(0x10);
     }
     else if (rto->videoStandardInput == 4) { // ED YUV 50
       // p-scan pal, need to either double adc data rate and halve vds scaling
@@ -1640,23 +1640,25 @@ void doPostPresetLoadSteps() {
       GBS::IF_LD_RAM_BYPS::write(1); // no LD 1_0c 0
       GBS::IF_HB_SP::write(0); // cancel deinterlace offset, fixes colors
       // horizontal shift
-      GBS::IF_HB_SP2::write(0xc8); //1_1a
-      GBS::IF_HB_ST2::write(0x20); // check!
-      GBS::IF_HBIN_SP::write(0x90); // 1_26
+      GBS::IF_HB_SP2::write(0xc4); //1_1a
+      GBS::IF_HB_ST2::write(0xb4); // 1_18 necessary
+      GBS::IF_HBIN_SP::write(0x9a); // 1_26
       // vertical shift
-      GBS::IF_VB_ST::write(60); // 514
-      GBS::IF_VB_SP::write(62); // 514
-      setDisplayVblankStopPosition(8);
-      setDisplayVblankStartPosition(994);
+      GBS::IF_VB_ST::write(0x46);
+      GBS::IF_VB_SP::write(0x48);
+      setDisplayVblankStopPosition(10);
+      setDisplayVblankStartPosition(984);
     }
     else if (rto->videoStandardInput == 5) { // 720p
       GBS::SP_HD_MODE::write(1); // tri level sync
       GBS::ADC_CLK_ICLK2X::write(0);
       GBS::PLLAD_KS::write(0); // 5_16
+      GBS::PLLAD_CKOS::write(0); // 5_16 special for 720p
       GBS::IF_PRGRSV_CNTRL::write(1); // progressive
       GBS::IF_HS_DEC_FACTOR::write(0);
       GBS::INPUT_FORMATTER_02::write(0x74);
-      GBS::VDS_TAP6_BYPS::write(0);
+      GBS::VDS_TAP6_BYPS::write(1);
+      GBS::VDS_Y_DELAY::write(3);
     }
     else if (rto->videoStandardInput == 6 || rto->videoStandardInput == 7) { // 1080i/p
       GBS::SP_HD_MODE::write(1); // tri level sync
@@ -1665,6 +1667,8 @@ void doPostPresetLoadSteps() {
       GBS::IF_PRGRSV_CNTRL::write(1);
       GBS::IF_HS_DEC_FACTOR::write(0);
       GBS::INPUT_FORMATTER_02::write(0x74);
+      GBS::VDS_TAP6_BYPS::write(1);
+      GBS::VDS_Y_DELAY::write(3);
     }
   }
 
@@ -2274,6 +2278,7 @@ void passThroughWithIfModeSwitch() {
       writeProgramArrayNew(ntsc_240p);
       doPostPresetLoadSteps();
     }
+    GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC
     rto->autoBestHtotalEnabled = false; // disable while in this mode (need to set this after initial preset loading)
     GBS::PAD_SYNC_OUT_ENZ::write(1); // no sync out yet
     GBS::RESET_CONTROL_0x46::write(0); // 0_46 all off first, VDS + IF enabled later
@@ -2331,20 +2336,21 @@ void passThroughWithIfModeSwitch() {
       //GBS::SP_VS_PROC_INV_REG::write(1); // invert VS to be sync positive
       if (rto->videoStandardInput == 5) {
         GBS::PLLAD_MD::write(0x768); // psx 256, 320, 384 pix
-        GBS::SP_CS_HS_ST::write(0x1b0); // > SP = hs positive
-        GBS::SP_CS_HS_SP::write(0x140);
-        GBS::VDS_DIS_HB_SP::write(80); // helps blanking mask
+        GBS::SP_CS_HS_ST::write(0xf0); // > SP = hs positive
+        GBS::SP_CS_HS_SP::write(0x80);
+        GBS::VDS_DIS_HB_SP::write(180); // helps blanking mask
+        GBS::SP_VS_PROC_INV_REG::write(1); // invert VS to be sync positive // should be on all HD presets but some issues still
       }
       if (rto->videoStandardInput == 6) {
         GBS::PLLAD_MD::write(0x900); // 1920
-        GBS::SP_CS_HS_ST::write(0x1a0);
-        GBS::SP_CS_HS_SP::write(0x118);
+        GBS::SP_CS_HS_ST::write(0x190);
+        GBS::SP_CS_HS_SP::write(0x140);
         GBS::VDS_DIS_HB_SP::write(70);
       }
       if (rto->videoStandardInput == 7) {
         GBS::PLLAD_MD::write(0x900); // 1920
         GBS::SP_CS_HS_ST::write(0x1b0);
-        GBS::SP_CS_HS_SP::write(0x118);
+        GBS::SP_CS_HS_SP::write(0x140);
         //GBS::SP_CS_HS_ST::write(0x44); // overwrite
         GBS::SP_POST_COAST::write(0x16); // quite a lot ><
         GBS::VDS_DIS_HB_SP::write(70);
@@ -2353,7 +2359,12 @@ void passThroughWithIfModeSwitch() {
     latchPLLAD();
     delay(10); // 10 is enough (2 worked in test)
     // could also just use 5_12 next line
-    GBS::VDS_DIS_HB_ST::write(GBS::STATUS_SYNC_PROC_HTOTAL::read() * 0.48f); // half of HT, minus a bit
+    if (rto->videoStandardInput == 5) { // special for 720p
+      GBS::VDS_DIS_HB_ST::write(GBS::STATUS_SYNC_PROC_HTOTAL::read() * 0.95f); // HT, minus a bit
+    }
+    else {
+      GBS::VDS_DIS_HB_ST::write(GBS::STATUS_SYNC_PROC_HTOTAL::read() * 0.478f); // half of HT, minus a bit
+    }
     GBS::VDS_HB_ST::write(0);
     GBS::VDS_HB_SP::write(0x8); // needs to be even
     GBS::PB_BYPASS::write(1);
@@ -2382,10 +2393,10 @@ void passThroughWithIfModeSwitch() {
     GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2
     GBS::MADPT_VIIR_BYPS::write(1); // 2_26_6
 
-    delay(30);
     GBS::SFTRST_SYNC_RSTZ::write(0); // reset SP 0_47 bit 2
     GBS::SFTRST_SYNC_RSTZ::write(1);
     delay(30);
+    GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
     GBS::PAD_SYNC_OUT_ENZ::write(0); // sync out now
     rto->outModePassThroughWithIf = 1;
     delay(100);
@@ -3640,10 +3651,14 @@ void loop() {
 
       // this first test is necessary with "dirty" sync (CVid)
       while (--test > 0) { // what's the new preset?
-        delay(2);
+        delay(3);
         detectedVideoMode = getVideoMode();
+        //SerialM.println(detectedVideoMode);
         if (changeToPreset == detectedVideoMode) {
           signalInputChangeCounter++;
+        }
+        else if (detectedVideoMode == 0) { // unstable
+          signalInputChangeCounter = 0;
         }
       }
       if (signalInputChangeCounter >= 8) { // video mode has changed
@@ -3671,7 +3686,7 @@ void loop() {
           }
 
           rto->videoStandardInput = detectedVideoMode;
-          delay(20); // only a brief delay
+          delay(2); // only a brief post delay
         }
         else {
           SerialM.println(" .. lost");
