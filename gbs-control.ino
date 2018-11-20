@@ -1474,12 +1474,31 @@ void applyBestHTotal(uint16_t bestHTotal) {
   uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
   int diffHTotal = bestHTotal - orig_htotal;
   uint16_t diffHTotalUnsigned = abs(diffHTotal);
-  boolean isLargeDiff = (diffHTotalUnsigned * 10) > orig_htotal ? true : false;
+  //boolean isLargeDiff = (diffHTotalUnsigned * 10) > orig_htotal ? true : false; // what?
+  boolean isLargeDiff = diffHTotalUnsigned > 40 ? true : false; // typical diff: 1802 to 1794 (=8)
   boolean requiresScalingCorrection = GBS::VDS_HSCALE::read() < 512; // output distorts if less than 512 but can be corrected
 
   // rto->forceRetime = true means the correction should be forced (command '.')
   // may want to check against multi clock snes
   if ((!rto->outModePassThroughWithIf || rto->forceRetime == true) && bestHTotal > 400) {
+    // abort?
+    if (isLargeDiff && rto->forceRetime == false) {
+      SerialM.print("ABHT: ");
+      rto->failRetryAttempts++;
+      if (rto->failRetryAttempts < 8) {
+        SerialM.println("retry");
+        FrameSync::reset();
+        return;
+      }
+      else {
+        SerialM.println("give up");
+        return; // just return, will give up FrameSync
+      }
+    }
+    rto->failRetryAttempts = 0; // else all okay!, reset to 0
+    rto->forceRetime = false;
+
+    // okay, move on!
     // move blanking (display)
     uint16_t h_blank_display_start_position = GBS::VDS_DIS_HB_ST::read() + diffHTotal;
     uint16_t h_blank_display_stop_position = GBS::VDS_DIS_HB_SP::read() + diffHTotal;
@@ -1494,22 +1513,6 @@ void applyBestHTotal(uint16_t bestHTotal) {
     uint16_t h_blank_memory_stop_position = GBS::VDS_HB_SP::read();
     h_blank_memory_start_position += diffHTotal;
     h_blank_memory_stop_position  += diffHTotal;
-
-    if (isLargeDiff && rto->forceRetime == false) {
-      SerialM.print("ABHT bad: ");
-      rto->failRetryAttempts++;
-      if (rto->failRetryAttempts < 5) {
-        SerialM.println("retry");
-        FrameSync::reset();
-        return;
-      }
-      else {
-        SerialM.println("give up");
-        return; // just return, will give up FrameSync
-      }
-    }
-    rto->failRetryAttempts = 0; // else all okay!, reset to 0
-    rto->forceRetime = false;
 
     if (requiresScalingCorrection) {
       h_blank_memory_start_position &= 0xfffe;
@@ -3902,7 +3905,7 @@ void loop() {
   // frame sync + besthtotal init routine. this only runs if !FrameSync::ready(), ie manual retiming, preset load, etc)
   // also do this with a custom preset (applyBestHTotal will bail out, but FrameSync will be readied)
   if (!FrameSync::ready() && rto->continousStableCounter > 1 && rto->syncWatcherEnabled == true
-    && rto->autoBestHtotalEnabled == true
+    && rto->autoBestHtotalEnabled == true && getSyncStable() 
     && rto->videoStandardInput != 0 && rto->videoStandardInput != 15)
   {
     uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
@@ -3914,7 +3917,7 @@ void loop() {
     uint8_t videoModeAfterInit = getVideoMode();
     if (bestHTotal > 0) {
       if (bestHTotal >= 4095) bestHTotal = 4095;
-      if (videoModeBeforeInit == videoModeAfterInit) {
+      if ((videoModeBeforeInit == videoModeAfterInit) && videoModeBeforeInit != 0) {
         applyBestHTotal(bestHTotal);
         rto->syncLockFailIgnore = 2;
       }
