@@ -1082,6 +1082,11 @@ void shiftHorizontalRightIF(uint8_t amount) {
 void scaleHorizontal(uint16_t amountToAdd, bool subtracting) {
   uint16_t hscale = GBS::VDS_HSCALE::read();
 
+  // least invasive "is hscaling enabled" check
+  if (hscale == 1023) {
+    GBS::VDS_HSCALE_BYPS::write(0);
+  }
+
   if (subtracting && (hscale - amountToAdd > 0)) {
     hscale -= amountToAdd;
   }
@@ -1200,6 +1205,11 @@ void invertVS() {
 
 void scaleVertical(uint16_t amountToAdd, bool subtracting) {
   uint16_t vscale = GBS::VDS_VSCALE::read();
+
+  // least invasive "is vscaling enabled" check
+  if (vscale == 1023) {
+    GBS::VDS_VSCALE_BYPS::write(0);
+  }
 
   if (subtracting && (vscale - amountToAdd > 0)) {
     vscale -= amountToAdd;
@@ -1655,8 +1665,6 @@ void doPostPresetLoadSteps() {
     else if (rto->videoStandardInput == 5) { // 720p
       GBS::SP_HD_MODE::write(1); // tri level sync
       GBS::ADC_CLK_ICLK2X::write(0);
-      GBS::PLLAD_KS::write(0); // 5_16
-      GBS::PLLAD_CKOS::write(0); // 5_16 special for 720p
       GBS::IF_PRGRSV_CNTRL::write(1); // progressive
       GBS::IF_HS_DEC_FACTOR::write(0);
       GBS::INPUT_FORMATTER_02::write(0x74);
@@ -2097,7 +2105,7 @@ void setOverSampleRatio(uint8_t ratio) {
   case 1:
     GBS::ADC_CLK_ICLK2X::write(0);
     GBS::ADC_CLK_ICLK1X::write(0);
-    GBS::PLLAD_KS::write(2); // 0 - 3
+    //GBS::PLLAD_KS::write(2); // 0 - 3
     GBS::PLLAD_CKOS::write(2); // 0 - 3
     GBS::DEC1_BYPS::write(1);
     GBS::DEC2_BYPS::write(1);
@@ -2105,7 +2113,7 @@ void setOverSampleRatio(uint8_t ratio) {
   case 2:
     GBS::ADC_CLK_ICLK2X::write(0);
     GBS::ADC_CLK_ICLK1X::write(1);
-    GBS::PLLAD_KS::write(2);
+    //GBS::PLLAD_KS::write(2);
     GBS::PLLAD_CKOS::write(1);
     GBS::DEC1_BYPS::write(1);
     GBS::DEC2_BYPS::write(0);
@@ -2113,7 +2121,7 @@ void setOverSampleRatio(uint8_t ratio) {
   case 4:
     GBS::ADC_CLK_ICLK2X::write(1);
     GBS::ADC_CLK_ICLK1X::write(1);
-    GBS::PLLAD_KS::write(2);
+    //GBS::PLLAD_KS::write(2);
     GBS::PLLAD_CKOS::write(0);
     GBS::DEC1_BYPS::write(0);
     GBS::DEC2_BYPS::write(0);
@@ -2327,17 +2335,23 @@ void passThroughWithIfModeSwitch() {
     else if (rto->videoStandardInput == 3) {
       GBS::SP_CS_HS_ST::write(0x50);
       GBS::SP_CS_HS_SP::write(0xb0); // with PLLAD_MD = 0x768
+      GBS::PLLAD_KS::write(1); // 5_16
+      GBS::PLLAD_CKOS::write(0); // 5_16
     }
     else if (rto->videoStandardInput == 4) {
       GBS::SP_CS_HS_ST::write(0x78);
       GBS::SP_CS_HS_SP::write(0xcc); // with PLLAD_MD = 0x768
+      GBS::PLLAD_KS::write(1); // 5_16
+      GBS::PLLAD_CKOS::write(0); // 5_16
     }
     else if (rto->videoStandardInput <= 7) {
       GBS::PLLAD_FS::write(1); // 720p and up need high gain
-      GBS::PLLAD_KS::write(1);
+      GBS::PLLAD_KS::write(1); // todo: move all adc and pllad settings to their presets
       //GBS::SP_HS_PROC_INV_REG::write(1); // invert HS to be sync positive
       //GBS::SP_VS_PROC_INV_REG::write(1); // invert VS to be sync positive
       if (rto->videoStandardInput == 5) {
+        GBS::PLLAD_KS::write(0); // 5_16
+        GBS::PLLAD_CKOS::write(0); // 5_16 special for 720p
         GBS::PLLAD_MD::write(0x768); // psx 256, 320, 384 pix
         GBS::SP_CS_HS_ST::write(0xf0); // > SP = hs positive
         GBS::SP_CS_HS_SP::write(0x80);

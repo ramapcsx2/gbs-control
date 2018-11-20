@@ -181,9 +181,9 @@ const uint8_t ntsc_feedbackclock[] PROGMEM = {
 0xF4, // s3_13
 0xE9, // s3_14
 0x0, // s3_15
-0x0, // s3_16
-0x2, // s3_17
-0x20, // s3_18
+0xFF, // s3_16
+0xF3, // s3_17
+0x3F, // s3_18
 0x1, // s3_19
 0x0, // s3_1A
 0x9, // s3_1B
