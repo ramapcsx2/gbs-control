@@ -497,6 +497,9 @@ void setSpParameters() {
   writeOneByte(0x24, 0x0b); // SP_T_DLT_REG       H total width different threshold rgbhv: b // range from 0x02 upwards
   writeOneByte(0x25, 0x00); // SP_T_DLT_REG
   writeOneByte(0x26, 0x08); // SP_SYNC_PD_THD     H sync pulse width threshold // from 0(?) to 0x50 // in yuv 720p range only to 0x0a!
+  if (rto->videoStandardInput == 7) {
+    writeOneByte(0x26, 0x04);
+  }
   writeOneByte(0x27, 0x00); // SP_SYNC_PD_THD
   writeOneByte(0x2a, 0x03); // SP_PRD_EQ_THD     ! How many continue legal line as valid // effect on MD recovery after sync loss
   // V active detect control
@@ -513,17 +516,21 @@ void setSpParameters() {
   writeOneByte(0x36, 0x00); // SP_DLT_REG [11:8]
 
   if (rto->videoStandardInput == 0) {
-    writeOneByte(0x37, 0x06); // need to detect tri level sync (max 0x0c in a test)
+    writeOneByte(0x37, 0x02); // need to detect tri level sync (max 0x0c in a test)
   }
   else if (rto->videoStandardInput <= 2) {
     writeOneByte(0x37, 0x10); // SP_H_PULSE_IGNOR // SP test (snes needs 2+, MD in MS mode needs 0x0e)
   }
   else {
-    writeOneByte(0x37, 0x04);
+    writeOneByte(0x37, 0x02);
   }
 
   GBS::SP_PRE_COAST::write(6); // SP test: 9
   GBS::SP_POST_COAST::write(16); // SP test: 9
+
+  //if (rto->videoStandardInput > 5) { // override early
+  //  GBS::SP_POST_COAST::write(6);
+  //}
 
   writeOneByte(0x3a, 0x03); // was 0x0a // range depends on source vtiming, from 0x03 to xxx, some good effect at lower levels
 
@@ -1275,9 +1282,9 @@ void shiftVerticalUpIF() {
   int16_t stop = GBS::IF_VB_SP::read();
   int16_t start = GBS::IF_VB_ST::read();
 
-  if (stop < sourceLines && start < sourceLines) { stop += 1; start += 1; }
+  if (stop < (sourceLines-1) && start < (sourceLines-1)) { stop += 2; start += 2; }
   else {
-    start = 0; stop = 1;
+    start = 0; stop = 2;
   }
   GBS::IF_VB_SP::write(stop);
   GBS::IF_VB_ST::write(start);
@@ -1289,9 +1296,9 @@ void shiftVerticalDownIF() {
   int16_t stop = GBS::IF_VB_SP::read();
   int16_t start = GBS::IF_VB_ST::read();
 
-  if (stop > 0 && start > 0) { stop -= 1; start -= 1; }
+  if (stop > 1 && start > 1) { stop -= 2; start -= 2; }
   else {
-    start = sourceLines - 1; stop = sourceLines;
+    start = sourceLines - 2; stop = sourceLines;
   }
   GBS::IF_VB_SP::write(stop);
   GBS::IF_VB_ST::write(start);
@@ -1598,19 +1605,23 @@ void doPostPresetLoadSteps() {
   
   // IF initial position is 1_0e/0f IF_HSYNC_RST exactly. But IF_INI_ST needs to be a few pixels before that.
   // IF_INI_ST - 1 causes an interresting effect when the source switches to interlace.
-  // IF_INI_ST - 2 is the first safe setting // exception: edtv+ presets: need to be more exact
+  // IF_INI_ST - 2 is the first safe setting
+  // update: this can missfire when IF_HSYNC_RST is set larger for some other reason
   if (!isCustomPreset) {
-    if (rto->videoStandardInput <= 2) {
-      GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 4);
-      // todo: the -46 below is pretty narrow. check with ps2 yuv in all pal presets
-      // -46 for pal 640x480, -48 for ps2?
-      if (rto->videoStandardInput == 2) {  // exception for PAL (with i.e. PSX) default preset
-        GBS::IF_INI_ST::write(GBS::IF_INI_ST::read() * 0.5f);
-      }
-    }
-    else {
-      GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 1); // -0 also seems to work
-    }
+    //if (rto->videoStandardInput <= 2) {
+    //  GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() - 4);
+    //  // todo: the -46 below is pretty narrow. check with ps2 yuv in all pal presets
+    //  // -46 for pal 640x480, -48 for ps2?
+    //  if (rto->videoStandardInput == 2) {  // exception for PAL (with i.e. PSX) default preset
+    //    GBS::IF_INI_ST::write(GBS::IF_INI_ST::read() * 0.5f);
+    //  }
+    //}
+    //else {
+    //  GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() * 0.92); // see update above
+    //}
+
+    // new assumption: this should be a bit longer than a half line
+    GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() * 0.68); // see update above
   }
 
   if (!isCustomPreset) {
@@ -1619,9 +1630,11 @@ void doPostPresetLoadSteps() {
       // or disable line doubler (better)
       GBS::PLLAD_KS::write(1); // 5_16
       GBS::VDS_VSCALE::write(512); // 548
-      GBS::VDS_V_DELAY::write(0); // filter 3_24 2 off
+      GBS::VDS_V_DELAY::write(1); // filter 3_24 2 on
       GBS::VDS_TAP6_BYPS::write(0); // 3_24 3 disable filter (jailbars)
+      GBS::IF_SEL_WEN::write(1); // 1_02 0
       GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 4 filter
+      GBS::IF_HS_Y_PDELAY::write(3); // 1_02 5+6 filter
       GBS::IF_PRGRSV_CNTRL::write(1); // 1_00 6
       GBS::IF_HS_DEC_FACTOR::write(0); // 1_0b 4+5
       GBS::IF_LD_SEL_PROV::write(1); // 1_0b 7
@@ -1641,12 +1654,12 @@ void doPostPresetLoadSteps() {
       // or disable line doubler (better)
       GBS::PLLAD_KS::write(1); // 5_16
       GBS::VDS_VSCALE::write(512);
-      GBS::VDS_V_DELAY::write(0); // filter 3_24 2 off
+      GBS::VDS_V_DELAY::write(1); // filter 3_24 2 on
       GBS::VDS_TAP6_BYPS::write(0); // 3_24 3 disable filter (jailbars)
       GBS::VDS_WEN_DELAY::write(0);
       GBS::IF_SEL_WEN::write(1);
-      GBS::IF_INI_ST::write(0); // 0x4d0
       GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 4 filter
+      GBS::IF_HS_Y_PDELAY::write(3); // 1_02 5+6 filter
       GBS::IF_PRGRSV_CNTRL::write(1); // 1_00 6
       GBS::IF_HS_DEC_FACTOR::write(0); // 1_0b 4+5 !
       GBS::IF_LD_SEL_PROV::write(1); // 1_0b 7
@@ -2057,6 +2070,11 @@ boolean getSyncStable() {
 
   uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
   uint8_t debug_backup_SP = GBS::TEST_BUS_SP_SEL::read();
+  uint16_t minSyncPulseLength = 0x0480;
+  if (rto->videoStandardInput == 7) {
+    minSyncPulseLength = 0x001B;
+  }
+
   if (debug_backup != 0xa) {
     GBS::TEST_BUS_SEL::write(0xa);
   }
@@ -2065,7 +2083,7 @@ boolean getSyncStable() {
   }
   //todo: intermittant sync loss can read as okay briefly
   //if ((GBS::TEST_BUS::read() & 0x0500) == 0x0500) {
-  if ((GBS::TEST_BUS::read() & 0x0fff) > 0x0480) {
+  if ((GBS::TEST_BUS::read() & 0x0fff) > minSyncPulseLength) {
     if (debug_backup != 0xa) {
       GBS::TEST_BUS_SEL::write(debug_backup);
     }
@@ -2176,7 +2194,7 @@ void updateCoastPosition() {
   }
   else if (rto->videoStandardInput == 7) { // 1080p
     GBS::SP_PRE_COAST::write(0x06);
-    GBS::SP_POST_COAST::write(0x16); // quite a lot
+    GBS::SP_POST_COAST::write(0x12); // quite a lot
   }
   else if (rto->videoStandardInput == 15) {
     GBS::SP_PRE_COAST::write(0x00);
@@ -2253,7 +2271,7 @@ void updateClampPosition() {
     }
     else if (rto->videoStandardInput == 7) {
       start = inHlength * 0.0015f;
-      stop = inHlength * 0.01f; // 1080p
+      stop = inHlength * 0.012f; // 1080p
     }
   }
   else if (!rto->inputIsYpBpR) {
@@ -2317,11 +2335,6 @@ void passThroughWithIfModeSwitch() {
     // blanking to mask eventual hsync pulse that the ADC picked up from SOG
     GBS::VDS_SYNC_IN_SEL::write(1); // 3_72 7 extern on, for sync when VDS blanking enabled
     GBS::VDS_BLK_BF_EN::write(1); // blanking setup: 0 = off, 1 = on
-    //GBS::VDS_DIS_HB_SP::write(220); // my crt // 4 disabled lines: blanking needs a timing set
-    //GBS::VDS_DIS_HB_ST::write(0); // my crt // setting this below now, after pllad reset to get timings
-    //GBS::VDS_DIS_VB_SP::write(8); // my crt
-    //GBS::VDS_DIS_VB_ST::write(0); // my crt 
-    // test!
     GBS::VDS_HSYNC_RST::write(0xfff); // max
     GBS::VDS_VSYNC_RST::write(0x7ff); // max
     GBS::VDS_D_RAM_BYPS::write(1); // 3_26 6 line buffer bypass (not required)
@@ -2329,61 +2342,107 @@ void passThroughWithIfModeSwitch() {
     GBS::PLLAD_ICP::write(6);
     GBS::PLLAD_FS::write(0); // high gain needs to be off, else sync dropouts on LCD with SNES
     if (rto->videoStandardInput <= 2) {
+      GBS::PLLAD_FS::write(0); // 5_11 gain
       GBS::SP_CS_HS_ST::write(0);
       GBS::SP_CS_HS_SP::write(0x6c); // with PLLAD_MD = 0x768
+      GBS::VDS_DIS_HB_SP::write(180); // helps blanking mask
+      GBS::VDS_HB_ST::write(0); // check 
+      GBS::VDS_HB_SP::write(8); // check
     }
-    else if (rto->videoStandardInput == 3) {
-      GBS::SP_CS_HS_ST::write(0x50);
-      GBS::SP_CS_HS_SP::write(0xb0); // with PLLAD_MD = 0x768
+    else if (rto->videoStandardInput == 3) { // 480p
+      GBS::ADC_CLK_ICLK1X::write(0); // new
+      GBS::ADC_CLK_ICLK2X::write(0); // new
+      GBS::PLLAD_ICP::write(5);
+      GBS::DEC1_BYPS::write(1);
+      GBS::DEC2_BYPS::write(1);
+      GBS::IF_HB_SP::write(2); // necessary in bypass mode
+      GBS::SP_CS_HS_ST::write(0x40); // < SP = hs negative
+      GBS::SP_CS_HS_SP::write(0x80);
+      GBS::VDS_DIS_HB_SP::write(160); // helps blanking mask
+      GBS::SP_VS_PROC_INV_REG::write(1);
+      GBS::PLLAD_FS::write(1); // 5_11 gain
       GBS::PLLAD_KS::write(1); // 5_16
       GBS::PLLAD_CKOS::write(0); // 5_16
+      GBS::VDS_DIS_HB_ST::write(3320);
+      GBS::VDS_HB_ST::write(4092); // check 
+      GBS::VDS_HB_SP::write(4094); // check
     }
-    else if (rto->videoStandardInput == 4) {
-      GBS::SP_CS_HS_ST::write(0x78);
-      GBS::SP_CS_HS_SP::write(0xcc); // with PLLAD_MD = 0x768
+    else if (rto->videoStandardInput == 4) { // 576p
+      GBS::ADC_CLK_ICLK1X::write(0); // new
+      GBS::ADC_CLK_ICLK2X::write(0); // new
+      GBS::PLLAD_ICP::write(5);
+      GBS::DEC1_BYPS::write(1);
+      GBS::DEC2_BYPS::write(1);
+      GBS::IF_HB_SP::write(2); // necessary in bypass mode
+      GBS::SP_CS_HS_ST::write(0x40); // < SP = hs negative
+      GBS::SP_CS_HS_SP::write(0x90);
+      GBS::VDS_DIS_HB_SP::write(200); // helps blanking mask
+      GBS::SP_VS_PROC_INV_REG::write(1);
+      GBS::PLLAD_FS::write(1); // 5_11 gain
       GBS::PLLAD_KS::write(1); // 5_16
       GBS::PLLAD_CKOS::write(0); // 5_16
+      GBS::VDS_DIS_HB_ST::write(3360);
+      GBS::VDS_HB_ST::write(4092); // out of the way; check with ps2
+      GBS::VDS_HB_SP::write(4094);
     }
     else if (rto->videoStandardInput <= 7) {
-      GBS::PLLAD_FS::write(1); // 720p and up need high gain
-      GBS::PLLAD_KS::write(1); // todo: move all adc and pllad settings to their presets
-      //GBS::SP_HS_PROC_INV_REG::write(1); // invert HS to be sync positive
-      //GBS::SP_VS_PROC_INV_REG::write(1); // invert VS to be sync positive
       if (rto->videoStandardInput == 5) {
-        GBS::PLLAD_KS::write(0); // 5_16
-        GBS::PLLAD_CKOS::write(0); // 5_16 special for 720p
+        GBS::ADC_CLK_ICLK1X::write(0); // new
+        GBS::ADC_CLK_ICLK2X::write(0); // new
+        GBS::PLLAD_FS::write(1); // 5_11 gain
+        GBS::PLLAD_KS::write(1); // 5_16
+        GBS::PLLAD_CKOS::write(0); // 5_16
         GBS::PLLAD_MD::write(0x768); // psx 256, 320, 384 pix
-        GBS::SP_CS_HS_ST::write(0xf0); // > SP = hs positive
-        GBS::SP_CS_HS_SP::write(0x80);
-        GBS::VDS_DIS_HB_SP::write(180); // helps blanking mask
-        GBS::SP_VS_PROC_INV_REG::write(1); // invert VS to be sync positive // should be on all HD presets but some issues still
+        GBS::SP_CS_HS_ST::write(0xd0); // > SP = hs positive
+        GBS::SP_CS_HS_SP::write(0x40);
+        GBS::VDS_DIS_HB_SP::write(640); // helps blanking mask
+        GBS::VDS_HB_ST::write(4092); // out of the way; check with ps2
+        GBS::VDS_HB_SP::write(4094);
+        GBS::VDS_DIS_HB_ST::write(3580);
+        GBS::SP_VS_PROC_INV_REG::write(1); // invert VS to be sync positive
       }
-      if (rto->videoStandardInput == 6) {
-        GBS::PLLAD_MD::write(0x900); // 1920
-        GBS::SP_CS_HS_ST::write(0x190);
-        GBS::SP_CS_HS_SP::write(0x140);
-        GBS::VDS_DIS_HB_SP::write(70);
+      if (rto->videoStandardInput == 6) { // 1080i
+        GBS::ADC_CLK_ICLK1X::write(0); // new
+        GBS::ADC_CLK_ICLK2X::write(0); // new
+        GBS::PLLAD_FS::write(1); // 5_11 gain
+        GBS::PLLAD_KS::write(1);
+        GBS::PLLAD_CKOS::write(0); // 5_16
+        GBS::PLLAD_MD::write(0x768);
+        GBS::SP_CS_HS_ST::write(0x90);
+        GBS::SP_CS_HS_SP::write(0x38);
+        GBS::VDS_DIS_HB_SP::write(380);
+        GBS::VDS_HB_ST::write(4092); // out of the way; check with ps2
+        GBS::VDS_HB_SP::write(4094);
+        GBS::VDS_DIS_HB_ST::write(3680);
+        GBS::SP_VS_PROC_INV_REG::write(0); // don't invert, causes flicker
       }
       if (rto->videoStandardInput == 7) {
-        GBS::PLLAD_MD::write(0x900); // 1920
-        GBS::SP_CS_HS_ST::write(0x1b0);
-        GBS::SP_CS_HS_SP::write(0x140);
-        //GBS::SP_CS_HS_ST::write(0x44); // overwrite
-        GBS::SP_POST_COAST::write(0x16); // quite a lot ><
-        GBS::VDS_DIS_HB_SP::write(70);
+        GBS::ADC_CLK_ICLK1X::write(0); // new
+        GBS::ADC_CLK_ICLK2X::write(0); // new
+        GBS::PLLAD_FS::write(1); // 5_11 gain
+        GBS::PLLAD_KS::write(1); // todo: check
+        GBS::PLLAD_CKOS::write(0); // 5_16
+        GBS::PLLAD_MD::write(0x5b0);
+        GBS::SP_CS_HS_ST::write(0x90);
+        GBS::SP_CS_HS_SP::write(0x60);
+        GBS::VDS_DIS_HB_SP::write(200);
+        GBS::VDS_HB_ST::write(4092); // out of the way
+        GBS::VDS_HB_SP::write(4094);
+        GBS::VDS_DIS_HB_ST::write(2780); // manual override for 1080p
       }
     }
     latchPLLAD();
     delay(10); // 10 is enough (2 worked in test)
     // could also just use 5_12 next line
-    if (rto->videoStandardInput == 5) { // special for 720p
+    if (rto->videoStandardInput < 3) {
       GBS::VDS_DIS_HB_ST::write(GBS::STATUS_SYNC_PROC_HTOTAL::read() * 0.95f); // HT, minus a bit
     }
-    else {
-      GBS::VDS_DIS_HB_ST::write(GBS::STATUS_SYNC_PROC_HTOTAL::read() * 0.478f); // half of HT, minus a bit
+
+    if (rto->videoStandardInput > 2) {
+      GBS::VDS_DIS_VB_ST::write(2044);
+      GBS::VDS_DIS_VB_SP::write(2046);
     }
-    GBS::VDS_HB_ST::write(0);
-    GBS::VDS_HB_SP::write(0x8); // needs to be even
+
     GBS::PB_BYPASS::write(1);
     GBS::PLL648_CONTROL_01::write(0x35);
     rto->phaseSP = 15; // eventhough i had this fancy bestphase function :p
@@ -2907,7 +2966,6 @@ void setup() {
   loadPresetMdSection(); // fills 1_60 to 1_83 (mode detect segment, mostly static)
   setAdcParametersGainAndOffset();
   setSpParameters();
-
   //rto->syncWatcherEnabled = false;
   //inputAndSyncDetect();
 
@@ -3887,9 +3945,9 @@ void loop() {
           static boolean toggle = rto->videoStandardInput > 2 ? 0 : 1;
           if (toggle) {
             SerialM.print("HD? ");
-            GBS::SP_H_PULSE_IGNOR::write(0x04);
+            GBS::SP_H_PULSE_IGNOR::write(0x02);
             GBS::SP_PRE_COAST::write(0x06);
-            GBS::SP_POST_COAST::write(0x07);
+            GBS::SP_POST_COAST::write(0x12);
           }
           else {
             SerialM.print("SD? ");
