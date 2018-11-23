@@ -217,6 +217,10 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x29, 0,  1> IF_AUTO_OFST_EN;
     typedef UReg<0x01, 0x29, 2,  1> IF_AUTO_OFST_RESERVED_2;
 
+    // Mode Detect
+    typedef UReg<0x01, 0x63, 6,  1> MD_HS_FLIP;
+    typedef UReg<0x01, 0x63, 7,  1> MD_VS_FLIP;
+
     // Deinterlacer / Scaledown registers
     typedef UReg<0x02, 0x00, 0,  8> DEINT_00;
     typedef UReg<0x02, 0x00, 7,  1> DIAG_BOB_PLDY_RAM_BYPS;
@@ -227,7 +231,9 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x02, 0x16, 2,  1> MAPDT_RESERVED_SCANLINES_ENABLED;
     typedef UReg<0x02, 0x16, 6,  1> MADPT_VT_FILTER_CNTRL;
     typedef UReg<0x02, 0x16, 7,  1> MAPDT_VT_SEL_PRGV;
+    typedef UReg<0x02, 0x17, 0,  8> MADPT_Y_DELAY_UV_DELAY; // convenience
     typedef UReg<0x02, 0x17, 0,  4> MADPT_Y_DELAY;
+    typedef UReg<0x02, 0x17, 4,  4> MADPT_UV_DELAY;
     typedef UReg<0x02, 0x18, 3,  1> MADPT_HTAP_BYPS;
     typedef UReg<0x02, 0x19, 0,  1> MADPT_BIT_STILL_EN;
     typedef UReg<0x02, 0x19, 2,  1> MADPT_VTAP2_BYPS;
@@ -284,6 +290,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x03, 0x1F, 5,  1> VDS_EN_FR_NUM_RST;
     typedef UReg<0x03, 0x20, 0, 11> VDS_VSYN_SIZE1;
     typedef UReg<0x03, 0x21, 0, 11> VDS_VSYN_SIZE2;
+    typedef UReg<0x03, 0x24, 0,  8> VDS_3_24_FILTER; // convenience
     typedef UReg<0x03, 0x24, 0,  1> VDS_UV_FLIP;
     typedef UReg<0x03, 0x24, 1,  1> VDS_U_DELAY;
     typedef UReg<0x03, 0x24, 2,  1> VDS_V_DELAY;
