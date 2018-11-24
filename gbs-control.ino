@@ -3267,17 +3267,17 @@ void loop() {
       if (pll_divider < 4095) {
         pll_divider += 1;
         GBS::PLLAD_MD::write(pll_divider);
-        // regular output modes: apply IF corrections
-        if (GBS::VDS_HSYNC_RST::read() != 0xfff) {
-          uint16_t IF_HSYNC_RST = GBS::IF_HSYNC_RST::read(); // 1_0E
-          GBS::IF_HSYNC_RST::write(IF_HSYNC_RST + 1);
-          // IF HB new stuff
-          GBS::IF_INI_ST::write(IF_HSYNC_RST - 1); // initial position seems to be "ht" (on S1_0d)
-          //GBS::IF_LINE_ST::write(GBS::IF_LINE_ST::read() + 1);
-          GBS::IF_LINE_SP::write(GBS::IF_LINE_SP::read() + 1); // 1_22
+        if (!rto->outModePassThroughWithIf) {
+          float divider = (float)GBS::STATUS_SYNC_PROC_HTOTAL::read() / 4096.0f;
+          uint16_t newHT = (GBS::HPERIOD_IF::read() * 4) * (divider + 0.14f);
+          //SerialM.println(divider);
+          //SerialM.println(newHT);
+          GBS::IF_HSYNC_RST::write(newHT);
+          GBS::IF_INI_ST::write(newHT >> 2);
+          GBS::IF_LINE_SP::write(newHT + 1); // 1_22
         }
         latchPLLAD();
-        applyBestHTotal(GBS::VDS_HSYNC_RST::read());
+        //applyBestHTotal(GBS::VDS_HSYNC_RST::read());
         SerialM.print("PLL div: "); SerialM.println(pll_divider, HEX);
         rto->clampPositionIsSet = false;
         rto->coastPositionIsSet = false;
@@ -3396,7 +3396,7 @@ void loop() {
       scaleVertical(1, false);
     break;
     case '6':
-      if (GBS::IF_HBIN_SP::read() > 4) { // IF_HBIN_SP: min 1
+      if (GBS::IF_HBIN_SP::read() > 5) { // IF_HBIN_SP: min 2
         GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() - 4); // canvas move right
       }
       else {
@@ -3710,7 +3710,7 @@ void loop() {
         }
       }
       if (noSyncCounter % 80 == 0) {
-        enableDAC(); // briefly show image
+        //enableDAC(); // briefly show image
         rto->clampPositionIsSet = false;
         rto->coastPositionIsSet = false;
         FrameSync::reset(); // corner case: source quickly changed. this won't affect display if timings are the same
