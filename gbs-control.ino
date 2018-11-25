@@ -1509,6 +1509,7 @@ void applyBestHTotal(uint16_t bestHTotal) {
       }
       else {
         SerialM.println("give up");
+        rto->autoBestHtotalEnabled = false;
         return; // just return, will give up FrameSync
       }
     }
@@ -2697,21 +2698,17 @@ void disableScanlines() {
 }
 
 void enableMotionAdaptDeinterlace() {
-  GBS::DEINT_00::write(0x18); // 2_00 // 7f
+  GBS::DEINT_00::write(0x00); // 2_00 // 18
   GBS::MADPT_Y_MI_OFFSET::write(0x04); // 2_0b
   GBS::MAPDT_VT_SEL_PRGV::write(0); // 2_16
   GBS::MADPT_Y_MI_DET_BYPS::write(0); //2_0a_7
   GBS::MADPT_VIIR_BYPS::write(1);
-  GBS::MADPT_MI_1BIT_BYPS::write(0);
-  GBS::MADPT_MI_1BIT_FRAME2_EN::write(1);
   GBS::MADPT_BIT_STILL_EN::write(1);
   GBS::MADPT_HTAP_BYPS::write(0); // 2_18_3
   GBS::MADPT_VTAP2_BYPS::write(0); // 2_19_2 // don't bypass
   GBS::MADPT_NRD_VIIR_PD_BYPS::write(1); // 2_35_4
   GBS::MADPT_UVDLY_PD_BYPS::write(0); // 2_35_5 // off
   GBS::MADPT_CMP_EN::write(1); // 2_35_6 // no effect?
-  //GBS::MADPT_UVDLY_PD_SP::write(4); // 2_39 [0..3] // do this in presets
-  //GBS::MADPT_UVDLY_PD_ST::write(0); // 2_39 [4..7]
   GBS::MADPT_EN_UV_DEINT::write(1); // 2_3a 0
   GBS::MADPT_MI_1BIT_DLY::write(1); // 2_3a [5..6]
   //GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x00 (so fb clock is usable) // requires sdram reset
@@ -2720,13 +2717,6 @@ void enableMotionAdaptDeinterlace() {
   GBS::WFF_FF_STA_INV::write(0);
   GBS::WFF_YUV_DEINTERLACE::write(1);
   GBS::WFF_LINE_FLIP::write(0);
-  GBS::WFF_HB_DELAY::write(4);
-  //if (rto->videoStandardInput == 2) {
-  //  GBS::WFF_VB_DELAY::write(6);
-  //}
-  //else {
-    GBS::WFF_VB_DELAY::write(4);
-  //}
   GBS::RFF_REQ_SEL::write(3);
   GBS::RFF_LREQ_CUT::write(1);
   GBS::RFF_YUV_DEINTERLACE::write(1);
@@ -2740,7 +2730,6 @@ void disableMotionAdaptDeinterlace() {
   GBS::MAPDT_VT_SEL_PRGV::write(1);
   GBS::MADPT_Y_MI_OFFSET::write(0x7f);
   GBS::MADPT_Y_MI_DET_BYPS::write(1);
-  GBS::MADPT_MI_1BIT_BYPS::write(1);
   GBS::MADPT_BIT_STILL_EN::write(0);
   GBS::MADPT_VTAP2_BYPS::write(1); // 2_19_2
   GBS::MADPT_UVDLY_PD_BYPS::write(1); // 2_35_5
