@@ -147,6 +147,7 @@ struct runTimeOptions {
   boolean motionAdaptiveDeinterlaceActive;
   boolean deinterlaceAutoEnabled;
   boolean scanlinesEnabled;
+  boolean boardHasPower;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -592,7 +593,7 @@ void setAndUpdateSogLevel(uint8_t level) {
 // Generally, the ADC has to stay enabled to perform SOG separation and thus "see" a source.
 // It is possible to run in low power mode.
 void goLowPowerWithInputDetection() {
-  SerialM.println("low power");
+  SerialM.println("low power input detect");
   zeroAll();
   setResetParameters(); // includes rto->videoStandardInput = 0
   loadPresetMdSection(); // fills 1_60 to 1_83
@@ -1997,6 +1998,12 @@ static uint8_t getVideoMode() {
   }
 
   detectedMode = GBS::STATUS_00::read();
+  // PAL progressive indicator + NTSC progressive indicator on? Bad value from the template
+  // engine. Happens when the GBS has no power.
+  if ((detectedMode & 0x50) == 0x50) {
+    return 0;
+  }
+
   // note: if stat0 == 0x07, it's supposedly stable. if we then can't find a mode, it must be an MD problem
   if ((detectedMode & 0x80) == 0x80) { // bit 7: SD flag (480i, 480P, 576i, 576P)
     if ((detectedMode & 0x08) == 0x08) return 1; // ntsc interlace
@@ -2699,7 +2706,7 @@ void disableScanlines() {
 
 void enableMotionAdaptDeinterlace() {
   GBS::DEINT_00::write(0x00); // 2_00 // 18
-  GBS::MADPT_Y_MI_OFFSET::write(0x04); // 2_0b
+  GBS::MADPT_Y_MI_OFFSET::write(0x00); // 2_0b
   GBS::MAPDT_VT_SEL_PRGV::write(0); // 2_16
   GBS::MADPT_Y_MI_DET_BYPS::write(0); //2_0a_7
   GBS::MADPT_VIIR_BYPS::write(1);
@@ -2817,6 +2824,7 @@ void setup() {
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->deinterlaceAutoEnabled = true;
   rto->scanlinesEnabled = false;
+  rto->boardHasPower = true;
 
   // the following is just run time variables. don't change!
   rto->inputIsYpBpR = false;
@@ -2910,7 +2918,7 @@ void setup() {
   // i2c can get stuck
   if (digitalRead(SDA) == 0) {
     unsigned long timeout = millis();
-    while (millis() - timeout <= 10000) {
+    while (millis() - timeout <= 4000) {
       if (digitalRead(SDA) == 0) {
         static uint8_t result = 0;
         static boolean printDone = 0;
@@ -2943,12 +2951,13 @@ void setup() {
       }
     }
     SerialM.print("\n");
-    if (millis() - timeout > 10000) {
+    if (millis() - timeout > 4000) {
       // never got to see a pulled up SDA. Scaler board is probably not powered
       // or SDA cable not connected
       SerialM.println("\nCheck SDA, SCL connection! Check GBS for power!");
       // don't reboot, go into loop instead (allow for config changes via web ui)
       rto->syncWatcherEnabled = false;
+      rto->boardHasPower = false;
     }
   }
 
@@ -4065,6 +4074,38 @@ void loop() {
     if ((millis() - lastTimeSourceCheck) > 1000) {
       inputAndSyncDetect(); // source is off; keep looking for new input
       lastTimeSourceCheck = millis();
+    }
+  }
+
+  // has the GBS board lost power?
+  if ((noSyncCounter > 2 && noSyncCounter < 5) && rto->boardHasPower) {
+    boolean restartWire = 1;
+    pinMode(SCL, INPUT); pinMode(SDA, INPUT);
+    if (!digitalRead(SCL) && !digitalRead(SDA)) {
+      delay(5);
+      if (!digitalRead(SCL) && !digitalRead(SDA)) {
+        Serial.println("power lost");
+        rto->syncWatcherEnabled = false;
+        rto->boardHasPower = false;
+        restartWire = 0;
+      }
+    }
+    if (restartWire) {
+      startWire();
+    }
+  }
+
+  if (!rto->boardHasPower) { // then check if power has come on
+    if (digitalRead(SCL) && digitalRead(SDA)) {
+      delay(50);
+      if (digitalRead(SCL) && digitalRead(SDA)) {
+        Serial.println("power good");
+        startWire();
+        rto->syncWatcherEnabled = true;
+        rto->boardHasPower = true;
+        delay(100);
+        goLowPowerWithInputDetection();
+      }
     }
   }
 
