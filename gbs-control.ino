@@ -943,11 +943,10 @@ void resetPLL() {
 }
 
 void ResetSDRAM() {
-  GBS::SDRAM_RESET_CONTROL::write(0x07); delay(2); // enable "Software Control SDRAM Idle Period" 0x00 for off
-  GBS::SDRAM_RESET_SIGNAL::write(1); //delay(4);
-  GBS::SDRAM_START_INITIAL_CYCLE::write(1); delay(4);
-  GBS::SDRAM_RESET_SIGNAL::write(0); //delay(2);
-  GBS::SDRAM_START_INITIAL_CYCLE::write(0); //delay(2);
+  GBS::SDRAM_RESET_CONTROL::write(0x87); // enable "Software Control SDRAM Idle Period" and "SDRAM_START_INITIAL_CYCLE"
+  GBS::SDRAM_RESET_SIGNAL::write(1);
+  GBS::SDRAM_RESET_SIGNAL::write(0);
+  GBS::SDRAM_START_INITIAL_CYCLE::write(0);
 }
 
 // soft reset cycle
@@ -2705,6 +2704,7 @@ void disableScanlines() {
 }
 
 void enableMotionAdaptDeinterlace() {
+  GBS::PB_ENABLE::write(0); // disable PB here
   GBS::DEINT_00::write(0x00); // 2_00 // 18
   GBS::MADPT_Y_MI_OFFSET::write(0x00); // 2_0b
   GBS::MAPDT_VT_SEL_PRGV::write(0); // 2_16
@@ -2730,9 +2730,13 @@ void enableMotionAdaptDeinterlace() {
   GBS::WFF_ENABLE::write(1);
   GBS::RFF_ENABLE::write(1);
   rto->motionAdaptiveDeinterlaceActive = true;
+  ResetSDRAM();
+  delay(10);
+  GBS::PB_ENABLE::write(1); // enable PB
 }
 
 void disableMotionAdaptDeinterlace() {
+  GBS::PB_ENABLE::write(0); // disable PB here
   GBS::DEINT_00::write(0xff); // 2_00
   GBS::MAPDT_VT_SEL_PRGV::write(1);
   GBS::MADPT_Y_MI_OFFSET::write(0x7f);
@@ -2752,6 +2756,9 @@ void disableMotionAdaptDeinterlace() {
   GBS::WFF_YUV_DEINTERLACE::write(0);
   GBS::WFF_LINE_FLIP::write(1);
   rto->motionAdaptiveDeinterlaceActive = false;
+  ResetSDRAM();
+  delay(10);
+  GBS::PB_ENABLE::write(1); // enable PB
 }
 
 void startWire() {

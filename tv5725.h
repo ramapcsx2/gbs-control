@@ -481,6 +481,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x2b, 1,  2> PB_REQ_SEL;
     typedef UReg<0x04, 0x2b, 3,  1> PB_BYPASS;
     typedef UReg<0x04, 0x2b, 5,  1> PB_DB_BUFFER_EN;
+    typedef UReg<0x04, 0x2b, 7,  1> PB_ENABLE;
     typedef UReg<0x04, 0x2c, 0,  8> PB_MAST_FLAG_REG;
     typedef UReg<0x04, 0x2d, 0,  8> PB_GENERAL_FLAG_REG;
     typedef UReg<0x04, 0x37, 0,  10> PB_CAP_OFFSET;
