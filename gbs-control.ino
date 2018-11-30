@@ -461,6 +461,13 @@ void OutputComponentOrVGA() {
   }
 }
 
+void applyComponentColorMixing() {
+  GBS::VDS_Y_GAIN::write(0x60); // 3_35
+  GBS::VDS_UCOS_GAIN::write(0x1e); // 3_36
+  GBS::VDS_VCOS_GAIN::write(0x1a); // 3_37
+  GBS::VDS_Y_OFST::write(0xfe); // 3_3a
+}
+
 void applyYuvPatches() {
   GBS::ADC_RYSEL_R::write(1); // midlevel clamp red
   GBS::ADC_RYSEL_B::write(1); // midlevel clamp blue
@@ -474,10 +481,7 @@ void applyYuvPatches() {
   GBS::VDS_V_OFST::write(0x00); // 0 3_3c
 
   if (uopt->wantOutputComponent) {
-    GBS::VDS_Y_GAIN::write(0x61); // 3_35
-    GBS::VDS_UCOS_GAIN::write(0x21); // 3_36
-    GBS::VDS_VCOS_GAIN::write(0x21); // 3_37
-    GBS::VDS_Y_OFST::write(0xfe); // 3_3a
+    applyComponentColorMixing();
   }
 }
 
@@ -496,10 +500,7 @@ void applyRGBPatches() {
   GBS::VDS_V_OFST::write(0x00); // 3_3c
 
   if (uopt->wantOutputComponent) {
-    GBS::VDS_Y_GAIN::write(0x60); // 3_35
-    GBS::VDS_UCOS_GAIN::write(0x21); // 3_36
-    GBS::VDS_VCOS_GAIN::write(0x21); // 3_37
-    GBS::VDS_Y_OFST::write(0xfe); // 3_3a
+    applyComponentColorMixing();
   }
 }
 
