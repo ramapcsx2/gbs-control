@@ -445,10 +445,6 @@ void OutputComponentOrVGA() {
     GBS::VDS_SYNC_LEV::write(0x90); // 0.28Vpp sync (leaves a little room for color range)
     GBS::VDS_CONVT_BYPS::write(1); // output YUV
     GBS::OUT_SYNC_CNTRL::write(0); // no H / V sync out
-    GBS::VDS_Y_GAIN::write(0x60); // 3_35
-    GBS::VDS_UCOS_GAIN::write(0x21); // 3_36
-    GBS::VDS_VCOS_GAIN::write(0x21); // 3_37
-    GBS::VDS_Y_OFST::write(0xfe); // 3_3a
   }
   else {
     SerialM.println("VGA");
@@ -478,7 +474,7 @@ void applyYuvPatches() {
   GBS::VDS_V_OFST::write(0x00); // 0 3_3c
 
   if (uopt->wantOutputComponent) {
-    GBS::VDS_Y_GAIN::write(0x60); // 3_35
+    GBS::VDS_Y_GAIN::write(0x61); // 3_35
     GBS::VDS_UCOS_GAIN::write(0x21); // 3_36
     GBS::VDS_VCOS_GAIN::write(0x21); // 3_37
     GBS::VDS_Y_OFST::write(0xfe); // 3_3a
