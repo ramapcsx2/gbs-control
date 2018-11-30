@@ -159,6 +159,7 @@ struct userOptions {
   uint8_t frameTimeLockMethod;
   uint8_t enableAutoGain;
   uint8_t wantScanlines;
+  uint8_t wantOutputComponent;
 } uopts;
 struct userOptions *uopt = &uopts;
 
@@ -437,10 +438,34 @@ void setResetParameters() {
   GBS::PAD_SYNC_OUT_ENZ::write(0); // sync output enabled, will be low (HC125 fix)
 }
 
-void applyYuvPatches() {
-  //GBS::ADC_AUTO_OFST_EN::write(1); // this would be fine
-  //GBS::IF_AUTO_OFST_EN::write(1); // but this adds noise
+void OutputComponentOrVGA() {
+  SerialM.print("Output Format: ");
+  if (uopt->wantOutputComponent) {
+    SerialM.println("Component");
+    GBS::VDS_SYNC_LEV::write(0x90); // 0.28Vpp sync (leaves a little room for color range)
+    GBS::VDS_CONVT_BYPS::write(1); // output YUV
+    GBS::OUT_SYNC_CNTRL::write(0); // no H / V sync out
+    GBS::VDS_Y_GAIN::write(0x60); // 3_35
+    GBS::VDS_UCOS_GAIN::write(0x21); // 3_36
+    GBS::VDS_VCOS_GAIN::write(0x21); // 3_37
+    GBS::VDS_Y_OFST::write(0xfe); // 3_3a
+  }
+  else {
+    SerialM.println("VGA");
+    GBS::VDS_SYNC_LEV::write(0);
+    GBS::VDS_CONVT_BYPS::write(0); // output RGB
+    GBS::OUT_SYNC_CNTRL::write(1); // H / V sync out enable
+  }
 
+  if (rto->inputIsYpBpR == true) {
+    applyYuvPatches();
+  }
+  else {
+    applyRGBPatches();
+  }
+}
+
+void applyYuvPatches() {
   GBS::ADC_RYSEL_R::write(1); // midlevel clamp red
   GBS::ADC_RYSEL_B::write(1); // midlevel clamp blue
   GBS::IF_MATRIX_BYPS::write(1);
@@ -451,11 +476,16 @@ void applyYuvPatches() {
   GBS::VDS_Y_OFST::write(0x00); // 0 3_3a
   GBS::VDS_U_OFST::write(0x00); // 0 3_3b
   GBS::VDS_V_OFST::write(0x00); // 0 3_3c
+
+  if (uopt->wantOutputComponent) {
+    GBS::VDS_Y_GAIN::write(0x60); // 3_35
+    GBS::VDS_UCOS_GAIN::write(0x21); // 3_36
+    GBS::VDS_VCOS_GAIN::write(0x21); // 3_37
+    GBS::VDS_Y_OFST::write(0xfe); // 3_3a
+  }
 }
 
 void applyRGBPatches() {
-  GBS::ADC_AUTO_OFST_EN::write(0); 
-  GBS::IF_AUTO_OFST_EN::write(0);
   GBS::ADC_RYSEL_R::write(0); // gnd clamp red
   GBS::ADC_RYSEL_B::write(0); // gnd clamp blue
   GBS::IF_MATRIX_BYPS::write(0);
@@ -468,6 +498,13 @@ void applyRGBPatches() {
   GBS::VDS_Y_OFST::write(0x00); // 3_3a
   GBS::VDS_U_OFST::write(0x00); // 3_3b
   GBS::VDS_V_OFST::write(0x00); // 3_3c
+
+  if (uopt->wantOutputComponent) {
+    GBS::VDS_Y_GAIN::write(0x60); // 3_35
+    GBS::VDS_UCOS_GAIN::write(0x21); // 3_36
+    GBS::VDS_VCOS_GAIN::write(0x21); // 3_37
+    GBS::VDS_Y_OFST::write(0xfe); // 3_3a
+  }
 }
 
 void setAdcParametersGainAndOffset() {
@@ -593,7 +630,7 @@ void setAndUpdateSogLevel(uint8_t level) {
 // Generally, the ADC has to stay enabled to perform SOG separation and thus "see" a source.
 // It is possible to run in low power mode.
 void goLowPowerWithInputDetection() {
-  SerialM.println("low power input detect");
+  SerialM.println("input detect mode");
   zeroAll();
   setResetParameters(); // includes rto->videoStandardInput = 0
   loadPresetMdSection(); // fills 1_60 to 1_83
@@ -1778,6 +1815,8 @@ void doPostPresetLoadSteps() {
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
   
+  OutputComponentOrVGA();
+
   SerialM.println("post preset done");
   rto->applyPresetDoneStage = 1;
   rto->applyPresetDoneTime = millis();
@@ -2816,6 +2855,7 @@ void setup() {
   uopt->frameTimeLockMethod = 0; // compatibility with more displays
   uopt->enableAutoGain = 0;
   uopt->wantScanlines = 0;
+  uopt->wantOutputComponent = 0;
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->enableDebugPings = false;
@@ -2877,13 +2917,14 @@ void setup() {
       uopt->frameTimeLockMethod = 0;
       uopt->enableAutoGain = 0;
       uopt->wantScanlines = 0;
+      uopt->wantOutputComponent = 0;
       saveUserPrefs(); // if this fails, there must be a spiffs problem
     }
     else {
       SerialM.println("userprefs open ok");
       //on a fresh / spiffs not formatted yet MCU:
       //userprefs.txt open ok //result[0] = 207 //result[1] = 207
-      char result[6];
+      char result[7];
       result[0] = f.read(); result[0] -= '0'; // file streams with their chars..
       uopt->presetPreference = (uint8_t)result[0];
       SerialM.print("presetPreference = "); SerialM.println(uopt->presetPreference);
@@ -2914,6 +2955,10 @@ void setup() {
       SerialM.print("wantScanlines = "); SerialM.println(uopt->wantScanlines);
       if (uopt->wantScanlines > 1) uopt->wantScanlines = 0; // fresh spiffs ?
 
+      result[6] = f.read(); result[6] -= '0';
+      uopt->wantOutputComponent = (uint8_t)result[6];
+      SerialM.print("wantOutputComponent = "); SerialM.println(uopt->wantOutputComponent);
+      if (uopt->wantOutputComponent > 1) uopt->wantOutputComponent = 0; // fresh spiffs ?
       f.close();
     }
   }
@@ -3366,7 +3411,10 @@ void loop() {
       }
     break;
     case 'L':
-      //
+      // Component / VGA Output
+      uopt->wantOutputComponent = !uopt->wantOutputComponent;
+      OutputComponentOrVGA();
+      saveUserPrefs();
     break;
     case 'l':
       SerialM.println("resetSyncProcessor");
@@ -4277,7 +4325,7 @@ void handleType2Command() {
         SerialM.println("userprefs open failed");
       }
       else {
-        char result[6];
+        char result[7];
         result[0] = f.read(); result[0] -= '0'; // file streams with their chars..
         SerialM.print("presetPreference = "); SerialM.println((uint8_t)result[0]);
         result[1] = f.read(); result[1] -= '0';
@@ -4290,6 +4338,8 @@ void handleType2Command() {
         SerialM.print("enableAutoGain = "); SerialM.println((uint8_t)result[4]);
         result[5] = f.read(); result[5] -= '0';
         SerialM.print("wantScanlines = "); SerialM.println((uint8_t)result[5]);
+        result[6] = f.read(); result[6] -= '0';
+        SerialM.print("wantOutputComponent = "); SerialM.println((uint8_t)result[6]);
         f.close();
       }
     }
@@ -4702,7 +4752,7 @@ void savePresetToSPIFFS() {
 void saveUserPrefs() {
   File f = SPIFFS.open("/userprefs.txt", "w");
   if (!f) {
-    SerialM.println("saving preferences failed");
+    SerialM.println("saveUserPrefs: open file failed");
     return;
   }
   f.write(uopt->presetPreference + '0');
@@ -4711,6 +4761,7 @@ void saveUserPrefs() {
   f.write(uopt->frameTimeLockMethod + '0');
   f.write(uopt->enableAutoGain + '0');
   f.write(uopt->wantScanlines + '0');
+  f.write(uopt->wantOutputComponent + '0');
   SerialM.println("userprefs saved: ");
   f.close();
 
@@ -4720,7 +4771,7 @@ void saveUserPrefs() {
     SerialM.println("userprefs open failed");
   }
   else {
-    char result[6];
+    char result[7];
     result[0] = f.read(); result[0] -= '0'; // file streams with their chars..
     SerialM.print("  presetPreference = "); SerialM.println((uint8_t)result[0]);
     result[1] = f.read(); result[1] -= '0';
@@ -4733,6 +4784,8 @@ void saveUserPrefs() {
     SerialM.print("  enableAutoGain = "); SerialM.println((uint8_t)result[4]);
     result[5] = f.read(); result[5] -= '0';
     SerialM.print("  wantScanlines = "); SerialM.println((uint8_t)result[5]);
+    result[6] = f.read(); result[6] -= '0';
+    SerialM.print("  wantOutputComponent = "); SerialM.println((uint8_t)result[6]);
     f.close();
   }
 }

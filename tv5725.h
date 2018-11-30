@@ -172,6 +172,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x4B, 2,  1> DAC_RGBS_ADC2DAC;
     typedef UReg<0x00, 0x4D, 0,  5> TEST_BUS_SEL;
     typedef UReg<0x00, 0x4D, 5,  1> TEST_BUS_EN;
+    typedef UReg<0x00, 0x4F, 5,  2> OUT_SYNC_CNTRL;
     typedef UReg<0x00, 0x4F, 6,  2> OUT_SYNC_SEL;
 
     typedef UReg<0x00, 0x52, 0,  8> GPIO_CONTROL_00;
