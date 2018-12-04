@@ -445,6 +445,26 @@ void OutputComponentOrVGA() {
     GBS::VDS_SYNC_LEV::write(0x80); // 0.25Vpp sync (leave more room for Y)
     GBS::VDS_CONVT_BYPS::write(1); // output YUV
     GBS::OUT_SYNC_CNTRL::write(0); // no H / V sync out
+    // patch up some presets
+    boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
+    uint8_t id = GBS::GBS_PRESET_ID::read();
+    if (!isCustomPreset) {
+      if (id == 0x02 || id == 0x12 || id == 0x01 || id == 0x11) { // 1280x1024, 1280x960 presets
+        set_vtotal(1090); // 1080 is enough lines to trick my tv into "1080p" mode
+        if (id == 0x02 || id == 0x01) { // 60
+          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() - 16);
+          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() - 16);
+          GBS::VDS_HS_SP::write(10);
+        }
+        else { // 50
+          GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 70);
+          GBS::VDS_HSCALE::write(724);
+          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() - 18);
+          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() - 18);
+        }
+        rto->forceRetime = true;
+      }
+    }
   }
   else {
     SerialM.println("VGA");
@@ -465,7 +485,7 @@ void applyComponentColorMixing() {
   GBS::VDS_Y_GAIN::write(0x64); // 3_35
   GBS::VDS_UCOS_GAIN::write(0x19); // 3_36
   GBS::VDS_VCOS_GAIN::write(0x19); // 3_37
-  GBS::VDS_Y_OFST::write(0xff); // 3_3a
+  GBS::VDS_Y_OFST::write(0xfe); // 3_3a
   GBS::VDS_U_OFST::write(0x01); // 3_3b
 }
 
@@ -572,8 +592,8 @@ void setSpParameters() {
 
   GBS::SP_SDCS_VSST_REG_H::write(0);
   GBS::SP_SDCS_VSSP_REG_H::write(0);
-  GBS::SP_SDCS_VSST_REG_L::write(0x02); // 5_3f // 0 and 1 not good in passthrough modes, assume same for regular
-  GBS::SP_SDCS_VSSP_REG_L::write(0x0c); // 5_40 0x0c=12 // not 0x0b, test pal feedback clock preset
+  GBS::SP_SDCS_VSST_REG_L::write(4); // 5_3f // 0 and 1 not good in passthrough modes, assume same for regular
+  GBS::SP_SDCS_VSSP_REG_L::write(7); // 5_40 // test pal feedback clock preset
   GBS::SP_CS_HS_ST::write(0x00);
   GBS::SP_CS_HS_SP::write(0x08); // was 0x05, 720p source needs 0x08
 
@@ -1443,36 +1463,27 @@ void set_htotal(uint16_t htotal) {
 }
 
 void set_vtotal(uint16_t vtotal) {
-  // VS stop - VB start must stay constant to avoid vertical wiggle
-  // VS stop - VS start must stay constant to maintain sync
-  uint16_t VDS_DIS_VB_ST = (((uint32_t)vtotal * 24) / 25) - 4; // just below vtotal
-  uint16_t VDS_DIS_VB_SP = 8; // positive, just above 0
-  // Offset by maxCorrection to prevent front porch from going negative
-  uint16_t v_sync_start_position = ((uint32_t)vtotal * 961) / 1000;
-  uint16_t v_sync_stop_position = ((uint32_t)vtotal * 241) / 250;
+  uint16_t VDS_DIS_VB_ST = vtotal - 2; // just below vtotal
+  uint16_t VDS_DIS_VB_SP = (vtotal >> 6) + 8; // positive, above new sync stop position
+  uint16_t VDS_VB_ST = ((uint16_t)(vtotal * 0.016f)) & 0xfffe; // small fraction of vtotal
+  uint16_t VDS_VB_SP = VDS_VB_ST + 2; // always VB_ST + 2
+  uint16_t v_sync_start_position = 1;
+  uint16_t v_sync_stop_position = 5;
   // most low line count formats have negative sync!
-  // exception: 1024x768 (1344x806 total) has both sync neg.
-  // also 1360x768 (1792x795 total)
+  // exception: 1024x768 (1344x806 total) has both sync neg. // also 1360x768 (1792x795 total)
   if ((vtotal < 530) || (vtotal >=803 && vtotal <= 809) || (vtotal >=793 && vtotal <= 798)) {
     uint16_t temp = v_sync_start_position;
     v_sync_start_position = v_sync_stop_position;
     v_sync_stop_position = temp;
   }
 
-  //uint16_t VDS_VB_ST = VDS_DIS_VB_SP - 4;
-  //uint16_t VDS_VB_SP = VDS_DIS_VB_SP - 2;
-
   GBS::VDS_VSYNC_RST::write(vtotal);
   GBS::VDS_VS_ST::write(v_sync_start_position);
   GBS::VDS_VS_SP::write(v_sync_stop_position);
-  GBS::VDS_VB_ST::write(0);
-  GBS::VDS_VB_SP::write(2);
+  GBS::VDS_VB_ST::write(VDS_VB_ST);
+  GBS::VDS_VB_SP::write(VDS_VB_SP);
   GBS::VDS_DIS_VB_ST::write(VDS_DIS_VB_ST);
   GBS::VDS_DIS_VB_SP::write(VDS_DIS_VB_SP);
-
-  // also reset IF offset here
-  GBS::IF_VB_ST::write(21);
-  GBS::IF_VB_SP::write(22);
 }
 
 void enableDebugPort() {
@@ -1559,8 +1570,15 @@ void applyBestHTotal(uint16_t bestHTotal) {
     // move HSync
     uint16_t h_sync_start_position = GBS::VDS_HS_ST::read();
     uint16_t h_sync_stop_position = GBS::VDS_HS_SP::read();
-    h_sync_start_position += diffHTotal;
-    h_sync_stop_position += diffHTotal;
+    if (h_sync_start_position < h_sync_stop_position) { // is neg HSync
+      h_sync_stop_position = bestHTotal - ((uint16_t)(bestHTotal * 0.0198f));
+    }
+    else {
+      //h_sync_stop_position = (uint16_t)(bestHTotal * 0.0198f);
+      h_sync_stop_position -= (uint16_t)(diffHTotal * 0.18f);
+    }
+    h_sync_start_position += (uint16_t)(diffHTotal * 1.4f);
+    //h_sync_stop_position += diffHTotal;
 
     uint16_t h_blank_memory_start_position = GBS::VDS_HB_ST::read();
     uint16_t h_blank_memory_stop_position = GBS::VDS_HB_SP::read();
@@ -1608,8 +1626,6 @@ void applyBestHTotal(uint16_t bestHTotal) {
   }
   SerialM.print("Base: "); SerialM.print(orig_htotal);
   SerialM.print(" Best: "); SerialM.println(bestHTotal);
-  // todo: websocket breaks on this if diffHTotal is negative
-  //SerialM.print(" Diff: "); SerialM.println(diffHTotal);
 }
 
 void doPostPresetLoadSteps() {
@@ -1676,19 +1692,19 @@ void doPostPresetLoadSteps() {
       GBS::IF_LD_RAM_BYPS::write(1); // no LD 1_0c 0
       GBS::IF_HB_SP::write(0); // cancel deinterlace offset, fixes colors
       // horizontal shift
-      GBS::IF_HB_SP2::write(0xa8); // 1_1a
-      GBS::IF_HB_ST2::write(0x98); // 1_18 necessary
+      GBS::IF_HB_SP2::write(0xb8); // 1_1a
+      GBS::IF_HB_ST2::write(0xb0); // 1_18 necessary
       //GBS::IF_HBIN_ST::write(1104); // 1_24 // no effect seen but may be necessary
       GBS::IF_HBIN_SP::write(0x98); // 1_26
       // vertical shift
-      GBS::IF_VB_ST::write(0x0e);
-      GBS::IF_VB_SP::write(0x10);
+      //GBS::IF_VB_ST::write(0x0e);
+      //GBS::IF_VB_SP::write(0x10);
     }
     else if (rto->videoStandardInput == 4) { // ED YUV 50
       // p-scan pal, need to either double adc data rate and halve vds scaling
       // or disable line doubler (better)
       GBS::PLLAD_KS::write(1); // 5_16
-      GBS::VDS_VSCALE::write(512);
+      GBS::VDS_VSCALE::write(563); // was 512, way too large
       GBS::VDS_3_24_FILTER::write(0xb0);
       GBS::IF_SEL_WEN::write(1);
       GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 4 filter
@@ -1703,10 +1719,10 @@ void doPostPresetLoadSteps() {
       GBS::IF_HB_ST2::write(0xb4); // 1_18 necessary
       GBS::IF_HBIN_SP::write(0x9a); // 1_26
       // vertical shift
-      GBS::IF_VB_ST::write(0x46);
-      GBS::IF_VB_SP::write(0x48);
-      setDisplayVblankStopPosition(10);
-      setDisplayVblankStartPosition(984);
+      //GBS::IF_VB_ST::write(0x46);
+      //GBS::IF_VB_SP::write(0x48);
+      //setDisplayVblankStopPosition(10);
+      //setDisplayVblankStartPosition(984);
     }
     else if (rto->videoStandardInput == 5) { // 720p
       GBS::SP_HD_MODE::write(1); // tri level sync
@@ -1778,7 +1794,7 @@ void doPostPresetLoadSteps() {
     rto->phaseSP = 15; // can hardcode this to 15 now
 
     // 4 segment 
-    GBS::CAP_SAFE_GUARD_EN::write(1); // 4_21_5
+    GBS::CAP_SAFE_GUARD_EN::write(0); // 4_21_5 // does more harm than good
     GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2 vertical scale down line buffer bypass (not the vds one, the internal one for reduction)
     // memory timings, anti noise
     GBS::PB_CUT_REFRESH::write(1); // test, helps with PLL=ICLK mode artefacting
@@ -1824,7 +1840,12 @@ void applyPresets(uint8_t result) {
   if (result == 1) {
     SerialM.println("60Hz ");
     if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(ntsc_240p);
+      if (uopt->wantOutputComponent) {
+        writeProgramArrayNew(ntsc_1280x1024); // override to x1024, later to be patched to 1080p
+      }
+      else {
+        writeProgramArrayNew(ntsc_240p);
+      }
     }
     else if (uopt->presetPreference == 1) {
       writeProgramArrayNew(ntsc_feedbackclock);
@@ -1846,7 +1867,12 @@ void applyPresets(uint8_t result) {
   else if (result == 2) {
     SerialM.println("50Hz ");
     if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(pal_240p);
+      if (uopt->wantOutputComponent) {
+        writeProgramArrayNew(pal_1280x1024); // override to x1024, later to be patched to 1080p
+      }
+      else {
+        writeProgramArrayNew(pal_240p);
+      }
     }
     else if (uopt->presetPreference == 1) {
       writeProgramArrayNew(pal_feedbackclock);
@@ -2496,11 +2522,8 @@ void passThroughWithIfModeSwitch() {
     rto->phaseADC = 0; setPhaseADC();
     GBS::SP_SDCS_VSST_REG_H::write(0x00); // S5_3B
     GBS::SP_SDCS_VSSP_REG_H::write(0x00); // S5_3B
-    GBS::SP_SDCS_VSST_REG_L::write(0x02); // S5_3F
-    GBS::SP_SDCS_VSSP_REG_L::write(0x0b); // S5_40
-    if (rto->videoStandardInput == 6) {
-      GBS::SP_SDCS_VSSP_REG_L::write(0x0c); // S5_40
-    }
+    GBS::SP_SDCS_VSST_REG_L::write(0x04); // S5_3F
+    GBS::SP_SDCS_VSSP_REG_L::write(0x07); // S5_40
     // IF
     GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 bit 4 filter off looks better
     GBS::IF_HS_Y_PDELAY::write(3); // 1_02 bits 5+6
@@ -2562,8 +2585,8 @@ void bypassModeSwitch_SOG() {
     //GBS::SP_CS_0x3E::write(0x20); // sub coast off, ovf protect off
     //GBS::PLL648_CONTROL_01::write(0x35); // display clock
     //GBS::PLLAD_MD::write(1802);
-    GBS::SP_SDCS_VSST_REG_L::write(0);
-    GBS::SP_SDCS_VSSP_REG_L::write(12);
+    GBS::SP_SDCS_VSST_REG_L::write(4);
+    GBS::SP_SDCS_VSSP_REG_L::write(7);
     //GBS::RESET_CONTROL_0x46::write(0); // none required
   }
   else {
@@ -2708,9 +2731,9 @@ void enableScanlines() {
   if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 0) {
     //SerialM.println("enableScanlines())");
     GBS::MAPDT_VT_SEL_PRGV::write(0);
-    GBS::VDS_Y_GAIN::write(0x98); // more luma gain
-    GBS::VDS_UCOS_GAIN::write(0x1e);
-    GBS::VDS_VCOS_GAIN::write(0x2d);
+    GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 24); // more luma gain
+    GBS::VDS_UCOS_GAIN::write(GBS::VDS_UCOS_GAIN::read() + 2);
+    GBS::VDS_VCOS_GAIN::write(GBS::VDS_VCOS_GAIN::read() + 5);
     GBS::MADPT_VIIR_COEF::write(0x14); // set up VIIR filter 2_27
     GBS::MADPT_Y_MI_DET_BYPS::write(1); // make sure, so that mixing works
     GBS::MADPT_Y_MI_OFFSET::write(0x50); // 2_0b offset (mixing factor here)
@@ -2727,9 +2750,9 @@ void disableScanlines() {
   if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) {
     //SerialM.println("disableScanlines())");
     GBS::MAPDT_VT_SEL_PRGV::write(1);
-    GBS::VDS_Y_GAIN::write(0x80); //writeOneByte(0x35, 0x80);
-    GBS::VDS_UCOS_GAIN::write(0x1c);
-    GBS::VDS_VCOS_GAIN::write(0x28);
+    GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 24);
+    GBS::VDS_UCOS_GAIN::write(GBS::VDS_UCOS_GAIN::read() - 2);
+    GBS::VDS_VCOS_GAIN::write(GBS::VDS_VCOS_GAIN::read() - 5);
     GBS::MADPT_Y_MI_OFFSET::write(0xff); // 2_0b offset 0xff disables mixing
     GBS::MADPT_PD_RAM_BYPS::write(1);
     GBS::MADPT_VIIR_BYPS::write(1); // disable VIIR 
@@ -3409,10 +3432,20 @@ void loop() {
       }
     break;
     case 'L':
+    {
       // Component / VGA Output
       uopt->wantOutputComponent = !uopt->wantOutputComponent;
       OutputComponentOrVGA();
       saveUserPrefs();
+      // apply 1280x720 preset now, otherwise a reboot would be required
+      uint8_t videoMode = getVideoMode();
+      if (videoMode == 0) videoMode = rto->videoStandardInput;
+      uint8_t backup = uopt->presetPreference;
+      uopt->presetPreference = 3;
+      rto->videoStandardInput = 0; // force hard reset
+      applyPresets(videoMode);
+      uopt->presetPreference = backup;
+    }
     break;
     case 'l':
       SerialM.println("resetSyncProcessor");
@@ -4593,7 +4626,8 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
 
     f.close();
     if ((uint8_t)(result[2] - '0') < 10) group = result[2]; // otherwise not stored on spiffs
-    SerialM.print("loading from presetGroup "); SerialM.println((uint8_t)(group - '0')); // custom preset group (console)
+    SerialM.print("loading from presetGroup "); SerialM.print((uint8_t)(group - '0'));
+    SerialM.print(": ");
   }
   else {
     // file not found, we don't know what preset to load
@@ -4627,7 +4661,6 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
     else return ntsc_240p;
   }
   else {
-    SerialM.println("preset file open ok: ");
     SerialM.println(f.name());
     s = f.readStringUntil('}');
     f.close();

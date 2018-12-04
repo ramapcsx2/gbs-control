@@ -217,6 +217,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x28, 4,  4> IF_TEST_SEL;
     typedef UReg<0x01, 0x29, 0,  1> IF_AUTO_OFST_EN;
     typedef UReg<0x01, 0x29, 2,  1> IF_AUTO_OFST_RESERVED_2;
+    typedef UReg<0x01, 0x2B, 0,  8> GBS_PRESET_ID;
 
     // Mode Detect
     typedef UReg<0x01, 0x63, 6,  1> MD_HS_FLIP;
