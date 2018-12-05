@@ -1677,11 +1677,17 @@ void doPostPresetLoadSteps() {
   }
 
   if (!isCustomPreset) {
+    uint8_t id = GBS::GBS_PRESET_ID::read();
     if (rto->videoStandardInput == 3) { // ED YUV 60
       // p-scan ntsc, need to either double adc data rate and halve vds scaling
       // or disable line doubler (better)
       GBS::PLLAD_KS::write(1); // 5_16
-      GBS::VDS_VSCALE::write(512); // 548
+      GBS::VDS_VSCALE::write(512);
+      if (id == 0x3) { // 720p output
+        GBS::VDS_VSCALE::write(720);
+        GBS::IF_VB_ST::write(0x02);
+        GBS::IF_VB_SP::write(0x04);
+      }
       GBS::VDS_3_24_FILTER::write(0xb0);
       GBS::IF_SEL_WEN::write(1); // 1_02 0
       GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 4 filter
@@ -1705,6 +1711,11 @@ void doPostPresetLoadSteps() {
       // or disable line doubler (better)
       GBS::PLLAD_KS::write(1); // 5_16
       GBS::VDS_VSCALE::write(563); // was 512, way too large
+      if (id == 0x13) { // 720p output
+        GBS::VDS_VSCALE::write(840);
+        GBS::IF_VB_ST::write(0x16);
+        GBS::IF_VB_SP::write(0x18);
+      }
       GBS::VDS_3_24_FILTER::write(0xb0);
       GBS::IF_SEL_WEN::write(1);
       GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 4 filter
@@ -1898,12 +1909,10 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(ntsc_240p);
     }
     else if (uopt->presetPreference == 1) {
-      //writeProgramArrayNew(ntsc_feedbackclock); // not supported atm
-      writeProgramArrayNew(ntsc_240p);
+      writeProgramArrayNew(ntsc_feedbackclock); // not well supported
     }
     else if (uopt->presetPreference == 3) {
-      //writeProgramArrayNew(ntsc_1280x720); // not supported atm
-      writeProgramArrayNew(ntsc_240p);
+      writeProgramArrayNew(ntsc_1280x720); // not well supported
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
@@ -1912,8 +1921,7 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(preset);
     }
     else if (uopt->presetPreference == 4) {
-      //writeProgramArrayNew(ntsc_1280x1024); // not supported atm
-      writeProgramArrayNew(ntsc_240p);
+      writeProgramArrayNew(ntsc_1280x1024); // not well supported
     }
 #endif
   }
@@ -1924,12 +1932,10 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(pal_240p);
     }
     else if (uopt->presetPreference == 1) {
-      //writeProgramArrayNew(pal_feedbackclock); // not supported atm
-      writeProgramArrayNew(pal_240p);
+      writeProgramArrayNew(pal_feedbackclock); // not well supported
     }
     else if (uopt->presetPreference == 3) {
-      //writeProgramArrayNew(pal_1280x720); // not supported atm
-      writeProgramArrayNew(pal_240p);
+      writeProgramArrayNew(pal_1280x720); // not well supported
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
@@ -1942,71 +1948,28 @@ void applyPresets(uint8_t result) {
     }
 #endif
   }
-  else if (result == 5) {
-    SerialM.println("720p 60Hz HDTV ");
+  else if (result == 5 || result == 6 || result == 7 || result == 14) {
     // use bypass mode for all configs
-    rto->outModePassThroughWithIf = 0;
-    rto->videoStandardInput = 5;
-    passThroughWithIfModeSwitch();
-    return;
-
-    /*if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(ntsc_240p);
+    if (result == 5) {
+      SerialM.println("720p 60Hz HDTV ");
+      rto->videoStandardInput = 5;
     }
-    else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(ntsc_feedbackclock);
-    }
-    else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(ntsc_1280x720);
-    }
-#if defined(ESP8266)
-    else if (uopt->presetPreference == 2) {
-      SerialM.println("(custom)");
-      const uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset);
-    }
-    else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(ntsc_1280x1024);
-    }
-#endif*/
-  }
-  else if (result == 6 || result == 7 || result == 14) {
-    if (result == 6) {
+    else if (result == 6) {
       SerialM.println("1080i 60Hz HDTV ");
       rto->videoStandardInput = 6;
     }
-    if (result == 7) {
+    else if (result == 7) {
       SerialM.println("1080p 60Hz HDTV ");
       rto->videoStandardInput = 7;
     }
-    if (result == 14) {
+    else if (result == 14) {
       SerialM.println("unkn. HD mode ");
       rto->videoStandardInput = 14;
     }
-    // use bypass mode for all configs
+
     rto->outModePassThroughWithIf = 0;
     passThroughWithIfModeSwitch();
     return;
-
-    /*if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(ntsc_240p);
-    }
-    else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(ntsc_feedbackclock);
-    }
-    else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(ntsc_1280x720);
-    }
-#if defined(ESP8266)
-    else if (uopt->presetPreference == 2) {
-      SerialM.println("(custom)");
-      const uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset);
-    }
-    else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(ntsc_1280x1024);
-    }
-#endif*/
   }
   else if (result == 15) {
     SerialM.println("RGBHV bypass ");
