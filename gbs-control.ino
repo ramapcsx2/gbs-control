@@ -975,6 +975,7 @@ void dumpRegisters(byte segment)
 }
 
 void resetPLLAD() {
+  GBS::PLLAD_PDZ::write(1); // in case it was off
   GBS::PLLAD_VCORST::write(1);
   delay(1);
   latchPLLAD();
@@ -1650,7 +1651,11 @@ void doPostPresetLoadSteps() {
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->scanlinesEnabled = false;
   rto->failRetryAttempts = 0;
-  
+  rto->outModePassThroughWithIf = 0; // could be 1 if it was active, but overriden by preset load
+
+  resetDigital(); // early full reset, improve time to mode detect lock
+  resetPLL();
+
   // test: set IF_HSYNC_RST based on pll divider 5_12/13
   //GBS::IF_LINE_SP::write((GBS::PLLAD_MD::read() / 2) - 1);
   //GBS::IF_HSYNC_RST::write((GBS::PLLAD_MD::read() / 2) - 2); // remember: 1_0e always -1
@@ -1756,22 +1761,21 @@ void doPostPresetLoadSteps() {
     }
   }
 
-  rto->outModePassThroughWithIf = 0; // could be 1 if it was active, but overriden by preset load
+  GBS::VDS_IN_DREG_BYPS::write(0); // 3_40 2 // 0 = input data triggered on falling clock edge, 1 = bypass
+
   setSpParameters();
   setAndUpdateSogLevel(rto->currentLevelSOG); // update to previously determined sog level
 
   // auto ADC gain
-  //GBS::ADC_TR_RSEL::write(2); // ADC_TR_RSEL = 2 test
-  //GBS::ADC_TR_ISEL::write(0); // leave current at default
   if (uopt->enableAutoGain == 1 && !isCustomPreset && !rto->inputIsYpBpR && adco->r_gain == 0) {
-    SerialM.println("default adc gain");
+    SerialM.println("ADC gain: reset");
     GBS::ADC_RGCTRL::write(0x40);
     GBS::ADC_GGCTRL::write(0x40);
     GBS::ADC_BGCTRL::write(0x40);
     GBS::DEC_TEST_ENABLE::write(1);
   }
   else if (uopt->enableAutoGain == 1 && !isCustomPreset && !rto->inputIsYpBpR && adco->r_gain != 0) {
-    SerialM.println("remembered adc gain: ");
+    SerialM.println("ADC gain: keep previous");
     SerialM.print(adco->r_gain, HEX); SerialM.print(" ");
     SerialM.print(adco->g_gain, HEX); SerialM.print(" ");
     SerialM.print(adco->b_gain, HEX); SerialM.println(" ");
@@ -1781,7 +1785,7 @@ void doPostPresetLoadSteps() {
     GBS::DEC_TEST_ENABLE::write(1);
   }
   else if (!isCustomPreset) {
-    GBS::DEC_TEST_ENABLE::write(0);
+    GBS::DEC_TEST_ENABLE::write(0); // no need for decimation test to be enabled
   }
 
   if (!isCustomPreset) {
@@ -1797,7 +1801,6 @@ void doPostPresetLoadSteps() {
   GBS::DEC_IDREG_EN::write(1);
   GBS::DEC_WEN_MODE::write(1); // keeps ADC phase consistent. around 4 lock positions vs totally random
 
-  GBS::PLLAD_PDZ::write(1); // in case it was off
   resetPLLAD(); // turns on pllad
 
   if (!isCustomPreset) {
@@ -1817,10 +1820,7 @@ void doPostPresetLoadSteps() {
     GBS::MEM_FBK_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x02
   }
 
-  resetPLL();
-  resetDigital();
   ResetSDRAM();
-  delay(20);
 
   rto->autoBestHtotalEnabled = true; // will re-detect whether debug wire is present
   Menu::init();
@@ -1829,7 +1829,8 @@ void doPostPresetLoadSteps() {
   rto->syncLockFailIgnore = 2;
 
   unsigned long timeout = millis();
-  while (getVideoMode() == 0 && millis() - timeout < 800) { delay(1); } // wifi stack // stability
+  while (getVideoMode() == 0 && millis() - timeout < 800) { delay(1); }
+  while (millis() - timeout < 150) { delay(1); } // at least minimum delay (bypass modes) 
   //SerialM.print("to1 is: "); SerialM.println(millis() - timeout);
 
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
