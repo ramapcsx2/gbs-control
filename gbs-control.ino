@@ -86,21 +86,11 @@ Pinger pinger; // pinger global object to aid debugging WiFi issues
 // Sync locking tunables/magic numbers
 //
 struct FrameSyncAttrs {
-  //static const uint8_t vsyncInPin = VSYNC_IN_PIN;
   static const uint8_t debugInPin = DEBUG_IN_PIN;
-  // Sync lock sampling timeout in microseconds
-  static const uint32_t timeout = 900000;
-  // Sync lock interval in milliseconds
-  static const uint32_t lockInterval = 60 * 16; // every 60 frames. good range for this: 30 to 90
-  // Sync correction in scanlines to apply when phase lags target
-  static const int16_t correction = 2;
-  // Target vsync phase offset (output trails input) in degrees
-  static const int32_t targetPhase = 90;
-  // Number of consistent best htotal results to get in a row before considering it valid
-  // ! deprecated when switching htotal measurement source to VDS
-  //static const uint8_t htotalStable = 4;
-  // Number of samples to average when determining best htotal
-  static const uint8_t samples = 1;
+  static const uint32_t syncTimeout = 900000; // Sync lock sampling timeout in microseconds
+  static const uint32_t lockInterval = 60 * 16; // every 60 frames. good range for this: 30 to 90 (milliseconds)
+  static const int16_t syncCorrection = 2; // Sync correction in scanlines to apply when phase lags target
+  static const int32_t syncTargetPhase = 90; // Target vsync phase offset (output trails input) in degrees
 };
 typedef FrameSyncManager<GBS, FrameSyncAttrs> FrameSync;
 
@@ -143,7 +133,6 @@ struct runTimeOptions {
   boolean autoBestHtotalEnabled;
   boolean DACIsOff;
   boolean forceRetime;
-  boolean optimizeSOG;
   boolean motionAdaptiveDeinterlaceActive;
   boolean deinterlaceAutoEnabled;
   boolean scanlinesEnabled;
@@ -172,6 +161,7 @@ struct adcOptions {
 struct adcOptions *adco = &adcopts;
 
 char globalCommand;
+//uint8_t globalDelay; // used for dev / debug
 
 #if defined(ESP8266)
 // serial mirror class for websocket logs
@@ -180,6 +170,7 @@ class SerialMirror : public Stream {
 #if defined(ESP8266)
     //if (rto->webSocketConnected) {
       webSocket.broadcastTXT(data, size); // broadcast is best for cases where contact was lost
+      delay(2);
     //}
 #endif
     Serial.write(data, size);
@@ -191,6 +182,7 @@ class SerialMirror : public Stream {
 #if defined(ESP8266)
     //if (rto->webSocketConnected) {
       webSocket.broadcastTXT(&data);
+      delay(2);
     //}
 #endif
     Serial.write(data);
@@ -389,7 +381,6 @@ void setResetParameters() {
   rto->isInLowPowerMode = false;
   rto->currentLevelSOG = 4;
   rto->failRetryAttempts = 0;
-  rto->optimizeSOG = false;
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->scanlinesEnabled = false;
 
@@ -440,13 +431,13 @@ void setResetParameters() {
 
 void OutputComponentOrVGA() {
   SerialM.print("Output Format: ");
+  boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
   if (uopt->wantOutputComponent) {
     SerialM.println("Component");
     GBS::VDS_SYNC_LEV::write(0x80); // 0.25Vpp sync (leave more room for Y)
     GBS::VDS_CONVT_BYPS::write(1); // output YUV
     GBS::OUT_SYNC_CNTRL::write(0); // no H / V sync out
     // patch up some presets
-    boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
     uint8_t id = GBS::GBS_PRESET_ID::read();
     if (!isCustomPreset) {
       if (id == 0x02 || id == 0x12 || id == 0x01 || id == 0x11) { // 1280x1024, 1280x960 presets
@@ -473,11 +464,13 @@ void OutputComponentOrVGA() {
     GBS::OUT_SYNC_CNTRL::write(1); // H / V sync out enable
   }
 
-  if (rto->inputIsYpBpR == true) {
-    applyYuvPatches();
-  }
-  else {
-    applyRGBPatches();
+  if (!isCustomPreset) {
+    if (rto->inputIsYpBpR == true) {
+      applyYuvPatches();
+    }
+    else {
+      applyRGBPatches();
+    }
   }
 }
 
@@ -711,46 +704,92 @@ void optimizePhaseSP() {
 
 void optimizeSogLevel() {
   if (rto->videoStandardInput == 15 || GBS::SP_SOG_MODE::read() != 1) return;
-  uint8_t noJitter = 0;
-  uint8_t debugRegSp = GBS::TEST_BUS_SP_SEL::read();
-  uint8_t debugRegBus = GBS::TEST_BUS_SEL::read();
-  GBS::TEST_BUS_SP_SEL::write(0x5b); // # 5 cs_sep module
-  // use PLLAD_BPS=1 and 5_63=0x0b instead! also 5_19 bit 6 off (lock SP) does smth
-  GBS::TEST_BUS_SEL::write(0xa);
-
-  rto->currentLevelSOG = 9; // anything above not useful
+  
+  uint8_t retryAttempts = 0;
+  boolean clampWasOn = 0;
+  rto->currentLevelSOG = 8;
   setAndUpdateSogLevel(rto->currentLevelSOG);
-  while (1) {
-    noJitter = 0;
-    GBS::PLLAD_PDZ::write(0); delay(1); GBS::PLLAD_PDZ::write(1);
-    delay(12);
-    for (uint8_t i = 0; i < 10; i++) {
-      uint16_t test1 = GBS::TEST_BUS::read() & 0x07ff;
-      delay(5);
-      uint16_t test2 = GBS::TEST_BUS::read() & 0x07ff;
+  if (rto->inputIsYpBpR) {
+    clampWasOn = GBS::SP_NO_CLAMP_REG::read();
+    if (clampWasOn) {
+      GBS::SP_NO_CLAMP_REG::write(1);
+      rto->clampPositionIsSet = false;
+    }
+  }
+
+  GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
+  GBS::INTERRUPT_CONTROL_00::write(0x00);
+  delay(5);
+  while (retryAttempts < 4) {
+    while (((GBS::STATUS_0F::read() & 0x01) == 1) || ((GBS::STATUS_0F::read() & 0x04) == 0)) {
       
-      if ((test1 > 0x0030) && (test1 < 0x0510)) {
-        if ((test1 <= test2 + 1) && (test1 >= test2 - 1)) {
-          noJitter++;
-          //Serial.print(rto->currentLevelSOG); Serial.print(": ");
-          //Serial.print("t1>"); Serial.print(test1, HEX); Serial.print(" t2>"); Serial.println(test2, HEX);
-        }
-      }
+      //SerialM.print("STATUS_0F: "); SerialM.println(GBS::STATUS_0F::read(), HEX);
+      //SerialM.print("STATUS_00: "); SerialM.println(GBS::STATUS_00::read(), HEX);
+      if (rto->currentLevelSOG > 0) { rto->currentLevelSOG--; }
+      else { break; }
+      setAndUpdateSogLevel(rto->currentLevelSOG);
+      //SerialM.print("SOG: "); SerialM.println(rto->currentLevelSOG);
+      GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
+      GBS::INTERRUPT_CONTROL_00::write(0x00);
+      delay(5);
     }
-    if (noJitter >= 9) { break; } // found
-    //SerialM.print("sog: "); SerialM.println(rto->currentLevelSOG);
-    setAndUpdateSogLevel(rto->currentLevelSOG);
-    if (rto->currentLevelSOG >= 2) rto->currentLevelSOG -= 1; // leave at sog:1 at minimum
-    else {
-      break;
+
+    if (rto->currentLevelSOG == 0) {
+      retryAttempts++;
+      SerialM.print("Auto SOG: retry "); SerialM.println(retryAttempts);
+      rto->currentLevelSOG = 8;
+      setAndUpdateSogLevel(rto->currentLevelSOG);
+      resetSyncProcessor();
+      GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
+      GBS::INTERRUPT_CONTROL_00::write(0x00);
+      delay(10);
     }
+    else { break; }
   }
 
   SerialM.print("\nsog level: "); SerialM.println(rto->currentLevelSOG);
   setAndUpdateSogLevel(rto->currentLevelSOG);
 
-  GBS::TEST_BUS_SP_SEL::write(debugRegSp);
-  GBS::TEST_BUS_SEL::write(debugRegBus);
+  //uint8_t noJitter = 0;
+  //uint8_t debugRegSp = GBS::TEST_BUS_SP_SEL::read();
+  //uint8_t debugRegBus = GBS::TEST_BUS_SEL::read();
+  //GBS::TEST_BUS_SP_SEL::write(0x5b); // # 5 cs_sep module
+  //// use PLLAD_BPS=1 and 5_63=0x0b instead! also 5_19 bit 6 off (lock SP) does smth
+  //GBS::TEST_BUS_SEL::write(0xa);
+
+  //rto->currentLevelSOG = 9; // anything above not useful
+  //setAndUpdateSogLevel(rto->currentLevelSOG);
+  //while (1) {
+  //  noJitter = 0;
+  //  GBS::PLLAD_PDZ::write(0); delay(1); GBS::PLLAD_PDZ::write(1);
+  //  delay(12);
+  //  for (uint8_t i = 0; i < 10; i++) {
+  //    uint16_t test1 = GBS::TEST_BUS::read() & 0x07ff;
+  //    delay(5);
+  //    uint16_t test2 = GBS::TEST_BUS::read() & 0x07ff;
+  //    
+  //    if ((test1 > 0x0030) && (test1 < 0x0510)) {
+  //      if ((test1 <= test2 + 1) && (test1 >= test2 - 1)) {
+  //        noJitter++;
+  //        //Serial.print(rto->currentLevelSOG); Serial.print(": ");
+  //        //Serial.print("t1>"); Serial.print(test1, HEX); Serial.print(" t2>"); Serial.println(test2, HEX);
+  //      }
+  //    }
+  //  }
+  //  if (noJitter >= 9) { break; } // found
+  //  //SerialM.print("sog: "); SerialM.println(rto->currentLevelSOG);
+  //  setAndUpdateSogLevel(rto->currentLevelSOG);
+  //  if (rto->currentLevelSOG >= 2) rto->currentLevelSOG -= 1; // leave at sog:1 at minimum
+  //  else {
+  //    break;
+  //  }
+  //}
+  //
+  //GBS::TEST_BUS_SP_SEL::write(debugRegSp);
+  //GBS::TEST_BUS_SEL::write(debugRegBus);
+  //
+  //SerialM.print("\nsog level: "); SerialM.println(rto->currentLevelSOG);
+  //setAndUpdateSogLevel(rto->currentLevelSOG);
 }
 
 // GBS boards have 2 potential sync sources:
@@ -1533,10 +1572,14 @@ void fastGetBestHtotal() {
 void applyBestHTotal(uint16_t bestHTotal) {
   boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
   if (isCustomPreset) {
-    return;
+    // test: maybe we want some flexibility
+    //return;
   }
   uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
   int diffHTotal = bestHTotal - orig_htotal;
+  if (diffHTotal == 0 && !rto->forceRetime) {
+    return; // nothing to do
+  }
   uint16_t diffHTotalUnsigned = abs(diffHTotal);
   //boolean isLargeDiff = (diffHTotalUnsigned * 10) > orig_htotal ? true : false; // what?
   boolean isLargeDiff = diffHTotalUnsigned > 40 ? true : false; // typical diff: 1802 to 1794 (=8)
@@ -1632,7 +1675,8 @@ void applyBestHTotal(uint16_t bestHTotal) {
 void doPostPresetLoadSteps() {
   disableDAC();
   boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
-  GBS::SP_DIS_SUB_COAST::write(1); // disable initially, gets activated in updatecoastposition
+  setAndUpdateSogLevel(rto->currentLevelSOG); // update to previously determined sog level
+  GBS::SP_DIS_SUB_COAST::write(1); // update: not used at all for now
   GBS::SP_HCST_AUTO_EN::write(0); // needs to be off (making sure)
   GBS::PAD_SYNC_OUT_ENZ::write(0); // sync output on asap, necessary to keep HDMI transcoder happy
   
@@ -1764,17 +1808,16 @@ void doPostPresetLoadSteps() {
   GBS::VDS_IN_DREG_BYPS::write(0); // 3_40 2 // 0 = input data triggered on falling clock edge, 1 = bypass
 
   setSpParameters();
-  setAndUpdateSogLevel(rto->currentLevelSOG); // update to previously determined sog level
 
   // auto ADC gain
-  if (uopt->enableAutoGain == 1 && !isCustomPreset && !rto->inputIsYpBpR && adco->r_gain == 0) {
+  if (uopt->enableAutoGain == 1 && /*!isCustomPreset &&*/ !rto->inputIsYpBpR && adco->r_gain == 0) {
     SerialM.println("ADC gain: reset");
     GBS::ADC_RGCTRL::write(0x40);
     GBS::ADC_GGCTRL::write(0x40);
     GBS::ADC_BGCTRL::write(0x40);
     GBS::DEC_TEST_ENABLE::write(1);
   }
-  else if (uopt->enableAutoGain == 1 && !isCustomPreset && !rto->inputIsYpBpR && adco->r_gain != 0) {
+  else if (uopt->enableAutoGain == 1 && /*!isCustomPreset &&*/ !rto->inputIsYpBpR && adco->r_gain != 0) {
     SerialM.println("ADC gain: keep previous");
     SerialM.print(adco->r_gain, HEX); SerialM.print(" ");
     SerialM.print(adco->g_gain, HEX); SerialM.print(" ");
@@ -1784,7 +1827,7 @@ void doPostPresetLoadSteps() {
     GBS::ADC_BGCTRL::write(adco->b_gain);
     GBS::DEC_TEST_ENABLE::write(1);
   }
-  else if (!isCustomPreset) {
+  else {
     GBS::DEC_TEST_ENABLE::write(0); // no need for decimation test to be enabled
   }
 
@@ -1796,8 +1839,10 @@ void doPostPresetLoadSteps() {
       applyRGBPatches();
     }
   }
-  GBS::PLLAD_R::write(2);
-  GBS::PLLAD_S::write(2);
+  GBS::PLLAD_R::write(3);
+  GBS::PLLAD_S::write(3);
+  GBS::PLL_R::write(1); // PLL lock detector skew
+  GBS::PLL_S::write(2);
   GBS::DEC_IDREG_EN::write(1);
   GBS::DEC_WEN_MODE::write(1); // keeps ADC phase consistent. around 4 lock positions vs totally random
 
@@ -1826,7 +1871,7 @@ void doPostPresetLoadSteps() {
   Menu::init();
   enableDebugPort();
   FrameSync::reset();
-  rto->syncLockFailIgnore = 2;
+  rto->syncLockFailIgnore = 8;
 
   unsigned long timeout = millis();
   while (getVideoMode() == 0 && millis() - timeout < 800) { delay(1); }
@@ -1974,7 +2019,6 @@ void applyPresets(uint8_t result) {
   }
   else if (result == 15) {
     SerialM.println("RGBHV bypass ");
-    writeProgramArrayNew(ntsc_240p);
     bypassModeSwitch_RGBHV();
   }
   else {
@@ -2241,7 +2285,8 @@ void updateCoastPosition() {
     return;
   }
 
-  if (rto->videoStandardInput <= 2) { // hsync (sub) coast only for SD
+  //if (rto->videoStandardInput <= 2) { // hsync (sub) coast only for SD
+  if (0) { // no coasting at all, keeping this code in case coasting becomes useful
     int16_t inHlength = 0;
     for (uint8_t i = 0; i < 8; i++) {
       inHlength += ((GBS::HPERIOD_IF::read() + 1) & 0xfffe); // psx jitters between 427, 428
@@ -2591,7 +2636,7 @@ void bypassModeSwitch_RGBHV() {
   GBS::OUT_SYNC_SEL::write(2); // S0_4F, 6+7 | 0x10, H/V sync output from sync processor | 00 from vds_proc
   
   GBS::SP_SOG_SRC_SEL::write(0); // 5_20 0 | 0: from ADC 1: hs is sog source // useless in this mode
-  GBS::ADC_SOGEN::write(1); // 5_02 bit 0 // rgbhv bypass test: sog mode // having it off loads the HS line???
+  GBS::ADC_SOGEN::write(0); // 5_02 bit 0 // having it off loads the HS line???
   GBS::SP_CLAMP_MANUAL::write(1); // needs to be 1
   GBS::SP_SYNC_BYPS::write(1); // use external (H+V) sync for decimator (and sync out?) 1 to mirror in sync
   GBS::SP_HS_LOOP_SEL::write(0); // 5_57_6 | 0 enables retiming (required to fix short out sync pulses + any inversion)
@@ -2791,7 +2836,7 @@ void startWire() {
 #if defined(ESP8266)
   pinMode(SCL, OUTPUT_OPEN_DRAIN);
   pinMode(SDA, OUTPUT_OPEN_DRAIN);
-  Wire.setClock(100000); // TV5725 supports 400kHz // but 100kHz is better suited
+  Wire.setClock(400000); // TV5725 supports 400kHz
 #else
   digitalWrite(SCL, LOW);
   digitalWrite(SDA, LOW);
@@ -2819,7 +2864,7 @@ void setup() {
       dnsServer.processNextRequest();
       server.handleClient();
       webSocket.loop();
-      delay(1); // allow some time for the ws server to find clients currently trying to reconnect
+      delay(4); // allow some time for the ws server to find clients currently trying to reconnect
     }
   }
   else {
@@ -2833,6 +2878,7 @@ void setup() {
   Serial.begin(115200); // set Arduino IDE Serial Monitor to the same 115200 bauds!
   Serial.setTimeout(10);
   Serial.println("starting");
+  //globalDelay = 0;
   // user options // todo: could be stored in Arduino EEPROM. Other MCUs have SPIFFS
   uopt->presetPreference = 0; // normal, 720p, fb, custom, 1280x1024
   uopt->presetGroup = 0; //
@@ -2846,13 +2892,12 @@ void setup() {
   rto->enableDebugPings = false;
   rto->webSocketConnected = false;
   rto->autoBestHtotalEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
-  rto->syncLockFailIgnore = 2; // allow syncLock to fail x-1 times in a row before giving up (sync glitch immunity)
+  rto->syncLockFailIgnore = 8; // allow syncLock to fail x-1 times in a row before giving up (sync glitch immunity)
   rto->forceRetime = false;
   rto->syncWatcherEnabled = true;  // continously checks the current sync status. required for normal operation
   rto->phaseADC = 16;
   rto->phaseSP = 15;
   rto->failRetryAttempts = 0;
-  rto->optimizeSOG = false;
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->deinterlaceAutoEnabled = true;
   rto->scanlinesEnabled = false;
@@ -3076,6 +3121,7 @@ void handleWiFi() {
     dnsServer.processNextRequest();
     server.handleClient();
     webSocket.loop();
+    if (webSocket.connectedClients() > 0) { delay(1); }
     // if there's a control command from the server, globalCommand will now hold it.
     // process it in the parser, then reset to 0 at the end of the sketch.
   }
@@ -3097,7 +3143,7 @@ void loop() {
   static unsigned long lastVsyncLock = millis();
   static unsigned long lastTimeSourceCheck = millis();
   static unsigned long lastTimeAutoGain = millis();
-  static unsigned long lastTimeSOG = millis();
+  static unsigned long lastTimeInterruptClear = millis();
 #ifdef HAVE_BUTTONS
   static unsigned long lastButton = micros();
 #endif
@@ -3197,7 +3243,7 @@ void loop() {
       GBS::PLL_CKIS::write(1); // PLL use ICLK (instead of oscillator)
       latchPLLAD();
       GBS::VDS_HSCALE::write(512);
-      rto->syncLockFailIgnore = 2;
+      rto->syncLockFailIgnore = 8;
       //FrameSync::reset(); // adjust htotal to new display clock
       //rto->forceRetime = true;
       applyBestHTotal(FrameSync::init()); // adjust htotal to new display clock
@@ -3267,9 +3313,11 @@ void loop() {
     break;
     case '.':
       // timings recalculation with new bestHtotal
-      FrameSync::reset();
-      rto->syncLockFailIgnore = 2;
+      rto->autoBestHtotalEnabled = true;
+      //FrameSync::reset();
+      rto->syncLockFailIgnore = 8;
       rto->forceRetime = true;
+      applyBestHTotal(FrameSync::init());
     break;
     case '!':
       fastGetBestHtotal();
@@ -3295,6 +3343,10 @@ void loop() {
       writeProgramArrayNew(ofw_RGBS);
       doPostPresetLoadSteps();
       //movePhaseThroughRange();
+    break;
+    case '#':
+      //globalDelay++;
+      //SerialM.println(globalDelay);
     break;
     case 'n':
     {
@@ -3676,11 +3728,11 @@ void loop() {
     }
     if (!FrameSync::run(uopt->frameTimeLockMethod)) {
       if (rto->syncLockFailIgnore-- == 0) {
-        FrameSync::reset(); // in case run() failed because we lost a sync signal
+        FrameSync::reset(); // in case run() failed because we lost sync signal
       }
     }
     else if (rto->syncLockFailIgnore > 0) {
-      rto->syncLockFailIgnore = 2;
+      rto->syncLockFailIgnore = 8;
     }
     if (debug_backup != 0x0) {
       GBS::TEST_BUS_SEL::write(debug_backup);
@@ -3688,9 +3740,10 @@ void loop() {
     lastVsyncLock = millis();
   }
 
-  if (rto->optimizeSOG && (millis() - lastTimeSOG > 1000)) {
-    setAndUpdateSogLevel((rto->currentLevelSOG + 1) & 0x0f); // goes 0 to 15
-    lastTimeSOG = millis();
+  if (rto->boardHasPower && (millis() - lastTimeInterruptClear > 4000)) {
+    GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
+    GBS::INTERRUPT_CONTROL_00::write(0x00);
+    lastTimeInterruptClear = millis();
   }
 
   if (rto->printInfos == true) { // information mode
@@ -3700,6 +3753,7 @@ void loop() {
 
     uint8_t stat0 = GBS::STATUS_00::read();
     uint8_t stat5 = GBS::STATUS_05::read();
+    uint8_t stat0F = GBS::STATUS_0F::read();
     uint8_t video_mode = getVideoMode();
     uint8_t adc_gain_r = GBS::ADC_RGCTRL::read();
     uint8_t adc_gain_g = GBS::ADC_GGCTRL::read();
@@ -3709,6 +3763,7 @@ void loop() {
     uint16_t TEST_BUS = GBS::TEST_BUS::read();
     uint16_t STATUS_SYNC_PROC_HTOTAL = GBS::STATUS_SYNC_PROC_HTOTAL::read();
     uint16_t STATUS_SYNC_PROC_VTOTAL = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+         if (STATUS_SYNC_PROC_VTOTAL > 0) { STATUS_SYNC_PROC_VTOTAL += 1; } // the reg reports vtotal-1
     uint16_t STATUS_SYNC_PROC_HLOW_LEN = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
     boolean STATUS_MISC_PLL648_LOCK = GBS::STATUS_MISC_PLL648_LOCK::read();
     runningNumber++;
@@ -3724,23 +3779,24 @@ void loop() {
     String hpw = STATUS_SYNC_PROC_HLOW_LEN < 100 ? "00" + String(STATUS_SYNC_PROC_HLOW_LEN) : STATUS_SYNC_PROC_HLOW_LEN < 1000 ? "0" + String(STATUS_SYNC_PROC_HLOW_LEN) : String(STATUS_SYNC_PROC_HLOW_LEN);
     String lockDisplay = lockCounter < 10 ? "0" + String(lockCounter) : String(lockCounter);
     String stableCounter = String(rto->continousStableCounter, HEX);
+    static unsigned long lastTimeLoop = millis();
+    String loopTime = String(millis() - lastTimeLoop);
 
     String output = "h:" + String(HPERIOD_IF) + " " + "v:" + String(VPERIOD_IF) + " PLL" +
-      (STATUS_MISC_PLL648_LOCK ? "." : "x") + lockDisplay + 
+      (STATUS_MISC_PLL648_LOCK ? "." : "x") + lockDisplay +
       " A:" + String(adc_gain_r, HEX) + String(adc_gain_g, HEX) + String(adc_gain_b, HEX) +
       " S:" + String(stat0, HEX) + String(".") + String(stat5, HEX) +
+      " I:" + String(stat0F, HEX) +
       " D:" + dbg + " m:" + String(video_mode) + " ht:" + String(STATUS_SYNC_PROC_HTOTAL) +
-      " vt:" + String(STATUS_SYNC_PROC_VTOTAL) + " hpw:" + hpw + " s:" + stableCounter 
+      " vt:" + String(STATUS_SYNC_PROC_VTOTAL) + " hpw:" + hpw + " s:" + stableCounter
 #if defined(ESP8266)
       +String(" W:") + String(WiFi.RSSI())
 #endif
-      ;
+      + String(" L:") + loopTime;
 
     SerialM.println(output);
+    lastTimeLoop = millis();
   } // end information mode
-
-  // test
-  handleWiFi(); // ESP8266 check, WiFi + OTA updates, checks for server enabled + started
 
   // syncwatcher polls SP status. when necessary, initiates adjustments or preset changes
   if (rto->sourceDisconnected == false && rto->syncWatcherEnabled == true 
@@ -4042,13 +4098,15 @@ void loop() {
       GBS::TEST_BUS_SEL::write(0x0);
     }
     uint8_t videoModeBeforeInit = getVideoMode();
+    boolean stableBeforeInit = getSyncStable();
     uint16_t bestHTotal = FrameSync::init();
     uint8_t videoModeAfterInit = getVideoMode();
-    if (bestHTotal > 0) {
+    boolean stableAfterInit = getSyncStable();
+    if (bestHTotal > 0 && stableBeforeInit == true && stableAfterInit == true) {
       if (bestHTotal >= 4095) bestHTotal = 4095;
       if ((videoModeBeforeInit == videoModeAfterInit) && videoModeBeforeInit != 0) {
         applyBestHTotal(bestHTotal);
-        rto->syncLockFailIgnore = 2;
+        rto->syncLockFailIgnore = 8;
       }
       else {
         FrameSync::reset();
@@ -4059,6 +4117,7 @@ void loop() {
       rto->autoBestHtotalEnabled = false;
       SerialM.println("lock failed, check debug wire!");
     }
+    
     if (debug_backup != 0x0) {
       GBS::TEST_BUS_SEL::write(debug_backup);
     }
@@ -4206,12 +4265,14 @@ void handleRoot() {
   String page = FPSTR(HTML);
   //server.sendHeader("Content-Length", String(page.length())); // library already does this
   server.send(200, "text/html", page);
+  delay(10);
   //server.send_P(200, "text/html", HTML); // send_P method, no String needed
   server.client().stop(); // not sure
 }
 
 void handleType1Command() {
   server.send(200);
+  delay(2);
   server.client().stop(); // not sure
   if (server.hasArg("plain")) {
     globalCommand = server.arg("plain").charAt(0);
@@ -4220,6 +4281,7 @@ void handleType1Command() {
 
 void handleType2Command() {
   server.send(200);
+  delay(2);
   server.client().stop(); // not sure
   if (server.hasArg("plain")) {
     char argument = server.arg("plain").charAt(0);
@@ -4482,13 +4544,10 @@ void startWebserver()
   persWM.setApCredentials(ap_ssid, ap_password);
   persWM.onConnect([]() {
     WiFi.hostname("gbscontrol");
-    SerialM.print("local IP: ");
-    SerialM.println(WiFi.localIP());
-    SerialM.print("hostname: "); SerialM.println(WiFi.hostname());
   });
   persWM.onAp([]() {
     WiFi.hostname("gbscontrol");
-    SerialM.print("AP MODE: "); SerialM.println("connect to wifi network called gbscontrol with password qqqqqqqq");
+    SerialM.print("AP MODE: "); SerialM.println("Connect to WiFi 'gbscontrol' using password 'qqqqqqqq'");
   });
 
   server.on("/", handleRoot);
@@ -4500,6 +4559,7 @@ void startWebserver()
   MDNS.begin("gbscontrol"); // respnd to MDNS request for gbscontrol.local
   server.begin(); // Webserver for the site
   webSocket.begin();  // Websocket for interaction
+  delay(10);
 #ifdef HAVE_PINGER_LIBRARY
   // pinger library
   pinger.OnReceive([](const PingerResponse& response)

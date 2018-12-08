@@ -104,6 +104,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x0E, 6,  1> STATUS_GPIO_VBOUT;
     typedef UReg<0x00, 0x0E, 7,  1> STATUS_GPIO_CLKOUT;
 
+    typedef UReg<0x00, 0x0F, 0,  8> STATUS_0F; // whole register for convenience
     typedef UReg<0x00, 0x0F, 0,  1> STATUS_INT_SOG_BAD;
     typedef UReg<0x00, 0x0F, 1,  1> STATUS_INT_SOG_SW;
     typedef UReg<0x00, 0x0F, 2,  1> STATUS_INT_SOG_OK;
@@ -166,6 +167,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x48, 0,  8> PAD_CONTROL_00_0x48;
     typedef UReg<0x00, 0x48, 0,  1> PAD_BOUT_EN; // aka debug pin
     typedef UReg<0x00, 0x49, 0,  8> PAD_CONTROL_01_0x49; // fake name
+    typedef UReg<0x00, 0x49, 1,  1> PAD_CKOUT_ENZ;
     typedef UReg<0x00, 0x49, 2,  1> PAD_SYNC_OUT_ENZ;
     typedef UReg<0x00, 0x49, 4,  1> PAD_TRI_ENZ;
     typedef UReg<0x00, 0x4A, 0,  3> PAD_OSC_CNTRL;
@@ -586,6 +588,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x20, 1,  1> SP_SOG_P_ATO;
     typedef UReg<0x05, 0x20, 3,  1> SP_EXT_SYNC_SEL;
     typedef UReg<0x05, 0x20, 4,  1> SP_JITTER_SYNC;
+    typedef UReg<0x05, 0x26, 0, 12> SP_SYNC_PD_THD;
     typedef UReg<0x05, 0x35, 0, 12> SP_DLT_REG;
     typedef UReg<0x05, 0x37, 0,  8> SP_H_PULSE_IGNOR;
     typedef UReg<0x05, 0x38, 0,  8> SP_PRE_COAST;
