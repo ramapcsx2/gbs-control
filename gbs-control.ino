@@ -113,6 +113,7 @@ struct runTimeOptions {
   uint8_t phaseSP;
   uint8_t phaseADC;
   uint8_t currentLevelSOG;
+  uint8_t thisSourceMaxLevelSOG;
   uint8_t syncLockFailIgnore;
   uint8_t applyPresetDoneStage;
   uint8_t continousStableCounter;
@@ -170,7 +171,7 @@ class SerialMirror : public Stream {
 #if defined(ESP8266)
     //if (rto->webSocketConnected) {
       webSocket.broadcastTXT(data, size); // broadcast is best for cases where contact was lost
-      delay(2);
+      //delay(2);
     //}
 #endif
     Serial.write(data, size);
@@ -182,7 +183,7 @@ class SerialMirror : public Stream {
 #if defined(ESP8266)
     //if (rto->webSocketConnected) {
       webSocket.broadcastTXT(&data);
-      delay(2);
+      //delay(2);
     //}
 #endif
     Serial.write(data);
@@ -352,6 +353,9 @@ void writeProgramArrayNew(const uint8_t* programArray)
             if (rto->inputIsYpBpR)bitClear(bank[x], 6);
             else bitSet(bank[x], 6);
           }
+          if (index == 388) { // s5_04 reset for ADC REF init
+            bank[x] = 0x00;
+          }
           if (index == 446) { // s5_3e
             bitSet(bank[x], 5); // SP_DIS_SUB_COAST = 1
           }
@@ -380,6 +384,7 @@ void setResetParameters() {
   rto->continousStableCounter = 0;
   rto->isInLowPowerMode = false;
   rto->currentLevelSOG = 4;
+  rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
   rto->failRetryAttempts = 0;
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->scanlinesEnabled = false;
@@ -458,7 +463,7 @@ void OutputComponentOrVGA() {
     }
   }
   else {
-    SerialM.println("VGA");
+    SerialM.println("RGBHV");
     GBS::VDS_SYNC_LEV::write(0);
     GBS::VDS_CONVT_BYPS::write(0); // output RGB
     GBS::OUT_SYNC_CNTRL::write(1); // H / V sync out enable
@@ -585,8 +590,8 @@ void setSpParameters() {
 
   GBS::SP_SDCS_VSST_REG_H::write(0);
   GBS::SP_SDCS_VSSP_REG_H::write(0);
-  GBS::SP_SDCS_VSST_REG_L::write(4); // 5_3f // 0 and 1 not good in passthrough modes, assume same for regular
-  GBS::SP_SDCS_VSSP_REG_L::write(7); // 5_40 // test pal feedback clock preset
+  GBS::SP_SDCS_VSST_REG_L::write(4); // 5_3f // should be 08 for NTSC, ~24 for PAL (test with bypass mode: t0t4ft7 t0t4bt2)
+  GBS::SP_SDCS_VSSP_REG_L::write(7); // 5_40 // should be 0b for NTSC, ~28 for PAL
   GBS::SP_CS_HS_ST::write(0x00);
   GBS::SP_CS_HS_SP::write(0x08); // was 0x05, 720p source needs 0x08
 
@@ -605,6 +610,9 @@ void setSpParameters() {
     GBS::SP_CLAMP_MANUAL::write(0); // 0 = automatic on/off possible
     GBS::SP_CLP_SRC_SEL::write(1); // clamp source 1: pixel clock, 0: 27mhz
     GBS::SP_SOG_MODE::write(1);
+    if (rto->videoStandardInput <= 7) { // test with bypass mode: t0t4ft7 t0t4bt2, should output neg. hsync
+      GBS::SP_HS_PROC_INV_REG::write(1);
+    }
     //GBS::SP_NO_CLAMP_REG::write(0); // yuv inputs need this
     GBS::SP_H_CST_SP::write(0x38); //snes minimum: inHlength -12 (only required in 239 mode)
     GBS::SP_H_CST_ST::write(0x38); // low but not near 0 (typical: 0x6a)
@@ -626,6 +634,10 @@ void setSpParameters() {
 void setAndUpdateSogLevel(uint8_t level) {
   GBS::ADC_SOGCTRL::write(level);
   rto->currentLevelSOG = level;
+  delay(1);
+  GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
+  GBS::INTERRUPT_CONTROL_00::write(0x00);
+  delay(1);
   //SerialM.print("sog: "); SerialM.println(rto->currentLevelSOG);
 }
 
@@ -705,10 +717,16 @@ void optimizePhaseSP() {
 void optimizeSogLevel() {
   if (rto->videoStandardInput == 15 || GBS::SP_SOG_MODE::read() != 1) return;
   
+  if (rto->thisSourceMaxLevelSOG == 31) {
+    rto->currentLevelSOG = 8;
+  }
+  else {
+    rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
+  }
+  setAndUpdateSogLevel(rto->currentLevelSOG);
+
   uint8_t retryAttempts = 0;
   boolean clampWasOn = 0;
-  rto->currentLevelSOG = 8;
-  setAndUpdateSogLevel(rto->currentLevelSOG);
   if (rto->inputIsYpBpR) {
     clampWasOn = GBS::SP_NO_CLAMP_REG::read();
     if (clampWasOn) {
@@ -716,80 +734,87 @@ void optimizeSogLevel() {
       rto->clampPositionIsSet = false;
     }
   }
-
-  GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
-  GBS::INTERRUPT_CONTROL_00::write(0x00);
-  delay(5);
+  uint8_t unlockH = GBS::MD_HPERIOD_UNLOCK_VALUE::read();
+  uint8_t unlockV = GBS::MD_VPERIOD_UNLOCK_VALUE::read();
+  uint8_t lockH = GBS::MD_HPERIOD_LOCK_VALUE::read();
+  uint8_t lockV = GBS::MD_VPERIOD_LOCK_VALUE::read();
+  GBS::MD_HPERIOD_UNLOCK_VALUE::write(1);
+  GBS::MD_VPERIOD_UNLOCK_VALUE::write(1);
+  GBS::MD_HPERIOD_LOCK_VALUE::write(20);
+  GBS::MD_VPERIOD_LOCK_VALUE::write(1);
+  resetSyncProcessor(); delay(2); // let it see sync is unstable
   while (retryAttempts < 4) {
-    while (((GBS::STATUS_0F::read() & 0x01) == 1) || ((GBS::STATUS_0F::read() & 0x04) == 0)) {
-      
-      //SerialM.print("STATUS_0F: "); SerialM.println(GBS::STATUS_0F::read(), HEX);
-      //SerialM.print("STATUS_00: "); SerialM.println(GBS::STATUS_00::read(), HEX);
-      if (rto->currentLevelSOG > 0) { rto->currentLevelSOG--; }
-      else { break; }
-      setAndUpdateSogLevel(rto->currentLevelSOG);
-      //SerialM.print("SOG: "); SerialM.println(rto->currentLevelSOG);
-      GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
-      GBS::INTERRUPT_CONTROL_00::write(0x00);
-      delay(5);
+    uint8_t syncGoodCounter = 0;
+    unsigned long timeout = millis();
+    while ((syncGoodCounter < 30) && ((millis() - timeout) < 350)) {
+      delay(1);
+      if (getStatusHVSyncStable() == 1) {
+        syncGoodCounter++;
+      }
+      else {
+        syncGoodCounter = 0;
+      }
     }
-
-    if (rto->currentLevelSOG == 0) {
+    if (syncGoodCounter >= 30) {
+      //Serial.print(" @SOG "); Serial.print(rto->currentLevelSOG); 
+      //Serial.print(" STATUS_00: "); 
+      //uint8_t status00 = GBS::STATUS_00::read();
+      //Serial.println(status00, HEX); 
+      if ((getStatusHVSyncStable() == 1)) {
+        delay(6);
+        if (getVideoMode() != 0) {
+          break;
+        }
+        else {
+          if (rto->currentLevelSOG > 3) {
+            rto->currentLevelSOG--;
+            setAndUpdateSogLevel(rto->currentLevelSOG);
+          }
+          else {
+            retryAttempts++;
+            SerialM.print("Auto SOG: retry #"); SerialM.println(retryAttempts);
+            if (rto->thisSourceMaxLevelSOG == 31) {
+              rto->currentLevelSOG = 8;
+            }
+            else {
+              rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
+            }
+            setAndUpdateSogLevel(rto->currentLevelSOG);
+          }
+          resetSyncProcessor();
+        }
+      }
+    }
+    else if (rto->currentLevelSOG > 3) {
+      rto->currentLevelSOG--;
+    }
+    else { 
       retryAttempts++;
-      SerialM.print("Auto SOG: retry "); SerialM.println(retryAttempts);
-      rto->currentLevelSOG = 8;
+      SerialM.print("Auto SOG: retry #"); SerialM.println(retryAttempts);
+      if (rto->thisSourceMaxLevelSOG == 31) {
+        rto->currentLevelSOG = 8;
+      }
+      else {
+        rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
+      }
       setAndUpdateSogLevel(rto->currentLevelSOG);
       resetSyncProcessor();
-      GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
-      GBS::INTERRUPT_CONTROL_00::write(0x00);
-      delay(10);
     }
-    else { break; }
+    setAndUpdateSogLevel(rto->currentLevelSOG);
   }
 
-  SerialM.print("\nsog level: "); SerialM.println(rto->currentLevelSOG);
+  if (retryAttempts >= 4) {
+    rto->currentLevelSOG = 1; // failed
+  }
+
+  rto->thisSourceMaxLevelSOG = rto->currentLevelSOG;
+  SerialM.print("SOG level: "); SerialM.println(rto->currentLevelSOG);
   setAndUpdateSogLevel(rto->currentLevelSOG);
 
-  //uint8_t noJitter = 0;
-  //uint8_t debugRegSp = GBS::TEST_BUS_SP_SEL::read();
-  //uint8_t debugRegBus = GBS::TEST_BUS_SEL::read();
-  //GBS::TEST_BUS_SP_SEL::write(0x5b); // # 5 cs_sep module
-  //// use PLLAD_BPS=1 and 5_63=0x0b instead! also 5_19 bit 6 off (lock SP) does smth
-  //GBS::TEST_BUS_SEL::write(0xa);
-
-  //rto->currentLevelSOG = 9; // anything above not useful
-  //setAndUpdateSogLevel(rto->currentLevelSOG);
-  //while (1) {
-  //  noJitter = 0;
-  //  GBS::PLLAD_PDZ::write(0); delay(1); GBS::PLLAD_PDZ::write(1);
-  //  delay(12);
-  //  for (uint8_t i = 0; i < 10; i++) {
-  //    uint16_t test1 = GBS::TEST_BUS::read() & 0x07ff;
-  //    delay(5);
-  //    uint16_t test2 = GBS::TEST_BUS::read() & 0x07ff;
-  //    
-  //    if ((test1 > 0x0030) && (test1 < 0x0510)) {
-  //      if ((test1 <= test2 + 1) && (test1 >= test2 - 1)) {
-  //        noJitter++;
-  //        //Serial.print(rto->currentLevelSOG); Serial.print(": ");
-  //        //Serial.print("t1>"); Serial.print(test1, HEX); Serial.print(" t2>"); Serial.println(test2, HEX);
-  //      }
-  //    }
-  //  }
-  //  if (noJitter >= 9) { break; } // found
-  //  //SerialM.print("sog: "); SerialM.println(rto->currentLevelSOG);
-  //  setAndUpdateSogLevel(rto->currentLevelSOG);
-  //  if (rto->currentLevelSOG >= 2) rto->currentLevelSOG -= 1; // leave at sog:1 at minimum
-  //  else {
-  //    break;
-  //  }
-  //}
-  //
-  //GBS::TEST_BUS_SP_SEL::write(debugRegSp);
-  //GBS::TEST_BUS_SEL::write(debugRegBus);
-  //
-  //SerialM.print("\nsog level: "); SerialM.println(rto->currentLevelSOG);
-  //setAndUpdateSogLevel(rto->currentLevelSOG);
+  GBS::MD_HPERIOD_UNLOCK_VALUE::write(unlockH);
+  GBS::MD_VPERIOD_UNLOCK_VALUE::write(unlockV);
+  GBS::MD_HPERIOD_UNLOCK_VALUE::write(lockH);
+  GBS::MD_VPERIOD_UNLOCK_VALUE::write(lockV);
 }
 
 // GBS boards have 2 potential sync sources:
@@ -885,6 +910,8 @@ uint8_t detectAndSwitchToActiveInput() { // if any
     }
     
     GBS::ADC_INPUT_SEL::write(!currentInput); // can only be 1 or 0
+    delay(200);
+    return 0; // don't do the check on the new input here, wait till next run
   }
 
   return 0;
@@ -1582,7 +1609,10 @@ void applyBestHTotal(uint16_t bestHTotal) {
   }
   uint16_t diffHTotalUnsigned = abs(diffHTotal);
   //boolean isLargeDiff = (diffHTotalUnsigned * 10) > orig_htotal ? true : false; // what?
-  boolean isLargeDiff = diffHTotalUnsigned > 40 ? true : false; // typical diff: 1802 to 1794 (=8)
+  boolean isLargeDiff = (diffHTotalUnsigned > (orig_htotal * 0.04f)) ? true : false; // typical diff: 1802 to 1794 (=8)
+  if (isLargeDiff) {
+    SerialM.println("large diff");
+  }
   boolean requiresScalingCorrection = GBS::VDS_HSCALE::read() < 512; // output distorts if less than 512 but can be corrected
 
   // rto->forceRetime = true means the correction should be forced (command '.')
@@ -1674,6 +1704,9 @@ void applyBestHTotal(uint16_t bestHTotal) {
 
 void doPostPresetLoadSteps() {
   disableDAC();
+
+  //GBS::PAD_CKOUT_ENZ::write(0); // clock out to pin enabled for testing
+
   boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
   setAndUpdateSogLevel(rto->currentLevelSOG); // update to previously determined sog level
   GBS::SP_DIS_SUB_COAST::write(1); // update: not used at all for now
@@ -1687,7 +1720,7 @@ void doPostPresetLoadSteps() {
   GBS::ADC_TEST::write(0); // in case it was set
   GBS::GPIO_CONTROL_00::write(0x67); // most GPIO pins regular GPIO
   GBS::GPIO_CONTROL_01::write(0x00); // all GPIO outputs disabled
-  GBS::PAD_OSC_CNTRL::write(2);      // crystal drive
+  GBS::PAD_OSC_CNTRL::write(4);      // crystal drive
   GBS::SP_NO_CLAMP_REG::write(1);    // (keep) clamp disabled, to be enabled when position determined
   rto->clampPositionIsSet = false;
   rto->coastPositionIsSet = false;
@@ -1844,7 +1877,8 @@ void doPostPresetLoadSteps() {
   GBS::PLL_R::write(1); // PLL lock detector skew
   GBS::PLL_S::write(2);
   GBS::DEC_IDREG_EN::write(1);
-  GBS::DEC_WEN_MODE::write(1); // keeps ADC phase consistent. around 4 lock positions vs totally random
+  //GBS::DEC_WEN_MODE::write(1); // keeps ADC phase consistent. around 4 lock positions vs totally random
+  GBS::DEC_WEN_MODE::write(0);
 
   resetPLLAD(); // turns on pllad
 
@@ -1866,6 +1900,10 @@ void doPostPresetLoadSteps() {
   }
 
   ResetSDRAM();
+
+  GBS::ADC_TR_RSEL::write(2); // 5_04 // ADC_TR_RSEL = 2 test
+  GBS::ADC_TEST::write(1); // 5_0c 1 = 1; fixes occasional ADC issue with ADC_TR_RSEL enabled
+  //GBS::ADC_TR_ISEL::write(7); // leave at 0
 
   rto->autoBestHtotalEnabled = true; // will re-detect whether debug wire is present
   Menu::init();
@@ -2046,6 +2084,7 @@ void enableDAC() {
   //GBS::CAPTURE_ENABLE::write(1);
   //ResetSDRAM();
   GBS::DAC_RGBS_PWDNZ::write(1);
+  //GBS::SFTRST_DEC_RSTZ::write(0);
   rto->DACIsOff = false;
 }
 
@@ -2053,6 +2092,7 @@ void disableDAC() {
   if (rto->DACIsOff == false) {
     //GBS::CAPTURE_ENABLE::write(0);
     GBS::DAC_RGBS_PWDNZ::write(0);
+    //GBS::SFTRST_DEC_RSTZ::write(1);
   }
   rto->DACIsOff = true;
 }
@@ -2139,6 +2179,10 @@ boolean getSyncPresent() {
     GBS::TEST_BUS_SP_SEL::write(debug_backup_SP);
   }
   return false;
+}
+
+boolean getStatusHVSyncStable() {
+  return ((GBS::STATUS_00::read() & 0x04) == 0x04) ? 1 : 0;
 }
 
 boolean getSyncStable() {
@@ -2405,9 +2449,9 @@ void passThroughWithIfModeSwitch() {
     GBS::MEM_PAD_CLK_INVERT::write(0); // helps also
     GBS::OUT_SYNC_SEL::write(2);
     GBS::SP_HS_LOOP_SEL::write(0); // (5_57_6) // with = 0, 5_45 and 5_47 set output
+    GBS::SP_HS_PROC_INV_REG::write(0); // (5_56_5) do not invert HS (5_57_6 = 0)
     if (!rto->inputIsYpBpR) { // RGB input (is fine atm)
       GBS::DAC_RGBS_ADC2DAC::write(1); // bypass IF + VDS for RGB sources (YUV needs the VDS for YUV > RGB)
-      //GBS::SP_HS_PROC_INV_REG::write(0); // (5_56_5) do not invert HS (5_57_6 = 0)
       //GBS::SP_CS_HS_ST::write(0x710); // invert sync detection
     }
     else { // YUV input (do sync inversion?)
@@ -2540,7 +2584,7 @@ void passThroughWithIfModeSwitch() {
     GBS::IF_HS_DEC_FACTOR::write(0);
     GBS::IF_HBIN_SP::write(0x02); // must be even for 240p, adjusts left border at 0xf1+
     if (rto->videoStandardInput > 4) {
-      GBS::IF_HB_ST::write(0x7fe); // S1_10
+      GBS::IF_HB_ST::write(0x7ff); // S1_10 // was 0x7fe (colors)
     }
     else {
       GBS::IF_HB_ST::write(0);
@@ -2864,7 +2908,7 @@ void setup() {
       dnsServer.processNextRequest();
       server.handleClient();
       webSocket.loop();
-      delay(4); // allow some time for the ws server to find clients currently trying to reconnect
+      delay(1); // allow some time for the ws server to find clients currently trying to reconnect
     }
   }
   else {
@@ -3048,6 +3092,7 @@ void setup() {
   GBS::TEST_BUS_SEL::write(0);
   
   rto->currentLevelSOG = 4;
+  rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
   setAndUpdateSogLevel(rto->currentLevelSOG);
   setResetParameters();
   loadPresetMdSection(); // fills 1_60 to 1_83 (mode detect segment, mostly static)
@@ -3345,6 +3390,7 @@ void loop() {
       //movePhaseThroughRange();
     break;
     case '#':
+      //Serial.println(getStatusHVSyncStable());
       //globalDelay++;
       //SerialM.println(globalDelay);
     break;
@@ -3692,6 +3738,7 @@ void loop() {
           setDisplayVblankStopPosition(value);
         }
         else if (what.equals("sog")) {
+          rto->thisSourceMaxLevelSOG = 31; // back to default
           setAndUpdateSogLevel(value);
         }
       }
@@ -4261,19 +4308,15 @@ void handleRoot() {
   // root start heap: 32928
   // page in ram, heap: 22584
   // page sent, heap: 24888
-  webSocket.disconnect();
+  //webSocket.disconnect();
   String page = FPSTR(HTML);
   //server.sendHeader("Content-Length", String(page.length())); // library already does this
   server.send(200, "text/html", page);
-  delay(10);
   //server.send_P(200, "text/html", HTML); // send_P method, no String needed
-  server.client().stop(); // not sure
 }
 
 void handleType1Command() {
   server.send(200);
-  delay(2);
-  server.client().stop(); // not sure
   if (server.hasArg("plain")) {
     globalCommand = server.arg("plain").charAt(0);
   }
@@ -4281,8 +4324,6 @@ void handleType1Command() {
 
 void handleType2Command() {
   server.send(200);
-  delay(2);
-  server.client().stop(); // not sure
   if (server.hasArg("plain")) {
     char argument = server.arg("plain").charAt(0);
     switch (argument) {
@@ -4559,7 +4600,7 @@ void startWebserver()
   MDNS.begin("gbscontrol"); // respnd to MDNS request for gbscontrol.local
   server.begin(); // Webserver for the site
   webSocket.begin();  // Websocket for interaction
-  delay(10);
+  delay(1);
 #ifdef HAVE_PINGER_LIBRARY
   // pinger library
   pinger.OnReceive([](const PingerResponse& response)
