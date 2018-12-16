@@ -634,10 +634,8 @@ void setSpParameters() {
 void setAndUpdateSogLevel(uint8_t level) {
   GBS::ADC_SOGCTRL::write(level);
   rto->currentLevelSOG = level;
-  delay(1);
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
-  delay(1);
   //SerialM.print("sog: "); SerialM.println(rto->currentLevelSOG);
 }
 
@@ -813,8 +811,8 @@ void optimizeSogLevel() {
 
   GBS::MD_HPERIOD_UNLOCK_VALUE::write(unlockH);
   GBS::MD_VPERIOD_UNLOCK_VALUE::write(unlockV);
-  GBS::MD_HPERIOD_UNLOCK_VALUE::write(lockH);
-  GBS::MD_VPERIOD_UNLOCK_VALUE::write(lockV);
+  GBS::MD_HPERIOD_LOCK_VALUE::write(lockH);
+  GBS::MD_VPERIOD_LOCK_VALUE::write(lockV);
 }
 
 // GBS boards have 2 potential sync sources:
