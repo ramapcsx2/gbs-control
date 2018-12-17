@@ -130,7 +130,6 @@ struct runTimeOptions {
   boolean webServerStarted;
   boolean allowUpdatesOTA;
   boolean enableDebugPings;
-  boolean webSocketConnected;
   boolean autoBestHtotalEnabled;
   boolean DACIsOff;
   boolean forceRetime;
@@ -169,10 +168,9 @@ char globalCommand;
 class SerialMirror : public Stream {
   size_t write(const uint8_t *data, size_t size) {
 #if defined(ESP8266)
-    //if (rto->webSocketConnected) {
+    if (webSocket.connectedClients() > 0) {
       webSocket.broadcastTXT(data, size); // broadcast is best for cases where contact was lost
-      //delay(2);
-    //}
+    }
 #endif
     Serial.write(data, size);
     //Serial1.write(data, size);
@@ -181,10 +179,9 @@ class SerialMirror : public Stream {
 
   size_t write(uint8_t data) {
 #if defined(ESP8266)
-    //if (rto->webSocketConnected) {
+    if (webSocket.connectedClients() > 0) {
       webSocket.broadcastTXT(&data);
-      //delay(2);
-    //}
+    }
 #endif
     Serial.write(data);
     //Serial1.write(data);
@@ -2889,6 +2886,8 @@ void startWire() {
 void setup() {
   rto->webServerEnabled = true; // control gbs-control(:p) via web browser, only available on wifi boards.
   rto->webServerStarted = false; // make sure this is set
+  Serial.begin(115200); // set Arduino IDE Serial Monitor to the same 115200 bauds!
+  Serial.setTimeout(10);
 #if defined(ESP8266)
   // SDK enables WiFi and uses stored credentials to auto connect. This can't be turned off.
   // Correct the hostname while it is still in CONNECTING state
@@ -2904,8 +2903,8 @@ void setup() {
     while (millis() - initLoopStart < 2000) {
       persWM.handleWiFi();
       dnsServer.processNextRequest();
-      server.handleClient();
       webSocket.loop();
+      server.handleClient(); // after websocket loop!
       delay(1); // allow some time for the ws server to find clients currently trying to reconnect
     }
   }
@@ -2913,12 +2912,10 @@ void setup() {
     //WiFi.disconnect(); // deletes credentials
     WiFi.mode(WIFI_OFF);
     WiFi.forceSleepBegin();
-    delay(1);
+    delay(1000); // give the entire system some time to start up.
   }
 #endif
 
-  Serial.begin(115200); // set Arduino IDE Serial Monitor to the same 115200 bauds!
-  Serial.setTimeout(10);
   Serial.println("starting");
   //globalDelay = 0;
   // user options // todo: could be stored in Arduino EEPROM. Other MCUs have SPIFFS
@@ -2932,7 +2929,6 @@ void setup() {
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->enableDebugPings = false;
-  rto->webSocketConnected = false;
   rto->autoBestHtotalEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
   rto->syncLockFailIgnore = 8; // allow syncLock to fail x-1 times in a row before giving up (sync glitch immunity)
   rto->forceRetime = false;
@@ -2970,8 +2966,7 @@ void setup() {
   pinMode(DEBUG_IN_PIN, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   LEDON; // enable the LED, lets users know the board is starting up
-  delay(500); // give the entire system some time to start up.
-
+  
 #if defined(ESP8266)
   //Serial.setDebugOutput(true); // if you want simple wifi debug info
   // file system (web page, custom presets, ect)
@@ -3038,11 +3033,14 @@ void setup() {
   delay(500); // give the entire system some time to start up.
 #endif
   startWire();
+  delay(1); // time for pins to register high
 
   // i2c can get stuck
   if (digitalRead(SDA) == 0) {
     unsigned long timeout = millis();
     while (millis() - timeout <= 4000) {
+      yield(); // wifi
+      handleWiFi(); // also keep web ui stuff going
       if (digitalRead(SDA) == 0) {
         static uint8_t result = 0;
         static boolean printDone = 0;
@@ -3066,8 +3064,7 @@ void setup() {
         startWire();
         writeOneByte(0xf0, 0); readFromRegister(0x0c, 1, &result);
         SerialM.print(result, HEX);
-        // also keep web ui stuff going
-        handleWiFi(); // ESP8266 check, WiFi + OTA updates, checks for server enabled + started
+        
         counter++;
       }
       else {
@@ -3158,20 +3155,30 @@ void handleButtons(void) {
 #endif
 
 void handleWiFi() {
+  yield();
 #if defined(ESP8266)
   if (rto->webServerEnabled && rto->webServerStarted) {
     persWM.handleWiFi(); // if connected, returns instantly. otherwise it reconnects or opens AP
     dnsServer.processNextRequest();
-    server.handleClient();
     webSocket.loop();
-    if (webSocket.connectedClients() > 0) { delay(1); }
     // if there's a control command from the server, globalCommand will now hold it.
     // process it in the parser, then reset to 0 at the end of the sketch.
+
+    static unsigned long lastTimePing = millis();
+    if (millis() - lastTimePing > 1000) {
+      //webSocket.broadcastPing(); // sends a WS ping to all Client; returns true if ping is sent out
+      if (webSocket.connectedClients() > 0) {
+        webSocket.broadcastTXT("#"); // makeshift ping, since ws protocol pings aren't exposed to javascript
+      }
+      lastTimePing = millis();
+    }
+    server.handleClient(); // after websocket loop!
   }
 
   if (rto->allowUpdatesOTA) {
     ArduinoOTA.handle();
   }
+  yield();
 #endif
 }
 
@@ -3835,7 +3842,8 @@ void loop() {
       " D:" + dbg + " m:" + String(video_mode) + " ht:" + String(STATUS_SYNC_PROC_HTOTAL) +
       " vt:" + String(STATUS_SYNC_PROC_VTOTAL) + " hpw:" + hpw + " s:" + stableCounter
 #if defined(ESP8266)
-      +String(" W:") + String(WiFi.RSSI())
+      + String(" W:") + String(WiFi.RSSI())
+      + String(" H:") + ESP.getHeapFragmentation()
 #endif
       + String(" L:") + loopTime;
 
@@ -4129,6 +4137,12 @@ void loop() {
       }
     }
 
+    //#if defined(ESP8266)
+    //      SerialM.print("high heap fragmentation: ");
+    //      SerialM.print(heapFragmentation);
+    //      SerialM.println("%");
+    //#endif
+
     lastTimeSyncWatcher = millis();
   }
 
@@ -4306,11 +4320,11 @@ void handleRoot() {
   // root start heap: 32928
   // page in ram, heap: 22584
   // page sent, heap: 24888
-  //webSocket.disconnect();
-  String page = FPSTR(HTML);
-  //server.sendHeader("Content-Length", String(page.length())); // library already does this
-  server.send(200, "text/html", page);
-  //server.send_P(200, "text/html", HTML); // send_P method, no String needed
+
+  // don't disconnect websocket clients here, leads to crashes!
+  //String page = FPSTR(HTML);
+  //server.send(200, "text/html", page);
+  server.send_P(200, "text/html", HTML); // send_P method, no String needed
 }
 
 void handleType1Command() {
@@ -4380,7 +4394,8 @@ void handleType2Command() {
     case 'a':
       // restart ESP MCU (due to an SDK bug, this does not work reliably after programming. 
       // It needs a power cycle or reset button push first.)
-      SerialM.println("Restarting MCU");
+      SerialM.println("Restarting..");
+      delay(20); // helps websocket reconnecting in time
       ESP.restart();
       break;
     case 'b':
@@ -4441,48 +4456,18 @@ void handleType2Command() {
     }
     break;
     case 'f':
+    case 'g':
+    case 'h':
+    case 'p':
     {
-      // load 1280x960 preset via webui
+      // load preset via webui
       uint8_t videoMode = getVideoMode();
       if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
       uint8_t backup = uopt->presetPreference;
-      uopt->presetPreference = 0; // override RAM copy of presetPreference for applyPresets
-      rto->videoStandardInput = 0; // force hard reset
-      applyPresets(videoMode);
-      uopt->presetPreference = backup;
-    }
-    break;
-    case 'g':
-    {
-      // load 1280x720 preset via webui
-      uint8_t videoMode = getVideoMode();
-      if (videoMode == 0) videoMode = rto->videoStandardInput;
-      uint8_t backup = uopt->presetPreference;
-      uopt->presetPreference = 3;
-      rto->videoStandardInput = 0; // force hard reset
-      applyPresets(videoMode);
-      uopt->presetPreference = backup;
-    }
-    break;
-    case 'h':
-    {
-      // load 640x480 preset via webui
-      uint8_t videoMode = getVideoMode();
-      if (videoMode == 0) videoMode = rto->videoStandardInput;
-      uint8_t backup = uopt->presetPreference;
-      uopt->presetPreference = 1;
-      rto->videoStandardInput = 0; // force hard reset
-      applyPresets(videoMode);
-      uopt->presetPreference = backup;
-    }
-    break;
-    case 'p':
-    {
-      // load 1280x1024
-      uint8_t videoMode = getVideoMode();
-      if (videoMode == 0) videoMode = rto->videoStandardInput;
-      uint8_t backup = uopt->presetPreference;
-      uopt->presetPreference = 4;
+      if (argument == 'f') uopt->presetPreference = 0; // override RAM copy of presetPreference for applyPresets // 1280x960
+      if (argument == 'g') uopt->presetPreference = 3; // 1280x720
+      if (argument == 'h') uopt->presetPreference = 1; // 640x480
+      if (argument == 'p') uopt->presetPreference = 4; // 1280x1024
       rto->videoStandardInput = 0; // force hard reset
       applyPresets(videoMode);
       uopt->presetPreference = backup;
@@ -4577,8 +4562,26 @@ void handleType2Command() {
   }
 }
 
+void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length) {
+  switch (type) {
+  case WStype_DISCONNECTED:
+    //Serial.print(num); Serial.println(" disconnected!\n");
+  break;
+  case WStype_CONNECTED: {
+    if (num > 0) {
+      //SerialM.print("disconnecting client: "); SerialM.println(num - 1);
+      webSocket.disconnect(num - 1); // test
+    }
+    //Serial.print(num); Serial.println(" connected!\n");
+    webSocket.sendTXT(num, "#"); // ping
+  }
+  break;
+  }
+}
+
 void startWebserver()
 {
+  //WiFi.setAutoConnect(false);
   //WiFi.disconnect(); // test captive portal by forgetting wifi credentials
   persWM.setApCredentials(ap_ssid, ap_password);
   persWM.onConnect([]() {
@@ -4595,9 +4598,11 @@ void startWebserver()
 
   persWM.setConnectNonBlock(true);
   persWM.begin(); // WiFiManager with captive portal
-  MDNS.begin("gbscontrol"); // respnd to MDNS request for gbscontrol.local
+  delay(300);
+  MDNS.begin("gbscontrol"); // respond to MDNS request for gbscontrol.local
   server.begin(); // Webserver for the site
   webSocket.begin();  // Websocket for interaction
+  webSocket.onEvent(webSocketEvent);
   delay(1);
 #ifdef HAVE_PINGER_LIBRARY
   // pinger library
