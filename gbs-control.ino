@@ -168,23 +168,23 @@ char globalCommand;
 class SerialMirror : public Stream {
   size_t write(const uint8_t *data, size_t size) {
 #if defined(ESP8266)
-    if (webSocket.connectedClients() > 0) {
-      webSocket.broadcastTXT(data, size); // broadcast is best for cases where contact was lost
+    uint8_t num = webSocket.connectedClients();
+    if (num > 0) {
+      webSocket.broadcastTXT(data, size);
     }
 #endif
     Serial.write(data, size);
-    //Serial1.write(data, size);
     return size;
   }
 
   size_t write(uint8_t data) {
 #if defined(ESP8266)
-    if (webSocket.connectedClients() > 0) {
+    uint8_t num = webSocket.connectedClients();
+    if (num > 0) {
       webSocket.broadcastTXT(&data);
     }
 #endif
     Serial.write(data);
-    //Serial1.write(data);
     return 1;
   }
 
@@ -1889,9 +1889,7 @@ void doPostPresetLoadSteps() {
     GBS::PB_REQ_SEL::write(3); // PlayBack 11 High request Low request
     GBS::PB_GENERAL_FLAG_REG::write(0x3f); // 4_2D max
     //GBS::PB_MAST_FLAG_REG::write(0x16); // 4_2c should be set by preset
-    GBS::MEM_INTER_DLYCELL_SEL::write(0); // 4_12 to 0x02
-    GBS::MEM_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x02
-    GBS::MEM_FBK_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x02
+    // 4_12 should be set by preset
   }
 
   ResetSDRAM();
@@ -2823,7 +2821,7 @@ void enableMotionAdaptDeinterlace() {
   GBS::MADPT_EN_UV_DEINT::write(1); // 2_3a 0
   GBS::MADPT_MI_1BIT_DLY::write(1); // 2_3a [5..6]
   //GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x00 (so fb clock is usable) // requires sdram reset
-  GBS::MEM_CLK_DLY_REG::write(1); // use this instead
+  //GBS::MEM_CLK_DLY_REG::write(1); // use this instead
   GBS::CAP_FF_HALF_REQ::write(1);
   GBS::WFF_FF_STA_INV::write(0);
   GBS::WFF_YUV_DEINTERLACE::write(1);
@@ -2852,7 +2850,7 @@ void disableMotionAdaptDeinterlace() {
   GBS::MADPT_EN_UV_DEINT::write(0); // 2_3a 0
   GBS::MADPT_MI_1BIT_DLY::write(0); // 2_3a [5..6]
   //GBS::MEM_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x02
-  GBS::MEM_CLK_DLY_REG::write(3); // use this instead
+  //GBS::MEM_CLK_DLY_REG::write(3); // use this instead
   GBS::CAP_FF_HALF_REQ::write(0);
   GBS::WFF_ENABLE::write(0);
   GBS::RFF_ENABLE::write(0);
@@ -2892,16 +2890,13 @@ void setup() {
 
   // start web services as early in boot as possible > greater chance to get a websocket connection in time for logging startup
   if (rto->webServerEnabled) {
+    rto->allowUpdatesOTA = false; // need to initialize for handleWiFi()
     startWebserver();
     WiFi.setOutputPower(14.0f); // float: min 0.0f, max 20.5f // reduced from max, but still strong
     rto->webServerStarted = true;
     unsigned long initLoopStart = millis();
     while (millis() - initLoopStart < 2000) {
-      persWM.handleWiFi();
-      dnsServer.processNextRequest();
-      webSocket.loop();
-      server.handleClient(); // after websocket loop!
-      delay(1); // allow some time for the ws server to find clients currently trying to reconnect
+      handleWiFi();
     }
   }
   else {
@@ -2912,7 +2907,7 @@ void setup() {
   }
 #endif
 
-  Serial.println("starting");
+  SerialM.println("starting");
   //globalDelay = 0;
   // user options // todo: could be stored in Arduino EEPROM. Other MCUs have SPIFFS
   uopt->presetPreference = 0; // normal, 720p, fb, custom, 1280x1024
@@ -3025,6 +3020,7 @@ void setup() {
       f.close();
     }
   }
+  handleWiFi();
 #else
   delay(500); // give the entire system some time to start up.
 #endif
@@ -3839,7 +3835,7 @@ void loop() {
       " vt:" + String(STATUS_SYNC_PROC_VTOTAL) + " hpw:" + hpw + " s:" + stableCounter
 #if defined(ESP8266)
       + String(" W:") + String(WiFi.RSSI())
-      + String(" H:") + ESP.getHeapFragmentation()
+      + String(" F:") + ESP.getFreeHeap() // ESP.getFreeContStack() // requires ESP8266 core > 2.5.0
 #endif
       + String(" L:") + loopTime;
 
@@ -4317,10 +4313,14 @@ void handleRoot() {
   // page in ram, heap: 22584
   // page sent, heap: 24888
 
-  // don't disconnect websocket clients here, leads to crashes!
   //String page = FPSTR(HTML);
   //server.send(200, "text/html", page);
+  webSocket.loop(); // this seems to do the trick!
+  yield();
+  //unsigned long start = millis();
   server.send_P(200, "text/html", HTML); // send_P method, no String needed
+  //unsigned long stop = millis();
+  //Serial.print("sending took: "); Serial.println(stop - start);
 }
 
 void handleType1Command() {
@@ -4388,11 +4388,9 @@ void handleType2Command() {
       saveUserPrefs();
       break;
     case 'a':
-      // restart ESP MCU (due to an SDK bug, this does not work reliably after programming. 
-      // It needs a power cycle or reset button push first.)
-      SerialM.println("Restarting..");
-      delay(20); // helps websocket reconnecting in time
-      ESP.restart();
+      Serial.println("restart");
+      delay(300);
+      ESP.reset(); // don't use restart(), messes up websocket reconnects
       break;
     case 'b':
       uopt->presetGroup = 0;
@@ -4569,7 +4567,7 @@ void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length)
       webSocket.disconnect(num - 1); // test
     }
     //Serial.print(num); Serial.println(" connected!\n");
-    webSocket.sendTXT(num, "#"); // ping
+    webSocket.broadcastTXT("#"); // ping
   }
   break;
   }
@@ -4594,12 +4592,12 @@ void startWebserver()
 
   persWM.setConnectNonBlock(true);
   persWM.begin(); // WiFiManager with captive portal
-  delay(300);
+  yield();
   MDNS.begin("gbscontrol"); // respond to MDNS request for gbscontrol.local
   server.begin(); // Webserver for the site
   webSocket.begin();  // Websocket for interaction
   webSocket.onEvent(webSocketEvent);
-  delay(1);
+  yield();
 #ifdef HAVE_PINGER_LIBRARY
   // pinger library
   pinger.OnReceive([](const PingerResponse& response)
@@ -4664,6 +4662,7 @@ void initUpdateOTA() {
     else if (error == OTA_END_ERROR) SerialM.println("End Failed");
   });
   ArduinoOTA.begin();
+  yield();
 }
 
 // sets every element of str to 0 (clears array)
