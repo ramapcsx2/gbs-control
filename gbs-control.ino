@@ -2779,12 +2779,10 @@ void enableScanlines() {
   if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 0) {
     //SerialM.println("enableScanlines())");
     GBS::MAPDT_VT_SEL_PRGV::write(0);
-    GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 24); // more luma gain
-    GBS::VDS_UCOS_GAIN::write(GBS::VDS_UCOS_GAIN::read() + 2);
-    GBS::VDS_VCOS_GAIN::write(GBS::VDS_VCOS_GAIN::read() + 5);
+    GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 0x38); // more luma gain
     GBS::MADPT_VIIR_COEF::write(0x14); // set up VIIR filter 2_27
     GBS::MADPT_Y_MI_DET_BYPS::write(1); // make sure, so that mixing works
-    GBS::MADPT_Y_MI_OFFSET::write(0x50); // 2_0b offset (mixing factor here)
+    GBS::MADPT_Y_MI_OFFSET::write(0x28); // 2_0b offset (mixing factor here)
     GBS::MADPT_PD_RAM_BYPS::write(0);
     GBS::MADPT_VIIR_BYPS::write(0); // enable VIIR 
     GBS::RFF_LINE_FLIP::write(1); // clears potential garbage in rff buffer
@@ -2798,9 +2796,7 @@ void disableScanlines() {
   if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) {
     //SerialM.println("disableScanlines())");
     GBS::MAPDT_VT_SEL_PRGV::write(1);
-    GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 24);
-    GBS::VDS_UCOS_GAIN::write(GBS::VDS_UCOS_GAIN::read() - 2);
-    GBS::VDS_VCOS_GAIN::write(GBS::VDS_VCOS_GAIN::read() - 5);
+    GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 0x38);
     GBS::MADPT_Y_MI_OFFSET::write(0xff); // 2_0b offset 0xff disables mixing
     GBS::MADPT_PD_RAM_BYPS::write(1);
     GBS::MADPT_VIIR_BYPS::write(1); // disable VIIR 
