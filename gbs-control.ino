@@ -4590,7 +4590,14 @@ void startWebserver()
   server.on("/user_", handleType2Command);
 
   persWM.setConnectNonBlock(true);
-  persWM.begin(); // WiFiManager with captive portal
+  if (WiFi.SSID().length() == 0) {
+    // no stored network to connect to > start AP mode right away
+    persWM.setupWiFiHandlers();
+    persWM.startApMode();
+  }
+  else {
+    persWM.begin(); // first try connecting to stored network, go AP mode after timeout
+  }
   yield();
   MDNS.begin("gbscontrol"); // respond to MDNS request for gbscontrol.local
   server.begin(); // Webserver for the site

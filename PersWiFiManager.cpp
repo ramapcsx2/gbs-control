@@ -120,6 +120,12 @@ void PersWiFiManager::setupWiFiHandlers() {
   _server->on("/wifi/connect", [&]() {
     _server->send(200, "text/html", "connecting...");
     attemptConnection(_server->arg("n"), _server->arg("p"));
+    // module should restart
+    delay(500);
+    yield();
+    delay(1000);
+    yield();
+    ESP.restart();
   }); //_server->on /wifi/connect
 
   _server->on("/wifi/ap", [&](){
