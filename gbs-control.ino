@@ -17,6 +17,7 @@
 typedef TV5725<GBS_ADDR> GBS;
 
 #if defined(ESP8266)  // select WeMos D1 R2 & mini in IDE for NodeMCU! (otherwise LED_BUILTIN is mapped to D0 / does not work)
+#include "webui_html.h"
 #include <ESP8266WiFi.h>
 #include "FS.h"
 #include <DNSServer.h>
@@ -4306,21 +4307,19 @@ void loop() {
 
 #if defined(ESP8266)
 
+// gzip -c9 webui.html > webui_html && xxd -i webui_html > webui_html.h && rm webui_html && sed -i -e 's/unsigned char webui_html\[]/const char webui_html[] PROGMEM/' webui_html.h && sed -i -e 's/unsigned int webui_html_len/const unsigned int webui_html_len/' webui_html.h
 void handleRoot() {
-  // server.send_P allows directly sending from PROGMEM, using less RAM. It can stall however
-  // server.send uses a String held in RAM. Some stats:
-  // root start heap: 32928
-  // page in ram, heap: 22584
-  // page sent, heap: 24888
-
+  // server.send_P allows directly sending from PROGMEM, using less RAM. (sometimes stalls)
+  // server.send uses a String held in RAM.
   //String page = FPSTR(HTML);
   //server.send(200, "text/html", page);
+
   webSocket.loop(); // this seems to do the trick!
   yield();
   //unsigned long start = millis();
-  server.send_P(200, "text/html", HTML); // send_P method, no String needed
-  //unsigned long stop = millis();
-  //Serial.print("sending took: "); Serial.println(stop - start);
+  server.sendHeader("Content-Encoding", "gzip");
+  server.send_P(200, "text/html", webui_html, webui_html_len); // send_P method, no String needed
+  //Serial.print("sending took: "); Serial.println(millis() - start);
 }
 
 void handleType1Command() {
