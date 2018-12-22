@@ -17,7 +17,6 @@
 typedef TV5725<GBS_ADDR> GBS;
 
 #if defined(ESP8266)  // select WeMos D1 R2 & mini in IDE for NodeMCU! (otherwise LED_BUILTIN is mapped to D0 / does not work)
-#include "webui_html.h"
 #include <ESP8266WiFi.h>
 #include "FS.h"
 #include <DNSServer.h>
@@ -4345,7 +4344,7 @@ void loop() {
 }
 
 #if defined(ESP8266)
-
+#include "webui_html.h"
 // gzip -c9 webui.html > webui_html && xxd -i webui_html > webui_html.h && rm webui_html && sed -i -e 's/unsigned char webui_html\[]/const char webui_html[] PROGMEM/' webui_html.h && sed -i -e 's/unsigned int webui_html_len/const unsigned int webui_html_len/' webui_html.h
 void handleRoot() {
   // server.send_P allows directly sending from PROGMEM, using less RAM. (sometimes stalls)
