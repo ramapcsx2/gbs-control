@@ -404,7 +404,7 @@ void setResetParameters() {
   rto->coastPositionIsSet = 0;
   rto->continousStableCounter = 0;
   rto->isInLowPowerMode = false;
-  rto->currentLevelSOG = 4;
+  rto->currentLevelSOG = 1;
   rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
   rto->failRetryAttempts = 0;
   rto->motionAdaptiveDeinterlaceActive = false;
@@ -923,7 +923,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         }
       }
       SerialM.println(" lost..");
-      rto->currentLevelSOG = 4;
+      rto->currentLevelSOG = 1;
       setAndUpdateSogLevel(rto->currentLevelSOG);
       //SerialM.println(" lost, attempt auto SOG");
       //optimizeSogLevel();
@@ -1698,6 +1698,16 @@ void applyBestHTotal(uint16_t bestHTotal) {
     }
     if (h_blank_memory_stop_position > bestHTotal) {
       h_blank_memory_stop_position = 4095 - h_blank_memory_stop_position;
+    }
+
+    // finally, fix forced timings with large diff
+    if (isLargeDiff) {
+      h_blank_display_start_position = bestHTotal * 0.91f;
+      h_blank_display_stop_position = bestHTotal * 0.178f;
+      h_sync_start_position = bestHTotal * 0.962f;
+      h_sync_stop_position = bestHTotal * 0.06f;
+      h_blank_memory_start_position = h_blank_display_start_position * 1.02f;
+      h_blank_memory_stop_position = h_blank_display_stop_position * 0.6f;
     }
 
     if (diffHTotal != 0) {
@@ -3104,7 +3114,7 @@ void setup() {
   GBS::TEST_BUS_EN::write(0); // to init some template variables
   GBS::TEST_BUS_SEL::write(0);
   
-  rto->currentLevelSOG = 4;
+  rto->currentLevelSOG = 1;
   rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
   setAndUpdateSogLevel(rto->currentLevelSOG);
   setResetParameters();
@@ -4106,14 +4116,14 @@ void loop() {
     //}
 
     if (noSyncCounter >= 40) { // attempt fixes
-      if (getSyncPresent() && rto->videoStandardInput != 15) { // only if there's at least a signal
+      if (rto->videoStandardInput != 15) {
         if (rto->inputIsYpBpR && noSyncCounter == 40) {
           GBS::SP_NO_CLAMP_REG::write(1); // unlock clamp
           rto->coastPositionIsSet = false;
           rto->clampPositionIsSet = false;
           delay(10);
         }
-        if ((noSyncCounter % 100) == 0) {
+        if (noSyncCounter == 81) {
           optimizeSogLevel();
           //setAndUpdateSogLevel(rto->currentLevelSOG / 2);
           //SerialM.print("SOG: "); SerialM.println(rto->currentLevelSOG);

@@ -4,14 +4,26 @@
 // fast digitalRead()
 #if defined(ESP8266)
 #define digitalRead(x) ((GPIO_REG_READ(GPIO_IN_ADDRESS) >> x) & 1)
+#ifndef DEBUG_IN_PIN
+#define DEBUG_IN_PIN D6
+#endif
 #else // Arduino
    // fastest, but non portable (Uno pin 11 = PB3, Mega2560 pin 11 = PB5)
    //#define digitalRead(x) bitRead(PINB, 3)
 #include "fastpin.h"
 #define digitalRead(x) fastRead<x>()
+// no define for DEBUG_IN_PIN
 #endif
 
 //#define FS_DEBUG
+
+volatile uint32_t stopTime;
+void ICACHE_RAM_ATTR signalNextRisingEdge() {
+  noInterrupts();
+  stopTime = ESP.getCycleCount();
+  detachInterrupt(digitalPinToInterrupt(DEBUG_IN_PIN));
+  interrupts();
+}
 
 template <class GBS, class Attrs>
 class FrameSyncManager {
@@ -33,22 +45,36 @@ private:
 
   // Sample vsync start and stop times from debug pin.
   static bool vsyncOutputSample(uint32_t *start, uint32_t *stop) {
-    yield();
     unsigned long timeoutStart = micros();
+    stopTime = 0; // reset this
     while (digitalRead(debugInPin))
       if (micros() - timeoutStart >= syncTimeout)
         return false;
     while (!digitalRead(debugInPin))
       if (micros() - timeoutStart >= syncTimeout)
         return false;
-    noInterrupts();
+
     *start = ESP.getCycleCount();
-    while (digitalRead(debugInPin)); // the pulse came in once, trust that it will continue
-    while (!digitalRead(debugInPin)); // (worst case: WDT will take care of the situation)
-    // not necessary to sample twice (since using SP filtered sync)
-    *stop = ESP.getCycleCount();
-    interrupts();
-    yield();
+    delayMicroseconds(4); // glitch filter, not sure if needed
+    attachInterrupt(digitalPinToInterrupt(D6), signalNextRisingEdge, RISING);
+    delay(22); // PAL50: 20ms
+    *stop = stopTime;
+    if (*stop == 0) {
+      // extra delay, sometimes needed when tuning VDS clock
+      delay(50);
+    }
+    *stop = stopTime;
+    if ((*start > *stop) || *stop == 0) {
+      // ESP.getCycleCount() overflow oder no pulse, just fail this round
+      return false;
+    }
+#ifdef FS_DEBUG
+    int32 tstC = *stop - *start;
+    static int32_t tstP = tstC;
+    Serial.print("                                     in jitter: "); 
+    Serial.println(abs(tstC - tstP));
+    tstP = tstC;
+#endif
     return true;
   }
 
@@ -116,8 +142,6 @@ private:
     if (bestHtotal == (inHtotal - 1)) { bestHtotal += 1; } // same (outPeriod very slightly larger like this doesn't cause the vertical bar)
 
 #ifdef FS_DEBUG
-    uint32 quickcheck = (inPeriod > outPeriod) ? inPeriod - outPeriod : outPeriod - inPeriod;
-    Serial.print("                                      quickcheck: "); Serial.println(quickcheck);
     if (bestHtotal != inHtotal) {
       Serial.print("                     wants new htotal, oldbest: "); Serial.print(inHtotal);
       Serial.print(" newbest: "); Serial.println(bestHtotal);
@@ -164,22 +188,36 @@ public:
 
   // Sample vsync start and stop times from debug pin.
   static bool vsyncInputSample(uint32_t *start, uint32_t *stop) {
-    yield();
     unsigned long timeoutStart = micros();
+    stopTime = 0; // reset this
     while (digitalRead(debugInPin))
       if (micros() - timeoutStart >= syncTimeout)
         return false;
     while (!digitalRead(debugInPin))
       if (micros() - timeoutStart >= syncTimeout)
         return false;
-    noInterrupts();
+
     *start = ESP.getCycleCount();
-    while (digitalRead(debugInPin)); // the pulse came in once, trust that it will continue
-    while (!digitalRead(debugInPin)); // (worst case: WDT will take care of the situation)
-    // not necessary to sample twice (since using SP filtered sync)
-    *stop = ESP.getCycleCount();
-    interrupts();
-    yield();
+    delayMicroseconds(4); // glitch filter, not sure if needed
+    attachInterrupt(digitalPinToInterrupt(DEBUG_IN_PIN), signalNextRisingEdge, RISING);
+    delay(22); // PAL50: 20ms
+    *stop = stopTime;
+    if (*stop == 0) {
+      // extra delay, sometimes needed when tuning VDS clock
+      delay(50);
+    }
+    *stop = stopTime;
+    if ((*start > *stop) || *stop == 0) {
+      // ESP.getCycleCount() overflow oder no pulse, just fail this round
+      return false;
+    }
+#ifdef FS_DEBUG
+    int32 tstC = *stop - *start;
+    static int32_t tstP = tstC;
+    Serial.print("                                    out jitter: "); 
+    Serial.println(abs(tstC - tstP));
+    tstP = tstC;
+#endif
     return true;
   }
 
