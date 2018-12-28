@@ -1705,7 +1705,7 @@ void applyBestHTotal(uint16_t bestHTotal) {
       h_blank_display_stop_position = bestHTotal * 0.178f;
       h_sync_start_position = bestHTotal * 0.962f;
       h_sync_stop_position = bestHTotal * 0.06f;
-      h_blank_memory_start_position = h_blank_display_start_position * 1.02f;
+      h_blank_memory_start_position = h_blank_display_start_position;
       h_blank_memory_stop_position = h_blank_display_stop_position * 0.6f;
     }
 
@@ -2858,7 +2858,7 @@ void enableMotionAdaptDeinterlace() {
   GBS::MADPT_MI_1BIT_DLY::write(1); // 2_3a [5..6]
   //GBS::MEM_CLK_DLYCELL_SEL::write(0); // 4_12 to 0x00 (so fb clock is usable) // requires sdram reset
   //GBS::MEM_CLK_DLY_REG::write(1); // use this instead
-  GBS::CAP_FF_HALF_REQ::write(1);
+  //GBS::CAP_FF_HALF_REQ::write(1); // 4_21 1
   GBS::WFF_FF_STA_INV::write(0);
   GBS::WFF_YUV_DEINTERLACE::write(1);
   GBS::WFF_LINE_FLIP::write(0);
@@ -2886,7 +2886,7 @@ void disableMotionAdaptDeinterlace() {
   GBS::MADPT_MI_1BIT_DLY::write(0); // 2_3a [5..6]
   //GBS::MEM_CLK_DLYCELL_SEL::write(1); // 4_12 to 0x02
   //GBS::MEM_CLK_DLY_REG::write(3); // use this instead
-  GBS::CAP_FF_HALF_REQ::write(0);
+  //GBS::CAP_FF_HALF_REQ::write(0); // 4_21 1
   GBS::WFF_ENABLE::write(0);
   GBS::RFF_ENABLE::write(0);
   GBS::WFF_FF_STA_INV::write(1);
@@ -3431,6 +3431,8 @@ void loop() {
       //movePhaseThroughRange();
     break;
     case '#':
+      rto->videoStandardInput = 14;
+      applyPresets(14);
       //Serial.println(getStatusHVSyncStable());
       //globalDelay++;
       //SerialM.println(globalDelay);
