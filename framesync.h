@@ -4,14 +4,26 @@
 // fast digitalRead()
 #if defined(ESP8266)
 #define digitalRead(x) ((GPIO_REG_READ(GPIO_IN_ADDRESS) >> x) & 1)
+#ifndef DEBUG_IN_PIN
+#define DEBUG_IN_PIN D6
+#endif
 #else // Arduino
    // fastest, but non portable (Uno pin 11 = PB3, Mega2560 pin 11 = PB5)
    //#define digitalRead(x) bitRead(PINB, 3)
 #include "fastpin.h"
 #define digitalRead(x) fastRead<x>()
+// no define for DEBUG_IN_PIN
 #endif
 
 //#define FS_DEBUG
+
+volatile uint32_t stopTime;
+void ICACHE_RAM_ATTR signalNextRisingEdge() {
+  noInterrupts();
+  stopTime = ESP.getCycleCount();
+  detachInterrupt(digitalPinToInterrupt(DEBUG_IN_PIN));
+  interrupts();
+}
 
 template <class GBS, class Attrs>
 class FrameSyncManager {
@@ -32,35 +44,55 @@ private:
   static int16_t syncLastCorrection;
 
   // Sample vsync start and stop times from debug pin.
-  static bool vsyncOutputSample(unsigned long *start, unsigned long *stop) {
+  static bool vsyncOutputSample(uint32_t *start, uint32_t *stop) {
     unsigned long timeoutStart = micros();
+    stopTime = 0; // reset this
     while (digitalRead(debugInPin))
       if (micros() - timeoutStart >= syncTimeout)
         return false;
     while (!digitalRead(debugInPin))
       if (micros() - timeoutStart >= syncTimeout)
         return false;
-    *start = micros();
-    while (digitalRead(debugInPin)); // the pulse came in once, trust that it will continue
-    while (!digitalRead(debugInPin)); // (worst case: WDT will take care of the situation)
-    // not necessary to sample twice (since using SP filtered sync)
-    *stop = micros();
+
+    *start = ESP.getCycleCount();
+    delayMicroseconds(4); // glitch filter, not sure if needed
+    attachInterrupt(digitalPinToInterrupt(D6), signalNextRisingEdge, RISING);
+    delay(22); // PAL50: 20ms
+    *stop = stopTime;
+    if (*stop == 0) {
+      // extra delay, sometimes needed when tuning VDS clock
+      delay(50);
+    }
+    *stop = stopTime;
+    if ((*start > *stop) || *stop == 0) {
+      // ESP.getCycleCount() overflow oder no pulse, just fail this round
+      return false;
+    }
+#ifdef FS_DEBUG
+    int32 tstC = *stop - *start;
+    static int32_t tstP = tstC;
+    Serial.print("                                     in jitter: "); 
+    Serial.println(abs(tstC - tstP));
+    tstP = tstC;
+#endif
     return true;
   }
 
   // Sample input and output vsync periods and their phase
   // difference in microseconds
   static bool vsyncPeriodAndPhase(int32_t *periodInput, int32_t *periodOutput, int32_t *phase) {
-    unsigned long inStart, inStop, outStart, outStop;
-    signed long inPeriod, outPeriod, diff;
+    uint32_t inStart, inStop, outStart, outStop;
+    uint32_t inPeriod, outPeriod, diff;
 
+    // 0x0 = IF (t1t28t3)
     GBS::TEST_BUS_SEL::write(0x0);
     if (!vsyncInputSample(&inStart, &inStop)) {
       return false;
     }
-    GBS::TEST_BUS_SEL::write(0x2); // switch to show sync output right away
-    inPeriod = (inStop - inStart); //>> 1;
 
+    // 0x2 = VDS (t3t50t4) // selected test measures VDS vblank (VB ST/SP)
+    GBS::TEST_BUS_SEL::write(0x2);
+    inPeriod = (inStop - inStart); //>> 1;
     if (!vsyncOutputSample(&outStart, &outStop)) {
       return false;
     }
@@ -75,15 +107,13 @@ private:
       *phase = (diff < inPeriod) ? diff : diff - inPeriod;
 
 #ifdef FS_DEBUG
-    if (outPeriod > inPeriod) {
       Serial.print(" inPeriod: "); Serial.println(inPeriod);
       Serial.print("outPeriod: "); Serial.println(outPeriod);
-    }
 #endif
     return true;
   }
 
-  static bool sampleVsyncPeriods(int32_t *input, int32_t *output) {
+  static bool sampleVsyncPeriods(uint32_t *input, uint32_t *output) {
     int32_t inPeriod, outPeriod;
 
     if (!vsyncPeriodAndPhase(&inPeriod, &outPeriod, NULL))
@@ -100,57 +130,16 @@ private:
   // update: has to be less for the soft frame time lock to work (but not for hard frame lock (3_1A 4))
   static bool findBestHTotal(uint32_t &bestHtotal) {
     uint16_t inHtotal = HSYNC_RST::read();
-    int32_t inPeriod, outPeriod;
+    uint32_t inPeriod, outPeriod;
 
     if (inHtotal == 0) { return false; } // safety
     if (!sampleVsyncPeriods(&inPeriod, &outPeriod)) { return false; }
 
-    int32_t currentDiff = outPeriod - inPeriod;
-    if (currentDiff < -160 || currentDiff > 160) {
-      int32_t firstDiff = currentDiff;
-      delay(2);
-      if (!sampleVsyncPeriods(&inPeriod, &outPeriod)) { return false; }
-      int32_t secondDiff = outPeriod - inPeriod;
-      if (secondDiff < -160 || secondDiff > 160) {
-        if ((firstDiff == secondDiff) ||
-          ((firstDiff == (secondDiff - 1)) || (firstDiff == (secondDiff - 2))) ||
-          ((firstDiff == (secondDiff + 1)) || (firstDiff == (secondDiff + 2))))
-        {
-          // okay, go on
-        }
-        else {
-#ifdef FS_DEBUG
-          Serial.println("                    no good!");
-          Serial.print("firstDiff: "); Serial.print(firstDiff);
-          Serial.print(" secondDiff: ");  Serial.println(secondDiff);
-#endif
-          return false;
-        }
-      }
-      currentDiff = secondDiff;
-    }
+    // large htotal can push intermediates to 33 bits
+    bestHtotal = (uint64_t)(inHtotal * (uint64_t)inPeriod) / (uint64_t)outPeriod;
 
-    if (currentDiff == 0) {
-      bestHtotal = inHtotal;
-    }
-    else if (currentDiff > 0 && currentDiff <= 2) { // out slightly longer
-      bestHtotal = inHtotal;
-#ifdef FS_DEBUG
-      Serial.print("longer by: "); Serial.println(currentDiff);
-#endif
-    }
-    else if (currentDiff < 0 && currentDiff >= -2) { // out slightly shorter
-      bestHtotal = inHtotal;
-#ifdef FS_DEBUG
-      Serial.print("shorter by: "); Serial.println(currentDiff);
-#endif
-    }
-    else {
-      bestHtotal = (inHtotal * inPeriod) / outPeriod;
-      if (bestHtotal == (inHtotal + 1)) { bestHtotal -= 1; } // works well
-      if (bestHtotal == (inHtotal - 1)) { bestHtotal += 1; } // worst case: inPeriod: 16715 outPeriod: 16718  *
-      // * outPeriod very slightly larger like this doesn't cause the vertical bar
-    }
+    if (bestHtotal == (inHtotal + 1)) { bestHtotal -= 1; } // works well
+    if (bestHtotal == (inHtotal - 1)) { bestHtotal += 1; } // same (outPeriod very slightly larger like this doesn't cause the vertical bar)
 
 #ifdef FS_DEBUG
     if (bestHtotal != inHtotal) {
@@ -198,19 +187,37 @@ public:
   }
 
   // Sample vsync start and stop times from debug pin.
-  static bool vsyncInputSample(unsigned long *start, unsigned long *stop) {
+  static bool vsyncInputSample(uint32_t *start, uint32_t *stop) {
     unsigned long timeoutStart = micros();
+    stopTime = 0; // reset this
     while (digitalRead(debugInPin))
       if (micros() - timeoutStart >= syncTimeout)
         return false;
     while (!digitalRead(debugInPin))
       if (micros() - timeoutStart >= syncTimeout)
         return false;
-    *start = micros();
-    while (digitalRead(debugInPin)); // the pulse came in once, trust that it will continue
-    while (!digitalRead(debugInPin)); // (worst case: WDT will take care of the situation)
-    // not necessary to sample twice (since using SP filtered sync)
-    *stop = micros();
+
+    *start = ESP.getCycleCount();
+    delayMicroseconds(4); // glitch filter, not sure if needed
+    attachInterrupt(digitalPinToInterrupt(DEBUG_IN_PIN), signalNextRisingEdge, RISING);
+    delay(22); // PAL50: 20ms
+    *stop = stopTime;
+    if (*stop == 0) {
+      // extra delay, sometimes needed when tuning VDS clock
+      delay(50);
+    }
+    *stop = stopTime;
+    if ((*start > *stop) || *stop == 0) {
+      // ESP.getCycleCount() overflow oder no pulse, just fail this round
+      return false;
+    }
+#ifdef FS_DEBUG
+    int32 tstC = *stop - *start;
+    static int32_t tstP = tstC;
+    Serial.print("                                    out jitter: "); 
+    Serial.println(abs(tstC - tstP));
+    tstP = tstC;
+#endif
     return true;
   }
 

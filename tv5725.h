@@ -162,6 +162,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x46, 1,  1> SFTRST_DEINT_RSTZ;
     typedef UReg<0x00, 0x46, 6,  1> SFTRST_VDS_RSTZ;
     typedef UReg<0x00, 0x47, 0,  8> RESET_CONTROL_0x47; // fake name
+    typedef UReg<0x00, 0x47, 0,  1> SFTRST_DEC_RSTZ;
     typedef UReg<0x00, 0x47, 1,  1> SFTRST_MODE_RSTZ;
     typedef UReg<0x00, 0x47, 2,  1> SFTRST_SYNC_RSTZ;
     typedef UReg<0x00, 0x48, 0,  8> PAD_CONTROL_00_0x48;
@@ -222,6 +223,10 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x2B, 0,  8> GBS_PRESET_ID;
 
     // Mode Detect
+    typedef UReg<0x01, 0x60, 0,  5> MD_HPERIOD_LOCK_VALUE;
+    typedef UReg<0x01, 0x60, 5,  3> MD_HPERIOD_UNLOCK_VALUE;
+    typedef UReg<0x01, 0x61, 0,  5> MD_VPERIOD_LOCK_VALUE;
+    typedef UReg<0x01, 0x61, 5,  3> MD_VPERIOD_UNLOCK_VALUE;
     typedef UReg<0x01, 0x63, 6,  1> MD_HS_FLIP;
     typedef UReg<0x01, 0x63, 7,  1> MD_VS_FLIP;
 
@@ -478,6 +483,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x21, 0,  1> CAPTURE_ENABLE;
     typedef UReg<0x04, 0x21, 1,  1> CAP_FF_HALF_REQ;
     typedef UReg<0x04, 0x21, 5,  1> CAP_SAFE_GUARD_EN;
+    typedef UReg<0x04, 0x22, 0,  1> CAP_REQ_OVER;
     typedef UReg<0x04, 0x22, 3,  1> CAP_REQ_FREEZ;
     typedef UReg<0x04, 0x24, 0,  21> CAP_SAFE_GUARD_A;
     typedef UReg<0x04, 0x27, 0,  21> CAP_SAFE_GUARD_B;
@@ -503,6 +509,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x50, 5,  1> RFF_LINE_FLIP;
     typedef UReg<0x04, 0x50, 6,  1> RFF_YUV_DEINTERLACE;
     typedef UReg<0x04, 0x50, 7,  1> RFF_LREQ_CUT;
+    typedef UReg<0x04, 0x5B, 7,  1> MEM_FF_TOP_FF_SEL;
 
     // OSD Registers
     typedef UReg<0x00, 0x90, 0,  1> OSD_SW_RESET;
