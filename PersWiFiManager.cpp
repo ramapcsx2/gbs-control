@@ -64,16 +64,8 @@ void PersWiFiManager::startApMode(){
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
   _apPass.length() ? WiFi.softAP(getApSsid().c_str(), _apPass.c_str(), 6) : WiFi.softAP(getApSsid().c_str());
-  if (_apHandler) _apHandler();  
-}//startApMode
 
-void PersWiFiManager::setConnectNonBlock(bool b) {
-  _connectNonBlock = b;
-} //setConnectNonBlock
-
-void PersWiFiManager::setupWiFiHandlers() {
-  IPAddress apIP(192, 168, 4, 1);
-  //_dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
+  _dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
   //
   // modify TTL associated  with the domain name (in seconds)
   // default is 60 seconds
@@ -84,6 +76,17 @@ void PersWiFiManager::setupWiFiHandlers() {
   // default is DNSReplyCode::NonExistentDomain
   _dnsServer->setErrorReplyCode(DNSReplyCode::ServerFailure);
   _dnsServer->start((byte)53, "*", apIP); //used for captive portal in AP mode
+
+
+  if (_apHandler) _apHandler();  
+}//startApMode
+
+void PersWiFiManager::setConnectNonBlock(bool b) {
+  _connectNonBlock = b;
+} //setConnectNonBlock
+
+void PersWiFiManager::setupWiFiHandlers() {
+  // note: removed DNS server setup here
 
   //_server->on("/", [&] () {
   //  _server->send(200, "text/html", FPSTR(HTML));

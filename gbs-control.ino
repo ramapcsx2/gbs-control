@@ -2358,7 +2358,7 @@ void updateCoastPosition() {
   }
 
   //if (rto->videoStandardInput <= 2) { // hsync (sub) coast only for SD
-  if (0) { // no coasting at all, keeping this code in case coasting becomes useful
+  if (0) { // no H coasting at all, keeping this code in case coasting becomes useful
     int16_t inHlength = 0;
     for (uint8_t i = 0; i < 8; i++) {
       inHlength += ((GBS::HPERIOD_IF::read() + 1) & 0xfffe); // psx jitters between 427, 428
@@ -2366,14 +2366,15 @@ void updateCoastPosition() {
     inHlength = inHlength >> 1; // /8 , *4
 
     if (inHlength > 0) {
-      GBS::SP_H_CST_ST::write(inHlength >> 4); // low but not near 0 (typical: 0x6a)
-      GBS::SP_H_CST_SP::write(inHlength - 32); //snes minimum: inHlength -12 (only required in 239 mode)
-      /*SerialM.print("coast ST: "); SerialM.print("0x"); SerialM.print(inHlength >> 4, HEX);
+      // H coast length: should start at 0x40 and stop at 0x0400
+      GBS::SP_H_CST_ST::write(inHlength >> 5); // low but not near 0 (typical: 0x35)
+      GBS::SP_H_CST_SP::write((inHlength * 6) / 9); //(typical: 0x480) snes minimum: inHlength -12 (only required in 239 mode)
+      SerialM.print("coast ST: "); SerialM.print("0x"); SerialM.print(GBS::SP_H_CST_ST::read(), HEX);
       SerialM.print("  ");
-      SerialM.print("SP: "); SerialM.print("0x"); SerialM.println(inHlength - 32, HEX);*/
-      GBS::SP_H_PROTECT::write(0);
+      SerialM.print("SP: "); SerialM.print("0x"); SerialM.println(GBS::SP_H_CST_SP::read(), HEX);
+      GBS::SP_H_PROTECT::write(1);
       GBS::SP_DIS_SUB_COAST::write(0); // enable hsync coast
-      GBS::SP_HCST_AUTO_EN::write(0); // needs to be off (making sure)
+      GBS::SP_HCST_AUTO_EN::write(1); // test: on
       rto->coastPositionIsSet = true;
     }
   }
@@ -4629,6 +4630,7 @@ void startWebserver()
   server.on("/serial_", handleType1Command);
   server.on("/user_", handleType2Command);
 
+  webSocket.onEvent(webSocketEvent);
   persWM.setConnectNonBlock(true);
   if (WiFi.SSID().length() == 0) {
     // no stored network to connect to > start AP mode right away
@@ -4638,12 +4640,12 @@ void startWebserver()
   else {
     persWM.begin(); // first try connecting to stored network, go AP mode after timeout
   }
-  yield();
+
   MDNS.begin("gbscontrol"); // respond to MDNS request for gbscontrol.local
   server.begin(); // Webserver for the site
   webSocket.begin();  // Websocket for interaction
-  webSocket.onEvent(webSocketEvent);
   yield();
+
 #ifdef HAVE_PINGER_LIBRARY
   // pinger library
   pinger.OnReceive([](const PingerResponse& response)
@@ -4680,7 +4682,10 @@ void initUpdateOTA() {
   // ArduinoOTA.setPassword("admin");
   // Password can be set with it's md5 value as well
   // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
-  ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+  //ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+
+  // update: no password is as (in)secure as this publicly stated hash..
+  // rely on the user having to enable the OTA feature on the web ui
 
   ArduinoOTA.onStart([]() {
     String type;
