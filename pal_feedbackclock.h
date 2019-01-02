@@ -1,5 +1,5 @@
 const uint8_t pal_feedbackclock[] PROGMEM = {
-0x4C, // s0_40
+0x2C, // s0_40
 0xB5, // s0_41
 0x0, // s0_42
 0x10, // s0_43

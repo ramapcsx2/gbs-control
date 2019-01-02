@@ -2612,9 +2612,9 @@ void passThroughWithIfModeSwitch() {
     GBS::IF_HS_Y_PDELAY::write(3); // 1_02 bits 5+6
     GBS::IF_LD_RAM_BYPS::write(1);
     GBS::IF_HS_DEC_FACTOR::write(0);
-    GBS::IF_HBIN_SP::write(0x02); // must be even for 240p, adjusts left border at 0xf1+
+    GBS::IF_HBIN_SP::write(0x02); // 1_26, adjusts left border at 0xf1+, UV switch
     if (rto->videoStandardInput > 4) {
-      GBS::IF_HB_ST::write(0x7ff); // S1_10 // was 0x7fe (colors)
+      GBS::IF_HB_ST::write(0x001); // S1_10 // was 0x7ff (colors)
     }
     else {
       GBS::IF_HB_ST::write(0);
