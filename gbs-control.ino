@@ -469,15 +469,15 @@ void OutputComponentOrVGA() {
       if (id == 0x02 || id == 0x12 || id == 0x01 || id == 0x11) { // 1280x1024, 1280x960 presets
         set_vtotal(1090); // 1080 is enough lines to trick my tv into "1080p" mode
         if (id == 0x02 || id == 0x01) { // 60
-          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() - 16);
-          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() - 16);
+          GBS::IF_VB_SP::write(2); // GBS::IF_VB_SP::read() - 16 // better fix this
+          GBS::IF_VB_ST::write(0); // GBS::IF_VB_ST::read() - 16
           GBS::VDS_HS_SP::write(10);
         }
         else { // 50
           GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 70);
           GBS::VDS_HSCALE::write(724);
-          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() - 18);
-          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() - 18);
+          GBS::IF_VB_SP::write(2); // GBS::IF_VB_SP::read() - 18
+          GBS::IF_VB_ST::write(0); // GBS::IF_VB_ST::read() - 18
         }
         rto->forceRetime = true;
       }
