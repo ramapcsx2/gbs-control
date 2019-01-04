@@ -157,6 +157,9 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x43, 4,  1> PLL_LEN;
     typedef UReg<0x00, 0x43, 5,  1> PLL_VCORST;
     typedef UReg<0x00, 0x44, 0,  1> DAC_RGBS_PWDNZ;
+    typedef UReg<0x00, 0x44, 2,  1> DAC_RGBS_R0ENZ;
+    typedef UReg<0x00, 0x44, 5,  1> DAC_RGBS_G0ENZ;
+    typedef UReg<0x00, 0x45, 0,  1> DAC_RGBS_B0ENZ;
     typedef UReg<0x00, 0x46, 0,  8> RESET_CONTROL_0x46; // fake name
     typedef UReg<0x00, 0x46, 0,  1> SFTRST_IF_RSTZ;
     typedef UReg<0x00, 0x46, 1,  1> SFTRST_DEINT_RSTZ;
@@ -172,6 +175,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x49, 2,  1> PAD_SYNC_OUT_ENZ;
     typedef UReg<0x00, 0x49, 4,  1> PAD_TRI_ENZ;
     typedef UReg<0x00, 0x4A, 0,  3> PAD_OSC_CNTRL;
+    typedef UReg<0x00, 0x4B, 1,  1> DAC_RGBS_BYPS2DAC;
     typedef UReg<0x00, 0x4B, 2,  1> DAC_RGBS_ADC2DAC;
     typedef UReg<0x00, 0x4D, 0,  5> TEST_BUS_SEL;
     typedef UReg<0x00, 0x4D, 5,  1> TEST_BUS_EN;

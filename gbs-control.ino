@@ -456,10 +456,10 @@ void setResetParameters() {
 }
 
 void OutputComponentOrVGA() {
-  SerialM.print("Output Format: ");
+  
   boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
   if (uopt->wantOutputComponent) {
-    SerialM.println("Component");
+    SerialM.println("Output Format: Component");
     GBS::VDS_SYNC_LEV::write(0x80); // 0.25Vpp sync (leave more room for Y)
     GBS::VDS_CONVT_BYPS::write(1); // output YUV
     GBS::OUT_SYNC_CNTRL::write(0); // no H / V sync out to PAD
@@ -484,7 +484,6 @@ void OutputComponentOrVGA() {
     }
   }
   else {
-    SerialM.println("RGBHV");
     GBS::VDS_SYNC_LEV::write(0);
     GBS::VDS_CONVT_BYPS::write(0); // output RGB
     GBS::OUT_SYNC_CNTRL::write(1); // H / V sync out enable
@@ -603,9 +602,11 @@ void setSpParameters() {
   GBS::SP_PRE_COAST::write(6); // SP test: 9
   GBS::SP_POST_COAST::write(16); // SP test: 9
 
-  //if (rto->videoStandardInput > 5) { // override early
-  //  GBS::SP_POST_COAST::write(6);
-  //}
+  if (rto->videoStandardInput == 7) {
+    // override early for 1080p. depending on code flow, this may not trigger.
+    // it should trigger in passThroughWithIfModeSwitch then
+    GBS::SP_POST_COAST::write(0x16);
+  }
 
   writeOneByte(0x3a, 0x03); // was 0x0a // range depends on source vtiming, from 0x03 to xxx, some good effect at lower levels
 
@@ -1619,23 +1620,21 @@ void fastGetBestHtotal() {
 void applyBestHTotal(uint16_t bestHTotal) {
   uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
   int diffHTotal = bestHTotal - orig_htotal;
-  if (diffHTotal == 0 && !rto->forceRetime) {
-    SerialM.print("bestHTotal: "); SerialM.println(bestHTotal);
+  uint16_t diffHTotalUnsigned = abs(diffHTotal);
+  if (diffHTotalUnsigned < 1 && !rto->forceRetime) {
+    SerialM.print("already at bestHTotal: "); SerialM.println(bestHTotal);
     return; // nothing to do
   }
-  uint16_t diffHTotalUnsigned = abs(diffHTotal);
-  //boolean isLargeDiff = (diffHTotalUnsigned * 10) > orig_htotal ? true : false; // what?
   boolean isLargeDiff = (diffHTotalUnsigned > (orig_htotal * 0.04f)) ? true : false; // typical diff: 1802 to 1794 (=8)
   if (isLargeDiff) {
     SerialM.println("large diff");
   }
-  boolean requiresScalingCorrection = GBS::VDS_HSCALE::read() < 512; // output distorts if less than 512 but can be corrected
 
   // rto->forceRetime = true means the correction should be forced (command '.')
   // may want to check against multi clock snes
-  if ((!rto->outModePassThroughWithIf || rto->forceRetime == true) && bestHTotal > 400) {
+  if (!rto->outModePassThroughWithIf || rto->forceRetime == true) {
     // abort?
-    if (isLargeDiff && rto->forceRetime == false) {
+    if (isLargeDiff && (rto->forceRetime == false)) {
       SerialM.print("ABHT: ");
       rto->failRetryAttempts++;
       if (rto->failRetryAttempts < 8) {
@@ -1652,64 +1651,65 @@ void applyBestHTotal(uint16_t bestHTotal) {
     rto->failRetryAttempts = 0; // else all okay!, reset to 0
     rto->forceRetime = false;
 
-    // okay, move on!
     // move blanking (display)
-    uint16_t h_blank_display_start_position = GBS::VDS_DIS_HB_ST::read() + diffHTotal;
-    uint16_t h_blank_display_stop_position = GBS::VDS_DIS_HB_SP::read() + diffHTotal;
-
-    // move HSync
-    uint16_t h_sync_start_position = GBS::VDS_HS_ST::read();
-    uint16_t h_sync_stop_position = GBS::VDS_HS_SP::read();
-    if (h_sync_start_position < h_sync_stop_position) { // is neg HSync
-      h_sync_stop_position = bestHTotal - ((uint16_t)(bestHTotal * 0.0198f));
-    }
-    else {
-      //h_sync_stop_position = (uint16_t)(bestHTotal * 0.0198f);
-      h_sync_stop_position -= (uint16_t)(diffHTotal * 0.18f);
-    }
-    h_sync_start_position += (uint16_t)(diffHTotal * 1.4f);
-    //h_sync_stop_position += diffHTotal;
+    uint16_t h_blank_display_start_position = GBS::VDS_DIS_HB_ST::read();
+    uint16_t h_blank_display_stop_position = GBS::VDS_DIS_HB_SP::read();
+    h_blank_display_start_position += (diffHTotal / 2);
+    h_blank_display_stop_position += (diffHTotal / 2);
 
     uint16_t h_blank_memory_start_position = GBS::VDS_HB_ST::read();
     uint16_t h_blank_memory_stop_position = GBS::VDS_HB_SP::read();
-    h_blank_memory_start_position += diffHTotal;
-    h_blank_memory_stop_position  += diffHTotal;
-
-    if (requiresScalingCorrection) {
+    h_blank_memory_start_position += (diffHTotal / 2);
+    h_blank_memory_stop_position  += (diffHTotal / 2);
+    
+    if (diffHTotal < 0 ) {
+      h_blank_display_start_position &= 0xfffe;
+      h_blank_display_stop_position &= 0xfffe;
       h_blank_memory_start_position &= 0xfffe;
+      h_blank_memory_stop_position &= 0xfffe;
+    }
+    else if (diffHTotal > 0 ) {
+      h_blank_display_start_position += 1; h_blank_display_start_position &= 0xfffe;
+      h_blank_display_stop_position += 1; h_blank_display_stop_position &= 0xfffe;
+      h_blank_memory_start_position += 1; h_blank_memory_start_position &= 0xfffe;
+      h_blank_memory_stop_position += 1; h_blank_memory_stop_position &= 0xfffe;
     }
 
-    // try to fix over / underflows (okay if bestHtotal > base, only partially okay if otherwise)
-    if (h_sync_start_position > bestHTotal) {
-      h_sync_start_position = 4095 - h_sync_start_position;
-    }
-    if (h_sync_stop_position > bestHTotal) {
-      h_sync_stop_position = 4095 - h_sync_stop_position;
-    }
+    // don't move HSync with small diffs
+    uint16_t h_sync_start_position = GBS::VDS_HS_ST::read();
+    uint16_t h_sync_stop_position = GBS::VDS_HS_SP::read();
+
+    // fix over / underflows
     if (h_blank_display_start_position > bestHTotal) {
-      h_blank_display_start_position = 4095 - h_blank_display_start_position;
+      h_blank_display_start_position = bestHTotal * 0.91f;
     }
     if (h_blank_display_stop_position > bestHTotal) {
-      h_blank_display_stop_position = 4095 - h_blank_display_stop_position;
+      h_blank_display_stop_position = bestHTotal * 0.178f;
     }
     if (h_blank_memory_start_position > bestHTotal) {
-      h_blank_memory_start_position = 4095 - h_blank_memory_start_position;
+      h_blank_memory_start_position = h_blank_display_start_position * 0.94f;
     }
     if (h_blank_memory_stop_position > bestHTotal) {
-      h_blank_memory_stop_position = 4095 - h_blank_memory_stop_position;
+      h_blank_memory_stop_position = h_blank_display_stop_position * 0.64f;
     }
 
     // finally, fix forced timings with large diff
     if (isLargeDiff) {
-      h_blank_display_start_position = bestHTotal * 0.91f;
-      h_blank_display_stop_position = bestHTotal * 0.178f;
-      h_sync_start_position = bestHTotal * 0.962f;
-      h_sync_stop_position = bestHTotal * 0.06f;
-      h_blank_memory_start_position = h_blank_display_start_position;
-      h_blank_memory_stop_position = h_blank_display_stop_position * 0.6f;
+      h_blank_display_start_position = bestHTotal * 0.94f;
+      h_blank_display_stop_position = bestHTotal * 0.194f;
+      h_blank_memory_start_position = h_blank_display_start_position * 0.96f;
+      h_blank_memory_stop_position = h_blank_display_stop_position * 0.72f;
+      if (h_sync_start_position > h_sync_stop_position) { // is neg HSync
+        h_sync_start_position = bestHTotal * 0.065f;
+        h_sync_stop_position = 8;
+      }
+      else {
+        h_sync_start_position = 8;
+        h_sync_stop_position = bestHTotal * 0.065f;
+      }
     }
 
-    if (diffHTotal != 0) {
+    if (diffHTotal != 0) { // apply
       GBS::VDS_HSYNC_RST::write(bestHTotal);
       GBS::VDS_HS_ST::write(h_sync_start_position);
       GBS::VDS_HS_SP::write(h_sync_stop_position);
@@ -1935,8 +1935,15 @@ void doPostPresetLoadSteps() {
   while (getVideoMode() == 0 && millis() - timeout < 800) { delay(1); }
   while (millis() - timeout < 150) { delay(1); } // at least minimum delay (bypass modes) 
   //SerialM.print("to1 is: "); SerialM.println(millis() - timeout);
+  if (getVideoMode() != 0) {
+    // attempt this early to have clamped video when the DAC gets turned on
+    updateClampPosition();
+  }
+  if (getVideoMode() != 0) {
+    // nice to have early as well. also helps add a little delay
+    updateCoastPosition();
+  }
 
-  GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   setPhaseSP(); setPhaseADC();
   
   // this was used with ADC write enable, producing about (exactly?) 4 lock positions
@@ -1953,7 +1960,6 @@ void doPostPresetLoadSteps() {
   GBS::INTERRUPT_CONTROL_00::write(0x00);
   
   OutputComponentOrVGA();
-
   SerialM.println("post preset done");
   rto->applyPresetDoneStage = 1;
   rto->applyPresetDoneTime = millis();
@@ -2428,11 +2434,14 @@ void updateClampPosition() {
     }
     else if (rto->videoStandardInput == 6) {
       start = inHlength * 0.012f;
-      stop = inHlength * 0.0305f; // 1080i
+      stop = inHlength * 0.024f; // 1080i
     }
     else if (rto->videoStandardInput == 7) {
-      start = inHlength * 0.0015f;
-      stop = inHlength * 0.012f; // 1080p
+      start = inHlength * 0.0014f;
+      stop = inHlength * 0.007f; // 1080p
+      //Serial.print("clamp for 1080p: ");
+      //Serial.print(start, HEX); Serial.print(" "); 
+      //Serial.println(stop, HEX);
     }
   }
   else if (!rto->inputIsYpBpR) {
@@ -2552,10 +2561,12 @@ void passThroughWithIfModeSwitch() {
         GBS::SP_CS_HS_SP::write(0x38);
         GBS::SP_VS_PROC_INV_REG::write(0); // don't invert, causes flicker
       }
-      if (rto->videoStandardInput == 7) {
+      if (rto->videoStandardInput == 7) { // 1080p
         GBS::PLLAD_MD::write(0x5b0);
         GBS::SP_CS_HS_ST::write(0x90);
         GBS::SP_CS_HS_SP::write(0x60);
+        GBS::SP_POST_COAST::write(0x16); // important
+        delay(6);
       }
       if (rto->videoStandardInput == 14) { // odd HD mode (PS2 "VGA" over Component)
         applyRGBPatches(); // treat mostly as RGB, clamp R/B to gnd
@@ -3739,8 +3750,9 @@ void loop() {
       if (value < 4096) {
         SerialM.print("set "); SerialM.print(what); SerialM.print(" "); SerialM.println(value);
         if (what.equals("ht")) {
-          set_htotal(value);
-          //applyBestHTotal(value);
+          //set_htotal(value);
+          rto->forceRetime = 1;
+          applyBestHTotal(value);
         }
         else if (what.equals("vt")) {
           set_vtotal(value);
@@ -4191,6 +4203,7 @@ void loop() {
       if ((videoModeBeforeInit == videoModeAfterInit) && videoModeBeforeInit != 0) {
         applyBestHTotal(bestHTotal);
         GBS::PAD_SYNC_OUT_ENZ::write(0); // (late) Sync on
+        GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
         rto->syncLockFailIgnore = 8;
       }
       else {
@@ -4200,6 +4213,7 @@ void loop() {
     else if (rto->syncLockFailIgnore-- == 0) {
       // frame time lock failed, most likely due to missing wires
       GBS::PAD_SYNC_OUT_ENZ::write(0);  // (late) Sync on
+      GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
       rto->autoBestHtotalEnabled = false;
       SerialM.println("lock failed, check debug wire!");
     }
@@ -4230,6 +4244,7 @@ void loop() {
       if (!uopt->wantOutputComponent) {
         GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
       }
+      GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
       // only reset mode detect for YUV, RGBS doesn't require it
       //if (rto->inputIsYpBpR) {
       //  resetModeDetect();
@@ -4269,6 +4284,7 @@ void loop() {
     if (!uopt->wantOutputComponent) {
       SerialM.println("dbg: late sync out");
       GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
+      GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
     }
   }
 
