@@ -3262,6 +3262,15 @@ void loop() {
       inputStage = 0; // reset this as well
     break;
     case 'd':
+      // check for IF vertical adjust and undo if necessary
+      if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
+      {
+        uint16_t vbsp = GBS::IF_VB_SP::read();
+        uint16_t vbst = GBS::IF_VB_ST::read();
+        GBS::IF_VB_SP::write(vbsp + 16);
+        GBS::IF_VB_ST::write(vbst + 16);
+        GBS::IF_AUTO_OFST_RESERVED_2::write(0);
+      }
       for (int segment = 0; segment <= 5; segment++) {
         dumpRegisters(segment);
       }
@@ -3975,48 +3984,86 @@ void loop() {
         rto->continousStableCounter++;
       }
       noSyncCounter = 0;
-      if (rto->CaptureIsOff && (rto->videoStandardInput == detectedVideoMode) && rto->continousStableCounter > 2) {
+      if (rto->CaptureIsOff && (rto->videoStandardInput == detectedVideoMode) && rto->continousStableCounter > 1) {
         enableCapture();
       }
 
-      // new: attempt to switch in deinterlacing automatically, when required
-      // only do this for pal/ntsc, which can be 240p or 480i
-      boolean preventScanlines = 0;
-      if (rto->deinterlaceAutoEnabled && rto->videoStandardInput <= 2 && !rto->outModePassThroughWithIf) {
-        uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read();
-        static uint16_t VPERIOD_IF_OLD = VPERIOD_IF; // glitch filter on line count change (but otherwise stable)
-        if (VPERIOD_IF_OLD != VPERIOD_IF) {
-          disableCapture();
-          preventScanlines = 1;
-        }
-        // else will trigger next run, whenever line count is stable
-        //
-        if (rto->continousStableCounter > 4) {
-          // actual deinterlace trigger
-          if (!rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts > enable
-            if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
-              disableScanlines();
-            }
-            enableMotionAdaptDeinterlace();
+      if ((rto->videoStandardInput > 0 && rto->videoStandardInput <= 2) && !rto->outModePassThroughWithIf) {
+        // new: attempt to switch in deinterlacing automatically, when required
+        // only do this for pal/ntsc, which can be 240p or 480i
+        boolean preventScanlines = 0;
+        if (rto->deinterlaceAutoEnabled) {
+          uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read();
+          static uint16_t VPERIOD_IF_OLD = VPERIOD_IF; // glitch filter on line count change (but otherwise stable)
+          if (VPERIOD_IF_OLD != VPERIOD_IF) {
+            disableCapture();
             preventScanlines = 1;
           }
-          else if (rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 1) { // ie v:523 or other, uneven counts > disable
-            disableMotionAdaptDeinterlace();
+          // else will trigger next run, whenever line count is stable
+          //
+          if (rto->continousStableCounter > 1) {
+            // actual deinterlace trigger
+            if (!rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts > enable
+              if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
+                disableScanlines();
+              }
+              enableMotionAdaptDeinterlace();
+              preventScanlines = 1;
+            }
+            else if (rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 1) { // ie v:523 or other, uneven counts > disable
+              disableMotionAdaptDeinterlace();
+            }
+          }
+
+          VPERIOD_IF_OLD = VPERIOD_IF; // part of glitch filter
+        }
+
+        // scanlines
+        if (uopt->wantScanlines) {
+          if (!rto->scanlinesEnabled && !rto->motionAdaptiveDeinterlaceActive
+            && !preventScanlines && rto->continousStableCounter > 2)
+          {
+            enableScanlines();
+          }
+          else if (!uopt->wantScanlines && rto->scanlinesEnabled) {
+            disableScanlines();
           }
         }
 
-        VPERIOD_IF_OLD = VPERIOD_IF; // part of glitch filter
-      }
-
-      // scanlines
-      if (uopt->wantScanlines && !rto->outModePassThroughWithIf && rto->videoStandardInput <= 2) {
-        if (!rto->scanlinesEnabled && !rto->motionAdaptiveDeinterlaceActive
-          && !preventScanlines && rto->continousStableCounter > 6) 
+        // picture shift (vt: 262 vs vt: 271)
+        if (rto->videoStandardInput == 1) // 480i (PAL seems to be fine without)
         {
-          enableScanlines();
-        }
-        else if (!uopt->wantScanlines && rto->scanlinesEnabled) {
-          disableScanlines();
+          rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+          if (rto->sourceVLines >= 260 && rto->sourceVLines <= 264)
+          {
+            if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 0) 
+            {
+              //SerialM.print("shift down, vlines: "); SerialM.println(rto->sourceVLines);
+              uint16_t vbsp = GBS::IF_VB_SP::read();
+              uint16_t vbst = GBS::IF_VB_ST::read();
+              if (vbst >= 16) 
+              {
+                GBS::IF_VB_SP::write(vbsp - 16);
+                GBS::IF_VB_ST::write(vbst - 16);
+              }
+              else {
+                SerialM.print("error: IF shift");
+              }
+              GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as adjusted
+            }
+          }
+          else if (rto->sourceVLines >= 269 && rto->sourceVLines <= 274)
+          {
+            if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1) 
+            {
+              //SerialM.print("shift back up, vlines: "); SerialM.println(rto->sourceVLines);
+              uint16_t vbsp = GBS::IF_VB_SP::read();
+              uint16_t vbst = GBS::IF_VB_ST::read();
+              GBS::IF_VB_SP::write(vbsp + 16);
+              GBS::IF_VB_ST::write(vbst + 16);
+              GBS::IF_AUTO_OFST_RESERVED_2::write(0);
+            }
+          }
         }
       }
     }
@@ -4231,92 +4278,75 @@ void loop() {
     updateClampPosition();
   }
   
-  // need to reset ModeDetect shortly after loading a new preset   // update: seems fixed
-  // last chance to enable Sync out
+  // later stage post preset adjustments 
   if (rto->applyPresetDoneStage > 0 && 
     ((millis() - rto->applyPresetDoneTime < 2000)) && 
     ((millis() - rto->applyPresetDoneTime > 500))) 
   {
-    // todo: why is auto clamp failing unless MD is being reset manually?
-    if (rto->applyPresetDoneStage == 1) {
-      // manual preset changes with syncwatcher disabled will leave clamp off, so use the chance to engage it
-      if (!rto->syncWatcherEnabled) { updateClampPosition(); }
-      if (!uopt->wantOutputComponent) {
+
+    if (rto->applyPresetDoneStage == 1) 
+    {
+      GBS::DAC_RGBS_PWDNZ::write(1);
+      if (!uopt->wantOutputComponent) 
+      {
         GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
       }
-      GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
-      // only reset mode detect for YUV, RGBS doesn't require it
-      //if (rto->inputIsYpBpR) {
-      //  resetModeDetect();
-      //  delay(300);
-      //  //SerialM.println("reset MD");
-      //}
+      if (!rto->syncWatcherEnabled) 
+      { 
+        updateClampPosition(); // else manual preset changes with syncwatcher disabled will leave clamp off
+      }
+      
       rto->applyPresetDoneStage = 0;
     }
-    
-    // update: don't do this automatically anymore. It only really applies to the 1Chip SNES, so "261" lines should
-    // be dealt with as a special condition, not the other way around
-
-    // if this is not a custom preset AND offset has not yet been applied
-    //if (rto->applyPresetDoneStage == 2 && rto->continousStableCounter > 40) 
-    //{
-    //  if (GBS::ADC_0X00_RESERVED_5::read() != 1 && GBS::IF_AUTO_OFST_RESERVED_2::read() != 1) {
-    //    if (rto->videoStandardInput == 1) { // only 480i for now (PAL seems to be fine without)
-    //      rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-    //      SerialM.print("vlines: "); SerialM.println(rto->sourceVLines);
-    //      if (rto->sourceVLines > 263 && rto->sourceVLines <= 274)
-    //      {
-    //        GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 16);
-    //        GBS::IF_VB_ST::write(GBS::IF_VB_SP::read() - 1);
-    //        GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as already adjusted
-    //      }
-    //    }
-    //    //delay(50);
-    //    rto->applyPresetDoneStage = 0;
-    //  }
-    //  else {
-    //    rto->applyPresetDoneStage = 0;
-    //  }
-    //}
   }
-  else if (rto->applyPresetDoneStage > 0 && (millis() - rto->applyPresetDoneTime > 2000)) {
+  else if (rto->applyPresetDoneStage > 0 && (millis() - rto->applyPresetDoneTime > 2000))
+  {
+    GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
     rto->applyPresetDoneStage = 0; // timeout
-    if (!uopt->wantOutputComponent) {
-      SerialM.println("dbg: late sync out");
+    if (!uopt->wantOutputComponent) 
+    {
       GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
-      GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
     }
   }
 
-  if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true) {
-    if ((millis() - lastTimeSourceCheck) > 1000) {
+  if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true)
+  {
+    if ((millis() - lastTimeSourceCheck) > 1000) 
+    {
       inputAndSyncDetect(); // source is off; keep looking for new input
       lastTimeSourceCheck = millis();
     }
   }
 
   // has the GBS board lost power?
-  if ((noSyncCounter > 2 && noSyncCounter < 5) && rto->boardHasPower) {
+  if ((noSyncCounter > 2 && noSyncCounter < 5) && rto->boardHasPower) 
+  {
     boolean restartWire = 1;
     pinMode(SCL, INPUT); pinMode(SDA, INPUT);
-    if (!digitalRead(SCL) && !digitalRead(SDA)) {
+    if (!digitalRead(SCL) && !digitalRead(SDA)) 
+    {
       delay(5);
-      if (!digitalRead(SCL) && !digitalRead(SDA)) {
+      if (!digitalRead(SCL) && !digitalRead(SDA)) 
+      {
         Serial.println("power lost");
         rto->syncWatcherEnabled = false;
         rto->boardHasPower = false;
         restartWire = 0;
       }
     }
-    if (restartWire) {
+    if (restartWire) 
+    {
       startWire();
     }
   }
 
-  if (!rto->boardHasPower) { // then check if power has come on
-    if (digitalRead(SCL) && digitalRead(SDA)) {
+  if (!rto->boardHasPower) 
+  { // then check if power has come on
+    if (digitalRead(SCL) && digitalRead(SDA)) 
+    {
       delay(50);
-      if (digitalRead(SCL) && digitalRead(SDA)) {
+      if (digitalRead(SCL) && digitalRead(SDA)) 
+      {
         Serial.println("power good");
         startWire();
         rto->syncWatcherEnabled = true;
@@ -4857,6 +4887,15 @@ void savePresetToSPIFFS() {
     SerialM.println("preset file open ok");
 
     GBS::ADC_0X00_RESERVED_5::write(1); // use one reserved bit to mark this as a custom preset
+    // next: check for IF vertical adjust and undo if necessary
+    if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
+    {
+      uint16_t vbsp = GBS::IF_VB_SP::read();
+      uint16_t vbst = GBS::IF_VB_ST::read();
+      GBS::IF_VB_SP::write(vbsp + 16);
+      GBS::IF_VB_ST::write(vbst + 16);
+      GBS::IF_AUTO_OFST_RESERVED_2::write(0);
+    }
 
     for (int i = 0; i <= 5; i++) {
       writeOneByte(0xF0, i);
