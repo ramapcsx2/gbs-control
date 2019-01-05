@@ -130,7 +130,7 @@ typedef MenuManager<GBS, MenuAttrs> Menu;
 // runTimeOptions holds system variables
 struct runTimeOptions {
   unsigned long applyPresetDoneTime;
-  uint16_t sourceVLines;
+  uint8_t presetVlineShift;
   uint8_t videoStandardInput; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 480p NTSC, 4 576p PAL
   uint8_t phaseSP;
   uint8_t phaseADC;
@@ -396,7 +396,7 @@ void setResetParameters() {
   rto->videoStandardInput = 0;
   rto->CaptureIsOff = false;
   rto->applyPresetDoneStage = 0;
-  rto->sourceVLines = 0;
+  rto->presetVlineShift = 0;
   rto->sourceDisconnected = true;
   rto->outModePassThroughWithIf = 0; // forget passthrough mode (could be option)
   rto->clampPositionIsSet = 0;
@@ -1931,6 +1931,39 @@ void doPostPresetLoadSteps() {
   FrameSync::reset();
   rto->syncLockFailIgnore = 8;
 
+  {
+    // prepare ideal vline shift for PAL / NTSC sources
+    uint8_t id = GBS::GBS_PRESET_ID::read();
+    switch (id)
+    {
+    case 0x1:
+    case 0x2:
+      rto->presetVlineShift = 34; // for ntsc_240p, 1280x1024 ntsc
+      break;
+    case 0x3:
+      rto->presetVlineShift = 25; // for 1280x720 ntsc
+      break;
+    case 0x4:
+      rto->presetVlineShift = 17; // for ntsc_feedbackclock
+      break;
+    case 0x11:
+      rto->presetVlineShift = 30; // for pal_240p
+      break;
+    case 0x12:
+      rto->presetVlineShift = 34; // for 1280x1024 pal
+      break;
+    case 0x13:
+      rto->presetVlineShift = 23; // for 1280x720 pal
+      break;
+    case 0x14:
+      rto->presetVlineShift = 17; // for pal_feedbackclock
+      break;
+    default:
+      rto->presetVlineShift = 0; // for pal_feedbackclock
+      break;
+    }
+  }
+
   unsigned long timeout = millis();
   while (getVideoMode() == 0 && millis() - timeout < 800) { delay(1); }
   while (millis() - timeout < 150) { delay(1); } // at least minimum delay (bypass modes) 
@@ -2990,7 +3023,7 @@ void setup() {
   rto->isInLowPowerMode = false;
   rto->applyPresetDoneStage = 0;
   rto->applyPresetDoneTime = millis();
-  rto->sourceVLines = 0;
+  rto->presetVlineShift = 0;
   rto->clampPositionIsSet = 0;
   rto->coastPositionIsSet = 0;
   rto->continousStableCounter = 0;
@@ -3263,18 +3296,14 @@ void loop() {
     break;
     case 'd':
     {
-      // check for IF vertical adjust and undo if necessary
+      // check for vertical adjust and undo if necessary
       if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
       {
-        uint16_t vbsp = GBS::IF_VB_SP::read();
-        uint16_t vbst = GBS::IF_VB_ST::read();
-        GBS::IF_VB_SP::write(vbsp + 16);
-        GBS::IF_VB_ST::write(vbst + 16);
+        GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
         GBS::IF_AUTO_OFST_RESERVED_2::write(0);
       }
-      // scanlines
-      boolean scanlinesDisableTemp = GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read();
-      if (scanlinesDisableTemp == 1) {
+      // don't store scanlines
+      if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) {
         disableScanlines();
       }
       // dump
@@ -3282,10 +3311,6 @@ void loop() {
         dumpRegisters(segment);
       }
       SerialM.println("};");
-      //
-      if (scanlinesDisableTemp == 1) {
-        enableScanlines();
-      }
     }
     break;
     case '+':
@@ -3996,7 +4021,7 @@ void loop() {
         rto->continousStableCounter++;
       }
       noSyncCounter = 0;
-      if (rto->CaptureIsOff && (rto->videoStandardInput == detectedVideoMode) && rto->continousStableCounter > 1) {
+      if (rto->CaptureIsOff && (rto->videoStandardInput == detectedVideoMode)) {
         enableCapture();
       }
 
@@ -4043,36 +4068,24 @@ void loop() {
         }
 
         // picture shift
-        rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-        if ((rto->videoStandardInput == 1 && (rto->sourceVLines >= 260 && rto->sourceVLines <= 264)) ||
-          (rto->videoStandardInput == 2 && (rto->sourceVLines >= 310 && rto->sourceVLines <= 314)))
+        uint16_t sourceVlines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+        if ((rto->videoStandardInput == 1 && (sourceVlines >= 260 && sourceVlines <= 264)) ||
+          (rto->videoStandardInput == 2 && (sourceVlines >= 310 && sourceVlines <= 314)))
         {
           if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 0)
           {
-            //SerialM.print("shift down, vlines: "); SerialM.println(rto->sourceVLines);
-            uint16_t vbsp = GBS::IF_VB_SP::read();
-            uint16_t vbst = GBS::IF_VB_ST::read();
-            if (vbst >= 16)
-            {
-              GBS::IF_VB_SP::write(vbsp - 16);
-              GBS::IF_VB_ST::write(vbst - 16);
-            }
-            else {
-              SerialM.print("error: IF shift");
-            }
+            //SerialM.print("shift down, vlines: "); SerialM.println(rto->presetVlineShift);
+            GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() + rto->presetVlineShift);
             GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as adjusted
           }
         }
-        else if ((rto->videoStandardInput == 1 && (rto->sourceVLines >= 269 && rto->sourceVLines <= 274)) ||
-          (rto->videoStandardInput == 2 && (rto->sourceVLines >= 319 && rto->sourceVLines <= 324)))
+        else if ((rto->videoStandardInput == 1 && (sourceVlines >= 269 && sourceVlines <= 274)) ||
+          (rto->videoStandardInput == 2 && (sourceVlines >= 319 && sourceVlines <= 324)))
         {
           if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
           {
-            //SerialM.print("shift back up, vlines: "); SerialM.println(rto->sourceVLines);
-            uint16_t vbsp = GBS::IF_VB_SP::read();
-            uint16_t vbst = GBS::IF_VB_ST::read();
-            GBS::IF_VB_SP::write(vbsp + 16);
-            GBS::IF_VB_ST::write(vbst + 16);
+            //SerialM.print("shift back up, vlines: "); SerialM.println(rto->presetVlineShift);
+            GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
             GBS::IF_AUTO_OFST_RESERVED_2::write(0);
           }
         }
@@ -4231,12 +4244,6 @@ void loop() {
         noSyncCounter = 0;
       }
     }
-
-    //#if defined(ESP8266)
-    //      SerialM.print("high heap fragmentation: ");
-    //      SerialM.print(heapFragmentation);
-    //      SerialM.println("%");
-    //#endif
 
     lastTimeSyncWatcher = millis();
   }
@@ -4899,17 +4906,13 @@ void savePresetToSPIFFS() {
 
     GBS::ADC_0X00_RESERVED_5::write(1); // use one reserved bit to mark this as a custom preset
     // don't store scanlines
-    boolean scanlinesDisableTemp = GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read();
-    if (scanlinesDisableTemp == 1) {
+    if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) {
       disableScanlines();
     }
-    // next: check for IF vertical adjust and undo if necessary
+    // next: check for vertical adjust and undo if necessary
     if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
     {
-      uint16_t vbsp = GBS::IF_VB_SP::read();
-      uint16_t vbst = GBS::IF_VB_ST::read();
-      GBS::IF_VB_SP::write(vbsp + 16);
-      GBS::IF_VB_ST::write(vbst + 16);
+      GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
       GBS::IF_AUTO_OFST_RESERVED_2::write(0);
     }
 
@@ -4962,10 +4965,6 @@ void savePresetToSPIFFS() {
     SerialM.print("preset saved as: ");
     SerialM.println(f.name());
     f.close();
-
-    if (scanlinesDisableTemp == 1) {
-      enableScanlines();
-    }
   }
 }
 
