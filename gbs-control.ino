@@ -3262,6 +3262,7 @@ void loop() {
       inputStage = 0; // reset this as well
     break;
     case 'd':
+    {
       // check for IF vertical adjust and undo if necessary
       if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
       {
@@ -3271,10 +3272,21 @@ void loop() {
         GBS::IF_VB_ST::write(vbst + 16);
         GBS::IF_AUTO_OFST_RESERVED_2::write(0);
       }
+      // scanlines
+      boolean scanlinesDisableTemp = GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read();
+      if (scanlinesDisableTemp == 1) {
+        disableScanlines();
+      }
+      // dump
       for (int segment = 0; segment <= 5; segment++) {
         dumpRegisters(segment);
       }
       SerialM.println("};");
+      //
+      if (scanlinesDisableTemp == 1) {
+        enableScanlines();
+      }
+    }
     break;
     case '+':
       SerialM.println("hor. +");
@@ -3988,7 +4000,7 @@ void loop() {
         enableCapture();
       }
 
-      if ((rto->videoStandardInput > 0 && rto->videoStandardInput <= 2) && !rto->outModePassThroughWithIf) {
+      if ((rto->videoStandardInput == 1 || rto->videoStandardInput == 2) && !rto->outModePassThroughWithIf) {
         // new: attempt to switch in deinterlacing automatically, when required
         // only do this for pal/ntsc, which can be 240p or 480i
         boolean preventScanlines = 0;
@@ -4030,39 +4042,38 @@ void loop() {
           }
         }
 
-        // picture shift (vt: 262 vs vt: 271)
-        if (rto->videoStandardInput == 1) // 480i (PAL seems to be fine without)
+        // picture shift
+        rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+        if ((rto->videoStandardInput == 1 && (rto->sourceVLines >= 260 && rto->sourceVLines <= 264)) ||
+          (rto->videoStandardInput == 2 && (rto->sourceVLines >= 310 && rto->sourceVLines <= 314)))
         {
-          rto->sourceVLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-          if (rto->sourceVLines >= 260 && rto->sourceVLines <= 264)
+          if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 0)
           {
-            if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 0) 
+            //SerialM.print("shift down, vlines: "); SerialM.println(rto->sourceVLines);
+            uint16_t vbsp = GBS::IF_VB_SP::read();
+            uint16_t vbst = GBS::IF_VB_ST::read();
+            if (vbst >= 16)
             {
-              //SerialM.print("shift down, vlines: "); SerialM.println(rto->sourceVLines);
-              uint16_t vbsp = GBS::IF_VB_SP::read();
-              uint16_t vbst = GBS::IF_VB_ST::read();
-              if (vbst >= 16) 
-              {
-                GBS::IF_VB_SP::write(vbsp - 16);
-                GBS::IF_VB_ST::write(vbst - 16);
-              }
-              else {
-                SerialM.print("error: IF shift");
-              }
-              GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as adjusted
+              GBS::IF_VB_SP::write(vbsp - 16);
+              GBS::IF_VB_ST::write(vbst - 16);
             }
+            else {
+              SerialM.print("error: IF shift");
+            }
+            GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as adjusted
           }
-          else if (rto->sourceVLines >= 269 && rto->sourceVLines <= 274)
+        }
+        else if ((rto->videoStandardInput == 1 && (rto->sourceVLines >= 269 && rto->sourceVLines <= 274)) ||
+          (rto->videoStandardInput == 2 && (rto->sourceVLines >= 319 && rto->sourceVLines <= 324)))
+        {
+          if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
           {
-            if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1) 
-            {
-              //SerialM.print("shift back up, vlines: "); SerialM.println(rto->sourceVLines);
-              uint16_t vbsp = GBS::IF_VB_SP::read();
-              uint16_t vbst = GBS::IF_VB_ST::read();
-              GBS::IF_VB_SP::write(vbsp + 16);
-              GBS::IF_VB_ST::write(vbst + 16);
-              GBS::IF_AUTO_OFST_RESERVED_2::write(0);
-            }
+            //SerialM.print("shift back up, vlines: "); SerialM.println(rto->sourceVLines);
+            uint16_t vbsp = GBS::IF_VB_SP::read();
+            uint16_t vbst = GBS::IF_VB_ST::read();
+            GBS::IF_VB_SP::write(vbsp + 16);
+            GBS::IF_VB_ST::write(vbst + 16);
+            GBS::IF_AUTO_OFST_RESERVED_2::write(0);
           }
         }
       }
@@ -4887,6 +4898,11 @@ void savePresetToSPIFFS() {
     SerialM.println("preset file open ok");
 
     GBS::ADC_0X00_RESERVED_5::write(1); // use one reserved bit to mark this as a custom preset
+    // don't store scanlines
+    boolean scanlinesDisableTemp = GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read();
+    if (scanlinesDisableTemp == 1) {
+      disableScanlines();
+    }
     // next: check for IF vertical adjust and undo if necessary
     if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
     {
@@ -4946,6 +4962,10 @@ void savePresetToSPIFFS() {
     SerialM.print("preset saved as: ");
     SerialM.println(f.name());
     f.close();
+
+    if (scanlinesDisableTemp == 1) {
+      enableScanlines();
+    }
   }
 }
 
