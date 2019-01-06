@@ -233,7 +233,21 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x61, 5,  3> MD_VPERIOD_UNLOCK_VALUE;
     typedef UReg<0x01, 0x63, 6,  1> MD_HS_FLIP;
     typedef UReg<0x01, 0x63, 7,  1> MD_VS_FLIP;
-
+    typedef UReg<0x01, 0x65, 0,  7> MD_VGA_CNTRL;
+    typedef UReg<0x01, 0x65, 7,  1> MD_SEL_VGA60;
+    typedef UReg<0x01, 0x66, 0,  8> MD_VGA_75HZ_CNTRL;
+    typedef UReg<0x01, 0x67, 0,  8> MD_VGA_85HZ_CNTRL;
+    typedef UReg<0x01, 0x6A, 0,  8> MD_SVGA_60HZ_CNTRL;
+    typedef UReg<0x01, 0x6B, 0,  8> MD_SVGA_75HZ_CNTRL;
+    typedef UReg<0x01, 0x6C, 0,  8> MD_SVGA_85HZ_CNTRL;
+    typedef UReg<0x01, 0x6E, 0,  8> MD_XGA_60HZ_CNTRL;
+    typedef UReg<0x01, 0x6F, 0,  7> MD_XGA_70HZ_CNTRL;
+    typedef UReg<0x01, 0x70, 0,  7> MD_XGA_75HZ_CNTRL;
+    typedef UReg<0x01, 0x71, 0,  7> MD_XGA_85HZ_CNTRL;
+    typedef UReg<0x01, 0x73, 0,  7> MD_SXGA_60HZ_CNTRL;
+    typedef UReg<0x01, 0x74, 0,  7> MD_SXGA_75HZ_CNTRL;
+    typedef UReg<0x01, 0x75, 0,  7> MD_SXGA_85HZ_CNTRL;
+    
     // Deinterlacer / Scaledown registers
     typedef UReg<0x02, 0x00, 0,  8> DEINT_00;
     typedef UReg<0x02, 0x00, 7,  1> DIAG_BOB_PLDY_RAM_BYPS;

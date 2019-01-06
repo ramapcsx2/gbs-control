@@ -129,7 +129,6 @@ typedef MenuManager<GBS, MenuAttrs> Menu;
 
 // runTimeOptions holds system variables
 struct runTimeOptions {
-  unsigned long applyPresetDoneTime;
   uint8_t presetVlineShift;
   uint8_t videoStandardInput; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 480p NTSC, 4 576p PAL
   uint8_t phaseSP;
@@ -159,6 +158,7 @@ struct runTimeOptions {
   boolean deinterlaceAutoEnabled;
   boolean scanlinesEnabled;
   boolean boardHasPower;
+  boolean blockModeDetectVSkew;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -291,7 +291,7 @@ void loadPresetMdSection() {
 
 // programs all valid registers (the register map has holes in it, so it's not straight forward)
 // 'index' keeps track of the current preset data location.
-void writeProgramArrayNew(const uint8_t* programArray)
+void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection = false)
 {
   uint16_t index = 0;
   uint8_t bank[16];
@@ -341,7 +341,9 @@ void writeProgramArrayNew(const uint8_t* programArray)
         copyBank(bank, programArray, &index);
         writeBytes(j * 16, bank, 16);
       }
-      loadPresetMdSection();
+      if (!skipMDSection) {
+        loadPresetMdSection();
+      }
       break;
     case 2:
       for (int j = 0; j <= 3; j++) { // 4 times
@@ -408,6 +410,7 @@ void setResetParameters() {
   rto->failRetryAttempts = 0;
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->scanlinesEnabled = false;
+  rto->blockModeDetectVSkew = false;
 
   adco->r_gain = 0;
   adco->g_gain = 0;
@@ -1995,7 +1998,6 @@ void doPostPresetLoadSteps() {
   OutputComponentOrVGA();
   SerialM.println("post preset done");
   rto->applyPresetDoneStage = 1;
-  rto->applyPresetDoneTime = millis();
 }
 
 void applyPresets(uint8_t result) {
@@ -2114,7 +2116,7 @@ void applyPresets(uint8_t result) {
       rto->videoStandardInput = 7;
     }
     else if (result == 14) {
-      SerialM.println("unkn. HD mode ");
+      SerialM.println("VGA/SVGA/XGA/SXGA");
       rto->videoStandardInput = 14;
     }
 
@@ -2164,6 +2166,100 @@ void disableCapture() {
   rto->CaptureIsOff = true;
 }
 
+void cycleModeDetectSkew() {
+  // direct indexing into presetMdSection can eliminate these statics
+  static uint8_t initialMD_VGA_75HZ_CNTRL = GBS::MD_VGA_75HZ_CNTRL::read();
+  static uint8_t initialMD_SVGA_60HZ_CNTRL = GBS::MD_SVGA_60HZ_CNTRL::read();
+  static uint8_t initialMD_SVGA_75HZ_CNTRL = GBS::MD_SVGA_75HZ_CNTRL::read();
+  static uint8_t initialMD_SVGA_85HZ_CNTRL = GBS::MD_SVGA_85HZ_CNTRL::read();
+  static uint8_t initialMD_XGA_60HZ_CNTRL = GBS::MD_XGA_60HZ_CNTRL::read();
+  static uint8_t initialMD_XGA_70HZ_CNTRL = GBS::MD_XGA_70HZ_CNTRL::read();
+  static uint8_t initialMD_XGA_75HZ_CNTRL = GBS::MD_XGA_75HZ_CNTRL::read();
+  static uint8_t initialMD_XGA_85HZ_CNTRL = GBS::MD_XGA_85HZ_CNTRL::read();
+  static uint8_t initialMD_SXGA_60HZ_CNTRL = GBS::MD_SXGA_60HZ_CNTRL::read();
+  static uint8_t initialMD_SXGA_75HZ_CNTRL = GBS::MD_SXGA_75HZ_CNTRL::read();
+  static uint8_t initialMD_SXGA_85HZ_CNTRL = GBS::MD_SXGA_85HZ_CNTRL::read();
+  static uint8_t initialMD_VGA_CNTRL = GBS::MD_VGA_CNTRL::read();
+  static uint8_t skewCounter = 0;
+
+  if (skewCounter >= 5) { skewCounter = 0; }
+  switch (skewCounter) {
+  case 0:
+    GBS::MD_VGA_75HZ_CNTRL::write(initialMD_VGA_75HZ_CNTRL - 2);
+    GBS::MD_SVGA_60HZ_CNTRL::write(initialMD_SVGA_60HZ_CNTRL - 1);
+    GBS::MD_SVGA_75HZ_CNTRL::write(initialMD_SVGA_75HZ_CNTRL - 1);
+    GBS::MD_SVGA_85HZ_CNTRL::write(initialMD_SVGA_85HZ_CNTRL - 1);
+    GBS::MD_XGA_60HZ_CNTRL::write(initialMD_XGA_60HZ_CNTRL - 2);
+    GBS::MD_XGA_70HZ_CNTRL::write(initialMD_XGA_70HZ_CNTRL - 2);
+    GBS::MD_XGA_75HZ_CNTRL::write(initialMD_XGA_75HZ_CNTRL - 2);
+    GBS::MD_XGA_85HZ_CNTRL::write(initialMD_XGA_85HZ_CNTRL - 2);
+    GBS::MD_SXGA_60HZ_CNTRL::write(initialMD_SXGA_60HZ_CNTRL - 2);
+    GBS::MD_SXGA_75HZ_CNTRL::write(initialMD_SXGA_75HZ_CNTRL - 2);
+    GBS::MD_SXGA_85HZ_CNTRL::write(initialMD_SXGA_85HZ_CNTRL - 2);
+    break;
+  case 1:
+    GBS::MD_VGA_75HZ_CNTRL::write(initialMD_VGA_75HZ_CNTRL - 1);
+    GBS::MD_SVGA_60HZ_CNTRL::write(initialMD_SVGA_60HZ_CNTRL);
+    GBS::MD_SVGA_75HZ_CNTRL::write(initialMD_SVGA_75HZ_CNTRL);
+    GBS::MD_SVGA_85HZ_CNTRL::write(initialMD_SVGA_85HZ_CNTRL);
+    GBS::MD_XGA_60HZ_CNTRL::write(initialMD_XGA_60HZ_CNTRL - 1);
+    GBS::MD_XGA_70HZ_CNTRL::write(initialMD_XGA_70HZ_CNTRL - 1);
+    GBS::MD_XGA_75HZ_CNTRL::write(initialMD_XGA_75HZ_CNTRL - 1);
+    GBS::MD_XGA_85HZ_CNTRL::write(initialMD_XGA_85HZ_CNTRL - 1);
+    GBS::MD_SXGA_60HZ_CNTRL::write(initialMD_SXGA_60HZ_CNTRL - 1);
+    GBS::MD_SXGA_75HZ_CNTRL::write(initialMD_SXGA_75HZ_CNTRL - 1);
+    GBS::MD_SXGA_85HZ_CNTRL::write(initialMD_SXGA_85HZ_CNTRL - 1);
+    break;
+  case 2:
+    GBS::MD_VGA_75HZ_CNTRL::write(initialMD_VGA_75HZ_CNTRL);
+    GBS::MD_XGA_60HZ_CNTRL::write(initialMD_XGA_60HZ_CNTRL);
+    GBS::MD_XGA_70HZ_CNTRL::write(initialMD_XGA_70HZ_CNTRL);
+    GBS::MD_XGA_75HZ_CNTRL::write(initialMD_XGA_75HZ_CNTRL);
+    GBS::MD_XGA_85HZ_CNTRL::write(initialMD_XGA_85HZ_CNTRL);
+    GBS::MD_SXGA_60HZ_CNTRL::write(initialMD_SXGA_60HZ_CNTRL);
+    GBS::MD_SXGA_75HZ_CNTRL::write(initialMD_SXGA_75HZ_CNTRL);
+    GBS::MD_SXGA_85HZ_CNTRL::write(initialMD_SXGA_85HZ_CNTRL);
+    break;
+  case 3:
+    GBS::MD_VGA_75HZ_CNTRL::write(initialMD_VGA_75HZ_CNTRL + 1);
+    GBS::MD_SVGA_60HZ_CNTRL::write(initialMD_SVGA_60HZ_CNTRL + 1);
+    GBS::MD_SVGA_85HZ_CNTRL::write(initialMD_SVGA_85HZ_CNTRL + 1);
+    GBS::MD_SVGA_75HZ_CNTRL::write(initialMD_SVGA_75HZ_CNTRL + 1);
+    GBS::MD_XGA_70HZ_CNTRL::write(initialMD_XGA_70HZ_CNTRL + 1);
+    GBS::MD_XGA_75HZ_CNTRL::write(initialMD_XGA_75HZ_CNTRL + 1);
+    GBS::MD_XGA_85HZ_CNTRL::write(initialMD_XGA_85HZ_CNTRL + 1);
+    GBS::MD_SXGA_60HZ_CNTRL::write(initialMD_SXGA_60HZ_CNTRL + 1);
+    GBS::MD_SXGA_75HZ_CNTRL::write(initialMD_SXGA_75HZ_CNTRL + 1);
+    GBS::MD_SXGA_85HZ_CNTRL::write(initialMD_SXGA_85HZ_CNTRL + 1);
+    break;
+  case 4:
+    GBS::MD_VGA_75HZ_CNTRL::write(initialMD_VGA_75HZ_CNTRL + 2);
+    GBS::MD_XGA_60HZ_CNTRL::write(initialMD_XGA_60HZ_CNTRL + 2);
+    GBS::MD_XGA_70HZ_CNTRL::write(initialMD_XGA_70HZ_CNTRL + 2);
+    GBS::MD_XGA_75HZ_CNTRL::write(initialMD_XGA_75HZ_CNTRL + 2);
+    GBS::MD_XGA_85HZ_CNTRL::write(initialMD_XGA_85HZ_CNTRL + 2);
+    GBS::MD_SXGA_60HZ_CNTRL::write(initialMD_SXGA_60HZ_CNTRL + 2);
+    GBS::MD_SXGA_75HZ_CNTRL::write(initialMD_SXGA_75HZ_CNTRL + 2);
+    GBS::MD_SXGA_85HZ_CNTRL::write(initialMD_SXGA_85HZ_CNTRL + 2);
+    break;
+  default:
+    SerialM.println("check getVideoMode()");
+    break;
+  }
+  skewCounter++;
+  if (skewCounter == 5)
+  {
+    static uint8_t verticalSkew = 0;
+    if (verticalSkew >= 2) { verticalSkew = 0; }
+    if (!rto->blockModeDetectVSkew)
+    {
+      if (verticalSkew == 0) { GBS::MD_VGA_CNTRL::write(initialMD_VGA_CNTRL + 2); }
+      if (verticalSkew == 1) { GBS::MD_VGA_CNTRL::write(initialMD_VGA_CNTRL); }
+    }
+    verticalSkew++;
+  }
+}
+
 static uint8_t getVideoMode() {
   uint8_t detectedMode = 0;
 
@@ -2207,11 +2303,27 @@ static uint8_t getVideoMode() {
   }
 
   // odd video modes
-  detectedMode = GBS::STATUS_05::read(); // 2: Horizontal unstable indicator // 3: Vertical unstable indicator
-  if ((detectedMode & 0x0c) == 0x00) { // then stable, supposedly
+  if ((GBS::STATUS_05::read() & 0x0c) == 0x00) // 2: Horizontal unstable indicator AND 3: Vertical unstable indicator are both 0?
+  {
     if (GBS::STATUS_00::read() == 0x07) { // the 3 stat0 stable indicators are on, none of the SD indicators are on
-      if (GBS::STATUS_SYNC_PROC_VTOTAL::read() > 326) { // not an SD mode
+      /*if (GBS::STATUS_04::read() != 0x00) {
+        return 0;
+      }
+      else {
         return 14;
+      }*/
+      if ((GBS::STATUS_03::read() & 0x02) == 0x02) // Graphic mode bit on (VGA/SVGA/XGA/SXGA)
+      {
+        // if valid once, lock vline detect counter (for graphic mode detect). 
+        // resets once sync recovery gives up
+        rto->blockModeDetectVSkew = true;
+        return 14;
+      }
+      else {
+        if (rto->syncWatcherEnabled) {
+          // NEW: continously skew ModeDetect horiz. values to allow detecting graphic modes with non-ideal timings
+          cycleModeDetectSkew();
+        }
       }
     }
   }
@@ -2504,11 +2616,11 @@ void passThroughWithIfModeSwitch() {
     rto->autoBestHtotalEnabled = false; // disable while in this mode
     // first load default presets
     if (rto->videoStandardInput == 2 || rto->videoStandardInput == 4) {
-      writeProgramArrayNew(pal_240p);
+      writeProgramArrayNew(pal_240p, true);
       doPostPresetLoadSteps();
     }
     else {
-      writeProgramArrayNew(ntsc_240p);
+      writeProgramArrayNew(ntsc_240p, true);
       doPostPresetLoadSteps();
     }
     GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC
@@ -3011,6 +3123,7 @@ void setup() {
   rto->deinterlaceAutoEnabled = true;
   rto->scanlinesEnabled = false;
   rto->boardHasPower = true;
+  rto->blockModeDetectVSkew = false;
 
   // the following is just run time variables. don't change!
   rto->inputIsYpBpR = false;
@@ -3022,7 +3135,6 @@ void setup() {
   rto->sourceDisconnected = true;
   rto->isInLowPowerMode = false;
   rto->applyPresetDoneStage = 0;
-  rto->applyPresetDoneTime = millis();
   rto->presetVlineShift = 0;
   rto->clampPositionIsSet = 0;
   rto->coastPositionIsSet = 0;
@@ -3265,8 +3377,8 @@ void handleWiFi() {
 
 void loop() {
   static uint8_t readout = 0;
-  static uint8_t segment = 0;
-  static uint8_t inputRegister = 0;
+  static uint8_t segmentCurrent = 255; // illegal
+  static uint8_t registerCurrent = 255;
   static uint8_t inputToogleBit = 0;
   static uint8_t inputStage = 0;
   static uint16_t noSyncCounter = 0;
@@ -3635,7 +3747,7 @@ void loop() {
     break;
     case '3':
       //
-      break;
+    break;
     case '4':
       scaleVertical(1, true);
     break;
@@ -3680,24 +3792,24 @@ void loop() {
     break;
     case 'g':
       inputStage++;
-      Serial.flush();
+      //Serial.flush();
       // we have a multibyte command
       if (inputStage > 0) {
         if (inputStage == 1) {
-          segment = Serial.parseInt();
+          segmentCurrent = Serial.parseInt();
           SerialM.print("G");
-          SerialM.print(segment);
+          SerialM.print(segmentCurrent);
         }
         else if (inputStage == 2) {
           char szNumbers[3];
           szNumbers[0] = Serial.read(); szNumbers[1] = Serial.read(); szNumbers[2] = '\0';
           //char * pEnd;
-          inputRegister = strtol(szNumbers, NULL, 16);
+          registerCurrent = strtol(szNumbers, NULL, 16);
           SerialM.print("R0x");
-          SerialM.print(inputRegister, HEX);
-          if (segment <= 5) {
-            writeOneByte(0xF0, segment);
-            readFromRegister(inputRegister, 1, &readout);
+          SerialM.print(registerCurrent, HEX);
+          if (segmentCurrent <= 5) {
+            writeOneByte(0xF0, segmentCurrent);
+            readFromRegister(registerCurrent, 1, &readout);
             SerialM.print(" value: 0x"); SerialM.println(readout, HEX);
           }
           else {
@@ -3709,33 +3821,33 @@ void loop() {
     break;
     case 's':
       inputStage++;
-      Serial.flush();
+      //Serial.flush();
       // we have a multibyte command
       if (inputStage > 0) {
         if (inputStage == 1) {
-          segment = Serial.parseInt();
+          segmentCurrent = Serial.parseInt();
           SerialM.print("S");
-          SerialM.print(segment);
+          SerialM.print(segmentCurrent);
         }
         else if (inputStage == 2) {
           char szNumbers[3];
           szNumbers[0] = Serial.read(); szNumbers[1] = Serial.read(); szNumbers[2] = '\0';
           //char * pEnd;
-          inputRegister = strtol(szNumbers, NULL, 16);
+          registerCurrent = strtol(szNumbers, NULL, 16);
           SerialM.print("R0x");
-          SerialM.print(inputRegister, HEX);
+          SerialM.print(registerCurrent, HEX);
         }
         else if (inputStage == 3) {
           char szNumbers[3];
           szNumbers[0] = Serial.read(); szNumbers[1] = Serial.read(); szNumbers[2] = '\0';
           //char * pEnd;
           inputToogleBit = strtol(szNumbers, NULL, 16);
-          if (segment <= 5) {
-            writeOneByte(0xF0, segment);
-            readFromRegister(inputRegister, 1, &readout);
+          if (segmentCurrent <= 5) {
+            writeOneByte(0xF0, segmentCurrent);
+            readFromRegister(registerCurrent, 1, &readout);
             SerialM.print(" (was 0x"); SerialM.print(readout, HEX); SerialM.print(")");
-            writeOneByte(inputRegister, inputToogleBit);
-            readFromRegister(inputRegister, 1, &readout);
+            writeOneByte(registerCurrent, inputToogleBit);
+            readFromRegister(registerCurrent, 1, &readout);
             SerialM.print(" is now: 0x"); SerialM.println(readout, HEX);
           }
           else {
@@ -3747,32 +3859,32 @@ void loop() {
     break;
     case 't':
       inputStage++;
-      Serial.flush();
+      //Serial.flush();
       // we have a multibyte command
       if (inputStage > 0) {
         if (inputStage == 1) {
-          segment = Serial.parseInt();
+          segmentCurrent = Serial.parseInt();
           SerialM.print("T");
-          SerialM.print(segment);
+          SerialM.print(segmentCurrent);
         }
         else if (inputStage == 2) {
           char szNumbers[3];
           szNumbers[0] = Serial.read(); szNumbers[1] = Serial.read(); szNumbers[2] = '\0';
           //char * pEnd;
-          inputRegister = strtol(szNumbers, NULL, 16);
+          registerCurrent = strtol(szNumbers, NULL, 16);
           SerialM.print("R0x");
-          SerialM.print(inputRegister, HEX);
+          SerialM.print(registerCurrent, HEX);
         }
         else if (inputStage == 3) {
           inputToogleBit = Serial.parseInt();
           SerialM.print(" Bit: "); SerialM.print(inputToogleBit);
           inputStage = 0;
-          if ((segment <= 5) && (inputToogleBit <= 7)) {
-            writeOneByte(0xF0, segment);
-            readFromRegister(inputRegister, 1, &readout);
+          if ((segmentCurrent <= 5) && (inputToogleBit <= 7)) {
+            writeOneByte(0xF0, segmentCurrent);
+            readFromRegister(registerCurrent, 1, &readout);
             SerialM.print(" (was 0x"); SerialM.print(readout, HEX); SerialM.print(")");
-            writeOneByte(inputRegister, readout ^ (1 << inputToogleBit));
-            readFromRegister(inputRegister, 1, &readout);
+            writeOneByte(registerCurrent, readout ^ (1 << inputToogleBit));
+            readFromRegister(registerCurrent, 1, &readout);
             SerialM.print(" is now: 0x"); SerialM.println(readout, HEX);
           }
           else {
@@ -3781,9 +3893,35 @@ void loop() {
         }
       }
     break;
+    case '<':
+    {
+      if (segmentCurrent != 255 && registerCurrent != 255) {
+        writeOneByte(0xF0, segmentCurrent);
+        readFromRegister(registerCurrent, 1, &readout);
+        writeOneByte(registerCurrent, readout - 1); // also allow wrapping
+        Serial.print("S"); Serial.print(segmentCurrent);
+        Serial.print("_"); Serial.print(registerCurrent, HEX);
+        readFromRegister(registerCurrent, 1, &readout);
+        Serial.print(" : "); Serial.println(readout, HEX);
+      }
+    }
+    break;
+    case '>':
+    {
+      if (segmentCurrent != 255 && registerCurrent != 255) {
+        writeOneByte(0xF0, segmentCurrent);
+        readFromRegister(registerCurrent, 1, &readout);
+        writeOneByte(registerCurrent, readout + 1);
+        Serial.print("S"); Serial.print(segmentCurrent);
+        Serial.print("_"); Serial.print(registerCurrent, HEX);
+        readFromRegister(registerCurrent, 1, &readout);
+        Serial.print(" : "); Serial.println(readout, HEX);
+      }
+    }
+    break;
     case 'w':
     {
-      Serial.flush();
+      //Serial.flush();
       uint16_t value = 0;
       String what = Serial.readStringUntil(' ');
 
@@ -3970,9 +4108,9 @@ void loop() {
       uint8_t changeToPreset = detectedVideoMode;
       uint8_t signalInputChangeCounter = 0;
 
-      // this first test is necessary with "dirty" sync (CVid)
-      while (--test > 0) { // what's the new preset?
-        delay(7);
+      // this first test is necessary with "dirty" sync (CVid) and/or some HD modes (especially 576p)
+      while (test > 0) { // what's the new preset?
+        delay(16);
         detectedVideoMode = getVideoMode();
         //SerialM.println(detectedVideoMode);
         if (changeToPreset == detectedVideoMode) {
@@ -3980,7 +4118,9 @@ void loop() {
         }
         else if (detectedVideoMode == 0) { // unstable
           signalInputChangeCounter = 0;
+          test = 1; // NEW: early abort, yield to loop for next round
         }
+        test--;
       }
       if (signalInputChangeCounter >= 8) { // video mode has changed
         SerialM.println("New Input");
@@ -4016,14 +4156,14 @@ void loop() {
         noSyncCounter = 0;
       }
     }
-    else if (getSyncStable() && detectedVideoMode != 0 && rto->videoStandardInput != 15) { // last used mode reappeared / stable again
+    else if (getSyncStable() && detectedVideoMode != 0 && rto->videoStandardInput != 15 
+      && (rto->videoStandardInput == detectedVideoMode)) 
+    { // last used mode reappeared / stable again
+      
       if (rto->continousStableCounter < 255) {
         rto->continousStableCounter++;
       }
       noSyncCounter = 0;
-      if (rto->CaptureIsOff && (rto->videoStandardInput == detectedVideoMode)) {
-        enableCapture();
-      }
 
       if ((rto->videoStandardInput == 1 || rto->videoStandardInput == 2) && !rto->outModePassThroughWithIf) {
         // new: attempt to switch in deinterlacing automatically, when required
@@ -4060,9 +4200,11 @@ void loop() {
           if (!rto->scanlinesEnabled && !rto->motionAdaptiveDeinterlaceActive
             && !preventScanlines && rto->continousStableCounter > 2)
           {
+            disableCapture();
             enableScanlines();
           }
           else if (!uopt->wantScanlines && rto->scanlinesEnabled) {
+            disableCapture();
             disableScanlines();
           }
         }
@@ -4090,6 +4232,11 @@ void loop() {
           }
         }
       }
+
+      if (rto->CaptureIsOff) {
+        enableCapture();
+      }
+
     }
 
     if (rto->videoStandardInput == 15) { // RGBHV checks
@@ -4214,16 +4361,15 @@ void loop() {
           //SerialM.print("SOG: "); SerialM.println(rto->currentLevelSOG);
         }
         if (noSyncCounter % 40 == 0) {
+          SerialM.print("*");
           static boolean toggle = rto->videoStandardInput > 2 ? 0 : 1;
           if (toggle) {
-            SerialM.print("HD? ");
             GBS::SP_H_PULSE_IGNOR::write(0x02);
             GBS::SP_PRE_COAST::write(0x06);
             GBS::SP_POST_COAST::write(0x12);
             GBS::SP_DIS_SUB_COAST::write(1);
           }
           else {
-            SerialM.print("SD? ");
             GBS::SP_H_PULSE_IGNOR::write(0x10);
             GBS::SP_PRE_COAST::write(6); // SP test: 9
             GBS::SP_POST_COAST::write(16); // SP test: 9
@@ -4298,10 +4444,8 @@ void loop() {
   
   // later stage post preset adjustments 
   if (rto->applyPresetDoneStage > 0 && 
-    ((millis() - rto->applyPresetDoneTime < 2000)) && 
-    ((millis() - rto->applyPresetDoneTime > 500))) 
+    (rto->continousStableCounter > 25 && rto->continousStableCounter <= 35))
   {
-
     if (rto->applyPresetDoneStage == 1) 
     {
       GBS::DAC_RGBS_PWDNZ::write(1);
@@ -4317,7 +4461,7 @@ void loop() {
       rto->applyPresetDoneStage = 0;
     }
   }
-  else if (rto->applyPresetDoneStage > 0 && (millis() - rto->applyPresetDoneTime > 2000))
+  else if (rto->applyPresetDoneStage > 0 && (rto->continousStableCounter > 35))
   {
     GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
     rto->applyPresetDoneStage = 0; // timeout
