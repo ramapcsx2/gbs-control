@@ -37,6 +37,7 @@ typedef TV5725<GBS_ADDR> GBS;
 
 const char* ap_ssid = "gbscontrol";
 const char* ap_password = "qqqqqqqq";
+const char* ap_info_string = "(WiFi) AP mode; Connect to 'gbscontrol', password 'qqqqqqqq'";
 ESP8266WebServer server(80);
 DNSServer dnsServer;
 WebSocketsServer webSocket(81);
@@ -1727,6 +1728,7 @@ void applyBestHTotal(uint16_t bestHTotal) {
 }
 
 void doPostPresetLoadSteps() {
+  uint8_t presetID = GBS::GBS_PRESET_ID::read();
   GBS::PAD_SYNC_OUT_ENZ::write(1); // sync out off
   GBS::OUT_SYNC_CNTRL::write(1); // prepare sync out to PAD
   //GBS::PAD_CKOUT_ENZ::write(0); // clock out to pin enabled for testing
@@ -1782,65 +1784,97 @@ void doPostPresetLoadSteps() {
   }
 
   if (!isCustomPreset) {
-    uint8_t id = GBS::GBS_PRESET_ID::read();
-    if (rto->videoStandardInput == 3) { // ED YUV 60
-      // p-scan ntsc, need to either double adc data rate and halve vds scaling
-      // or disable line doubler (better)
+    if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4)
+    {
+      // EDTV p-scan, need to either double adc data rate and halve vds scaling
+      // or disable line doubler (better) (50 / 60Hz shared)
       GBS::PLLAD_KS::write(1); // 5_16
+      GBS::IF_HS_DEC_FACTOR::write(0);  // 1_0b 4+5
+      GBS::IF_LD_SEL_PROV::write(1);    // 1_0b 7
+      GBS::IF_LD_RAM_BYPS::write(1);    // 1_0c no LD
+      GBS::IF_PRGRSV_CNTRL::write(1);   // 1_00 6
+      GBS::IF_SEL_WEN::write(1);        // 1_02 0
+      GBS::IF_HS_TAP11_BYPS::write(1);  // 1_02 4 filter
+      GBS::IF_HS_Y_PDELAY::write(2);    // 1_02 5+6 filter
+      GBS::IF_HB_SP::write(0);          // 1_12 deinterlace offset, fixes colors
+      GBS::VDS_3_24_FILTER::write(0xb0);// 3_24 filter and WE delay
+    }
+    if (rto->videoStandardInput == 3) 
+    { // ED YUV 60
       GBS::VDS_VSCALE::write(512);
-      if (id == 0x3) { // 720p output
+      GBS::IF_HB_ST2::write(0xa8);  // 1_18
+      GBS::IF_HB_SP2::write(0xb0);  // 1_1a for general case hshift
+      GBS::IF_HBIN_SP::write(0x86); // 1_26 works for all output presets
+      if (presetID == 0x3) 
+      { // out 720p
         GBS::VDS_VSCALE::write(720);
-        GBS::IF_VB_ST::write(0x02);
-        GBS::IF_VB_SP::write(0x04);
+        //GBS::IF_VB_ST::write(0x02);
+        //GBS::IF_VB_SP::write(0x04);
+        GBS::VDS_VB_ST::write(2);
+        GBS::VDS_VB_SP::write(46);
+        GBS::VDS_DIS_VB_ST::write(746);
+        GBS::VDS_DIS_VB_SP::write(50);
+        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8);
+        GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 8);
       }
-      GBS::VDS_3_24_FILTER::write(0xb0);
-      GBS::IF_SEL_WEN::write(1); // 1_02 0
-      GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 4 filter
-      GBS::IF_HS_Y_PDELAY::write(2); // 1_02 5+6 filter
-      GBS::IF_PRGRSV_CNTRL::write(1); // 1_00 6
-      GBS::IF_HS_DEC_FACTOR::write(0); // 1_0b 4+5
-      GBS::IF_LD_SEL_PROV::write(1); // 1_0b 7
-      GBS::IF_LD_RAM_BYPS::write(1); // no LD 1_0c 0
-      GBS::IF_HB_SP::write(0); // cancel deinterlace offset, fixes colors
-      // horizontal shift
-      GBS::IF_HB_SP2::write(0xb8); // 1_1a
-      GBS::IF_HB_ST2::write(0xb0); // 1_18 necessary
-      //GBS::IF_HBIN_ST::write(1104); // 1_24 // no effect seen but may be necessary
-      GBS::IF_HBIN_SP::write(0x98); // 1_26
-      // vertical shift
-      //GBS::IF_VB_ST::write(0x0e);
-      //GBS::IF_VB_SP::write(0x10);
-    }
-    else if (rto->videoStandardInput == 4) { // ED YUV 50
-      // p-scan pal, need to either double adc data rate and halve vds scaling
-      // or disable line doubler (better)
-      GBS::PLLAD_KS::write(1); // 5_16
-      GBS::VDS_VSCALE::write(563); // was 512, way too large
-      if (id == 0x13) { // 720p output
-        GBS::VDS_VSCALE::write(840);
-        GBS::IF_VB_ST::write(0x16);
-        GBS::IF_VB_SP::write(0x18);
+      else if (presetID == 0x2) 
+      { // out x1024
+        GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 48);
+        GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - 12);
+        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8);
+        if (GBS::VDS_VB_SP::read() < 46) 
+        {
+          GBS::VDS_VB_ST::write(4); // could be 44 but seems safe to blank it all
+          GBS::VDS_VB_SP::write(46);
+          GBS::VDS_DIS_VB_SP::write(64);
+        }
       }
-      GBS::VDS_3_24_FILTER::write(0xb0);
-      GBS::IF_SEL_WEN::write(1);
-      GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 4 filter
-      GBS::IF_HS_Y_PDELAY::write(2); // 1_02 5+6 filter
-      GBS::IF_PRGRSV_CNTRL::write(1); // 1_00 6
-      GBS::IF_HS_DEC_FACTOR::write(0); // 1_0b 4+5 !
-      GBS::IF_LD_SEL_PROV::write(1); // 1_0b 7
-      GBS::IF_LD_RAM_BYPS::write(1); // no LD 1_0c 0
-      GBS::IF_HB_SP::write(0); // cancel deinterlace offset, fixes colors
-      // horizontal shift
-      GBS::IF_HB_SP2::write(0xc4); //1_1a
-      GBS::IF_HB_ST2::write(0xb4); // 1_18 necessary
-      GBS::IF_HBIN_SP::write(0x9a); // 1_26
-      // vertical shift
-      //GBS::IF_VB_ST::write(0x46);
-      //GBS::IF_VB_SP::write(0x48);
-      //setDisplayVblankStopPosition(10);
-      //setDisplayVblankStartPosition(984);
+      else if (presetID == 0x1) 
+      { // out x960
+        //GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 16);
+        //GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() + 16);
+      }
     }
-    else if (rto->videoStandardInput == 5) { // 720p
+    else if (rto->videoStandardInput == 4) 
+    { // ED YUV 50
+      GBS::VDS_VSCALE::write(614);  // note: need a good vert. test image
+      GBS::IF_HB_ST2::write(0xb4);  // 1_18
+      GBS::IF_HB_SP2::write(0xc4);  // 1_1a for general case hshift
+      GBS::IF_HBIN_SP::write(0x9a); // 1_26 works for all output presets
+      if (presetID == 0x13) 
+      { // out 720p
+        GBS::VDS_VSCALE::write(808); // not well tested
+        GBS::VDS_HSCALE::write(940); // either
+        GBS::IF_VB_ST::write(0x24);
+        GBS::IF_VB_SP::write(0x26);
+        GBS::VDS_VB_ST::write(4); // blank it all
+        GBS::VDS_VB_SP::write(30);
+        GBS::VDS_DIS_VB_SP::write(34);
+      }
+      else if (presetID == 0x12) 
+      { // out x1024
+        GBS::VDS_VSCALE::write(608);
+        GBS::IF_VB_ST::write(0x20);
+        GBS::IF_VB_SP::write(0x22);
+        GBS::VDS_VB_ST::write(4); // blank it all
+        GBS::VDS_VB_SP::write(50);
+        GBS::VDS_DIS_VB_ST::write(1024);
+        GBS::VDS_DIS_VB_SP::write(34);
+      }
+      else if (presetID == 0x11) 
+      { // out x960
+        // at VDS_VSCALE 614
+        //GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 16);
+        //GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() + 16);
+        GBS::IF_VB_ST::write(0x20);
+        GBS::IF_VB_SP::write(0x22);
+        GBS::VDS_VB_ST::write(4); // blank it all
+        GBS::VDS_VB_SP::write(30);
+        GBS::VDS_DIS_VB_SP::write(38);
+      }
+    }
+    else if (rto->videoStandardInput == 5) 
+    { // 720p
       GBS::SP_HD_MODE::write(1); // tri level sync
       GBS::ADC_CLK_ICLK2X::write(0);
       GBS::IF_PRGRSV_CNTRL::write(1); // progressive
@@ -1849,7 +1883,8 @@ void doPostPresetLoadSteps() {
       GBS::VDS_TAP6_BYPS::write(1);
       GBS::VDS_Y_DELAY::write(3);
     }
-    else if (rto->videoStandardInput == 6 || rto->videoStandardInput == 7) { // 1080i/p
+    else if (rto->videoStandardInput == 6 || rto->videoStandardInput == 7) 
+    { // 1080i/p
       GBS::SP_HD_MODE::write(1); // tri level sync
       GBS::ADC_CLK_ICLK2X::write(0);
       GBS::PLLAD_KS::write(0); // 5_16
@@ -1861,7 +1896,8 @@ void doPostPresetLoadSteps() {
     }
   }
 
-  GBS::VDS_IN_DREG_BYPS::write(0); // 3_40 2 // 0 = input data triggered on falling clock edge, 1 = bypass
+  // 3_40 2 // 0 = input data triggered on falling clock edge, 1 = bypass
+  GBS::VDS_IN_DREG_BYPS::write(0);
 
   setSpParameters();
 
@@ -1935,9 +1971,8 @@ void doPostPresetLoadSteps() {
   rto->syncLockFailIgnore = 8;
 
   {
-    // prepare ideal vline shift for PAL / NTSC sources
-    uint8_t id = GBS::GBS_PRESET_ID::read();
-    switch (id)
+    // prepare ideal vline shift for PAL / NTSC SD sources
+    switch (presetID)
     {
     case 0x1:
     case 0x2:
@@ -1996,7 +2031,15 @@ void doPostPresetLoadSteps() {
   GBS::INTERRUPT_CONTROL_00::write(0x00);
   
   OutputComponentOrVGA();
-  SerialM.println("post preset done");
+  SerialM.print("post preset done (preset id: "); SerialM.print(presetID, HEX); 
+  if (rto->outModePassThroughWithIf)
+  {
+    SerialM.println(") (bypass)"); // note: this path is currently never taken (just planned)
+  }
+  else
+  {
+    SerialM.println(")");
+  }
   rto->applyPresetDoneStage = 1;
 }
 
@@ -2065,7 +2108,7 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(ntsc_feedbackclock); // not well supported
     }
     else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(ntsc_1280x720); // not well supported
+      writeProgramArrayNew(ntsc_1280x720);
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
@@ -2074,7 +2117,7 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(preset);
     }
     else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(ntsc_1280x1024); // not well supported
+      writeProgramArrayNew(ntsc_1280x1024);
     }
 #endif
   }
@@ -2088,7 +2131,7 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(pal_feedbackclock); // not well supported
     }
     else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(pal_1280x720); // not well supported
+      writeProgramArrayNew(pal_1280x720);
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
@@ -2097,7 +2140,7 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(preset);
     }
     else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(pal_240p);
+      writeProgramArrayNew(pal_1280x1024);
     }
 #endif
   }
@@ -3078,7 +3121,7 @@ void setup() {
   // SDK enables WiFi and uses stored credentials to auto connect. This can't be turned off.
   // Correct the hostname while it is still in CONNECTING state
   //wifi_station_set_hostname("gbscontrol"); // SDK version
-  WiFi.hostname("gbscontrol");
+  WiFi.hostname("gbscontrol.local");
 
   // start web services as early in boot as possible > greater chance to get a websocket connection in time for logging startup
   if (rto->webServerEnabled) {
@@ -3089,6 +3132,7 @@ void setup() {
     unsigned long initLoopStart = millis();
     while (millis() - initLoopStart < 2000) {
       handleWiFi();
+      delay(1);
     }
   }
   else {
@@ -3099,7 +3143,7 @@ void setup() {
   }
 #endif
 
-  SerialM.println("starting");
+  SerialM.println("\nstarting");
   //globalDelay = 0;
   // user options // todo: could be stored in Arduino EEPROM. Other MCUs have SPIFFS
   uopt->presetPreference = 0; // normal, 720p, fb, custom, 1280x1024
@@ -3151,16 +3195,27 @@ void setup() {
   LEDON; // enable the LED, lets users know the board is starting up
   
 #if defined(ESP8266)
+  if (WiFi.status() == WL_CONNECTED) {
+    SerialM.print("(WiFi) IP: "); SerialM.print(WiFi.localIP());
+    SerialM.print(" Hostname: "); SerialM.println(WiFi.hostname());
+  }
+  else if (WiFi.SSID().length() == 0) {
+    SerialM.println(ap_info_string);
+  }
+  else {
+    SerialM.println("(WiFi) still connecting..");
+  }
+
   //Serial.setDebugOutput(true); // if you want simple wifi debug info
   // file system (web page, custom presets, ect)
   if (!SPIFFS.begin()) {
-    SerialM.println("SPIFFS Mount Failed");
+    SerialM.println("SPIFFS mount failed! ((1M SPIFFS) selected?)");
   }
   else {
     // load userprefs.txt
     File f = SPIFFS.open("/userprefs.txt", "r");
     if (!f) {
-      SerialM.println("userprefs open failed");
+      SerialM.println("no userprefs yet");
       uopt->presetPreference = 0;
       uopt->enableFrameTimeLock = 0;
       uopt->presetGroup = 0;
@@ -3733,7 +3788,12 @@ void loop() {
       uopt->enableFrameTimeLock = !uopt->enableFrameTimeLock;
     break;
     case 'E':
-      //
+      writeProgramArrayNew(ntsc_1280x1024);
+      doPostPresetLoadSteps();
+    break;
+    case 'R':
+      writeProgramArrayNew(pal_1280x1024);
+      doPostPresetLoadSteps();
     break;
     case '0':
       moveHS(1, true);
@@ -4443,8 +4503,9 @@ void loop() {
   }
   
   // later stage post preset adjustments 
-  if (rto->applyPresetDoneStage > 0 && 
-    (rto->continousStableCounter > 25 && rto->continousStableCounter <= 35))
+  if (rto->applyPresetDoneStage > 0 && // and
+    ((rto->continousStableCounter > 25 && rto->continousStableCounter <= 35) || // this
+    !rto->syncWatcherEnabled)) // or that
   {
     if (rto->applyPresetDoneStage == 1) 
     {
@@ -4827,11 +4888,9 @@ void startWebserver()
   //WiFi.disconnect(); // test captive portal by forgetting wifi credentials
   persWM.setApCredentials(ap_ssid, ap_password);
   persWM.onConnect([]() {
-    WiFi.hostname("gbscontrol");
   });
   persWM.onAp([]() {
-    WiFi.hostname("gbscontrol");
-    SerialM.print("AP MODE: "); SerialM.println("Connect to WiFi 'gbscontrol' using password 'qqqqqqqq'");
+    SerialM.println(ap_info_string);
   });
 
   server.on("/", handleRoot);

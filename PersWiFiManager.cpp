@@ -22,7 +22,7 @@ PersWiFiManager::PersWiFiManager(ESP8266WebServer& s, DNSServer& d) {
 bool PersWiFiManager::attemptConnection(const String& ssid, const String& pass) {
   //attempt to connect to wifi
   WiFi.mode(WIFI_STA);
-  WiFi.hostname("gbscontrol");
+  WiFi.hostname("gbscontrol.local");
   if (ssid.length()) {
     if (pass.length()) WiFi.begin(ssid.c_str(), pass.c_str());
     else WiFi.begin(ssid.c_str());
@@ -65,18 +65,10 @@ void PersWiFiManager::startApMode(){
   WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
   _apPass.length() ? WiFi.softAP(getApSsid().c_str(), _apPass.c_str(), 6) : WiFi.softAP(getApSsid().c_str());
 
-  _dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
-  //
-  // modify TTL associated  with the domain name (in seconds)
-  // default is 60 seconds
-  _dnsServer->setTTL(9001); // couple hours
-  // set which return code will be used for all other domains (e.g. sending
-  // ServerFailure instead of NonExistentDomain will reduce number of queries
-  // sent by clients)
-  // default is DNSReplyCode::NonExistentDomain
-  _dnsServer->setErrorReplyCode(DNSReplyCode::ServerFailure);
-  _dnsServer->start((byte)53, "*", apIP); //used for captive portal in AP mode
-
+  _dnsServer->stop();
+  // modify TTL associated  with the domain name (in seconds) // default is 60 seconds
+  _dnsServer->setTTL(300); // (in seconds) as per example
+  _dnsServer->start((byte)53, "*", apIP);
 
   if (_apHandler) _apHandler();  
 }//startApMode
@@ -156,7 +148,7 @@ bool PersWiFiManager::begin(const String& ssid, const String& pass) {
 } //begin
 
 String PersWiFiManager::getApSsid() {
-  return _apSsid.length() ? _apSsid : "ESP8266";
+  return _apSsid.length() ? _apSsid : "gbscontrol";
 } //getApSsid
 
 void PersWiFiManager::setApCredentials(const String& apSsid, const String& apPass) {
