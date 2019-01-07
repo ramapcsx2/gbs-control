@@ -8,6 +8,7 @@
 #include "pal_1280x1024.h"
 #include "pal_1280x720.h"
 #include "presetMdSection.h"
+#include "presetDeinterlacerSection.h"
 #include "ofw_RGBS.h"
 
 #include "tv5725.h"
@@ -275,6 +276,16 @@ void zeroAll()
   }
 }
 
+void loadPresetDeinterlacerSection() {
+  uint16_t index = 0;
+  uint8_t bank[16];
+  writeOneByte(0xF0, 2);
+  for (int j = 0; j <= 3; j++) { // start at 0x00
+    copyBank(bank, presetDeinterlacerSection, &index);
+    writeBytes(j * 16, bank, 16);
+  }
+}
+
 void loadPresetMdSection() {
   uint16_t index = 0;
   uint8_t bank[16];
@@ -292,7 +303,7 @@ void loadPresetMdSection() {
 
 // programs all valid registers (the register map has holes in it, so it's not straight forward)
 // 'index' keeps track of the current preset data location.
-void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection = false)
+void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
 {
   uint16_t index = 0;
   uint8_t bank[16];
@@ -347,10 +358,7 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection = f
       }
       break;
     case 2:
-      for (int j = 0; j <= 3; j++) { // 4 times
-        copyBank(bank, programArray, &index);
-        writeBytes(j * 16, bank, 16);
-      }
+      loadPresetDeinterlacerSection();
       break;
     case 3:
       for (int j = 0; j <= 7; j++) { // 8 times
@@ -372,17 +380,17 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection = f
       for (int j = 0; j <= 6; j++) { // 7 times
         for (int x = 0; x <= 15; x++) {
           bank[x] = pgm_read_byte(programArray + index);
-          if (index == 386) { // s5_02 bit 6+7 = input selector (only bit 6 is relevant)
+          if (index == 322) { // s5_02 bit 6+7 = input selector (only bit 6 is relevant)
             if (rto->inputIsYpBpR)bitClear(bank[x], 6);
             else bitSet(bank[x], 6);
           }
-          if (index == 388) { // s5_04 reset for ADC REF init
+          if (index == 324) { // s5_04 reset for ADC REF init
             bank[x] = 0x00;
           }
-          if (index == 446) { // s5_3e
+          if (index == 382) { // s5_3e
             bitSet(bank[x], 5); // SP_DIS_SUB_COAST = 1
           }
-          if (index == 471) { // s5_57
+          if (index == 407) { // s5_57
             bitSet(bank[x], 0); // SP_NO_CLAMP_REG = 1
           }
           index++;
@@ -1042,9 +1050,7 @@ void dumpRegisters(byte segment)
     }
     break;
   case 2:
-    for (int x = 0x0; x <= 0x3F; x++) {
-      printReg(2, x);
-    }
+    // not needed anymore
     break;
   case 3:
     for (int x = 0x0; x <= 0x7F; x++) {
@@ -2048,26 +2054,26 @@ void applyPresets(uint8_t result) {
     SerialM.println("60Hz ");
     if (uopt->presetPreference == 0) {
       if (uopt->wantOutputComponent) {
-        writeProgramArrayNew(ntsc_1280x1024); // override to x1024, later to be patched to 1080p
+        writeProgramArrayNew(ntsc_1280x1024, false); // override to x1024, later to be patched to 1080p
       }
       else {
-        writeProgramArrayNew(ntsc_240p);
+        writeProgramArrayNew(ntsc_240p, false);
       }
     }
     else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(ntsc_feedbackclock);
+      writeProgramArrayNew(ntsc_feedbackclock, false);
     }
     else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(ntsc_1280x720);
+      writeProgramArrayNew(ntsc_1280x720, false);
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
       SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset);
+      writeProgramArrayNew(preset, false);
     }
     else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(ntsc_1280x1024);
+      writeProgramArrayNew(ntsc_1280x1024, false);
     }
 #endif
   }
@@ -2075,26 +2081,26 @@ void applyPresets(uint8_t result) {
     SerialM.println("50Hz ");
     if (uopt->presetPreference == 0) {
       if (uopt->wantOutputComponent) {
-        writeProgramArrayNew(pal_1280x1024); // override to x1024, later to be patched to 1080p
+        writeProgramArrayNew(pal_1280x1024, false); // override to x1024, later to be patched to 1080p
       }
       else {
-        writeProgramArrayNew(pal_240p);
+        writeProgramArrayNew(pal_240p, false);
       }
     }
     else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(pal_feedbackclock);
+      writeProgramArrayNew(pal_feedbackclock, false);
     }
     else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(pal_1280x720);
+      writeProgramArrayNew(pal_1280x720, false);
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
       SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset);
+      writeProgramArrayNew(preset, false);
     }
     else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(pal_1280x1024);
+      writeProgramArrayNew(pal_1280x1024, false);
     }
 #endif
   }
@@ -2102,22 +2108,22 @@ void applyPresets(uint8_t result) {
     SerialM.println("60Hz EDTV ");
     // ntsc base
     if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(ntsc_240p);
+      writeProgramArrayNew(ntsc_240p, false);
     }
     else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(ntsc_feedbackclock); // not well supported
+      writeProgramArrayNew(ntsc_feedbackclock, false); // not well supported
     }
     else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(ntsc_1280x720);
+      writeProgramArrayNew(ntsc_1280x720, false);
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
       SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset);
+      writeProgramArrayNew(preset, false);
     }
     else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(ntsc_1280x1024);
+      writeProgramArrayNew(ntsc_1280x1024, false);
     }
 #endif
   }
@@ -2125,22 +2131,22 @@ void applyPresets(uint8_t result) {
     SerialM.println("50Hz EDTV ");
     // pal base
     if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(pal_240p);
+      writeProgramArrayNew(pal_240p, false);
     }
     else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(pal_feedbackclock); // not well supported
+      writeProgramArrayNew(pal_feedbackclock, false); // not well supported
     }
     else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(pal_1280x720);
+      writeProgramArrayNew(pal_1280x720, false);
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
       SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset);
+      writeProgramArrayNew(preset, false);
     }
     else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(pal_1280x1024);
+      writeProgramArrayNew(pal_1280x1024, false);
     }
 #endif
   }
@@ -2887,7 +2893,7 @@ void bypassModeSwitch_SOG() {
 }
 
 void bypassModeSwitch_RGBHV() {
-  writeProgramArrayNew(ntsc_240p); // have a baseline
+  writeProgramArrayNew(ntsc_240p, false); // have a baseline
   
   rto->videoStandardInput = 15; // making sure
   rto->autoBestHtotalEnabled = false; // not necessary, since VDS is off / bypassed
@@ -3010,7 +3016,7 @@ void doAutoGain() {
 }
 
 void enableScanlines() {
-  if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 0) {
+  if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 0) {
     //SerialM.println("enableScanlines())");
     GBS::MAPDT_VT_SEL_PRGV::write(0);
     GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 0x38); // more luma gain
@@ -3021,13 +3027,13 @@ void enableScanlines() {
     GBS::MADPT_VIIR_BYPS::write(0); // enable VIIR 
     GBS::RFF_LINE_FLIP::write(1); // clears potential garbage in rff buffer
 
-    GBS::MAPDT_RESERVED_SCANLINES_ENABLED::write(1);
+    GBS::GBS_OPTION_SCANLINES_ENABLED::write(1);
   }
   rto->scanlinesEnabled = 1;
 }
 
 void disableScanlines() {
-  if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) {
+  if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) {
     //SerialM.println("disableScanlines())");
     GBS::MAPDT_VT_SEL_PRGV::write(1);
     GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 0x38);
@@ -3036,7 +3042,7 @@ void disableScanlines() {
     GBS::MADPT_VIIR_BYPS::write(1); // disable VIIR 
     GBS::RFF_LINE_FLIP::write(0); // back to default
 
-    GBS::MAPDT_RESERVED_SCANLINES_ENABLED::write(0);
+    GBS::GBS_OPTION_SCANLINES_ENABLED::write(0);
   }
   rto->scanlinesEnabled = 0;
 }
@@ -3470,7 +3476,7 @@ void loop() {
         GBS::IF_AUTO_OFST_RESERVED_2::write(0);
       }
       // don't store scanlines
-      if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) {
+      if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) {
         disableScanlines();
       }
       // dump
@@ -3563,11 +3569,11 @@ void loop() {
       delay(100);
     break;
     case 'Y':
-      writeProgramArrayNew(ntsc_1280x720);
+      writeProgramArrayNew(ntsc_1280x720, false);
       doPostPresetLoadSteps();
     break;
     case 'y':
-      writeProgramArrayNew(pal_1280x720);
+      writeProgramArrayNew(pal_1280x720, false);
       doPostPresetLoadSteps();
     break;
     case 'P':
@@ -3615,11 +3621,11 @@ void loop() {
       saveUserPrefs();
     break;
     case 'e':
-      writeProgramArrayNew(ntsc_240p);
+      writeProgramArrayNew(ntsc_240p, false);
       doPostPresetLoadSteps();
     break;
     case 'r':
-      writeProgramArrayNew(pal_240p);
+      writeProgramArrayNew(pal_240p, false);
       doPostPresetLoadSteps();
     break;
     case '.':
@@ -3649,11 +3655,6 @@ void loop() {
     case 'b':
       advancePhase(); latchPLLAD();
       SerialM.print("ADC: "); SerialM.println(rto->phaseADC);
-    break;
-    case 'B':
-      writeProgramArrayNew(ofw_RGBS);
-      doPostPresetLoadSteps();
-      //movePhaseThroughRange();
     break;
     case '#':
       rto->videoStandardInput = 14;
@@ -3788,11 +3789,11 @@ void loop() {
       uopt->enableFrameTimeLock = !uopt->enableFrameTimeLock;
     break;
     case 'E':
-      writeProgramArrayNew(ntsc_1280x1024);
+      writeProgramArrayNew(ntsc_1280x1024, false);
       doPostPresetLoadSteps();
     break;
     case 'R':
-      writeProgramArrayNew(pal_1280x1024);
+      writeProgramArrayNew(pal_1280x1024, false);
       doPostPresetLoadSteps();
     break;
     case '0':
@@ -3802,7 +3803,7 @@ void loop() {
       moveHS(1, false);
     break;
     case '2':
-      writeProgramArrayNew(pal_feedbackclock); // ModeLine "720x576@50" 27 720 732 795 864 576 581 586 625 -hsync -vsync
+      writeProgramArrayNew(pal_feedbackclock, false); // ModeLine "720x576@50" 27 720 732 795 864 576 581 586 625 -hsync -vsync
       doPostPresetLoadSteps();
     break;
     case '3':
@@ -3830,7 +3831,7 @@ void loop() {
       invertHS(); invertVS();
     break;
     case '9':
-      writeProgramArrayNew(ntsc_feedbackclock);
+      writeProgramArrayNew(ntsc_feedbackclock, false);
       doPostPresetLoadSteps();
     break;
     case 'o':
@@ -4241,7 +4242,7 @@ void loop() {
           if (rto->continousStableCounter > 1) {
             // actual deinterlace trigger
             if (!rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts > enable
-              if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
+              if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
                 disableScanlines();
               }
               enableMotionAdaptDeinterlace();
@@ -4661,7 +4662,7 @@ void handleType2Command() {
       if (rto->videoStandardInput == 0) SerialM.println("no input detected, aborting action");
       else {
         const uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
-        writeProgramArrayNew(preset);
+        writeProgramArrayNew(preset, false);
         doPostPresetLoadSteps();
       }
     }
@@ -4992,7 +4993,7 @@ void StrClear(char *str, uint16_t length)
 }
 
 const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
-  static uint8_t preset[496];
+  static uint8_t preset[432];
   String s = "";
   char group = '0';
   File f;
@@ -5109,7 +5110,7 @@ void savePresetToSPIFFS() {
 
     GBS::ADC_0X00_RESERVED_5::write(1); // use one reserved bit to mark this as a custom preset
     // don't store scanlines
-    if (GBS::MAPDT_RESERVED_SCANLINES_ENABLED::read() == 1) {
+    if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) {
       disableScanlines();
     }
     // next: check for vertical adjust and undo if necessary
@@ -5139,10 +5140,7 @@ void savePresetToSPIFFS() {
         }
         break;
       case 2:
-        for (int x = 0x0; x <= 0x3F; x++) {
-          readFromRegister(x, 1, &readout);
-          f.print(readout); f.println(",");
-        }
+        // not needed anymore
         break;
       case 3:
         for (int x = 0x0; x <= 0x7F; x++) {

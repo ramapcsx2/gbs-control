@@ -225,6 +225,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x29, 0,  1> IF_AUTO_OFST_EN;
     typedef UReg<0x01, 0x29, 2,  1> IF_AUTO_OFST_RESERVED_2;
     typedef UReg<0x01, 0x2B, 0,  8> GBS_PRESET_ID;
+    typedef UReg<0x01, 0x2C, 0,  1> GBS_OPTION_SCANLINES_ENABLED;
 
     // Mode Detect
     typedef UReg<0x01, 0x60, 0,  5> MD_HPERIOD_LOCK_VALUE;
@@ -255,7 +256,6 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x02, 0x0B, 0,  7> MADPT_Y_MI_OFFSET;
     typedef UReg<0x02, 0x0C, 4,  1> MADPT_MI_1BIT_BYPS;
     typedef UReg<0x02, 0x0C, 5,  1> MADPT_MI_1BIT_FRAME2_EN;
-    typedef UReg<0x02, 0x16, 2,  1> MAPDT_RESERVED_SCANLINES_ENABLED;
     typedef UReg<0x02, 0x16, 6,  1> MADPT_VT_FILTER_CNTRL;
     typedef UReg<0x02, 0x16, 7,  1> MAPDT_VT_SEL_PRGV;
     typedef UReg<0x02, 0x17, 0,  8> MADPT_Y_DELAY_UV_DELAY; // convenience
