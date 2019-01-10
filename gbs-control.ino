@@ -586,7 +586,7 @@ void setAdcParametersGainAndOffset() {
 
 void setSpParameters() {
   writeOneByte(0xF0, 5);
-  GBS::SP_SOG_P_ATO::write(1); // 5_20 enable sog auto polarity
+  GBS::SP_SOG_P_ATO::write(0); // 5_20 enable (NEW: disable!) sog auto polarity // sp will be negative
   GBS::SP_JITTER_SYNC::write(0);
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input 0 ( 5_20 bit 3 )
   // H active detect control
@@ -788,7 +788,7 @@ void optimizeSogLevel() {
   GBS::MD_HPERIOD_LOCK_VALUE::write(20);
   GBS::MD_VPERIOD_LOCK_VALUE::write(1);
   resetSyncProcessor(); delay(2); // let it see sync is unstable
-  while (retryAttempts < 4) {
+  while (retryAttempts < 3) {
     uint8_t syncGoodCounter = 0;
     unsigned long timeout = millis();
     while ((syncGoodCounter < 30) && ((millis() - timeout) < 350)) {
@@ -848,7 +848,7 @@ void optimizeSogLevel() {
     setAndUpdateSogLevel(rto->currentLevelSOG);
   }
 
-  if (retryAttempts >= 4) {
+  if (retryAttempts >= 3) {
     rto->currentLevelSOG = 1; // failed
   }
 
@@ -2413,7 +2413,8 @@ boolean getSyncPresent() {
     GBS::TEST_BUS_SP_SEL::write(0x0f);
   }
   uint16_t readout = GBS::TEST_BUS::read();
-  if (((readout & 0x0500) == 0x0500) || ((readout & 0x0500) == 0x0400)) {
+  //if (((readout & 0x0500) == 0x0500) || ((readout & 0x0500) == 0x0400)) {
+  if (readout > 0x0180) {
     if (debug_backup != 0xa) {
       GBS::TEST_BUS_SEL::write(debug_backup);
     }
@@ -2422,6 +2423,7 @@ boolean getSyncPresent() {
     }
     return true;
   }
+
   if (debug_backup != 0xa) {
     GBS::TEST_BUS_SEL::write(debug_backup);
   }
@@ -3070,56 +3072,41 @@ void disableScanlines() {
 }
 
 void enableMotionAdaptDeinterlace() {
-  //GBS::PB_ENABLE::write(0); // disable PB here
-  GBS::DEINT_00::write(0x00); // 2_00 // 18
-  GBS::MADPT_Y_MI_OFFSET::write(0x00); // 2_0b
-  GBS::MAPDT_VT_SEL_PRGV::write(0); // 2_16
-  GBS::MADPT_Y_MI_DET_BYPS::write(0); //2_0a_7
-  GBS::MADPT_VIIR_BYPS::write(1);
-  GBS::MADPT_BIT_STILL_EN::write(1);
-  GBS::MADPT_HTAP_BYPS::write(0); // 2_18_3
-  GBS::MADPT_VTAP2_BYPS::write(0); // 2_19_2 // don't bypass
-  GBS::MADPT_NRD_VIIR_PD_BYPS::write(1); // 2_35_4
-  GBS::MADPT_UVDLY_PD_BYPS::write(0); // 2_35_5 // off
-  GBS::MADPT_CMP_EN::write(1); // 2_35_6 // no effect?
-  GBS::MADPT_EN_UV_DEINT::write(1); // 2_3a 0
-  GBS::MADPT_MI_1BIT_DLY::write(1); // 2_3a [5..6]
-  GBS::WFF_FF_STA_INV::write(0);
-  GBS::WFF_YUV_DEINTERLACE::write(1);
-  GBS::WFF_LINE_FLIP::write(0);
-  GBS::RFF_REQ_SEL::write(3);
-  GBS::RFF_YUV_DEINTERLACE::write(1);
+  GBS::DEINT_00::write(0x00);         // 2_00 // 18
+  GBS::MADPT_Y_MI_OFFSET::write(0x00); // 2_0b  // also used for scanline mixing 
+  GBS::MADPT_Y_MI_DET_BYPS::write(0); //2_0a_7  // switch to automatic motion indexing
+  //GBS::MADPT_VIIR_BYPS::write(1);
+  GBS::MADPT_UVDLY_PD_BYPS::write(0); // 2_35_5 // don't bypass
+  GBS::MADPT_CMP_EN::write(1);        // 2_35_6 // no effect?
+  GBS::MADPT_EN_UV_DEINT::write(1);   // 2_3a 0
+  GBS::MADPT_MI_1BIT_DLY::write(1);   // 2_3a [5..6]
+  delay(10);
+  GBS::WFF_FF_STA_INV::write(0); // 4_42_2
+  GBS::WFF_LINE_FLIP::write(0); // 4_4a_4
   GBS::WFF_ENABLE::write(1);
   GBS::RFF_ENABLE::write(1);
+  GBS::MAPDT_VT_SEL_PRGV::write(0);   // 2_16_7
   delay(10);
   rto->motionAdaptiveDeinterlaceActive = true;
-  //ResetSDRAM();
-  //delay(10);
-  //GBS::PB_ENABLE::write(1); // enable PB
 }
 
 void disableMotionAdaptDeinterlace() {
-  //GBS::PB_ENABLE::write(0); // disable PB here
+  GBS::MAPDT_VT_SEL_PRGV::write(1);   // 2_16_7
+  GBS::WFF_ENABLE::write(0);
+  //GBS::RFF_ENABLE::write(0); // this causes the mem reset need
+  GBS::WFF_FF_STA_INV::write(1);
+  GBS::WFF_LINE_FLIP::write(1);
+  delay(10);
   GBS::DEINT_00::write(0xff); // 2_00
-  GBS::MAPDT_VT_SEL_PRGV::write(1);
   GBS::MADPT_Y_MI_OFFSET::write(0x7f);
   GBS::MADPT_Y_MI_DET_BYPS::write(1);
-  GBS::MADPT_BIT_STILL_EN::write(0);
-  GBS::MADPT_VTAP2_BYPS::write(1); // 2_19_2
+  //GBS::MADPT_VIIR_BYPS::write(0);
   GBS::MADPT_UVDLY_PD_BYPS::write(1); // 2_35_5
   GBS::MADPT_CMP_EN::write(0); // 2_35_6
   GBS::MADPT_EN_UV_DEINT::write(0); // 2_3a 0
   GBS::MADPT_MI_1BIT_DLY::write(0); // 2_3a [5..6]
-  GBS::WFF_ENABLE::write(0);
-  GBS::RFF_ENABLE::write(0);
-  GBS::WFF_FF_STA_INV::write(1);
-  GBS::WFF_YUV_DEINTERLACE::write(0);
-  GBS::WFF_LINE_FLIP::write(1);
   delay(10);
   rto->motionAdaptiveDeinterlaceActive = false;
-  //ResetSDRAM();
-  //delay(10);
-  //GBS::PB_ENABLE::write(1); // enable PB
 }
 
 void startWire() {
@@ -3615,6 +3602,9 @@ void loop() {
     break;
     case 'p':
       if (!rto->motionAdaptiveDeinterlaceActive) {
+        if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
+          disableScanlines();
+        }
         enableMotionAdaptDeinterlace();
       }
       else {
@@ -4440,29 +4430,21 @@ void loop() {
       }
     }
 
-    // quick sog level check (actually tons of checks)
-    // problem: source format change often results in detectedVideoMode = 0 here
-    //if (noSyncCounter == 4) {
-    //  if ((rto->currentLevelSOG >= 7 || rto->currentLevelSOG <= 1)) { // if initial sog detection was unrepresentative of video levels
-    //    SerialM.print("sogcheck vidmode: "); SerialM.println(detectedVideoMode);
-    //    if (detectedVideoMode == 0 || detectedVideoMode == rto->videoStandardInput) {
-    //      optimizeSogLevel();
-    //    }
-    //  }
-    //}
-
     if (noSyncCounter >= 40) { // attempt fixes
-      if (rto->videoStandardInput != 15) {
-        if (rto->inputIsYpBpR && noSyncCounter == 40) {
-          GBS::SP_NO_CLAMP_REG::write(1); // unlock clamp
-          rto->coastPositionIsSet = false;
-          rto->clampPositionIsSet = false;
-          delay(10);
-        }
+      if (rto->inputIsYpBpR && noSyncCounter == 40) {
+        GBS::SP_NO_CLAMP_REG::write(1); // unlock clamp
+        rto->coastPositionIsSet = false;
+        rto->clampPositionIsSet = false;
+        delay(10);
+      }
+      if (rto->videoStandardInput != 15) { // only if there is any kind of sync still present
         if (noSyncCounter == 81) {
-          optimizeSogLevel();
-          //setAndUpdateSogLevel(rto->currentLevelSOG / 2);
-          //SerialM.print("SOG: "); SerialM.println(rto->currentLevelSOG);
+          if (rto->currentLevelSOG >= 5)
+          {
+            optimizeSogLevel();
+            //setAndUpdateSogLevel(rto->currentLevelSOG / 2);
+            //SerialM.print("SOG: "); SerialM.println(rto->currentLevelSOG);
+          }
         }
         if (noSyncCounter % 40 == 0) {
           SerialM.print("*");
@@ -4647,13 +4629,16 @@ void loop() {
 
 #ifdef HAVE_PINGER_LIBRARY
   // periodic pings for debugging WiFi issues
-  if (rto->enableDebugPings && millis() - pingLastTime > 750) {
-    // regular interval pings
-    if (pinger.Ping(WiFi.gatewayIP(), 1, 749) == false)
-    {
-      Serial.println("Error during last ping command.");
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    if (rto->enableDebugPings && millis() - pingLastTime > 1000) {
+      // regular interval pings
+      if (pinger.Ping(WiFi.gatewayIP(), 1, 750) == false)
+      {
+        Serial.println("Error during last ping command.");
+      }
+      pingLastTime = millis();
     }
-    pingLastTime = millis();
   }
 #endif
 #endif
@@ -4888,20 +4873,68 @@ void handleType2Command() {
       SerialM.println(GBS::ADC_RGCTRL::read(), HEX);
       break;
     case 'A':
-      GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 4);
-      GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() + 4);
+    {
+      uint16_t htotal = GBS::VDS_HSYNC_RST::read();
+      uint16_t hbstd = GBS::VDS_DIS_HB_ST::read();
+      uint16_t hbspd = GBS::VDS_DIS_HB_SP::read();
+      if ((hbstd > 4) && (hbspd < (htotal - 4)))
+      {
+        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 4);
+        GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() + 4);
+      }
+      else
+      {
+        SerialM.println("limit");
+      }
+    }
       break;
     case 'B':
-      GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 4);
-      GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 4);
+    {
+      uint16_t htotal = GBS::VDS_HSYNC_RST::read();
+      uint16_t hbstd = GBS::VDS_DIS_HB_ST::read();
+      uint16_t hbspd = GBS::VDS_DIS_HB_SP::read();
+      if ((hbstd < (htotal - 4)) && (hbspd > 4))
+      {
+        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 4);
+        GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 4);
+      }
+      else
+      {
+        SerialM.println("limit");
+      }
+    }
       break;
     case 'C':
-      GBS::VDS_DIS_VB_ST::write(GBS::VDS_DIS_VB_ST::read() - 2);
-      GBS::VDS_DIS_VB_SP::write(GBS::VDS_DIS_VB_SP::read() + 2);
+    {
+      uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
+      uint16_t vbstd = GBS::VDS_DIS_VB_ST::read();
+      uint16_t vbspd = GBS::VDS_DIS_VB_SP::read();
+      if ((vbstd > 6) && (vbspd < (vtotal - 4)))
+      {
+        GBS::VDS_DIS_VB_ST::write(vbstd - 2);
+        GBS::VDS_DIS_VB_SP::write(vbspd + 2);
+      }
+      else
+      {
+        SerialM.println("limit");
+      }
+    }
       break;
     case 'D':
-      GBS::VDS_DIS_VB_ST::write(GBS::VDS_DIS_VB_ST::read() + 2);
-      GBS::VDS_DIS_VB_SP::write(GBS::VDS_DIS_VB_SP::read() - 2);
+    {
+      uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
+      uint16_t vbstd = GBS::VDS_DIS_VB_ST::read();
+      uint16_t vbspd = GBS::VDS_DIS_VB_SP::read();
+      if ((vbstd < (vtotal - 4)) && (vbspd > 6))
+      {
+        GBS::VDS_DIS_VB_ST::write(vbstd + 2);
+        GBS::VDS_DIS_VB_SP::write(vbspd - 2);
+      }
+      else
+      {
+        SerialM.println("limit");
+      }
+    }
       break;
     default:
       break;
@@ -4970,7 +5003,7 @@ void startWebserver()
         );
       // produce a stream of ping results if connection is good
       if (rto->enableDebugPings) {
-        pinger.Ping(WiFi.gatewayIP(), 1, 749);
+        pinger.Ping(WiFi.gatewayIP(), 1, 500);
       }
       pingLastTime = millis(); //stop the regular interval pings
     }

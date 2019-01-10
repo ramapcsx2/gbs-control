@@ -1,5 +1,5 @@
 const uint8_t presetDeinterlacerSectionNew[] PROGMEM = {
-0x18, // s2_0
+0x19, // s2_0
 0x3, // s2_1
 0xEC, // s2_2
 0x1, // s2_3
