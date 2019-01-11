@@ -9,7 +9,6 @@
 #include "pal_1280x720.h"
 #include "presetMdSection.h"
 #include "presetDeinterlacerSection.h"
-#include "presetDeinterlacerSectionNew.h" // just temporary
 #include "ofw_RGBS.h"
 
 #include "tv5725.h"
@@ -278,17 +277,6 @@ void loadPresetDeinterlacerSection() {
   writeOneByte(0xF0, 2);
   for (int j = 0; j <= 3; j++) { // start at 0x00
     copyBank(bank, presetDeinterlacerSection, &index);
-    writeBytes(j * 16, bank, 16);
-  }
-}
-
-// temporary
-void loadPresetDeinterlacerSectionNew() {
-  uint16_t index = 0;
-  uint8_t bank[16];
-  writeOneByte(0xF0, 2);
-  for (int j = 0; j <= 3; j++) { // start at 0x00
-    copyBank(bank, presetDeinterlacerSectionNew, &index);
     writeBytes(j * 16, bank, 16);
   }
 }
@@ -3066,13 +3054,15 @@ void disableScanlines() {
 }
 
 void enableMotionAdaptDeinterlace() {
-  GBS::DEINT_00::write(0x00);         // 2_00 // 18
-  GBS::MADPT_Y_MI_OFFSET::write(0x00); // 2_0b  // also used for scanline mixing 
+  GBS::DEINT_00::write(0x19);         // 2_00 // bypass angular (else 0x00)
+  GBS::MADPT_Y_MI_OFFSET::write(0x04); // 2_0b  // also used for scanline mixing (was 0x00)
+  GBS::MADPT_STILL_NOISE_EST_EN::write(1); // this is new (so was 0 before)
   GBS::MADPT_Y_MI_DET_BYPS::write(0); //2_0a_7  // switch to automatic motion indexing
   //GBS::MADPT_VIIR_BYPS::write(1);
   GBS::MADPT_UVDLY_PD_BYPS::write(0); // 2_35_5 // don't bypass
   GBS::MADPT_CMP_EN::write(1);        // 2_35_6 // no effect?
   GBS::MADPT_EN_UV_DEINT::write(1);   // 2_3a 0
+  GBS::MADPT_EN_STILL_FOR_NRD::write(1); // 2_3a 3 (new)
   GBS::MADPT_MI_1BIT_DLY::write(1);   // 2_3a [5..6]
   delay(10);
   GBS::WFF_FF_STA_INV::write(0); // 4_42_2
@@ -3093,11 +3083,13 @@ void disableMotionAdaptDeinterlace() {
   delay(10);
   GBS::DEINT_00::write(0xff); // 2_00
   GBS::MADPT_Y_MI_OFFSET::write(0x7f);
+  GBS::MADPT_STILL_NOISE_EST_EN::write(0); // new
   GBS::MADPT_Y_MI_DET_BYPS::write(1);
   //GBS::MADPT_VIIR_BYPS::write(0);
   GBS::MADPT_UVDLY_PD_BYPS::write(1); // 2_35_5
   GBS::MADPT_CMP_EN::write(0); // 2_35_6
   GBS::MADPT_EN_UV_DEINT::write(0); // 2_3a 0
+  GBS::MADPT_EN_STILL_FOR_NRD::write(0); // 2_3a 3 (new)
   GBS::MADPT_MI_1BIT_DLY::write(0); // 2_3a [5..6]
   delay(10);
   rto->motionAdaptiveDeinterlaceActive = false;
@@ -3652,22 +3644,6 @@ void loop() {
     break;
     case '!':
       //fastGetBestHtotal();
-    {
-      static boolean toggle = 0;
-      if (!toggle)
-      {
-        SerialM.println("deint NEW");
-        loadPresetDeinterlacerSectionNew();
-        toggle = 1;
-      }
-      else
-      {
-        SerialM.println("deint OLD");
-        loadPresetDeinterlacerSection();
-        enableMotionAdaptDeinterlace();
-        toggle = 0;
-      }
-    }
     break;
     case 'j':
       //resetPLL();
