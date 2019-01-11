@@ -115,7 +115,7 @@
                     theTerminal.value += ' Restart';
                     theTerminal.value += '\n';
                     theTerminal.scrollTop = theTerminal.scrollHeight;
-                    myTimer = setInterval(checkWs, 2000);
+                    myTimer = setInterval(checkWs, 1800);
                 }
             }
             function checkWs() {
@@ -145,7 +145,7 @@
                 wsCheckTimer = setInterval(checkWs, 1000);
                 ws.onopen = function() {
                     console.log('ws onopen');
-                    myTimer = setInterval(timeOutWs, 4000);
+                    myTimer = setInterval(timeOutWs, 1800);
                 }
                 ;
                 ws.onerror = function(error) {
@@ -168,7 +168,7 @@
                             theTerminal.scrollTop = theTerminal.scrollHeight;
                         });
                     }
-                    myTimer = setInterval(timeOutWs, 2100);
+                    myTimer = setInterval(timeOutWs, 1800);
                 };
             }
         </script>

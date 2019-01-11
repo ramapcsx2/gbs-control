@@ -194,10 +194,7 @@ char globalCommand;
 class SerialMirror : public Stream {
   size_t write(const uint8_t *data, size_t size) {
 #if defined(ESP8266)
-    uint8_t num = webSocket.connectedClients();
-    if (num > 0) {
-      webSocket.broadcastTXT(data, size);
-    }
+    webSocket.broadcastTXT(data, size);
 #endif
     Serial.write(data, size);
     return size;
@@ -205,10 +202,7 @@ class SerialMirror : public Stream {
 
   size_t write(uint8_t data) {
 #if defined(ESP8266)
-    uint8_t num = webSocket.connectedClients();
-    if (num > 0) {
-      webSocket.broadcastTXT(&data);
-    }
+    webSocket.broadcastTXT(&data);
 #endif
     Serial.write(data);
     return 1;
@@ -3210,7 +3204,7 @@ void setup() {
   
 #if defined(ESP8266)
   if (WiFi.status() == WL_CONNECTED) {
-    SerialM.print("(WiFi) IP: "); SerialM.print(WiFi.localIP());
+    SerialM.print("(WiFi) IP: "); SerialM.print(WiFi.localIP().toString());
     SerialM.print(" Hostname: "); SerialM.println(WiFi.hostname());
   }
   else if (WiFi.SSID().length() == 0) {
@@ -3412,29 +3406,32 @@ void handleWiFi() {
 #if defined(ESP8266)
   if (rto->webServerEnabled && rto->webServerStarted) {
     persWM.handleWiFi(); // if connected, returns instantly. otherwise it reconnects or opens AP
-    dnsServer.processNextRequest();
-    webSocket.loop();
-    // if there's a control command from the server, globalCommand will now hold it.
-    // process it in the parser, then reset to 0 at the end of the sketch.
+    if ((WiFi.status() == WL_CONNECTED) || (WiFi.getMode() == WIFI_AP)) // crash protection
+    {
+      dnsServer.processNextRequest();
+      webSocket.loop();
+      // if there's a control command from the server, globalCommand will now hold it.
+      // process it in the parser, then reset to 0 at the end of the sketch.
 
-    static boolean wifiNoSleep = 0;
-    static unsigned long lastTimePing = millis();
-    if (millis() - lastTimePing > 1011) { // slightly odd value so not everything happens at once
-      //webSocket.broadcastPing(); // sends a WS ping to all Client; returns true if ping is sent out
-      if (webSocket.connectedClients() > 0) {
-        webSocket.broadcastTXT("#"); // makeshift ping, since ws protocol pings aren't exposed to javascript
-        if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 0)) {
-          WiFi.setSleepMode(WIFI_NONE_SLEEP);
-          wifiNoSleep = 1;
+      static boolean wifiNoSleep = 0;
+      static unsigned long lastTimePing = millis();
+      if (millis() - lastTimePing > 1011) { // slightly odd value so not everything happens at once
+        //webSocket.broadcastPing(); // sends a WS ping to all Client; returns true if ping is sent out
+        if (webSocket.connectedClients() > 0) {
+          webSocket.broadcastTXT("#"); // makeshift ping, since ws protocol pings aren't exposed to javascript
+          if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 0)) {
+            WiFi.setSleepMode(WIFI_NONE_SLEEP);
+            wifiNoSleep = 1;
+          }
         }
-      }
-      else if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 1)) {
+        else if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 1)) {
           WiFi.setSleepMode(WIFI_MODEM_SLEEP);
-          wifiNoSleep = 0; 
+          wifiNoSleep = 0;
+        }
+        lastTimePing = millis();
       }
-      lastTimePing = millis();
+      server.handleClient(); // after websocket loop!
     }
-    server.handleClient(); // after websocket loop!
   }
 
   if (rto->allowUpdatesOTA) {
@@ -4146,7 +4143,14 @@ void loop() {
     lockCounter = getMovingAverage(lockCounter); // stores first, then updates with average
 
 #if defined(ESP8266)
-    wifi = WiFi.RSSI();
+    if ((WiFi.status() == WL_CONNECTED) || (WiFi.getMode() == WIFI_AP))
+    {
+      wifi = WiFi.RSSI();
+    }
+    else
+    {
+      wifi = 0;
+    }
     stack = ESP.getFreeHeap(); //ESP.getFreeHeap() // ESP.getFreeContStack() // requires ESP8266 core > 2.5.0
 #endif
     unsigned long loopTimeNew = (millis() - lastTimeInfoLoop);
@@ -4949,7 +4953,7 @@ void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length)
   break;
   case WStype_CONNECTED: {
     if (num > 0) {
-      //SerialM.print("disconnecting client: "); SerialM.println(num - 1);
+      //Serial.print("disconnecting client: "); Serial.println(num - 1);
       webSocket.disconnect(num - 1); // test
     }
     //Serial.print(num); Serial.println(" connected!\n");
@@ -5001,15 +5005,18 @@ void startWebserver()
         response.DestIPAddress.toString().c_str(),
         response.ResponseTime
         );
-      // produce a stream of ping results if connection is good
-      if (rto->enableDebugPings) {
-        pinger.Ping(WiFi.gatewayIP(), 1, 500);
+      if (WiFi.status() == WL_CONNECTED)
+      {
+        // produce a stream of ping results if connection is good
+        if (rto->enableDebugPings) {
+          pinger.Ping(WiFi.gatewayIP(), 1, 500);
+        }
       }
       pingLastTime = millis(); //stop the regular interval pings
     }
     else
     {
-      SerialM.printf("Request timed out.\n");
+      Serial.printf("Request timed out.\n");
     }
 
     // Return true to continue the ping sequence.
