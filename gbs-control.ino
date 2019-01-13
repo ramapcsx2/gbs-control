@@ -1277,11 +1277,11 @@ void scaleHorizontal(uint16_t amountToAdd, bool subtracting) {
 }
 
 void scaleHorizontalSmaller() {
-  scaleHorizontal(1, false);
+  scaleHorizontal(2, false);
 }
 
 void scaleHorizontalLarger() {
-  scaleHorizontal(1, true);
+  scaleHorizontal(2, true);
 }
 
 void moveHS(uint16_t amountToAdd, bool subtracting) {
@@ -3825,10 +3825,10 @@ void loop() {
       doPostPresetLoadSteps();
     break;
     case '0':
-      moveHS(1, true);
+      moveHS(4, true);
     break;
     case '1':
-      moveHS(1, false);
+      moveHS(4, false);
     break;
     case '2':
       writeProgramArrayNew(pal_feedbackclock, false); // ModeLine "720x576@50" 27 720 732 795 864 576 581 586 625 -hsync -vsync
@@ -3838,21 +3838,21 @@ void loop() {
       //
     break;
     case '4':
-      scaleVertical(1, true);
+      scaleVertical(2, true);
     break;
     case '5':
-      scaleVertical(1, false);
+      scaleVertical(2, false);
     break;
     case '6':
-      if (GBS::IF_HBIN_SP::read() > 5) { // IF_HBIN_SP: min 2
-        GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() - 4); // canvas move right
+      if (GBS::IF_HBIN_SP::read() >= 10) { // IF_HBIN_SP: min 2
+        GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() - 8); // canvas move right
       }
       else {
         SerialM.println("limit");
       }
     break;
     case '7':
-      GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() + 4); // canvas move left
+      GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() + 8); // canvas move left
     break;
     case '8':
       //SerialM.println("invert sync");
