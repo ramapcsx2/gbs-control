@@ -9,7 +9,6 @@
 #include "pal_1280x720.h"
 #include "presetMdSection.h"
 #include "presetDeinterlacerSection.h"
-#include "presetDeinterlacerSectionNew.h" // just temporary
 #include "ofw_RGBS.h"
 
 #include "tv5725.h"
@@ -278,17 +277,6 @@ void loadPresetDeinterlacerSection() {
   writeOneByte(0xF0, 2);
   for (int j = 0; j <= 3; j++) { // start at 0x00
     copyBank(bank, presetDeinterlacerSection, &index);
-    writeBytes(j * 16, bank, 16);
-  }
-}
-
-// temporary
-void loadPresetDeinterlacerSectionNew() {
-  uint16_t index = 0;
-  uint8_t bank[16];
-  writeOneByte(0xF0, 2);
-  for (int j = 0; j <= 3; j++) { // start at 0x00
-    copyBank(bank, presetDeinterlacerSectionNew, &index);
     writeBytes(j * 16, bank, 16);
   }
 }
@@ -629,10 +617,31 @@ void setSpParameters() {
 
   writeOneByte(0x3a, 0x03); // was 0x0a // range depends on source vtiming, from 0x03 to xxx, some good effect at lower levels
 
-  GBS::SP_SDCS_VSST_REG_H::write(0);
-  GBS::SP_SDCS_VSSP_REG_H::write(0);
-  GBS::SP_SDCS_VSST_REG_L::write(4); // 5_3f // should be 08 for NTSC, ~24 for PAL (test with bypass mode: t0t4ft7 t0t4bt2)
-  GBS::SP_SDCS_VSSP_REG_L::write(7); // 5_40 // should be 0b for NTSC, ~28 for PAL
+  // this needs to be runtime, and based on current line count (vt:321 for PAL)
+  //if (rto->videoStandardInput == 1)
+  //{
+  //  // NTSC: s5s3bs11 s5s3fs09 s5s40s0b
+  //  GBS::SP_SDCS_VSST_REG_H::write(1);
+  //  GBS::SP_SDCS_VSSP_REG_H::write(1);
+  //  GBS::SP_SDCS_VSST_REG_L::write(0x09); // 5_3f // should be 08 for NTSC, ~24 for PAL (test with bypass mode: t0t4ft7 t0t4bt2)
+  //  GBS::SP_SDCS_VSSP_REG_L::write(0x0b); // 5_40 // should be 0b for NTSC, ~28 for PAL
+  //}
+  //else if (rto->videoStandardInput == 2)
+  //{
+  //  // PAL: s5s3bs11 s5s3fs38 s5s40s3c
+  //  GBS::SP_SDCS_VSST_REG_H::write(1);
+  //  GBS::SP_SDCS_VSSP_REG_H::write(1);
+  //  GBS::SP_SDCS_VSST_REG_L::write(0x38); // test with bypass mode: t0t4ft7 t0t4bt2
+  //  GBS::SP_SDCS_VSSP_REG_L::write(0x3c);
+  //}
+  //else
+  {
+    GBS::SP_SDCS_VSST_REG_H::write(0);
+    GBS::SP_SDCS_VSSP_REG_H::write(0);
+    GBS::SP_SDCS_VSST_REG_L::write(4); // 5_3f // should be 08 for NTSC, ~24 for PAL (test with bypass mode: t0t4ft7 t0t4bt2)
+    GBS::SP_SDCS_VSSP_REG_L::write(7); // 5_40 // should be 0b for NTSC, ~28 for PAL
+  }
+
   GBS::SP_CS_HS_ST::write(0x00);
   GBS::SP_CS_HS_SP::write(0x08); // was 0x05, 720p source needs 0x08
 
@@ -1770,6 +1779,7 @@ void doPostPresetLoadSteps() {
   rto->scanlinesEnabled = false;
   rto->failRetryAttempts = 0;
   rto->outModePassThroughWithIf = 0; // could be 1 if it was active, but overriden by preset load
+  rto->videoIsFrozen = true; // this just ensures that the first stable loop checks for frozen video
 
   resetDigital(); // early full reset, improve time to mode detect lock
   resetPLL();
@@ -2212,22 +2222,27 @@ void applyPresets(uint8_t result) {
 }
 
 void unfreezeVideo() {
-  //GBS::SFTRST_DEINT_RSTZ::write(1);
-  //GBS::CAPTURE_ENABLE::write(1);
-  //ResetSDRAM();
-  //GBS::DAC_RGBS_PWDNZ::write(1);
-  //GBS::SFTRST_DEC_RSTZ::write(0);
-  GBS::SFTRST_DEINT_RSTZ::write(1);
+  if (GBS::CAP_REQ_FREEZ::read() == 1)
+  {
+    //GBS::SFTRST_DEINT_RSTZ::write(1);
+    GBS::CAP_REQ_FREEZ::write(0);
+    delay(60);
+    GBS::CAPTURE_ENABLE::write(1);
+    //GBS::SFTRST_DEC_RSTZ::write(0);
+    //GBS::SFTRST_DEINT_RSTZ::write(1);
+  }
   rto->videoIsFrozen = false;
 }
 
 void freezeVideo() {
-  //if (rto->videoIsFrozen == false) {
-  //GBS::CAPTURE_ENABLE::write(0);
-  //GBS::DAC_RGBS_PWDNZ::write(0);
-  //GBS::SFTRST_DEC_RSTZ::write(1);
-  //}
-  GBS::SFTRST_DEINT_RSTZ::write(0);
+  if (rto->videoIsFrozen == false) {
+    GBS::CAP_REQ_FREEZ::write(1);
+    delay(1);
+    GBS::CAPTURE_ENABLE::write(0);
+    //GBS::CAPTURE_ENABLE::write(0);
+    //GBS::SFTRST_DEC_RSTZ::write(1);
+  }
+  //GBS::SFTRST_DEINT_RSTZ::write(0);
   rto->videoIsFrozen = true;
 }
 
@@ -3066,21 +3081,22 @@ void disableScanlines() {
 }
 
 void enableMotionAdaptDeinterlace() {
-  GBS::DEINT_00::write(0x00);         // 2_00 // 18
-  GBS::MADPT_Y_MI_OFFSET::write(0x00); // 2_0b  // also used for scanline mixing 
+  GBS::DEINT_00::write(0x19);         // 2_00 // bypass angular (else 0x00)
+  GBS::MADPT_Y_MI_OFFSET::write(0x02); // 2_0b  // also used for scanline mixing (was 0x00)
+  GBS::MADPT_STILL_NOISE_EST_EN::write(1); // this is new (so was 0 before)
   GBS::MADPT_Y_MI_DET_BYPS::write(0); //2_0a_7  // switch to automatic motion indexing
   //GBS::MADPT_VIIR_BYPS::write(1);
   GBS::MADPT_UVDLY_PD_BYPS::write(0); // 2_35_5 // don't bypass
   GBS::MADPT_CMP_EN::write(1);        // 2_35_6 // no effect?
   GBS::MADPT_EN_UV_DEINT::write(1);   // 2_3a 0
+  GBS::MADPT_EN_STILL_FOR_NRD::write(1); // 2_3a 3 (new)
   GBS::MADPT_MI_1BIT_DLY::write(1);   // 2_3a [5..6]
-  delay(10);
   GBS::WFF_FF_STA_INV::write(0); // 4_42_2
   GBS::WFF_LINE_FLIP::write(0); // 4_4a_4
   GBS::WFF_ENABLE::write(1);
   GBS::RFF_ENABLE::write(1);
   GBS::MAPDT_VT_SEL_PRGV::write(0);   // 2_16_7
-  delay(10);
+  //delay(120);
   rto->motionAdaptiveDeinterlaceActive = true;
 }
 
@@ -3090,16 +3106,18 @@ void disableMotionAdaptDeinterlace() {
   //GBS::RFF_ENABLE::write(0); // this causes the mem reset need
   GBS::WFF_FF_STA_INV::write(1);
   GBS::WFF_LINE_FLIP::write(1);
-  delay(10);
+  //delay(10);
   GBS::DEINT_00::write(0xff); // 2_00
   GBS::MADPT_Y_MI_OFFSET::write(0x7f);
+  GBS::MADPT_STILL_NOISE_EST_EN::write(0); // new
   GBS::MADPT_Y_MI_DET_BYPS::write(1);
   //GBS::MADPT_VIIR_BYPS::write(0);
   GBS::MADPT_UVDLY_PD_BYPS::write(1); // 2_35_5
   GBS::MADPT_CMP_EN::write(0); // 2_35_6
   GBS::MADPT_EN_UV_DEINT::write(0); // 2_3a 0
+  GBS::MADPT_EN_STILL_FOR_NRD::write(0); // 2_3a 3 (new)
   GBS::MADPT_MI_1BIT_DLY::write(0); // 2_3a [5..6]
-  delay(10);
+  //delay(40);
   rto->motionAdaptiveDeinterlaceActive = false;
 }
 
@@ -3123,12 +3141,8 @@ void setup() {
   Serial.begin(115200); // set Arduino IDE Serial Monitor to the same 115200 bauds!
   Serial.setTimeout(10);
 #if defined(ESP8266)
-  // SDK enables WiFi and uses stored credentials to auto connect. This can't be turned off.
-  // Correct the hostname while it is still in CONNECTING state
-  //wifi_station_set_hostname("gbscontrol"); // SDK version
-  WiFi.hostname("gbscontrol.local");
-
   // start web services as early in boot as possible > greater chance to get a websocket connection in time for logging startup
+   WiFi.hostname("gbscontrol.local");
   if (rto->webServerEnabled) {
     rto->allowUpdatesOTA = false; // need to initialize for handleWiFi()
     startWebserver();
@@ -3652,22 +3666,6 @@ void loop() {
     break;
     case '!':
       //fastGetBestHtotal();
-    {
-      static boolean toggle = 0;
-      if (!toggle)
-      {
-        SerialM.println("deint NEW");
-        loadPresetDeinterlacerSectionNew();
-        toggle = 1;
-      }
-      else
-      {
-        SerialM.println("deint OLD");
-        loadPresetDeinterlacerSection();
-        enableMotionAdaptDeinterlace();
-        toggle = 0;
-      }
-    }
     break;
     case 'j':
       //resetPLL();
@@ -4174,7 +4172,7 @@ void loop() {
     && (millis() - lastTimeSyncWatcher) > 20) 
   {
     uint8_t detectedVideoMode = getVideoMode();
-    if ((!getSyncStable() || detectedVideoMode == 0) && rto->videoStandardInput != 15) {
+    if ((detectedVideoMode == 0 || !getSyncStable()) && rto->videoStandardInput != 15) {
       noSyncCounter++;
       rto->continousStableCounter = 0;
       LEDOFF; // always LEDOFF on sync loss, except if RGBHV
@@ -4185,7 +4183,7 @@ void loop() {
         }
       }
       if (noSyncCounter % 80 == 0) {
-        if (rto->videoIsFrozen) unfreezeVideo(); // briefly show image (one loop run)
+        unfreezeVideo(); // briefly show image (one loop run)
         rto->clampPositionIsSet = false;
         rto->coastPositionIsSet = false;
         FrameSync::reset(); // corner case: source quickly changed. this won't affect display if timings are the same
@@ -4269,27 +4267,28 @@ void loop() {
         boolean preventScanlines = 0;
         if (rto->deinterlaceAutoEnabled) {
           uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read();
-          static uint16_t VPERIOD_IF_OLD = VPERIOD_IF; // glitch filter on line count change (but otherwise stable)
-          if (VPERIOD_IF_OLD != VPERIOD_IF) {
-            freezeVideo();
-            preventScanlines = 1;
-          }
-          // else will trigger next run, whenever line count is stable
-          //
-          if (rto->continousStableCounter > 1) {
-            // actual deinterlace trigger
-            if (!rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts > enable
-              if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
-                disableScanlines();
-              }
-              enableMotionAdaptDeinterlace();
+          static uint16_t VPERIOD_IF_OLD = VPERIOD_IF; // glitch filter
+          if (((rto->videoStandardInput == 1) && (VPERIOD_IF >= 521 && VPERIOD_IF <= 527)) ||
+            ((rto->videoStandardInput == 2) && (VPERIOD_IF >= 620 && VPERIOD_IF <= 630)))
+          {
+            if (VPERIOD_IF_OLD != VPERIOD_IF) {
+              freezeVideo();
               preventScanlines = 1;
             }
-            else if (rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 1) { // ie v:523 or other, uneven counts > disable
-              disableMotionAdaptDeinterlace();
+            if (getSyncStable()) {
+              if (!rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts > enable
+                if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
+                  disableScanlines();
+                }
+                enableMotionAdaptDeinterlace();
+                preventScanlines = 1;
+              }
+              else if (rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 1) { // ie v:523 or other, uneven counts > disable
+                disableMotionAdaptDeinterlace();
+              }
             }
           }
-
+          
           VPERIOD_IF_OLD = VPERIOD_IF; // part of glitch filter
         }
 
@@ -4298,11 +4297,11 @@ void loop() {
           if (!rto->scanlinesEnabled && !rto->motionAdaptiveDeinterlaceActive
             && !preventScanlines && rto->continousStableCounter > 2)
           {
-            freezeVideo();
+            //freezeVideo();
             enableScanlines();
           }
           else if (!uopt->wantScanlines && rto->scanlinesEnabled) {
-            freezeVideo();
+            //freezeVideo();
             disableScanlines();
           }
         }
@@ -4331,7 +4330,7 @@ void loop() {
         }
       }
 
-      if (rto->videoIsFrozen) {
+      if (rto->videoIsFrozen && (rto->continousStableCounter >= 3)) {
         unfreezeVideo();
       }
 
@@ -4965,7 +4964,16 @@ void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length)
 
 void startWebserver()
 {
-  //WiFi.setAutoConnect(false);
+  // let wifimanager handle connections, should prevent pre-sketch connect attempt with bad hostname
+  if (WiFi.getAutoConnect() == 1)
+  {
+    //Serial.println("\n(WiFi) Disabling AutoConnect");
+    WiFi.setAutoConnect(0);
+  }
+  else
+  {
+    //Serial.println("\n(WiFi) AutoConnect already off");
+  }
   //WiFi.disconnect(); // test captive portal by forgetting wifi credentials
   persWM.setApCredentials(ap_ssid, ap_password);
   persWM.onConnect([]() {
