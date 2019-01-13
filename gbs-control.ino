@@ -3141,12 +3141,8 @@ void setup() {
   Serial.begin(115200); // set Arduino IDE Serial Monitor to the same 115200 bauds!
   Serial.setTimeout(10);
 #if defined(ESP8266)
-  // SDK enables WiFi and uses stored credentials to auto connect. This can't be turned off.
-  // Correct the hostname while it is still in CONNECTING state
-  //wifi_station_set_hostname("gbscontrol"); // SDK version
-  WiFi.hostname("gbscontrol.local");
-
   // start web services as early in boot as possible > greater chance to get a websocket connection in time for logging startup
+   WiFi.hostname("gbscontrol.local");
   if (rto->webServerEnabled) {
     rto->allowUpdatesOTA = false; // need to initialize for handleWiFi()
     startWebserver();
@@ -4968,7 +4964,16 @@ void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length)
 
 void startWebserver()
 {
-  //WiFi.setAutoConnect(false);
+  // let wifimanager handle connections, should prevent pre-sketch connect attempt with bad hostname
+  if (WiFi.getAutoConnect() == 1)
+  {
+    //Serial.println("\n(WiFi) Disabling AutoConnect");
+    WiFi.setAutoConnect(0);
+  }
+  else
+  {
+    //Serial.println("\n(WiFi) AutoConnect already off");
+  }
   //WiFi.disconnect(); // test captive portal by forgetting wifi credentials
   persWM.setApCredentials(ap_ssid, ap_password);
   persWM.onConnect([]() {
