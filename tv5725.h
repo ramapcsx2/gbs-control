@@ -518,6 +518,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x39, 0,  10> PB_FETCH_NUM;
     typedef UReg<0x04, 0x42, 0,  1> WFF_ENABLE;
     typedef UReg<0x04, 0x42, 2,  1> WFF_FF_STA_INV;
+    typedef UReg<0x04, 0x42, 3,  1> WFF_SAFE_GUARD;
     typedef UReg<0x04, 0x44, 0,  21> WFF_SAFE_GUARD_A;
     typedef UReg<0x04, 0x47, 0,  21> WFF_SAFE_GUARD_B;
     typedef UReg<0x04, 0x4a, 0,  1> WFF_YUV_DEINTERLACE;

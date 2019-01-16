@@ -3082,15 +3082,16 @@ void disableScanlines() {
 
 void enableMotionAdaptDeinterlace() {
   GBS::DEINT_00::write(0x19);         // 2_00 // bypass angular (else 0x00)
-  GBS::MADPT_Y_MI_OFFSET::write(0x02); // 2_0b  // also used for scanline mixing (was 0x00)
-  GBS::MADPT_STILL_NOISE_EST_EN::write(1); // this is new (so was 0 before)
+  GBS::MADPT_Y_MI_OFFSET::write(0x00); // 2_0b  // also used for scanline mixing
+  //GBS::MADPT_STILL_NOISE_EST_EN::write(1); // 2_0A 5 (was 0 before)
   GBS::MADPT_Y_MI_DET_BYPS::write(0); //2_0a_7  // switch to automatic motion indexing
-  //GBS::MADPT_VIIR_BYPS::write(1);
   GBS::MADPT_UVDLY_PD_BYPS::write(0); // 2_35_5 // don't bypass
-  GBS::MADPT_CMP_EN::write(1);        // 2_35_6 // no effect?
   GBS::MADPT_EN_UV_DEINT::write(1);   // 2_3a 0
-  GBS::MADPT_EN_STILL_FOR_NRD::write(1); // 2_3a 3 (new)
-  GBS::MADPT_MI_1BIT_DLY::write(1);   // 2_3a [5..6]
+  //GBS::MADPT_EN_STILL_FOR_NRD::write(1); // 2_3a 3 (new)
+
+  //tests
+  //GBS::WFF_SAFE_GUARD::write(0); // 4_42 3
+
   GBS::WFF_FF_STA_INV::write(0); // 4_42_2
   GBS::WFF_LINE_FLIP::write(0); // 4_4a_4
   GBS::WFF_ENABLE::write(1);
@@ -3109,14 +3110,11 @@ void disableMotionAdaptDeinterlace() {
   //delay(10);
   GBS::DEINT_00::write(0xff); // 2_00
   GBS::MADPT_Y_MI_OFFSET::write(0x7f);
-  GBS::MADPT_STILL_NOISE_EST_EN::write(0); // new
+  //GBS::MADPT_STILL_NOISE_EST_EN::write(0); // new
   GBS::MADPT_Y_MI_DET_BYPS::write(1);
-  //GBS::MADPT_VIIR_BYPS::write(0);
   GBS::MADPT_UVDLY_PD_BYPS::write(1); // 2_35_5
-  GBS::MADPT_CMP_EN::write(0); // 2_35_6
   GBS::MADPT_EN_UV_DEINT::write(0); // 2_3a 0
-  GBS::MADPT_EN_STILL_FOR_NRD::write(0); // 2_3a 3 (new)
-  GBS::MADPT_MI_1BIT_DLY::write(0); // 2_3a [5..6]
+  //GBS::MADPT_EN_STILL_FOR_NRD::write(0); // 2_3a 3 (new)
   //delay(40);
   rto->motionAdaptiveDeinterlaceActive = false;
 }
