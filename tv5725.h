@@ -530,6 +530,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x50, 5,  1> RFF_LINE_FLIP;
     typedef UReg<0x04, 0x50, 6,  1> RFF_YUV_DEINTERLACE;
     typedef UReg<0x04, 0x50, 7,  1> RFF_LREQ_CUT;
+    typedef UReg<0x04, 0x57, 0,  10> RFF_WFF_OFFSET;
     typedef UReg<0x04, 0x5B, 7,  1> MEM_FF_TOP_FF_SEL;
 
     // OSD Registers

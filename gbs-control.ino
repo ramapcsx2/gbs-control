@@ -1984,6 +1984,7 @@ void doPostPresetLoadSteps() {
     GBS::CAP_REQ_OVER::write(1); // 4_22 0  1=capture stop at hblank 0=free run
     GBS::PB_REQ_SEL::write(3); // PlayBack 11 High request Low request
     GBS::PB_GENERAL_FLAG_REG::write(0x3f); // 4_2D max
+    GBS::RFF_WFF_OFFSET::write(0x0); // scanline fix
     //GBS::PB_MAST_FLAG_REG::write(0x16); // 4_2c should be set by preset
     // 4_12 should be set by preset
   }
@@ -3051,14 +3052,16 @@ void doAutoGain() {
 void enableScanlines() {
   if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 0) {
     //SerialM.println("enableScanlines())");
-    GBS::MAPDT_VT_SEL_PRGV::write(0);
+    GBS::RFF_WFF_OFFSET::write(0x0); // scanline fix
+    GBS::MADPT_PD_RAM_BYPS::write(0);
+    GBS::RFF_YUV_DEINTERLACE::write(1); // scanline fix 2
+    GBS::MADPT_Y_MI_DET_BYPS::write(1); // make sure, so that mixing works
     GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 0x38); // more luma gain
     GBS::MADPT_VIIR_COEF::write(0x14); // set up VIIR filter 2_27
-    GBS::MADPT_Y_MI_DET_BYPS::write(1); // make sure, so that mixing works
     GBS::MADPT_Y_MI_OFFSET::write(0x28); // 2_0b offset (mixing factor here)
-    GBS::MADPT_PD_RAM_BYPS::write(0);
     GBS::MADPT_VIIR_BYPS::write(0); // enable VIIR 
     GBS::RFF_LINE_FLIP::write(1); // clears potential garbage in rff buffer
+    GBS::MAPDT_VT_SEL_PRGV::write(0);
 
     GBS::GBS_OPTION_SCANLINES_ENABLED::write(1);
   }
@@ -3068,11 +3071,12 @@ void enableScanlines() {
 void disableScanlines() {
   if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) {
     //SerialM.println("disableScanlines())");
+    //GBS::RFF_WFF_OFFSET::write(0x100); // scanline fix
     GBS::MAPDT_VT_SEL_PRGV::write(1);
     GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 0x38);
     GBS::MADPT_Y_MI_OFFSET::write(0xff); // 2_0b offset 0xff disables mixing
+    GBS::MADPT_VIIR_BYPS::write(1); // disable VIIR
     GBS::MADPT_PD_RAM_BYPS::write(1);
-    GBS::MADPT_VIIR_BYPS::write(1); // disable VIIR 
     GBS::RFF_LINE_FLIP::write(0); // back to default
 
     GBS::GBS_OPTION_SCANLINES_ENABLED::write(0);
@@ -3085,13 +3089,14 @@ void enableMotionAdaptDeinterlace() {
   GBS::MADPT_Y_MI_OFFSET::write(0x00); // 2_0b  // also used for scanline mixing
   //GBS::MADPT_STILL_NOISE_EST_EN::write(1); // 2_0A 5 (was 0 before)
   GBS::MADPT_Y_MI_DET_BYPS::write(0); //2_0a_7  // switch to automatic motion indexing
-  GBS::MADPT_UVDLY_PD_BYPS::write(0); // 2_35_5 // don't bypass
-  GBS::MADPT_EN_UV_DEINT::write(1);   // 2_3a 0
+  //GBS::MADPT_UVDLY_PD_BYPS::write(0); // 2_35_5 // UVDLY
+  //GBS::MADPT_EN_UV_DEINT::write(0);   // 2_3a 0
   //GBS::MADPT_EN_STILL_FOR_NRD::write(1); // 2_3a 3 (new)
 
   //tests
   //GBS::WFF_SAFE_GUARD::write(0); // 4_42 3
-
+  GBS::RFF_WFF_OFFSET::write(0x100); // scanline fix
+  GBS::RFF_YUV_DEINTERLACE::write(0); // scanline fix 2
   GBS::WFF_FF_STA_INV::write(0); // 4_42_2
   GBS::WFF_LINE_FLIP::write(0); // 4_4a_4
   GBS::WFF_ENABLE::write(1);
@@ -3107,13 +3112,14 @@ void disableMotionAdaptDeinterlace() {
   //GBS::RFF_ENABLE::write(0); // this causes the mem reset need
   GBS::WFF_FF_STA_INV::write(1);
   GBS::WFF_LINE_FLIP::write(1);
+  GBS::RFF_WFF_OFFSET::write(0x0); // scanline fix
   //delay(10);
   GBS::DEINT_00::write(0xff); // 2_00
   GBS::MADPT_Y_MI_OFFSET::write(0x7f);
   //GBS::MADPT_STILL_NOISE_EST_EN::write(0); // new
   GBS::MADPT_Y_MI_DET_BYPS::write(1);
-  GBS::MADPT_UVDLY_PD_BYPS::write(1); // 2_35_5
-  GBS::MADPT_EN_UV_DEINT::write(0); // 2_3a 0
+  //GBS::MADPT_UVDLY_PD_BYPS::write(1); // 2_35_5
+  //GBS::MADPT_EN_UV_DEINT::write(0); // 2_3a 0
   //GBS::MADPT_EN_STILL_FOR_NRD::write(0); // 2_3a 3 (new)
   //delay(40);
   rto->motionAdaptiveDeinterlaceActive = false;
