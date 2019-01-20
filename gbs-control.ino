@@ -887,7 +887,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
       if (currentInput == 1) { // RGBS or RGBHV
         boolean vsyncActive = 0;
         unsigned long timeOutStart = millis();
-        while (!vsyncActive && millis() - timeOutStart < 10) { // very short vsync test
+        while (!vsyncActive && ((millis() - timeOutStart) < 250)) { // short vsync test
           vsyncActive = GBS::STATUS_SYNC_PROC_VSACT::read();
           delay(1); // wifi stack
         }
@@ -2970,7 +2970,7 @@ void bypassModeSwitch_RGBHV() {
   GBS::DEC2_BYPS::write(1);
   GBS::ADC_FLTR::write(0);
 
-  GBS::PLLAD_ICP::write(6);
+  GBS::PLLAD_ICP::write(5);
   GBS::PLLAD_FS::write(1); // high gain
   GBS::PLLAD_MD::write(1856); // 1349 perfect for for 1280x+ ; 1856 allows lower res to detect
   delay(100);
@@ -4371,8 +4371,12 @@ void loop() {
 
       static unsigned long lastTimeCheck = millis();
 
-      if (rto->continousStableCounter > 3 && (GBS::STATUS_MISC_PLLAD_LOCK::read() != 1)
-        && (millis() - lastTimeCheck > 750)) 
+      if 
+        ( // what a mess 
+        (((rto->continousStableCounter > 3) && (GBS::STATUS_MISC_PLLAD_LOCK::read() != 1))
+          || (RGBHVNoSyncCounter > 1))
+        && (millis() - lastTimeCheck > 750)
+        )
       {
         //static uint16_t currentPllDivider = GBS::PLLAD_MD::read();
         //uint16_t STATUS_SYNC_PROC_HTOTAL = GBS::STATUS_SYNC_PROC_HTOTAL::read();
@@ -4383,7 +4387,7 @@ void loop() {
           lockCounter += GBS::STATUS_MISC_PLLAD_LOCK::read();
           delay(1);
         }
-        if (lockCounter < 9) {
+        if (lockCounter < 7) {
           LEDOFF;
           static uint8_t toggle = 0;
           if (toggle < 7) {
