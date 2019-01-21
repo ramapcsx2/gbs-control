@@ -174,6 +174,7 @@ struct userOptions {
   uint8_t enableAutoGain;
   uint8_t wantScanlines;
   uint8_t wantOutputComponent;
+  uint8_t deintMode;
 } uopts;
 struct userOptions *uopt = &uopts;
 
@@ -3179,6 +3180,7 @@ void setup() {
   uopt->enableAutoGain = 0;
   uopt->wantScanlines = 0;
   uopt->wantOutputComponent = 0;
+  uopt->deintMode = 0;
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->enableDebugPings = false;
@@ -3249,13 +3251,14 @@ void setup() {
       uopt->enableAutoGain = 0;
       uopt->wantScanlines = 0;
       uopt->wantOutputComponent = 0;
+      uopt->deintMode = 0;
       saveUserPrefs(); // if this fails, there must be a spiffs problem
     }
     else {
       SerialM.println("userprefs open ok");
       //on a fresh / spiffs not formatted yet MCU:
       //userprefs.txt open ok //result[0] = 207 //result[1] = 207
-      char result[7];
+      char result[8];
       result[0] = f.read(); result[0] -= '0'; // file streams with their chars..
       uopt->presetPreference = (uint8_t)result[0];
       SerialM.print("presetPreference = "); SerialM.println(uopt->presetPreference);
@@ -3290,6 +3293,12 @@ void setup() {
       uopt->wantOutputComponent = (uint8_t)result[6];
       SerialM.print("wantOutputComponent = "); SerialM.println(uopt->wantOutputComponent);
       if (uopt->wantOutputComponent > 1) uopt->wantOutputComponent = 0; // fresh spiffs ?
+
+      result[7] = f.read(); result[7] -= '0';
+      uopt->deintMode = (uint8_t)result[7];
+      SerialM.print("deintMode = "); SerialM.println(uopt->deintMode);
+      if (uopt->deintMode > 2) uopt->deintMode = 0; // fresh spiffs ?
+      
       f.close();
     }
   }
@@ -4265,35 +4274,38 @@ void loop() {
       }
       noSyncCounter = 0;
 
-      if ((rto->videoStandardInput == 1 || rto->videoStandardInput == 2) && !rto->outModePassThroughWithIf) {
-        // new: attempt to switch in deinterlacing automatically, when required
-        // only do this for pal/ntsc, which can be 240p or 480i
+      if ((rto->videoStandardInput == 1 || rto->videoStandardInput == 2) && 
+        !rto->outModePassThroughWithIf) 
+      {
+        // deinterlacer and scanline code
         boolean preventScanlines = 0;
         if (rto->deinterlaceAutoEnabled) {
-          uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read();
-          static uint16_t VPERIOD_IF_OLD = VPERIOD_IF; // glitch filter
-          if (((rto->videoStandardInput == 1) && (VPERIOD_IF >= 521 && VPERIOD_IF <= 527)) ||
-            ((rto->videoStandardInput == 2) && (VPERIOD_IF >= 620 && VPERIOD_IF <= 630)))
+          if (uopt->deintMode == 0)
           {
-            if (VPERIOD_IF_OLD != VPERIOD_IF) {
-              freezeVideo();
-              preventScanlines = 1;
-            }
-            if (getSyncStable()) {
-              if (!rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts > enable
-                if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
-                  disableScanlines();
-                }
-                enableMotionAdaptDeinterlace();
+            uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read();
+            static uint16_t VPERIOD_IF_OLD = VPERIOD_IF; // glitch filter
+            if (((rto->videoStandardInput == 1) && (VPERIOD_IF >= 521 && VPERIOD_IF <= 527)) ||
+              ((rto->videoStandardInput == 2) && (VPERIOD_IF >= 620 && VPERIOD_IF <= 630)))
+            {
+              if (VPERIOD_IF_OLD != VPERIOD_IF) {
+                freezeVideo();
                 preventScanlines = 1;
               }
-              else if (rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 1) { // ie v:523 or other, uneven counts > disable
-                disableMotionAdaptDeinterlace();
+              if (getSyncStable()) {
+                if (!rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts > enable
+                  if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
+                    disableScanlines();
+                  }
+                  enableMotionAdaptDeinterlace();
+                  preventScanlines = 1;
+                }
+                else if (rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 1) { // ie v:523 or other, uneven counts > disable
+                  disableMotionAdaptDeinterlace();
+                }
               }
             }
+            VPERIOD_IF_OLD = VPERIOD_IF; // part of glitch filter
           }
-          
-          VPERIOD_IF_OLD = VPERIOD_IF; // part of glitch filter
         }
 
         // scanlines
@@ -4779,7 +4791,7 @@ void handleType2Command() {
         SerialM.println("userprefs open failed");
       }
       else {
-        char result[7];
+        char result[8];
         result[0] = f.read(); result[0] -= '0'; // file streams with their chars..
         SerialM.print("presetPreference = "); SerialM.println((uint8_t)result[0]);
         result[1] = f.read(); result[1] -= '0';
@@ -4794,6 +4806,8 @@ void handleType2Command() {
         SerialM.print("wantScanlines = "); SerialM.println((uint8_t)result[5]);
         result[6] = f.read(); result[6] -= '0';
         SerialM.print("wantOutputComponent = "); SerialM.println((uint8_t)result[6]);
+        result[7] = f.read(); result[7] -= '0';
+        SerialM.print("deintMode = "); SerialM.println((uint8_t)result[7]);
         f.close();
       }
     }
@@ -4946,6 +4960,18 @@ void handleType2Command() {
         SerialM.println("limit");
       }
     }
+      break;
+    case 'q':
+      uopt->deintMode = 1;
+      SerialM.println("Deinterlacer: Bob");
+      disableMotionAdaptDeinterlace();
+      saveUserPrefs();
+      break;
+    case 'r':
+      uopt->deintMode = 0;
+      SerialM.println("Deinterlacer: Motion Adaptive");
+      saveUserPrefs();
+      // will enable next loop()
       break;
     default:
       break;
@@ -5286,32 +5312,9 @@ void saveUserPrefs() {
   f.write(uopt->enableAutoGain + '0');
   f.write(uopt->wantScanlines + '0');
   f.write(uopt->wantOutputComponent + '0');
-  SerialM.println("userprefs saved: ");
+  f.write(uopt->deintMode + '0');
   f.close();
-
-  // print results
-  f = SPIFFS.open("/userprefs.txt", "r");
-  if (!f) {
-    SerialM.println("userprefs open failed");
-  }
-  else {
-    char result[7];
-    result[0] = f.read(); result[0] -= '0'; // file streams with their chars..
-    SerialM.print("  presetPreference = "); SerialM.println((uint8_t)result[0]);
-    result[1] = f.read(); result[1] -= '0';
-    SerialM.print("  FrameTime Lock = "); SerialM.println((uint8_t)result[1]);
-    result[2] = f.read(); result[2] -= '0';
-    SerialM.print("  presetGroup = "); SerialM.println((uint8_t)result[2]);
-    result[3] = f.read(); result[3] -= '0';
-    SerialM.print("  frameTimeLockMethod = "); SerialM.println((uint8_t)result[3]);
-    result[4] = f.read(); result[4] -= '0';
-    SerialM.print("  enableAutoGain = "); SerialM.println((uint8_t)result[4]);
-    result[5] = f.read(); result[5] -= '0';
-    SerialM.print("  wantScanlines = "); SerialM.println((uint8_t)result[5]);
-    result[6] = f.read(); result[6] -= '0';
-    SerialM.print("  wantOutputComponent = "); SerialM.println((uint8_t)result[6]);
-    f.close();
-  }
+  SerialM.println("preferences saved");
 }
 
 #endif
