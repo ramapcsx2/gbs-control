@@ -3204,6 +3204,7 @@ void setup() {
   rto->phaseADC = 16;
   rto->phaseSP = 15;
   rto->failRetryAttempts = 0;
+  rto->presetID = 0;
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->deinterlaceAutoEnabled = true;
   rto->scanlinesEnabled = false;
@@ -3511,15 +3512,17 @@ void handleWiFi() {
             toSend[2] = '1';
             break;
           }
-          
-          webSocket.broadcastTXT(toSend); 
+
+          // ws client connected, go none sleep for low latency TCP
           if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 0)) {
             WiFi.setSleepMode(WIFI_NONE_SLEEP);
             wifiNoSleep = 1;
           }
+          // send ping and stats
+          webSocket.broadcastTXT(toSend); 
         }
         else if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 1)) {
-          WiFi.setSleepMode(WIFI_MODEM_SLEEP);
+          WiFi.setSleepMode(WIFI_MODEM_SLEEP); // arduino default
           wifiNoSleep = 0;
         }
         lastTimePing = millis();
