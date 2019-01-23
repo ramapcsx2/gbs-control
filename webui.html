@@ -52,6 +52,14 @@
                 min-height: 88px;
                 float: left;
             }
+            
+            .button.preset.inactive, .button.slot.inactive {
+                background-color: #2e657d;
+            }
+            
+            .button.preset.active, .button.slot.active {
+                background-color: #4CAF50;
+            }
 
             .button:hover {
                 background-color: #4CAF50;
@@ -168,6 +176,27 @@
                             theTerminal.scrollTop = theTerminal.scrollHeight;
                         });
                     }
+                    else {
+                        var presetId = e.data[1];
+                        var activePresetButton = document.getElementById(presetId); 
+                        if(activePresetButton) {
+                            var presetButtonList = document.getElementsByClassName('button preset active');
+                            for (let button of presetButtonList) {
+                                button.className = 'button preset inactive';
+                            }
+                            activePresetButton.className = 'button preset active';
+                        }
+                            
+                        var slotId = '1' + e.data[2];
+                        var activeSlotButton = document.getElementById(slotId);
+                        if(activeSlotButton) {
+                            var slotButtonList = document.getElementsByClassName('button slot active');
+                            for (let button of slotButtonList) {
+                                button.className = 'button slot inactive';
+                            }
+                            activeSlotButton.className = 'button slot active';
+                        }
+                    }
                     myTimer = setInterval(timeOutWs, 1800);
                 };
             }
@@ -175,14 +204,23 @@
     </head>
     <body>
         <h1>Default Presets</h1>
-        <button class='button' type='button' onclick="loadUser('f')">1280x960 (default)</button>
-        <button class='button' type='button' onclick="loadUser('p')">1280x1024</button>
-        <button class='button' type='button' onclick="loadUser('g')">1280x720</button>
-        <button class='button' type='button' onclick="loadUser('h')">640x480</button>
+        <p>Loads one of the default presets. The selection will also be loaded on reset.</p>
+        <button class='button preset inactive' type='button' id='1' onclick="loadUser('f')">1280x960 (default)</button>
+        <button class='button preset inactive' type='button' id='2' onclick="loadUser('p')">1280x1024</button>
+        <button class='button preset inactive' type='button' id='3' onclick="loadUser('g')">1280x720</button>
+        <button class='button preset inactive' type='button' id='4' onclick="loadUser('h')">640x480</button>
         <br>
         <h1>Custom Preset</h1>
-        <p>Loads settings from the active preset slot. Slots can be selected in the Preferences section.</p>
-        <button class='button' type='button' onclick="loadUser('3')">Load Custom Preset</button>
+        <p>Select a slot for storing customized presets. Saving, loading or selecting a slot will mark the preset to be loaded on reset.</p>
+        <button class='button preset inactive' type='button' id='9' onclick="loadUser('3')">Load Custom Preset</button>
+        <button class='button' type='button' onclick="loadUser('4')">Save Custom Preset</button>
+        <br>
+        <button class='button slot inactive' type='button' id='11' onclick="loadUser('b')">Slot 1</button>
+        <button class='button slot inactive' type='button' id='12' onclick="loadUser('c')">Slot 2</button>
+        <button class='button slot inactive' type='button' id='13' onclick="loadUser('d')">Slot 3</button>
+        <button class='button slot inactive' type='button' id='14' onclick="loadUser('j')">Slot 4</button>
+        <button class='button slot inactive' type='button' id='15' onclick="loadUser('k')">Slot 5</button>
+        <button class='button preset inactive' type='button' id='8' onclick="loadDoc('K')">Source Pass-through</button>
         <br>
         <h1>Picture Control</h1>
         <h2>Move Picture</h2>
@@ -201,9 +239,16 @@
         <button class='button' type='button' onclick="loadUser('C')">Vertical +</button>
         <button class='button' type='button' onclick="loadUser('D')">Vertical -</button>
         <br>
+        <h2>ADC Gain (brightness)</h2>
+        <p>Gain +/- adjusts the gain for the currently loaded preset. Auto Gain is saved across reboots.</p>
+        <button class='button' type='button' onclick="loadUser('n')">Gain +</button>
+        <button class='button' type='button' onclick="loadUser('o')">Gain -</button>
+        <button class='button' type='button' onclick="loadDoc('T')">Auto Gain Adjust Toggle</button>
+        <br>
         <h1>Enhancements</h1>
         <button class='button' type='button' onclick="loadUser('7')">Scanlines Toggle</button>
-        <button class='button' type='button' onclick="loadDoc('K')">Source Pass-through</button>
+        <button class='button' type='button' onclick="loadUser('m')">DCTI Toggle</button>
+        <button class='button' type='button' onclick="loadDoc('o')">Oversampling</button>
         <br>
         <h1>Deinterlacer</h1>
         <button class='button' type='button' onclick="loadUser('r')">Use Motion Adaptive</button>
@@ -214,33 +259,12 @@
         <p>The default output mode is VGA, suitable for VGA cables or HDMI converters.</p>
         <p>A new YPbPr mode can also be selected, but compatibility with some options is still spotty.</p>
         <button class='button' type='button' onclick="loadDoc('L')">Component/VGA Output Toggle</button>
-        <h2>Load on Start: Default Presets</h2>
-        <p>These are the default presets that gbs-control ships with. Pick one that works well with your source and TV.</p>
-        <button class='button' type='button' onclick="loadUser('0')">1280x960 Preset</button>
-        <button class='button' type='button' onclick="loadUser('2')">1280x1024 Preset</button>
-        <button class='button' type='button' onclick="loadUser('9')">1280x720 Preset</button>
-        <button class='button' type='button' onclick="loadUser('1')">640x480 Preset</button>
-        <h2>Load on Start: Custom Presets</h2>
-        <p>These slots hold your saved presets. Select the slot you want to save to / to be loaded by default.</p>
-        <button class='button' type='button' onclick="loadUser('b')">Slot 1</button>
-        <button class='button' type='button' onclick="loadUser('c')">Slot 2</button>
-        <button class='button' type='button' onclick="loadUser('d')">Slot 3</button>
-        <button class='button' type='button' onclick="loadUser('j')">Slot 4</button><br>
-        <button class='button' type='button' onclick="loadUser('k')">Slot 5</button>
-        <h2>Save current Settings as Custom Preset</h2>
-        <p>This allows you to store your image tweaks in a new preset file. These Custom Presets can be automatically loaded on startup.</p>
-        <p>There are 5 slots available. PAL and NTSC (50Hz, 60Hz) sources are assigned automatically.</p>
-        <button class='button' type='button' onclick="loadUser('4')">Save Custom Preset</button>
         <h2>Active FrameTime Lock (not compatible with all displays)</h2>
         <p>This option keeps the input and output timings aligned, fixing the horizontal tear line that can appear sometimes.</p>
         <p>Two methods are available. Try switching methods if your display goes blank.</p>
         <button class='button' type='button' onclick="loadUser('5')">FrameTime Lock ON</button>
         <button class='button' type='button' onclick="loadUser('6')">FrameTime Lock OFF</button>
         <button class='button' type='button' onclick="loadUser('i')">Switch Lock Method</button>
-        <h2>ADC Gain (brightness)</h2>
-        <button class='button' type='button' onclick="loadUser('n')">Gain +</button>
-        <button class='button' type='button' onclick="loadUser('o')">Gain -</button>
-        <button class='button' type='button' onclick="loadDoc('T')">Auto Gain Adjust Toggle</button>
         <br>
         <h1>Development</h1>
         <h2>Move Picture (memory blank, HS)</h2>
@@ -255,15 +279,13 @@
         <button class='button' type='button' onclick="loadDoc('j')">Reset PLL/PLLAD</button>
         <button class='button' type='button' onclick="loadDoc('q')">Reset Chip</button>
         <button class='button' type='button' onclick="loadDoc('.')">Resynchronize with Source (AutoBestHTotal)</button>
-        <button class='button' type='button' onclick="loadDoc('l')">Reset SyncProcessor</button><br>
+        <button class='button' type='button' onclick="loadDoc('l')">Reset SyncProcessor</button>
         <button class='button' type='button' onclick="loadDoc('D')">Debug View</button>
         <button class='button' type='button' onclick="loadDoc('f')">Peaking</button>
         <button class='button' type='button' onclick="loadDoc('F')">ADC Filter</button>
-        <button class='button' type='button' onclick="loadUser('m')">DCTI</button><br>
-        <button class='button' type='button' onclick="loadDoc('o')">Oversampling</button>
         <button class='button' type='button' onclick="loadDoc('a')">HTotal++</button>
         <button class='button' type='button' onclick="loadDoc('n')">PLL divider++</button>
-        <button class='button' type='button' onclick="loadDoc('b')">Advance Phase</button><br>
+        <button class='button' type='button' onclick="loadDoc('b')">Advance Phase</button>
         <button class='button' type='button' onclick="loadDoc('8')">Invert Sync</button>
         <button class='button' type='button' onclick="loadDoc('c')">Enable OTA Firmware Update</button>
         <button class='button' type='button' onclick="loadDoc('m')">SyncWatcher</button>

@@ -142,6 +142,7 @@ struct runTimeOptions {
   uint8_t applyPresetDoneStage;
   uint8_t continousStableCounter;
   uint8_t failRetryAttempts;
+  uint8_t presetID;
   boolean isInLowPowerMode;
   boolean clampPositionIsSet;
   boolean coastPositionIsSet;
@@ -167,8 +168,8 @@ struct runTimeOptions *rto = &rtos;
 
 // userOptions holds user preferences / customizations
 struct userOptions {
-  uint8_t presetPreference; // 0 - normal, 1 - feedback clock, 2 - customized, 3 - 720p, 4 - 1280x1024
-  uint8_t presetGroup;
+  uint8_t presetPreference; // 0 - normal, 1 - feedback clock, 2 - customized, 3 - 720p, 4 - 1280x1024, 5 - bypass
+  uint8_t presetSlot;
   uint8_t enableFrameTimeLock;
   uint8_t frameTimeLockMethod;
   uint8_t enableAutoGain;
@@ -1754,7 +1755,7 @@ void applyBestHTotal(uint16_t bestHTotal) {
 }
 
 void doPostPresetLoadSteps() {
-  uint8_t presetID = GBS::GBS_PRESET_ID::read();
+  rto->presetID = GBS::GBS_PRESET_ID::read();
   GBS::PAD_SYNC_OUT_ENZ::write(1); // sync out off
   GBS::OUT_SYNC_CNTRL::write(1); // prepare sync out to PAD
   //GBS::PAD_CKOUT_ENZ::write(0); // clock out to pin enabled for testing
@@ -1779,7 +1780,6 @@ void doPostPresetLoadSteps() {
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->scanlinesEnabled = false;
   rto->failRetryAttempts = 0;
-  rto->outModePassThroughWithIf = 0; // could be 1 if it was active, but overriden by preset load
   rto->videoIsFrozen = true; // this just ensures that the first stable loop checks for frozen video
 
   resetDigital(); // early full reset, improve time to mode detect lock
@@ -1836,7 +1836,7 @@ void doPostPresetLoadSteps() {
       GBS::IF_HB_ST2::write(0xa8);  // 1_18
       GBS::IF_HB_SP2::write(0xb0);  // 1_1a for general case hshift
       GBS::IF_HBIN_SP::write(0x86); // 1_26 works for all output presets
-      if (presetID == 0x3) 
+      if (rto->presetID == 0x3) 
       { // out 720p
         GBS::VDS_VSCALE::write(720);
         //GBS::IF_VB_ST::write(0x02);
@@ -1848,7 +1848,7 @@ void doPostPresetLoadSteps() {
         GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8);
         GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 8);
       }
-      else if (presetID == 0x2) 
+      else if (rto->presetID == 0x2) 
       { // out x1024
         GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 48);
         GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - 12);
@@ -1860,7 +1860,7 @@ void doPostPresetLoadSteps() {
           GBS::VDS_DIS_VB_SP::write(64);
         }
       }
-      else if (presetID == 0x1) 
+      else if (rto->presetID == 0x1) 
       { // out x960
         //GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 16);
         //GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() + 16);
@@ -1872,7 +1872,7 @@ void doPostPresetLoadSteps() {
       GBS::IF_HB_ST2::write(0xb4);  // 1_18
       GBS::IF_HB_SP2::write(0xc4);  // 1_1a for general case hshift
       GBS::IF_HBIN_SP::write(0x9a); // 1_26 works for all output presets
-      if (presetID == 0x13) 
+      if (rto->presetID == 0x13) 
       { // out 720p
         GBS::VDS_VSCALE::write(808); // not well tested
         GBS::VDS_HSCALE::write(940); // either
@@ -1882,7 +1882,7 @@ void doPostPresetLoadSteps() {
         GBS::VDS_VB_SP::write(30);
         GBS::VDS_DIS_VB_SP::write(34);
       }
-      else if (presetID == 0x12) 
+      else if (rto->presetID == 0x12) 
       { // out x1024
         GBS::VDS_VSCALE::write(608);
         GBS::IF_VB_ST::write(0x20);
@@ -1892,7 +1892,7 @@ void doPostPresetLoadSteps() {
         GBS::VDS_DIS_VB_ST::write(1024);
         GBS::VDS_DIS_VB_SP::write(34);
       }
-      else if (presetID == 0x11) 
+      else if (rto->presetID == 0x11) 
       { // out x960
         // at VDS_VSCALE 614
         //GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 16);
@@ -2004,7 +2004,7 @@ void doPostPresetLoadSteps() {
 
   {
     // prepare ideal vline shift for PAL / NTSC SD sources
-    switch (presetID)
+    switch (rto->presetID)
     {
     case 0x1:
     case 0x2:
@@ -2063,10 +2063,16 @@ void doPostPresetLoadSteps() {
   GBS::INTERRUPT_CONTROL_00::write(0x00);
   
   OutputComponentOrVGA();
-  SerialM.print("post preset done (preset id: "); SerialM.print(presetID, HEX); 
+  SerialM.print("post preset done (preset id: "); SerialM.print(rto->presetID, HEX); 
+  if (isCustomPreset) {
+    rto->presetID = 9; // custom
+  }
   if (rto->outModePassThroughWithIf)
   {
     SerialM.println(") (bypass)"); // note: this path is currently never taken (just planned)
+  }
+  else if (isCustomPreset) {
+    SerialM.println(") (custom)"); // note: this path is currently never taken (just planned)
   }
   else
   {
@@ -2076,6 +2082,7 @@ void doPostPresetLoadSteps() {
 }
 
 void applyPresets(uint8_t result) {
+  rto->outModePassThroughWithIf = 0;
   if (result == 1) {
     SerialM.println("60Hz ");
     if (uopt->presetPreference == 0) {
@@ -2102,6 +2109,9 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(ntsc_1280x1024, false);
     }
 #endif
+    else if (uopt->presetPreference == 5) {
+      passThroughWithIfModeSwitch();
+    }
   }
   else if (result == 2) {
     SerialM.println("50Hz ");
@@ -2129,6 +2139,9 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(pal_1280x1024, false);
     }
 #endif
+    else if (uopt->presetPreference == 5) {
+      passThroughWithIfModeSwitch();
+    }
   }
   else if (result == 3) {
     SerialM.println("60Hz EDTV ");
@@ -2152,6 +2165,9 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(ntsc_1280x1024, false);
     }
 #endif
+    else if (uopt->presetPreference == 5) {
+      passThroughWithIfModeSwitch();
+    }
   }
   else if (result == 4) {
     SerialM.println("50Hz EDTV ");
@@ -2175,6 +2191,9 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(pal_1280x1024, false);
     }
 #endif
+    else if (uopt->presetPreference == 5) {
+      passThroughWithIfModeSwitch();
+    }
   }
   else if (result == 5 || result == 6 || result == 7 || result == 14) {
     // use bypass mode for all configs
@@ -2195,7 +2214,6 @@ void applyPresets(uint8_t result) {
       rto->videoStandardInput = 14;
     }
 
-    rto->outModePassThroughWithIf = 0;
     passThroughWithIfModeSwitch();
     return;
   }
@@ -2220,7 +2238,9 @@ void applyPresets(uint8_t result) {
   }
 
   rto->videoStandardInput = result;
-  doPostPresetLoadSteps();
+  if (uopt->presetPreference != 5) {
+    doPostPresetLoadSteps();
+  }
 }
 
 void unfreezeVideo() {
@@ -2694,192 +2714,184 @@ void updateClampPosition() {
 // 2431 for psx, 2437 for MD
 // in this mode, sampling clock is free to choose
 void passThroughWithIfModeSwitch() {
-  SerialM.print("pass-through ");
-  if (rto->outModePassThroughWithIf == 0) { // then enable pass-through mode
-    SerialM.println("on");
-    rto->autoBestHtotalEnabled = false; // disable while in this mode
-    // first load default presets
-    if (rto->videoStandardInput == 2 || rto->videoStandardInput == 4) {
-      writeProgramArrayNew(pal_240p, true);
-      doPostPresetLoadSteps();
-    }
-    else {
-      writeProgramArrayNew(ntsc_240p, true);
-      doPostPresetLoadSteps();
-    }
-    GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC
-    rto->autoBestHtotalEnabled = false; // need to re-set this
-    GBS::PAD_SYNC_OUT_ENZ::write(1); // no sync out yet
-    GBS::RESET_CONTROL_0x46::write(0); // 0_46 all off first, VDS + IF enabled later
-    // from RGBHV tests: the memory bus can be tri stated for noise reduction
-    GBS::PAD_TRI_ENZ::write(1); // enable tri state
-    GBS::PLL_MS::write(2); // select feedback clock (but need to enable tri state!)
-    GBS::MEM_PAD_CLK_INVERT::write(0); // helps also
-    GBS::OUT_SYNC_SEL::write(2);
-    GBS::SP_HS_LOOP_SEL::write(0); // (5_57_6) // with = 0, 5_45 and 5_47 set output
-    GBS::SP_HS_PROC_INV_REG::write(0); // (5_56_5) do not invert HS (5_57_6 = 0)
-    if (!rto->inputIsYpBpR) { // RGB input (is fine atm)
-      GBS::DAC_RGBS_ADC2DAC::write(1); // bypass IF + VDS for RGB sources (YUV needs the VDS for YUV > RGB)
-      //GBS::SP_CS_HS_ST::write(0x710); // invert sync detection
-    }
-    else { // YUV input (do sync inversion?)
-      GBS::DAC_RGBS_ADC2DAC::write(0); // use IF + VDS for YUV sources (VDS for for YUV > RGB)
-      GBS::SFTRST_IF_RSTZ::write(1); // need IF
-      GBS::SFTRST_VDS_RSTZ::write(1); // need VDS
-    }
-    GBS::VDS_HSCALE_BYPS::write(1);
-    GBS::VDS_VSCALE_BYPS::write(1);
-    GBS::VDS_SYNC_EN::write(1); // VDS sync to synclock
-    // blanking to mask eventual hsync pulse that the ADC picked up from SOG
-    // new: instead of blanking use pip?
-    GBS::VDS_BLK_BF_EN::write(0);
-    GBS::VDS_SYNC_IN_SEL::write(1); // 3_72
-    GBS::PIP_H_SP::write(0xc0);
-    GBS::PIP_EN::write(1);
-    GBS::VDS_HSYNC_RST::write(0xfff); // max
-    GBS::VDS_VSYNC_RST::write(0x7ff); // max
-    GBS::VDS_D_RAM_BYPS::write(1); // 3_26 6 line buffer bypass (not required)
-    GBS::PLLAD_MD::write(0x768); // psx 256, 320, 384 pix
+  SerialM.println("pass-through on");
+  rto->autoBestHtotalEnabled = false; // disable while in this mode
+  // first load default presets
+  if (rto->videoStandardInput == 2 || rto->videoStandardInput == 4) {
+    writeProgramArrayNew(pal_240p, true);
+    doPostPresetLoadSteps();
+  }
+  else {
+    writeProgramArrayNew(ntsc_240p, true);
+    doPostPresetLoadSteps();
+  }
+  GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC
+  rto->autoBestHtotalEnabled = false; // need to re-set this
+  GBS::PAD_SYNC_OUT_ENZ::write(1); // no sync out yet
+  GBS::RESET_CONTROL_0x46::write(0); // 0_46 all off first, VDS + IF enabled later
+  // from RGBHV tests: the memory bus can be tri stated for noise reduction
+  GBS::PAD_TRI_ENZ::write(1); // enable tri state
+  GBS::PLL_MS::write(2); // select feedback clock (but need to enable tri state!)
+  GBS::MEM_PAD_CLK_INVERT::write(0); // helps also
+  GBS::OUT_SYNC_SEL::write(2);
+  GBS::SP_HS_LOOP_SEL::write(0); // (5_57_6) // with = 0, 5_45 and 5_47 set output
+  GBS::SP_HS_PROC_INV_REG::write(0); // (5_56_5) do not invert HS (5_57_6 = 0)
+  if (!rto->inputIsYpBpR) { // RGB input (is fine atm)
+    GBS::DAC_RGBS_ADC2DAC::write(1); // bypass IF + VDS for RGB sources (YUV needs the VDS for YUV > RGB)
+    //GBS::SP_CS_HS_ST::write(0x710); // invert sync detection
+  }
+  else { // YUV input (do sync inversion?)
+    GBS::DAC_RGBS_ADC2DAC::write(0); // use IF + VDS for YUV sources (VDS for for YUV > RGB)
+    GBS::SFTRST_IF_RSTZ::write(1); // need IF
+    GBS::SFTRST_VDS_RSTZ::write(1); // need VDS
+  }
+  GBS::VDS_HSCALE_BYPS::write(1);
+  GBS::VDS_VSCALE_BYPS::write(1);
+  GBS::VDS_SYNC_EN::write(1); // VDS sync to synclock
+  // blanking to mask eventual hsync pulse that the ADC picked up from SOG
+  // new: instead of blanking use pip?
+  GBS::VDS_BLK_BF_EN::write(0);
+  GBS::VDS_SYNC_IN_SEL::write(1); // 3_72
+  GBS::PIP_H_SP::write(0xc0);
+  GBS::PIP_EN::write(1);
+  GBS::VDS_HSYNC_RST::write(0xfff); // max
+  GBS::VDS_VSYNC_RST::write(0x7ff); // max
+  GBS::VDS_D_RAM_BYPS::write(1); // 3_26 6 line buffer bypass (not required)
+  GBS::PLLAD_MD::write(0x768); // psx 256, 320, 384 pix
+  GBS::PLLAD_ICP::write(5);
+  GBS::PLLAD_FS::write(0);
+  GBS::DEC1_BYPS::write(1);
+  GBS::DEC2_BYPS::write(1);
+  GBS::VDS_HB_ST::write(4094);
+  GBS::VDS_HB_SP::write(0);
+  if (rto->videoStandardInput <= 2) {
+    GBS::IF_HB_SP::write(0x4);
+    GBS::IF_HSYNC_RST::write(0x7ff); // (lineLength)
+    GBS::VDS_HB_ST::write(0); // overwrite
+    GBS::VDS_HB_SP::write(8);
+    GBS::SP_CS_HS_ST::write(0);
+    GBS::SP_CS_HS_SP::write(0x6c); // with PLLAD_MD = 0x768
+  }
+  else if (rto->videoStandardInput < 5) { // 480p, 576p
+    GBS::IF_HSYNC_RST::write(0x7ff); // (lineLength)
+    GBS::IF_HB_SP::write(0x4);
+    GBS::ADC_CLK_ICLK1X::write(0); // new
+    GBS::ADC_CLK_ICLK2X::write(0); // new
     GBS::PLLAD_ICP::write(5);
-    GBS::PLLAD_FS::write(0);
-    GBS::DEC1_BYPS::write(1);
-    GBS::DEC2_BYPS::write(1);
-    GBS::VDS_HB_ST::write(4094); 
-    GBS::VDS_HB_SP::write(0);
-    if (rto->videoStandardInput <= 2) {
-      GBS::IF_HB_SP::write(0x4);
-      GBS::IF_HSYNC_RST::write(0x7ff); // (lineLength)
-      GBS::VDS_HB_ST::write(0); // overwrite
-      GBS::VDS_HB_SP::write(8);
-      GBS::SP_CS_HS_ST::write(0);
-      GBS::SP_CS_HS_SP::write(0x6c); // with PLLAD_MD = 0x768
+    GBS::SP_CS_HS_ST::write(0x40); // < SP = hs negative
+    GBS::SP_CS_HS_SP::write(0x80);
+    GBS::SP_VS_PROC_INV_REG::write(1);
+    GBS::PLLAD_FS::write(1); // 5_11 gain
+    GBS::PLLAD_KS::write(1); // 5_16
+    GBS::PLLAD_CKOS::write(0); // 5_16
+  }
+  else if (rto->videoStandardInput <= 7 || rto->videoStandardInput == 14) {
+    // HD shared
+    GBS::SP_DIS_SUB_COAST::write(1);
+    GBS::ADC_CLK_ICLK1X::write(0); // new
+    GBS::ADC_CLK_ICLK2X::write(0); // new
+    GBS::PLLAD_FS::write(1); // 5_11 gain
+    GBS::PLLAD_KS::write(1); // todo: check
+    GBS::PLLAD_CKOS::write(0); // 5_16
+    GBS::IF_HSYNC_RST::write(0x7FF);
+    GBS::IF_HB_SP::write(0x7FF);
+    //
+    if (rto->videoStandardInput == 5) {
+      GBS::PLLAD_MD::write(0x768); // psx 256, 320, 384 pix
+      GBS::SP_CS_HS_ST::write(0xd0); // > SP = hs positive
+      GBS::SP_CS_HS_SP::write(0x40);
+      GBS::SP_VS_PROC_INV_REG::write(1); // invert VS to be sync positive
     }
-    else if (rto->videoStandardInput < 5) { // 480p, 576p
-      GBS::IF_HSYNC_RST::write(0x7ff); // (lineLength)
-      GBS::IF_HB_SP::write(0x4);
-      GBS::ADC_CLK_ICLK1X::write(0); // new
-      GBS::ADC_CLK_ICLK2X::write(0); // new
-      GBS::PLLAD_ICP::write(5);
-      GBS::SP_CS_HS_ST::write(0x40); // < SP = hs negative
-      GBS::SP_CS_HS_SP::write(0x80);
-      GBS::SP_VS_PROC_INV_REG::write(1);
-      GBS::PLLAD_FS::write(1); // 5_11 gain
-      GBS::PLLAD_KS::write(1); // 5_16
-      GBS::PLLAD_CKOS::write(0); // 5_16
+    if (rto->videoStandardInput == 6) { // 1080i
+      GBS::PLLAD_MD::write(0x768);
+      GBS::SP_CS_HS_ST::write(0x90);
+      GBS::SP_CS_HS_SP::write(0x38);
+      GBS::SP_VS_PROC_INV_REG::write(0); // don't invert, causes flicker
     }
-    else if (rto->videoStandardInput <= 7 || rto->videoStandardInput == 14) {
-      // HD shared
-      GBS::SP_DIS_SUB_COAST::write(1);
-      GBS::ADC_CLK_ICLK1X::write(0); // new
-      GBS::ADC_CLK_ICLK2X::write(0); // new
-      GBS::PLLAD_FS::write(1); // 5_11 gain
-      GBS::PLLAD_KS::write(1); // todo: check
+    if (rto->videoStandardInput == 7) { // 1080p
+      GBS::PLLAD_MD::write(0x5b0);
+      GBS::SP_CS_HS_ST::write(0x90);
+      GBS::SP_CS_HS_SP::write(0x60);
+      GBS::SP_POST_COAST::write(0x16); // important
+      delay(6);
+    }
+    if (rto->videoStandardInput == 14) { // odd HD mode (PS2 "VGA" over Component)
+      applyRGBPatches(); // treat mostly as RGB, clamp R/B to gnd
+      GBS::SP_PRE_COAST::write(3);
+      GBS::SP_POST_COAST::write(3);
+      GBS::PLLAD_FS::write(0);
+      GBS::PLLAD_ICP::write(4); // 5_17
+      GBS::DAC_RGBS_ADC2DAC::write(1); // bypass IF + VDS since we'll treat source as RGB
+      GBS::DEC_MATRIX_BYPS::write(1);
+      GBS::PLLAD_MD::write(0x767); // it doesn't like even
+      GBS::PLLAD_KS::write(0);
       GBS::PLLAD_CKOS::write(0); // 5_16
-      GBS::IF_HSYNC_RST::write(0x7FF);
-      GBS::IF_HB_SP::write(0x7FF);
-      //
-      if (rto->videoStandardInput == 5) {
-        GBS::PLLAD_MD::write(0x768); // psx 256, 320, 384 pix
-        GBS::SP_CS_HS_ST::write(0xd0); // > SP = hs positive
-        GBS::SP_CS_HS_SP::write(0x40);
-        GBS::SP_VS_PROC_INV_REG::write(1); // invert VS to be sync positive
-      }
-      if (rto->videoStandardInput == 6) { // 1080i
-        GBS::PLLAD_MD::write(0x768);
-        GBS::SP_CS_HS_ST::write(0x90);
-        GBS::SP_CS_HS_SP::write(0x38);
-        GBS::SP_VS_PROC_INV_REG::write(0); // don't invert, causes flicker
-      }
-      if (rto->videoStandardInput == 7) { // 1080p
-        GBS::PLLAD_MD::write(0x5b0);
-        GBS::SP_CS_HS_ST::write(0x90);
-        GBS::SP_CS_HS_SP::write(0x60);
-        GBS::SP_POST_COAST::write(0x16); // important
-        delay(6);
-      }
-      if (rto->videoStandardInput == 14) { // odd HD mode (PS2 "VGA" over Component)
-        applyRGBPatches(); // treat mostly as RGB, clamp R/B to gnd
-        GBS::SP_PRE_COAST::write(3);
-        GBS::SP_POST_COAST::write(3);
-        GBS::PLLAD_FS::write(0);
-        GBS::PLLAD_ICP::write(4); // 5_17
-        GBS::DAC_RGBS_ADC2DAC::write(1); // bypass IF + VDS since we'll treat source as RGB
-        GBS::DEC_MATRIX_BYPS::write(1);
-        GBS::PLLAD_MD::write(0x767); // it doesn't like even
-        GBS::PLLAD_KS::write(0);
-        GBS::PLLAD_CKOS::write(0); // 5_16
-        GBS::SP_VS_PROC_INV_REG::write(0); // don't invert
-      }
+      GBS::SP_VS_PROC_INV_REG::write(0); // don't invert
+    }
+  }
+  latchPLLAD();
+  delay(30);
+
+  if (rto->videoStandardInput == 14) {
+    uint16_t vtotal = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+    GBS::PLLAD_MD::write(512);
+    GBS::PLLAD_FS::write(1); // 5_11
+    GBS::PLLAD_ICP::write(5); // 5_17
+    GBS::SP_CS_HS_SP::write(0x08);
+    if (vtotal < 532) { // 640x480 or less
+      GBS::PLLAD_KS::write(3);
+      GBS::SP_CS_HS_ST::write(0x01); // neg h sync
+      GBS::SP_CS_HS_SP::write(0x0f);
+    }
+    else if (vtotal >= 532 && vtotal < 810) { // 800x600, 1024x768
+      //GBS::PLLAD_KS::write(3); // just a little too much at 1024x768
+      GBS::PLLAD_FS::write(0); // 5_11
+      GBS::PLLAD_KS::write(2);
+      GBS::SP_CS_HS_ST::write(0x22);
+    }
+    else { //if (vtotal > 1058 && vtotal < 1074) { // 1280x1024
+      GBS::PLLAD_KS::write(2);
+      GBS::SP_CS_HS_ST::write(0x32);
     }
     latchPLLAD();
-    delay(30);
-
-    if (rto->videoStandardInput == 14) {
-      uint16_t vtotal = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-      GBS::PLLAD_MD::write(512);
-      GBS::PLLAD_FS::write(1); // 5_11
-      GBS::PLLAD_ICP::write(5); // 5_17
-      GBS::SP_CS_HS_SP::write(0x08);
-      if (vtotal < 532) { // 640x480 or less
-        GBS::PLLAD_KS::write(3);
-        GBS::SP_CS_HS_ST::write(0x01); // neg h sync
-        GBS::SP_CS_HS_SP::write(0x0f);
-      }
-      else if (vtotal >= 532 && vtotal < 810) { // 800x600, 1024x768
-        //GBS::PLLAD_KS::write(3); // just a little too much at 1024x768
-        GBS::PLLAD_FS::write(0); // 5_11
-        GBS::PLLAD_KS::write(2);
-        GBS::SP_CS_HS_ST::write(0x22);
-      }
-      else { //if (vtotal > 1058 && vtotal < 1074) { // 1280x1024
-        GBS::PLLAD_KS::write(2);
-        GBS::SP_CS_HS_ST::write(0x32);
-      }
-      latchPLLAD();
-    }
-
-    GBS::PB_BYPASS::write(1);
-    GBS::PLL648_CONTROL_01::write(0x35);
-    rto->phaseSP = 15; // eventhough i had this fancy bestphase function :p
-    setPhaseSP(); // snes likes 12, was 4. if misplaced, creates single wiggly line
-    rto->phaseADC = 0; setPhaseADC();
-    GBS::SP_SDCS_VSST_REG_H::write(0x00); // S5_3B
-    GBS::SP_SDCS_VSSP_REG_H::write(0x00); // S5_3B
-    GBS::SP_SDCS_VSST_REG_L::write(0x04); // S5_3F
-    GBS::SP_SDCS_VSSP_REG_L::write(0x07); // S5_40
-    // IF
-    GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 bit 4 filter off looks better
-    GBS::IF_HS_Y_PDELAY::write(3); // 1_02 bits 5+6
-    GBS::IF_LD_RAM_BYPS::write(1);
-    GBS::IF_HS_DEC_FACTOR::write(0);
-    GBS::IF_HBIN_SP::write(0x02); // 1_26, adjusts left border at 0xf1+, UV switch
-    if (rto->videoStandardInput > 4) {
-      GBS::IF_HB_ST::write(0x001); // S1_10 // was 0x7ff (colors)
-    }
-    else {
-      GBS::IF_HB_ST::write(0);
-    }
-    GBS::IF_HB_ST2::write(0); // S1_18 // just move the bar out of the way
-    GBS::IF_HB_SP2::write(8); // S1_1a // just move the bar out of the way
-    //GBS::IF_LINE_SP::write(0); // may be related to RFF / WFF and 2_16_7 = 0
-    GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2
-    GBS::MADPT_VIIR_BYPS::write(1); // 2_26_6
-    GBS::MADPT_Y_DELAY_UV_DELAY::write(0x44); // 2_17
-
-    GBS::SFTRST_SYNC_RSTZ::write(0); // reset SP 0_47 bit 2
-    GBS::SFTRST_SYNC_RSTZ::write(1);
-    delay(30);
-    GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
-    GBS::PAD_SYNC_OUT_ENZ::write(0); // sync out now
-    rto->outModePassThroughWithIf = 1;
-    delay(100);
   }
-  else { // switch back
-    SerialM.println("off");
-    rto->autoBestHtotalEnabled = true; // enable again
-    rto->outModePassThroughWithIf = 0;
-    applyPresets(getVideoMode());
+
+  GBS::PB_BYPASS::write(1);
+  GBS::PLL648_CONTROL_01::write(0x35);
+  rto->phaseSP = 15; // eventhough i had this fancy bestphase function :p
+  setPhaseSP(); // snes likes 12, was 4. if misplaced, creates single wiggly line
+  rto->phaseADC = 0; setPhaseADC();
+  GBS::SP_SDCS_VSST_REG_H::write(0x00); // S5_3B
+  GBS::SP_SDCS_VSSP_REG_H::write(0x00); // S5_3B
+  GBS::SP_SDCS_VSST_REG_L::write(0x04); // S5_3F
+  GBS::SP_SDCS_VSSP_REG_L::write(0x07); // S5_40
+  // IF
+  GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 bit 4 filter off looks better
+  GBS::IF_HS_Y_PDELAY::write(3); // 1_02 bits 5+6
+  GBS::IF_LD_RAM_BYPS::write(1);
+  GBS::IF_HS_DEC_FACTOR::write(0);
+  GBS::IF_HBIN_SP::write(0x02); // 1_26, adjusts left border at 0xf1+, UV switch
+  if (rto->videoStandardInput > 4) {
+    GBS::IF_HB_ST::write(0x001); // S1_10 // was 0x7ff (colors)
   }
+  else {
+    GBS::IF_HB_ST::write(0);
+  }
+  GBS::IF_HB_ST2::write(0); // S1_18 // just move the bar out of the way
+  GBS::IF_HB_SP2::write(8); // S1_1a // just move the bar out of the way
+  //GBS::IF_LINE_SP::write(0); // may be related to RFF / WFF and 2_16_7 = 0
+  GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2
+  GBS::MADPT_VIIR_BYPS::write(1); // 2_26_6
+  GBS::MADPT_Y_DELAY_UV_DELAY::write(0x44); // 2_17
+
+  GBS::SFTRST_SYNC_RSTZ::write(0); // reset SP 0_47 bit 2
+  GBS::SFTRST_SYNC_RSTZ::write(1);
+  delay(30);
+  GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
+  GBS::PAD_SYNC_OUT_ENZ::write(0); // sync out now
+  rto->outModePassThroughWithIf = 1;
+  rto->presetID = 0x21; // bypass flavor 1
+  delay(100);
 }
 
 void bypassModeSwitch_SOG() {
@@ -2989,6 +3001,7 @@ void bypassModeSwitch_RGBHV() {
   togglePhaseAdjustUnits();
   delay(100);
   GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
+  rto->presetID = 0x22; // bypass flavor 2
   delay(100);
 }
 
@@ -3172,9 +3185,9 @@ void setup() {
 
   SerialM.println("\nstarting");
   //globalDelay = 0;
-  // user options // todo: could be stored in Arduino EEPROM. Other MCUs have SPIFFS
-  uopt->presetPreference = 0; // normal, 720p, fb, custom, 1280x1024
-  uopt->presetGroup = 0; //
+  // user options
+  uopt->presetPreference = 0;
+  uopt->presetSlot = 1; //
   uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
   uopt->frameTimeLockMethod = 0; // compatibility with more displays
   uopt->enableAutoGain = 0;
@@ -3246,7 +3259,7 @@ void setup() {
       SerialM.println("no userprefs yet");
       uopt->presetPreference = 0;
       uopt->enableFrameTimeLock = 0;
-      uopt->presetGroup = 0;
+      uopt->presetSlot = 1;
       uopt->frameTimeLockMethod = 0;
       uopt->enableAutoGain = 0;
       uopt->wantScanlines = 0;
@@ -3262,7 +3275,7 @@ void setup() {
       result[0] = f.read(); result[0] -= '0'; // file streams with their chars..
       uopt->presetPreference = (uint8_t)result[0];
       SerialM.print("presetPreference = "); SerialM.println(uopt->presetPreference);
-      if (uopt->presetPreference > 4) uopt->presetPreference = 0; // fresh spiffs ?
+      if (uopt->presetPreference > 5) uopt->presetPreference = 0; // fresh spiffs ?
 
       result[1] = f.read(); result[1] -= '0';
       uopt->enableFrameTimeLock = (uint8_t)result[1]; // Frame Time Lock
@@ -3270,9 +3283,9 @@ void setup() {
       if (uopt->enableFrameTimeLock > 1) uopt->enableFrameTimeLock = 0; // fresh spiffs ?
 
       result[2] = f.read(); result[2] -= '0';
-      uopt->presetGroup = (uint8_t)result[2];
-      SerialM.print("presetGroup = "); SerialM.println(uopt->presetGroup); // custom preset group
-      if (uopt->presetGroup > 4) uopt->presetGroup = 0; // fresh spiffs ?
+      uopt->presetSlot = (uint8_t)result[2];
+      SerialM.print("presetSlot = "); SerialM.println(uopt->presetSlot); // custom preset slot
+      if (uopt->presetSlot > 5) uopt->presetSlot = 1; // fresh spiffs ?
 
       result[3] = f.read(); result[3] -= '0';
       uopt->frameTimeLockMethod = (uint8_t)result[3];
@@ -3445,7 +3458,61 @@ void handleWiFi() {
       if (millis() - lastTimePing > 1011) { // slightly odd value so not everything happens at once
         //webSocket.broadcastPing(); // sends a WS ping to all Client; returns true if ping is sent out
         if (webSocket.connectedClients() > 0) {
-          webSocket.broadcastTXT("#"); // makeshift ping, since ws protocol pings aren't exposed to javascript
+          char toSend[4] = { 0 };
+          toSend[0] = '#'; // makeshift ping in slot 0
+
+          // id = 0 > button not selected
+          switch (rto->presetID) {
+          case 0x01:
+          case 0x11:
+            toSend[1] = '1';
+            break;
+          case 0x02:
+          case 0x12:
+            toSend[1] = '2';
+            break;
+          case 0x03:
+          case 0x13:
+            toSend[1] = '3';
+            break;
+          case 0x04:
+          case 0x14:
+            toSend[1] = '4';
+            break;
+          case 0x09: // custom
+            toSend[1] = '9'; 
+            break;
+          case 0x21: // bypass 1
+          case 0x22: // bypass 2
+            toSend[1] = '8'; 
+            break;
+          default:
+            toSend[1] = '0';
+            break;
+          }
+
+          switch (uopt->presetSlot) {
+          case 1:
+            toSend[2] = '1';
+            break;
+          case 2:
+            toSend[2] = '2';
+            break;
+          case 3:
+            toSend[2] = '3';
+            break;
+          case 4:
+            toSend[2] = '4';
+            break;
+          case 5:
+            toSend[2] = '5';
+            break;
+          default:
+            toSend[2] = '1';
+            break;
+          }
+          
+          webSocket.broadcastTXT(toSend); 
           if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 0)) {
             WiFi.setSleepMode(WIFI_NONE_SLEEP);
             wifiNoSleep = 1;
@@ -3641,6 +3708,8 @@ void loop() {
     break;
     case 'K':
       passThroughWithIfModeSwitch();
+      uopt->presetPreference = 5;
+      saveUserPrefs();
     break;
     case 'T':
       SerialM.print("auto gain ");
@@ -4240,7 +4309,10 @@ void loop() {
         }
         if (timeout > 0) {
           // going to apply the new preset now
-          boolean wantPassThroughMode = (rto->outModePassThroughWithIf == 1 && rto->videoStandardInput <= 2);
+          boolean wantPassThroughMode = (
+                                        (rto->outModePassThroughWithIf == 1) &&
+                                        (rto->videoStandardInput <= 2)
+                                        );
           if (!wantPassThroughMode) {
             applyPresets(detectedVideoMode);
           }
@@ -4715,12 +4787,20 @@ void handleType2Command() {
         const uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
         writeProgramArrayNew(preset, false);
         doPostPresetLoadSteps();
+        uopt->presetPreference = 2; // custom
+        saveUserPrefs();
       }
     }
     break;
-    case '4':
-      if (rto->videoStandardInput == 0) SerialM.println("no input detected, aborting action");
-      else savePresetToSPIFFS();
+    case '4': // save custom preset
+      if (rto->videoStandardInput == 0) { 
+        SerialM.println("no input detected, aborting preset save");
+      }
+      else {
+        savePresetToSPIFFS();
+        uopt->presetPreference = 2; // custom
+        saveUserPrefs();
+      }
       break;
     case '5':
       //Frame Time Lock ON
@@ -4754,27 +4834,27 @@ void handleType2Command() {
       ESP.reset(); // don't use restart(), messes up websocket reconnects
       break;
     case 'b':
-      uopt->presetGroup = 0;
+      uopt->presetSlot = 1;
       uopt->presetPreference = 2; // custom
       saveUserPrefs();
       break;
     case 'c':
-      uopt->presetGroup = 1;
+      uopt->presetSlot = 2;
       uopt->presetPreference = 2;
       saveUserPrefs();
       break;
     case 'd':
-      uopt->presetGroup = 2;
+      uopt->presetSlot = 3;
       uopt->presetPreference = 2;
       saveUserPrefs();
       break;
     case 'j':
-      uopt->presetGroup = 3;
+      uopt->presetSlot = 4;
       uopt->presetPreference = 2;
       saveUserPrefs();
       break;
     case 'k':
-      uopt->presetGroup = 4;
+      uopt->presetSlot = 5;
       uopt->presetPreference = 2;
       saveUserPrefs();
       break;
@@ -4797,7 +4877,7 @@ void handleType2Command() {
         result[1] = f.read(); result[1] -= '0';
         SerialM.print("FrameTime Lock = "); SerialM.println((uint8_t)result[1]);
         result[2] = f.read(); result[2] -= '0';
-        SerialM.print("presetGroup = "); SerialM.println((uint8_t)result[2]);
+        SerialM.print("presetSlot = "); SerialM.println((uint8_t)result[2]);
         result[3] = f.read(); result[3] -= '0';
         SerialM.print("frameTimeLockMethod = "); SerialM.println((uint8_t)result[3]);
         result[4] = f.read(); result[4] -= '0';
@@ -4820,14 +4900,15 @@ void handleType2Command() {
       // load preset via webui
       uint8_t videoMode = getVideoMode();
       if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
-      uint8_t backup = uopt->presetPreference;
-      if (argument == 'f') uopt->presetPreference = 0; // override RAM copy of presetPreference for applyPresets // 1280x960
+      //uint8_t backup = uopt->presetPreference;
+      if (argument == 'f') uopt->presetPreference = 0; // 1280x960
       if (argument == 'g') uopt->presetPreference = 3; // 1280x720
       if (argument == 'h') uopt->presetPreference = 1; // 640x480
       if (argument == 'p') uopt->presetPreference = 4; // 1280x1024
       rto->videoStandardInput = 0; // force hard reset
       applyPresets(videoMode);
-      uopt->presetPreference = backup;
+      saveUserPrefs();
+      //uopt->presetPreference = backup;
     }
     break;
     case 'i':
@@ -5125,7 +5206,7 @@ void StrClear(char *str, uint16_t length)
 const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
   static uint8_t preset[432];
   String s = "";
-  char group = '0';
+  char slot = '0';
   File f;
 
   f = SPIFFS.open("/userprefs.txt", "r");
@@ -5137,38 +5218,38 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
     result[2] = f.read();
 
     f.close();
-    if ((uint8_t)(result[2] - '0') < 10) group = result[2]; // otherwise not stored on spiffs
-    SerialM.print("loading from presetGroup "); SerialM.print((uint8_t)(group - '0'));
+    if ((uint8_t)(result[2] - '0') < 10) slot = result[2]; // otherwise not stored on spiffs
+    SerialM.print("loading from preset slot "); SerialM.print((uint8_t)(slot - '0'));
     SerialM.print(": ");
   }
   else {
     // file not found, we don't know what preset to load
-    SerialM.println("please select a preset group first!");
+    SerialM.println("please select a preset slot first!"); // say "slot" here to make people save usersettings
     if (forVideoMode == 2 || forVideoMode == 4) return pal_240p;
     else return ntsc_240p;
   }
 
   if (forVideoMode == 1) {
-    f = SPIFFS.open("/preset_ntsc." + String(group), "r");
+    f = SPIFFS.open("/preset_ntsc." + String(slot), "r");
   }
   else if (forVideoMode == 2) {
-    f = SPIFFS.open("/preset_pal." + String(group), "r");
+    f = SPIFFS.open("/preset_pal." + String(slot), "r");
   }
   else if (forVideoMode == 3) {
-    f = SPIFFS.open("/preset_ntsc_480p." + String(group), "r");
+    f = SPIFFS.open("/preset_ntsc_480p." + String(slot), "r");
   }
   else if (forVideoMode == 4) {
-    f = SPIFFS.open("/preset_pal_576p." + String(group), "r");
+    f = SPIFFS.open("/preset_pal_576p." + String(slot), "r");
   }
   else if (forVideoMode == 5) {
-    f = SPIFFS.open("/preset_ntsc_720p." + String(group), "r");
+    f = SPIFFS.open("/preset_ntsc_720p." + String(slot), "r");
   }
   else if (forVideoMode == 6) {
-    f = SPIFFS.open("/preset_ntsc_1080p." + String(group), "r");
+    f = SPIFFS.open("/preset_ntsc_1080p." + String(slot), "r");
   }
 
   if (!f) {
-    SerialM.println("open preset file failed");
+    SerialM.println("no preset file for this source");
     if (forVideoMode == 2 || forVideoMode == 4) return pal_240p;
     else return ntsc_240p;
   }
@@ -5193,9 +5274,9 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
 void savePresetToSPIFFS() {
   uint8_t readout = 0;
   File f;
-  char group = '0';
+  char slot = '1';
 
-  // first figure out if the user has set a preferenced group
+  // first figure out if the user has set a preferenced slot
   f = SPIFFS.open("/userprefs.txt", "r");
   if (f) {
     char result[3];
@@ -5204,39 +5285,39 @@ void savePresetToSPIFFS() {
     result[2] = f.read();
 
     f.close();
-    group = result[2];
-    SerialM.print("saving to presetGroup "); SerialM.println(result[2]); // custom preset group (console)
+    slot = result[2];
+    SerialM.print("saving to preset slot "); SerialM.println(result[2]); // custom preset slot (console)
   }
   else {
     // file not found, we don't know where to save this preset
-    SerialM.println("please select a preset group first!");
+    SerialM.println("please select a preset slot first!");
     return;
   }
 
   if (rto->videoStandardInput == 1) {
-    f = SPIFFS.open("/preset_ntsc." + String(group), "w");
+    f = SPIFFS.open("/preset_ntsc." + String(slot), "w");
   }
   else if (rto->videoStandardInput == 2) {
-    f = SPIFFS.open("/preset_pal." + String(group), "w");
+    f = SPIFFS.open("/preset_pal." + String(slot), "w");
   }
   else if (rto->videoStandardInput == 3) {
-    f = SPIFFS.open("/preset_ntsc_480p." + String(group), "w");
+    f = SPIFFS.open("/preset_ntsc_480p." + String(slot), "w");
   }
   else if (rto->videoStandardInput == 4) {
-    f = SPIFFS.open("/preset_pal_576p." + String(group), "w");
+    f = SPIFFS.open("/preset_pal_576p." + String(slot), "w");
   }
   else if (rto->videoStandardInput == 5) {
-    f = SPIFFS.open("/preset_ntsc_720p." + String(group), "w");
+    f = SPIFFS.open("/preset_ntsc_720p." + String(slot), "w");
   }
   else if (rto->videoStandardInput == 6) {
-    f = SPIFFS.open("/preset_ntsc_1080p." + String(group), "w");
+    f = SPIFFS.open("/preset_ntsc_1080p." + String(slot), "w");
   }
 
   if (!f) {
-    SerialM.println("open preset file failed");
+    SerialM.println("open save file failed!");
   }
   else {
-    SerialM.println("preset file open ok");
+    SerialM.println("open save file ok");
 
     GBS::ADC_0X00_RESERVED_5::write(1); // use one reserved bit to mark this as a custom preset
     // don't store scanlines
@@ -5307,14 +5388,13 @@ void saveUserPrefs() {
   }
   f.write(uopt->presetPreference + '0');
   f.write(uopt->enableFrameTimeLock + '0');
-  f.write(uopt->presetGroup + '0');
+  f.write(uopt->presetSlot + '0');
   f.write(uopt->frameTimeLockMethod + '0');
   f.write(uopt->enableAutoGain + '0');
   f.write(uopt->wantScanlines + '0');
   f.write(uopt->wantOutputComponent + '0');
   f.write(uopt->deintMode + '0');
   f.close();
-  SerialM.println("preferences saved");
 }
 
 #endif
