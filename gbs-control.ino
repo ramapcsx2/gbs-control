@@ -39,7 +39,7 @@ unsigned long pingLastTime;
 
 const char* ap_ssid = "gbscontrol";
 const char* ap_password = "qqqqqqqq";
-const char* ap_info_string = "(WiFi) AP mode; Connect to 'gbscontrol', password 'qqqqqqqq'";
+const char* ap_info_string = "(WiFi) AP mode (SSID: gbscontrol, password 'qqqqqqqq'): Connect to 'gbscontrol.local' in your browser";
 ESP8266WebServer server(80);
 DNSServer dnsServer;
 WebSocketsServer webSocket(81);
@@ -176,6 +176,8 @@ struct userOptions {
   uint8_t wantScanlines;
   uint8_t wantOutputComponent;
   uint8_t deintMode;
+  uint8_t wantVdsLineFilter;
+  uint8_t wantPeaking;
 } uopts;
 struct userOptions *uopt = &uopts;
 
@@ -313,6 +315,8 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
   if (rto->videoStandardInput == 15) {
     rto->videoStandardInput = 0;
   }
+
+  rto->outModePassThroughWithIf = 0;
 
   for (; y < 6; y++)
   {
@@ -1954,6 +1958,20 @@ void doPostPresetLoadSteps() {
     GBS::DEC_TEST_ENABLE::write(0); // no need for decimation test to be enabled
   }
 
+  if (uopt->wantVdsLineFilter) {
+    GBS::VDS_D_RAM_BYPS::write(0);
+  }
+  else {
+    GBS::VDS_D_RAM_BYPS::write(1);
+  }
+
+  if (uopt->wantPeaking) {
+    GBS::VDS_PK_Y_H_BYPS::write(0);
+  }
+  else {
+    GBS::VDS_PK_Y_H_BYPS::write(1);
+  }
+
   if (!isCustomPreset) {
     if (rto->inputIsYpBpR == true) {
       applyYuvPatches();
@@ -2082,7 +2100,6 @@ void doPostPresetLoadSteps() {
 }
 
 void applyPresets(uint8_t result) {
-  rto->outModePassThroughWithIf = 0;
   if (result == 1) {
     SerialM.println("60Hz ");
     if (uopt->presetPreference == 0) {
@@ -3194,6 +3211,8 @@ void setup() {
   uopt->wantScanlines = 0;
   uopt->wantOutputComponent = 0;
   uopt->deintMode = 0;
+  uopt->wantVdsLineFilter = 1;
+  uopt->wantPeaking = 1;
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->enableDebugPings = false;
@@ -3266,52 +3285,54 @@ void setup() {
       uopt->wantScanlines = 0;
       uopt->wantOutputComponent = 0;
       uopt->deintMode = 0;
+      uopt->wantVdsLineFilter = 1;
+      uopt->wantPeaking = 1;
       saveUserPrefs(); // if this fails, there must be a spiffs problem
     }
     else {
       SerialM.println("userprefs open ok");
       //on a fresh / spiffs not formatted yet MCU:
-      //userprefs.txt open ok //result[0] = 207 //result[1] = 207
-      char result[8];
-      result[0] = f.read(); result[0] -= '0'; // file streams with their chars..
-      uopt->presetPreference = (uint8_t)result[0];
-      SerialM.print("presetPreference = "); SerialM.println(uopt->presetPreference);
+      //userprefs.txt open ok //result = 207
+
+      uopt->presetPreference = (uint8_t)(f.read() - '0');
+      SerialM.print("preset preference = "); SerialM.println(uopt->presetPreference);
       if (uopt->presetPreference > 5) uopt->presetPreference = 0; // fresh spiffs ?
 
-      result[1] = f.read(); result[1] -= '0';
-      uopt->enableFrameTimeLock = (uint8_t)result[1]; // Frame Time Lock
-      SerialM.print("FrameTime Lock = "); SerialM.println(uopt->enableFrameTimeLock);
-      if (uopt->enableFrameTimeLock > 1) uopt->enableFrameTimeLock = 0; // fresh spiffs ?
+      uopt->enableFrameTimeLock = (uint8_t)(f.read() - '0');
+      SerialM.print("frame time lock = "); SerialM.println(uopt->enableFrameTimeLock);
+      if (uopt->enableFrameTimeLock > 1) uopt->enableFrameTimeLock = 0;
 
-      result[2] = f.read(); result[2] -= '0';
-      uopt->presetSlot = (uint8_t)result[2];
-      SerialM.print("presetSlot = "); SerialM.println(uopt->presetSlot); // custom preset slot
-      if (uopt->presetSlot > 5) uopt->presetSlot = 1; // fresh spiffs ?
+      uopt->presetSlot = (uint8_t)(f.read() - '0');
+      SerialM.print("preset slot = "); SerialM.println(uopt->presetSlot);
+      if (uopt->presetSlot > 5) uopt->presetSlot = 1;
 
-      result[3] = f.read(); result[3] -= '0';
-      uopt->frameTimeLockMethod = (uint8_t)result[3];
-      SerialM.print("frameTimeLockMethod = "); SerialM.println(uopt->frameTimeLockMethod);
-      if (uopt->frameTimeLockMethod > 1) uopt->frameTimeLockMethod = 0; // fresh spiffs ?
+      uopt->frameTimeLockMethod = (uint8_t)(f.read() - '0');
+      SerialM.print("frame lock method = "); SerialM.println(uopt->frameTimeLockMethod);
+      if (uopt->frameTimeLockMethod > 1) uopt->frameTimeLockMethod = 0;
 
-      result[4] = f.read(); result[4] -= '0';
-      uopt->enableAutoGain = (uint8_t)result[4];
-      SerialM.print("enableAutoGain = "); SerialM.println(uopt->enableAutoGain);
-      if (uopt->enableAutoGain > 1) uopt->enableAutoGain = 0; // fresh spiffs ?
+      uopt->enableAutoGain = (uint8_t)(f.read() - '0');
+      SerialM.print("auto gain = "); SerialM.println(uopt->enableAutoGain);
+      if (uopt->enableAutoGain > 1) uopt->enableAutoGain = 0;
 
-      result[5] = f.read(); result[5] -= '0';
-      uopt->wantScanlines = (uint8_t)result[5];
-      SerialM.print("wantScanlines = "); SerialM.println(uopt->wantScanlines);
-      if (uopt->wantScanlines > 1) uopt->wantScanlines = 0; // fresh spiffs ?
+      uopt->wantScanlines = (uint8_t)(f.read() - '0');
+      SerialM.print("scanlines = "); SerialM.println(uopt->wantScanlines);
+      if (uopt->wantScanlines > 1) uopt->wantScanlines = 0;
 
-      result[6] = f.read(); result[6] -= '0';
-      uopt->wantOutputComponent = (uint8_t)result[6];
-      SerialM.print("wantOutputComponent = "); SerialM.println(uopt->wantOutputComponent);
-      if (uopt->wantOutputComponent > 1) uopt->wantOutputComponent = 0; // fresh spiffs ?
+      uopt->wantOutputComponent = (uint8_t)(f.read() - '0');
+      SerialM.print("component output = "); SerialM.println(uopt->wantOutputComponent);
+      if (uopt->wantOutputComponent > 1) uopt->wantOutputComponent = 0;
 
-      result[7] = f.read(); result[7] -= '0';
-      uopt->deintMode = (uint8_t)result[7];
-      SerialM.print("deintMode = "); SerialM.println(uopt->deintMode);
-      if (uopt->deintMode > 2) uopt->deintMode = 0; // fresh spiffs ?
+      uopt->deintMode = (uint8_t)(f.read() - '0');
+      SerialM.print("deinterlacer mode = "); SerialM.println(uopt->deintMode);
+      if (uopt->deintMode > 2) uopt->deintMode = 0;
+      
+      uopt->wantVdsLineFilter = (uint8_t)(f.read() - '0');
+      SerialM.print("line filter = "); SerialM.println(uopt->wantVdsLineFilter);
+      if (uopt->wantVdsLineFilter > 1) uopt->wantVdsLineFilter = 1;
+
+      uopt->wantPeaking = (uint8_t)(f.read() - '0');
+      SerialM.print("peaking = "); SerialM.println(uopt->wantPeaking);
+      if (uopt->wantPeaking > 1) uopt->wantPeaking = 0;
       
       f.close();
     }
@@ -3459,10 +3480,9 @@ void handleWiFi() {
       if (millis() - lastTimePing > 1011) { // slightly odd value so not everything happens at once
         //webSocket.broadcastPing(); // sends a WS ping to all Client; returns true if ping is sent out
         if (webSocket.connectedClients() > 0) {
-          char toSend[4] = { 0 };
+          char toSend[5] = { 0 };
           toSend[0] = '#'; // makeshift ping in slot 0
 
-          // id = 0 > button not selected
           switch (rto->presetID) {
           case 0x01:
           case 0x11:
@@ -3513,10 +3533,18 @@ void handleWiFi() {
             break;
           }
 
+          toSend[3] ='@'; // 0x40
+
+          if (uopt->enableAutoGain) { toSend[3] |= (1 << 0); }
+          if (uopt->wantScanlines) { toSend[3] |= (1 << 1); }
+          if (uopt->wantVdsLineFilter) { toSend[3] |= (1 << 2); }
+          if (uopt->wantPeaking) { toSend[3] |= (1 << 3); }
+
           // ws client connected, go none sleep for low latency TCP
           if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 0)) {
             WiFi.setSleepMode(WIFI_NONE_SLEEP);
             wifiNoSleep = 1;
+            delay(1);
           }
           // send ping and stats
           webSocket.broadcastTXT(toSend); 
@@ -3524,6 +3552,7 @@ void handleWiFi() {
         else if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 1)) {
           WiFi.setSleepMode(WIFI_MODEM_SLEEP); // arduino default
           wifiNoSleep = 0;
+          delay(1);
         }
         lastTimePing = millis();
       }
@@ -3856,13 +3885,16 @@ void loop() {
     case 'f':
       SerialM.print("peaking ");
       if (GBS::VDS_PK_Y_H_BYPS::read() == 1) {
+        uopt->wantPeaking = 1;
         GBS::VDS_PK_Y_H_BYPS::write(0);
         SerialM.println("on");
       }
       else {
+        uopt->wantPeaking = 0;
         GBS::VDS_PK_Y_H_BYPS::write(1);
         SerialM.println("off");
       }
+      saveUserPrefs();
     break;
     case 'F':
       SerialM.print("ADC filter ");
@@ -4874,23 +4906,16 @@ void handleType2Command() {
         SerialM.println("userprefs open failed");
       }
       else {
-        char result[8];
-        result[0] = f.read(); result[0] -= '0'; // file streams with their chars..
-        SerialM.print("presetPreference = "); SerialM.println((uint8_t)result[0]);
-        result[1] = f.read(); result[1] -= '0';
-        SerialM.print("FrameTime Lock = "); SerialM.println((uint8_t)result[1]);
-        result[2] = f.read(); result[2] -= '0';
-        SerialM.print("presetSlot = "); SerialM.println((uint8_t)result[2]);
-        result[3] = f.read(); result[3] -= '0';
-        SerialM.print("frameTimeLockMethod = "); SerialM.println((uint8_t)result[3]);
-        result[4] = f.read(); result[4] -= '0';
-        SerialM.print("enableAutoGain = "); SerialM.println((uint8_t)result[4]);
-        result[5] = f.read(); result[5] -= '0';
-        SerialM.print("wantScanlines = "); SerialM.println((uint8_t)result[5]);
-        result[6] = f.read(); result[6] -= '0';
-        SerialM.print("wantOutputComponent = "); SerialM.println((uint8_t)result[6]);
-        result[7] = f.read(); result[7] -= '0';
-        SerialM.print("deintMode = "); SerialM.println((uint8_t)result[7]);
+        SerialM.print("preset preference = "); SerialM.println((uint8_t)(f.read() - '0'));
+        SerialM.print("frame time lock = "); SerialM.println((uint8_t)(f.read() - '0'));
+        SerialM.print("preset slot = "); SerialM.println((uint8_t)(f.read() - '0'));
+        SerialM.print("frame lock method = "); SerialM.println((uint8_t)(f.read() - '0'));
+        SerialM.print("auto gain = "); SerialM.println((uint8_t)(f.read() - '0'));
+        SerialM.print("scanlines = "); SerialM.println((uint8_t)(f.read() - '0'));
+        SerialM.print("component output = "); SerialM.println((uint8_t)(f.read() - '0'));
+        SerialM.print("deinterlacer mode = "); SerialM.println((uint8_t)(f.read() - '0'));
+        SerialM.print("line filter = "); SerialM.println((uint8_t)(f.read() - '0'));
+        SerialM.print("peaking = "); SerialM.println((uint8_t)(f.read() - '0'));
         f.close();
       }
     }
@@ -4948,24 +4973,18 @@ void handleType2Command() {
     }
     break;
     case 'm':
-      // DCTI (pixel edges slope enhancement)
-      if (GBS::VDS_UV_STEP_BYPS::read() == 1) {
-        GBS::VDS_UV_STEP_BYPS::write(0);
-        // VDS_TAP6_BYPS (S3_24, 3) no longer enabled by default
-        /*if (GBS::VDS_TAP6_BYPS::read() == 1) {
-          GBS::VDS_TAP6_BYPS::write(0); // no good way to store this change for later reversal
-          GBS::VDS_0X2A_RESERVED_2BITS::write(1); // so use this trick to detect it later
-          }*/
-        SerialM.println("DCTI on");
+      SerialM.print("line filter ");
+      if (uopt->wantVdsLineFilter) {
+        uopt->wantVdsLineFilter = 0;
+        GBS::VDS_D_RAM_BYPS::write(1);
+        SerialM.println("off");
       }
       else {
-        GBS::VDS_UV_STEP_BYPS::write(1);
-        /*if (GBS::VDS_0X2A_RESERVED_2BITS::read() == 1) {
-          GBS::VDS_TAP6_BYPS::write(1);
-          GBS::VDS_0X2A_RESERVED_2BITS::write(0);
-          }*/
-        SerialM.println("DCTI off");
+        uopt->wantVdsLineFilter = 1;
+        GBS::VDS_D_RAM_BYPS::write(0);
+        SerialM.println("on");
       }
+      saveUserPrefs();
       break;
     case 'n':
       SerialM.print("ADC gain++ : ");
@@ -5092,7 +5111,7 @@ void startWebserver()
   {
     //Serial.println("\n(WiFi) AutoConnect already off");
   }
-  //WiFi.disconnect(); // test captive portal by forgetting wifi credentials
+
   persWM.setApCredentials(ap_ssid, ap_password);
   persWM.onConnect([]() {
   });
@@ -5397,6 +5416,8 @@ void saveUserPrefs() {
   f.write(uopt->wantScanlines + '0');
   f.write(uopt->wantOutputComponent + '0');
   f.write(uopt->deintMode + '0');
+  f.write(uopt->wantVdsLineFilter + '0');
+  f.write(uopt->wantPeaking + '0');
   f.close();
 }
 

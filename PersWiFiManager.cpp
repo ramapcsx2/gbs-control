@@ -66,9 +66,14 @@ void PersWiFiManager::startApMode(){
   _apPass.length() ? WiFi.softAP(getApSsid().c_str(), _apPass.c_str(), 6) : WiFi.softAP(getApSsid().c_str());
 
   _dnsServer->stop();
+  // set which return code will be used for all other domains (e.g. sending
+  // ServerFailure instead of NonExistentDomain will reduce number of queries
+  // sent by clients)
+  // default is DNSReplyCode::NonExistentDomain
+  _dnsServer->setErrorReplyCode(DNSReplyCode::ServerFailure);
   // modify TTL associated  with the domain name (in seconds) // default is 60 seconds
   _dnsServer->setTTL(300); // (in seconds) as per example
-  _dnsServer->start((byte)53, "*", apIP);
+  _dnsServer->start((byte)53, "gbscontrol.local", apIP);
 
   if (_apHandler) _apHandler();  
 }//startApMode
@@ -113,13 +118,20 @@ void PersWiFiManager::setupWiFiHandlers() {
   }); //_server->on /wifi/list
 
   _server->on("/wifi/connect", [&]() {
-    _server->send(200, "text/html", "connecting...");
+    _server->send(200, "text/html", "connecting... please reset the ESP8266 in a few seconds");
+    _server->handleClient();
+    delay(100);
     attemptConnection(_server->arg("n"), _server->arg("p"));
+    unsigned long to = millis();
+    while ((WiFi.status() != WL_CONNECTED) && ((millis() - to) < 10000)) {
+      delay(200);
+      Serial.print(".");
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("\nconnected");
+      delay(100);
+    }
     // module should restart
-    delay(500);
-    yield();
-    delay(1000);
-    yield();
     ESP.restart();
   }); //_server->on /wifi/connect
 

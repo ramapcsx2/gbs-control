@@ -26,11 +26,11 @@
                 border-top: 6px solid #555;
                 border-left: 6px solid transparent;
             }
-            
+
             p {
                 margin: 1px;
             }
- 
+
             .button {
                 background-color: #2e657d;
                 border: double;
@@ -52,30 +52,30 @@
                 min-height: 88px;
                 float: left;
             }
-            
-            .button.preset.inactive, .button.slot.inactive {
+
+            .button.preset, .button.slot, .button.option {
                 background-color: #2e657d;
             }
-            
-            .button.preset.active, .button.slot.active {
+
+            .button.preset.active, .button.slot.active, .button.option.active {
                 background-color: #4CAF50;
             }
 
             .button:hover {
                 background-color: #4CAF50;
             }
-            
+
             textarea {
                 width: -moz-available;
                 width: -webkit-fill-available;
                 max-width: 1024px;
                 resize: none;
                 background: antiquewhite;
-                height:400px;
+                height: 400px;
                 font-size: large;
                 border-radius: 16px;
             }
-            
+
             br {
                 clear: left;
             }
@@ -175,52 +175,91 @@
                             queuedText = '';
                             theTerminal.scrollTop = theTerminal.scrollHeight;
                         });
-                    }
-                    else {
+                    } else {
                         var presetId = e.data[1];
-                        var activePresetButton = document.getElementById(presetId); 
-                        if(activePresetButton) {
-                            var presetButtonList = document.getElementsByClassName('button preset active');
+                        var activePresetButton = document.getElementById(presetId);
+                        if (activePresetButton) {
+                            var presetButtonList = document.getElementsByClassName('button preset');
                             for (let button of presetButtonList) {
-                                button.className = 'button preset inactive';
+                                if (button !== activePresetButton) {
+                                    button.classList.remove('active');
+                                } else {
+                                    button.classList.add('active');
+                                }
                             }
-                            activePresetButton.className = 'button preset active';
                         }
-                            
+
                         var slotId = '1' + e.data[2];
                         var activeSlotButton = document.getElementById(slotId);
-                        if(activeSlotButton) {
-                            var slotButtonList = document.getElementsByClassName('button slot active');
+                        if (activeSlotButton) {
+                            var slotButtonList = document.getElementsByClassName('button slot');
                             for (let button of slotButtonList) {
-                                button.className = 'button slot inactive';
+                                if (button !== activeSlotButton) {
+                                    button.classList.remove('active');
+                                } else {
+                                    button.classList.add('active');
+                                }
                             }
-                            activeSlotButton.className = 'button slot active';
+                        }
+
+                        if (e.data[3]) {
+                            var optionByte0 = e.data[3].charCodeAt(0);
+                            var optionButtonList = document.getElementsByClassName('button option');
+                            for (let button of optionButtonList) {
+                                if (button.classList.contains('adcAutoGain')) {
+                                    if ((optionByte0 & 0x01) == 0x01) {
+                                        button.classList.add('active');
+                                    } else {
+                                        button.classList.remove('active');
+                                    }
+                                } else if (button.classList.contains('scanlines')) {
+                                    if ((optionByte0 & 0x02) == 0x02) {
+                                        button.classList.add('active');
+                                    } else {
+                                        button.classList.remove('active');
+                                    }
+                                } else if (button.classList.contains('vdsLineFilter')) {
+                                    if ((optionByte0 & 0x04) == 0x04) {
+                                        button.classList.add('active');
+                                    } else {
+                                        button.classList.remove('active');
+                                    }
+                                } else if (button.classList.contains('peaking')) {
+                                    if ((optionByte0 & 0x08) == 0x08) {
+                                        button.classList.add('active');
+                                    } else {
+                                        button.classList.remove('active');
+                                    }
+                                }
+                                
+                            }
                         }
                     }
                     myTimer = setInterval(timeOutWs, 1800);
-                };
+                }
+                ;
             }
         </script>
     </head>
     <body>
         <h1>Default Presets</h1>
         <p>Loads one of the default presets. The selection will also be loaded on reset.</p>
-        <button class='button preset inactive' type='button' id='1' onclick="loadUser('f')">1280x960 (default)</button>
-        <button class='button preset inactive' type='button' id='2' onclick="loadUser('p')">1280x1024</button>
-        <button class='button preset inactive' type='button' id='3' onclick="loadUser('g')">1280x720</button>
-        <button class='button preset inactive' type='button' id='4' onclick="loadUser('h')">640x480</button>
+        <button class='button preset' type='button' id='1' onclick="loadUser('f')">1280x960 (default)</button>
+        <button class='button preset' type='button' id='2' onclick="loadUser('p')">1280x1024</button>
+        <button class='button preset' type='button' id='3' onclick="loadUser('g')">1280x720</button>
+        <button class='button preset' type='button' id='4' onclick="loadUser('h')">640x480</button>
         <br>
         <h1>Custom Preset</h1>
         <p>Select a slot for storing customized presets. Saving, loading or selecting a slot will mark the preset to be loaded on reset.</p>
-        <button class='button preset inactive' type='button' id='9' onclick="loadUser('3')">Load Custom Preset</button>
+        <button class='button preset' type='button' id='9' onclick="loadUser('3')">Load Custom Preset</button>
         <button class='button' type='button' onclick="loadUser('4')">Save Custom Preset</button>
         <br>
-        <button class='button slot inactive' type='button' id='11' onclick="loadUser('b')">Slot 1</button>
-        <button class='button slot inactive' type='button' id='12' onclick="loadUser('c')">Slot 2</button>
-        <button class='button slot inactive' type='button' id='13' onclick="loadUser('d')">Slot 3</button>
-        <button class='button slot inactive' type='button' id='14' onclick="loadUser('j')">Slot 4</button>
-        <button class='button slot inactive' type='button' id='15' onclick="loadUser('k')">Slot 5</button>
-        <button class='button preset inactive' type='button' id='8' onclick="loadDoc('K')">Source Pass-through</button>
+        <button class='button slot' type='button' id='11' onclick="loadUser('b')">Slot 1</button>
+        <button class='button slot' type='button' id='12' onclick="loadUser('c')">Slot 2</button>
+        <button class='button slot' type='button' id='13' onclick="loadUser('d')">Slot 3</button>
+        <button class='button slot' type='button' id='14' onclick="loadUser('j')">Slot 4</button>
+        <button class='button slot' type='button' id='15' onclick="loadUser('k')">Slot 5</button>
+        <button class='button preset' type='button' id='8' onclick="loadDoc('K')">Source Pass-through</button>
         <br>
         <h1>Picture Control</h1>
         <h2>Move Picture</h2>
@@ -243,11 +282,12 @@
         <p>Gain +/- adjusts the gain for the currently loaded preset. Auto Gain is saved across reboots.</p>
         <button class='button' type='button' onclick="loadUser('n')">Gain +</button>
         <button class='button' type='button' onclick="loadUser('o')">Gain -</button>
-        <button class='button' type='button' onclick="loadDoc('T')">Auto Gain Adjust Toggle</button>
+        <button class='button option adcAutoGain' type='button' onclick="loadDoc('T')">Auto Gain Adjust Toggle</button>
         <br>
         <h1>Enhancements</h1>
-        <button class='button' type='button' onclick="loadUser('7')">Scanlines Toggle</button>
-        <button class='button' type='button' onclick="loadUser('m')">DCTI Toggle</button>
+        <button class='button option scanlines' type='button' onclick="loadUser('7')">Scanlines</button>
+        <button class='button option vdsLineFilter' type='button' onclick="loadUser('m')">Line Filter</button>
+        <button class='button option peaking' type='button' onclick="loadDoc('f')">Peaking</button>
         <button class='button' type='button' onclick="loadDoc('o')">Oversampling</button>
         <br>
         <h1>Deinterlacer</h1>
@@ -281,7 +321,6 @@
         <button class='button' type='button' onclick="loadDoc('.')">Resynchronize with Source (AutoBestHTotal)</button>
         <button class='button' type='button' onclick="loadDoc('l')">Reset SyncProcessor</button>
         <button class='button' type='button' onclick="loadDoc('D')">Debug View</button>
-        <button class='button' type='button' onclick="loadDoc('f')">Peaking</button>
         <button class='button' type='button' onclick="loadDoc('F')">ADC Filter</button>
         <button class='button' type='button' onclick="loadDoc('a')">HTotal++</button>
         <button class='button' type='button' onclick="loadDoc('n')">PLL divider++</button>
@@ -296,6 +335,8 @@
         <button class='button' type='button' onclick="loadUser('e')">List Files, Options</button>
         <button class='button' type='button' onclick="loadUser('l')">Cycle SDRAM clock speed</button>
         <br>
-        <form><textarea id='outputTextArea' readonly></textarea></form>
+        <form>
+            <textarea id='outputTextArea' readonly></textarea>
+        </form>
     </body>
 </html>
