@@ -39,7 +39,12 @@ unsigned long pingLastTime;
 
 const char* ap_ssid = "gbscontrol";
 const char* ap_password = "qqqqqqqq";
-const char* ap_info_string = "(WiFi) AP mode (SSID: gbscontrol, password 'qqqqqqqq'): Connect to 'gbscontrol.local' in your browser";
+// change device_hostname_full and device_hostname_partial to rename the device 
+// (allows 2 or more on the same network)
+const char* device_hostname_full = "gbscontrol.local";
+const char* device_hostname_partial = "gbscontrol"; // for MDNS
+//
+const char* ap_info_string = "(WiFi) AP mode (SSID: gbscontrol, pass 'qqqqqqqq'): Access 'gbscontrol.local' in your browser";
 ESP8266WebServer server(80);
 DNSServer dnsServer;
 WebSocketsServer webSocket(81);
@@ -3177,7 +3182,7 @@ void setup() {
   Serial.setTimeout(10);
 #if defined(ESP8266)
   // start web services as early in boot as possible > greater chance to get a websocket connection in time for logging startup
-   WiFi.hostname("gbscontrol.local");
+   WiFi.hostname(device_hostname_full);
   if (rto->webServerEnabled) {
     rto->allowUpdatesOTA = false; // need to initialize for handleWiFi()
     startWebserver();
@@ -3257,14 +3262,14 @@ void setup() {
   
 #if defined(ESP8266)
   if (WiFi.status() == WL_CONNECTED) {
-    SerialM.print("(WiFi) IP: "); SerialM.print(WiFi.localIP().toString());
+    SerialM.print("(WiFi): IP: "); SerialM.print(WiFi.localIP().toString());
     SerialM.print(" Hostname: "); SerialM.println(WiFi.hostname());
   }
   else if (WiFi.SSID().length() == 0) {
     SerialM.println(ap_info_string);
   }
   else {
-    SerialM.println("(WiFi) still connecting..");
+    SerialM.println("(WiFi): still connecting..");
   }
 
   //Serial.setDebugOutput(true); // if you want simple wifi debug info
@@ -3468,96 +3473,94 @@ void handleWiFi() {
 #if defined(ESP8266)
   if (rto->webServerEnabled && rto->webServerStarted) {
     persWM.handleWiFi(); // if connected, returns instantly. otherwise it reconnects or opens AP
-    if ((WiFi.status() == WL_CONNECTED) || (WiFi.getMode() == WIFI_AP)) // crash protection
-    {
-      dnsServer.processNextRequest();
-      webSocket.loop();
-      // if there's a control command from the server, globalCommand will now hold it.
-      // process it in the parser, then reset to 0 at the end of the sketch.
+    dnsServer.processNextRequest();
+    MDNS.update();
+    webSocket.loop();
+    // if there's a control command from the server, globalCommand will now hold it.
+    // process it in the parser, then reset to 0 at the end of the sketch.
 
-      static boolean wifiNoSleep = 0;
-      static unsigned long lastTimePing = millis();
-      if (millis() - lastTimePing > 1011) { // slightly odd value so not everything happens at once
-        //webSocket.broadcastPing(); // sends a WS ping to all Client; returns true if ping is sent out
-        if (webSocket.connectedClients() > 0) {
-          char toSend[5] = { 0 };
-          toSend[0] = '#'; // makeshift ping in slot 0
+    static boolean wifiNoSleep = 0;
+    static unsigned long lastTimePing = millis();
+    if (millis() - lastTimePing > 1011) { // slightly odd value so not everything happens at once
+      webSocket.broadcastPing(); // sends a WS ping to all Client; returns true if ping is sent out
+      if (webSocket.connectedClients() > 0) {
+        char toSend[5] = { 0 };
+        toSend[0] = '#'; // makeshift ping in slot 0
 
-          switch (rto->presetID) {
-          case 0x01:
-          case 0x11:
-            toSend[1] = '1';
-            break;
-          case 0x02:
-          case 0x12:
-            toSend[1] = '2';
-            break;
-          case 0x03:
-          case 0x13:
-            toSend[1] = '3';
-            break;
-          case 0x04:
-          case 0x14:
-            toSend[1] = '4';
-            break;
-          case 0x09: // custom
-            toSend[1] = '9'; 
-            break;
-          case 0x21: // bypass 1
-          case 0x22: // bypass 2
-            toSend[1] = '8'; 
-            break;
-          default:
-            toSend[1] = '0';
-            break;
-          }
-
-          switch (uopt->presetSlot) {
-          case 1:
-            toSend[2] = '1';
-            break;
-          case 2:
-            toSend[2] = '2';
-            break;
-          case 3:
-            toSend[2] = '3';
-            break;
-          case 4:
-            toSend[2] = '4';
-            break;
-          case 5:
-            toSend[2] = '5';
-            break;
-          default:
-            toSend[2] = '1';
-            break;
-          }
-
-          toSend[3] ='@'; // 0x40
-
-          if (uopt->enableAutoGain) { toSend[3] |= (1 << 0); }
-          if (uopt->wantScanlines) { toSend[3] |= (1 << 1); }
-          if (uopt->wantVdsLineFilter) { toSend[3] |= (1 << 2); }
-          if (uopt->wantPeaking) { toSend[3] |= (1 << 3); }
-
-          // ws client connected, go none sleep for low latency TCP
-          if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 0)) {
-            WiFi.setSleepMode(WIFI_NONE_SLEEP);
-            wifiNoSleep = 1;
-            delay(1);
-          }
-          // send ping and stats
-          webSocket.broadcastTXT(toSend); 
+        switch (rto->presetID) {
+        case 0x01:
+        case 0x11:
+          toSend[1] = '1';
+          break;
+        case 0x02:
+        case 0x12:
+          toSend[1] = '2';
+          break;
+        case 0x03:
+        case 0x13:
+          toSend[1] = '3';
+          break;
+        case 0x04:
+        case 0x14:
+          toSend[1] = '4';
+          break;
+        case 0x09: // custom
+          toSend[1] = '9';
+          break;
+        case 0x21: // bypass 1
+        case 0x22: // bypass 2
+          toSend[1] = '8';
+          break;
+        default:
+          toSend[1] = '0';
+          break;
         }
-        else if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 1)) {
-          WiFi.setSleepMode(WIFI_MODEM_SLEEP); // arduino default
-          wifiNoSleep = 0;
+
+        switch (uopt->presetSlot) {
+        case 1:
+          toSend[2] = '1';
+          break;
+        case 2:
+          toSend[2] = '2';
+          break;
+        case 3:
+          toSend[2] = '3';
+          break;
+        case 4:
+          toSend[2] = '4';
+          break;
+        case 5:
+          toSend[2] = '5';
+          break;
+        default:
+          toSend[2] = '1';
+          break;
+        }
+
+        toSend[3] = '@'; // 0x40
+
+        if (uopt->enableAutoGain) { toSend[3] |= (1 << 0); }
+        if (uopt->wantScanlines) { toSend[3] |= (1 << 1); }
+        if (uopt->wantVdsLineFilter) { toSend[3] |= (1 << 2); }
+        if (uopt->wantPeaking) { toSend[3] |= (1 << 3); }
+
+        // ws client connected, go none sleep for low latency TCP
+        if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 0)) {
+          WiFi.setSleepMode(WIFI_NONE_SLEEP);
+          wifiNoSleep = 1;
           delay(1);
         }
-        lastTimePing = millis();
+        // send ping and stats
+        webSocket.broadcastTXT(toSend);
       }
-      server.handleClient(); // after websocket loop!
+      else if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 1)) {
+        WiFi.setSleepMode(WIFI_MODEM_SLEEP); // arduino default
+        wifiNoSleep = 0;
+        delay(1);
+      }
+      lastTimePing = millis();
     }
+    server.handleClient(); // after websocket loop!
   }
 
   if (rto->allowUpdatesOTA) {
@@ -5114,6 +5117,7 @@ void startWebserver()
 
   persWM.setApCredentials(ap_ssid, ap_password);
   persWM.onConnect([]() {
+    SerialM.println("(WiFi): STA mode connected");
   });
   persWM.onAp([]() {
     SerialM.println(ap_info_string);
@@ -5134,9 +5138,10 @@ void startWebserver()
     persWM.begin(); // first try connecting to stored network, go AP mode after timeout
   }
 
-  MDNS.begin("gbscontrol"); // respond to MDNS request for gbscontrol.local
+  MDNS.begin(device_hostname_partial); // respond to MDNS request for gbscontrol.local
   server.begin(); // Webserver for the site
   webSocket.begin();  // Websocket for interaction
+  MDNS.addService("http", "tcp", 80); // Add service to MDNS-SD
   yield();
 
 #ifdef HAVE_PINGER_LIBRARY

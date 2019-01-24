@@ -123,7 +123,7 @@
                     theTerminal.value += ' Restart';
                     theTerminal.value += '\n';
                     theTerminal.scrollTop = theTerminal.scrollHeight;
-                    myTimer = setInterval(checkWs, 1800);
+                    myTimer = setInterval(checkWs, 2100);
                 }
             }
             function checkWs() {
@@ -150,10 +150,10 @@
                 clearInterval(myTimer);
                 clearInterval(wsCheckTimer);
                 ws = new WebSocket('ws://' + location.hostname + ':81/',['arduino']);
-                wsCheckTimer = setInterval(checkWs, 1000);
+                wsCheckTimer = setInterval(checkWs, 1600);
                 ws.onopen = function() {
                     console.log('ws onopen');
-                    myTimer = setInterval(timeOutWs, 1800);
+                    myTimer = setInterval(timeOutWs, 2100);
                 }
                 ;
                 ws.onerror = function(error) {
@@ -235,7 +235,7 @@
                             }
                         }
                     }
-                    myTimer = setInterval(timeOutWs, 1800);
+                    myTimer = setInterval(timeOutWs, 2100);
                 }
                 ;
             }
