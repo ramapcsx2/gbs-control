@@ -183,6 +183,7 @@ struct userOptions {
   uint8_t deintMode;
   uint8_t wantVdsLineFilter;
   uint8_t wantPeaking;
+  uint8_t preferScalingRgbhv;
 } uopts;
 struct userOptions *uopt = &uopts;
 
@@ -406,6 +407,12 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
       break;
     }
   }
+
+  // 640x480 RGBHV scaling mode
+  if (rto->videoStandardInput == 14) {
+    GBS::GBS_OPTION_SCALING_RGBHV::write(1);
+    rto->videoStandardInput = 3;
+  }
 }
 
 void setResetParameters() {
@@ -617,15 +624,15 @@ void setSpParameters() {
     writeOneByte(0x37, 0x02);
   }
 
-  GBS::SP_PRE_COAST::write(6); // SP test: 9
-  GBS::SP_POST_COAST::write(16); // SP test: 9
-
-  if (rto->videoStandardInput == 7) {
-    // override early for 1080p. depending on code flow, this may not trigger.
-    // it should trigger in passThroughWithIfModeSwitch then
-    GBS::SP_POST_COAST::write(0x16);
+  if (GBS::GBS_OPTION_SCALING_RGBHV::read() != 1) {
+    GBS::SP_PRE_COAST::write(6); // SP test: 9
+    GBS::SP_POST_COAST::write(16); // SP test: 9
+    if (rto->videoStandardInput == 7) {
+      // override early for 1080p. depending on code flow, this may not trigger.
+      // it should trigger in passThroughWithIfModeSwitch then
+      GBS::SP_POST_COAST::write(0x16);
+    }
   }
-
   writeOneByte(0x3a, 0x03); // was 0x0a // range depends on source vtiming, from 0x03 to xxx, some good effect at lower levels
 
   // this needs to be runtime, and based on current line count (vt:321 for PAL)
@@ -666,7 +673,7 @@ void setSpParameters() {
   writeOneByte(0x53, 0x06); // 0x05 rgbhv: 6
   writeOneByte(0x54, 0x00); // 0xc0
 
-  if (rto->videoStandardInput != 15) {
+  if (rto->videoStandardInput != 15 && (GBS::GBS_OPTION_SCALING_RGBHV::read() != 1)) {
     writeOneByte(0x3e, 0x00); // SP sub coast on / with ofw protect disabled; snes 239 to normal rapid switches
     GBS::SP_CLAMP_MANUAL::write(0); // 0 = automatic on/off possible
     GBS::SP_CLP_SRC_SEL::write(1); // clamp source 1: pixel clock, 0: 27mhz
@@ -874,6 +881,20 @@ void optimizeSogLevel() {
   GBS::MD_VPERIOD_UNLOCK_VALUE::write(unlockV);
   GBS::MD_HPERIOD_LOCK_VALUE::write(lockH);
   GBS::MD_VPERIOD_LOCK_VALUE::write(lockV);
+}
+
+void switchSyncProcessingMode(uint8_t mode) {
+  if (mode) {
+    GBS::SP_PRE_COAST::write(0);
+    GBS::SP_POST_COAST::write(0);
+    GBS::ADC_SOGEN::write(0);
+    GBS::SP_SOG_MODE::write(0);
+    GBS::SP_CLAMP_MANUAL::write(1);
+    GBS::SP_NO_COAST_REG::write(1);
+  }
+  else {
+    SerialM.println("todo..");
+  }
 }
 
 // GBS boards have 2 potential sync sources:
@@ -1461,6 +1482,10 @@ void shiftVerticalUpIF() {
   // -4 to allow variance in source line count
   uint8_t offset = rto->videoStandardInput == 2 ? 4 : 1;
   uint16_t sourceLines = GBS::VPERIOD_IF::read() - offset;
+  // add an override for sourceLines, in case where the IF data is not available
+  if ((GBS::GBS_OPTION_SCALING_RGBHV::read() == 1) && rto->videoStandardInput == 14) {
+    sourceLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+  }
   int16_t stop = GBS::IF_VB_SP::read();
   int16_t start = GBS::IF_VB_ST::read();
 
@@ -1475,6 +1500,11 @@ void shiftVerticalUpIF() {
 void shiftVerticalDownIF() {
   uint8_t offset = rto->videoStandardInput == 2 ? 4 : 1;
   uint16_t sourceLines = GBS::VPERIOD_IF::read() - offset;
+  // add an override for sourceLines, in case where the IF data is not available
+  if ((GBS::GBS_OPTION_SCALING_RGBHV::read() == 1) && rto->videoStandardInput == 14) {
+    sourceLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+  }
+
   int16_t stop = GBS::IF_VB_SP::read();
   int16_t start = GBS::IF_VB_ST::read();
 
@@ -1765,6 +1795,11 @@ void applyBestHTotal(uint16_t bestHTotal) {
 
 void doPostPresetLoadSteps() {
   rto->presetID = GBS::GBS_PRESET_ID::read();
+  // 640x480 RGBHV scaling mode
+  if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 1) {
+    rto->videoStandardInput = 3;
+    switchSyncProcessingMode(1);
+  }
   GBS::PAD_SYNC_OUT_ENZ::write(1); // sync out off
   GBS::OUT_SYNC_CNTRL::write(1); // prepare sync out to PAD
   //GBS::PAD_CKOUT_ENZ::write(0); // clock out to pin enabled for testing
@@ -1820,6 +1855,12 @@ void doPostPresetLoadSteps() {
   }
 
   if (!isCustomPreset) {
+    // new: set retiming hs ST, SP
+    GBS::SP_RT_HS_ST::write(0);
+    GBS::SP_RT_HS_SP::write(GBS::PLLAD_MD::read() * 0.93f);
+    // also new: fetch more pixels from RAM, made possible by extending HBST (memory) to close to htotal
+    //GBS::PB_FETCH_NUM::write(0x110);
+    //GBS::VDS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 8);
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
       GBS::VDS_TAP6_BYPS::write(0); // 3_24
@@ -2078,6 +2119,10 @@ void doPostPresetLoadSteps() {
   //  advancePhase();
   //}
 
+  if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 1) {
+    rto->videoStandardInput = 14;
+  }
+
   if (!rto->syncWatcherEnabled && !uopt->wantOutputComponent) {
     GBS::PAD_SYNC_OUT_ENZ::write(0);
   }
@@ -2217,7 +2262,7 @@ void applyPresets(uint8_t result) {
       passThroughWithIfModeSwitch();
     }
   }
-  else if (result == 5 || result == 6 || result == 7 || result == 14) {
+  else if (result == 5 || result == 6 || result == 7 || result == 13) {
     // use bypass mode for all configs
     if (result == 5) {
       SerialM.println("720p 60Hz HDTV ");
@@ -2231,9 +2276,9 @@ void applyPresets(uint8_t result) {
       SerialM.println("1080p 60Hz HDTV ");
       rto->videoStandardInput = 7;
     }
-    else if (result == 14) {
+    else if (result == 13) {
       SerialM.println("VGA/SVGA/XGA/SXGA");
-      rto->videoStandardInput = 14;
+      rto->videoStandardInput = 13;
     }
 
     passThroughWithIfModeSwitch();
@@ -2387,10 +2432,10 @@ void cycleModeDetectSkew() {
 static uint8_t getVideoMode() {
   uint8_t detectedMode = 0;
 
-  if (rto->videoStandardInput == 15) { // check RGBHV first
+  if (rto->videoStandardInput >= 14) { // check RGBHV first
     detectedMode = GBS::STATUS_16::read();
     if ((detectedMode & 0x0a) > 0) { // bit 1 or 3 active?
-      return 15; // still RGBHV bypass
+      return rto->videoStandardInput; // still RGBHV bypass, 14 or 15
     }
   }
 
@@ -2807,7 +2852,7 @@ void passThroughWithIfModeSwitch() {
     GBS::PLLAD_KS::write(1); // 5_16
     GBS::PLLAD_CKOS::write(0); // 5_16
   }
-  else if (rto->videoStandardInput <= 7 || rto->videoStandardInput == 14) {
+  else if (rto->videoStandardInput <= 7 || rto->videoStandardInput == 13) {
     // HD shared
     GBS::SP_DIS_SUB_COAST::write(1);
     GBS::ADC_CLK_ICLK1X::write(0); // new
@@ -2837,7 +2882,7 @@ void passThroughWithIfModeSwitch() {
       GBS::SP_POST_COAST::write(0x16); // important
       delay(6);
     }
-    if (rto->videoStandardInput == 14) { // odd HD mode (PS2 "VGA" over Component)
+    if (rto->videoStandardInput == 13) { // odd HD mode (PS2 "VGA" over Component)
       applyRGBPatches(); // treat mostly as RGB, clamp R/B to gnd
       GBS::SP_PRE_COAST::write(3);
       GBS::SP_POST_COAST::write(3);
@@ -2854,7 +2899,7 @@ void passThroughWithIfModeSwitch() {
   latchPLLAD();
   delay(30);
 
-  if (rto->videoStandardInput == 14) {
+  if (rto->videoStandardInput == 13) {
     uint16_t vtotal = GBS::STATUS_SYNC_PROC_VTOTAL::read();
     GBS::PLLAD_MD::write(512);
     GBS::PLLAD_FS::write(1); // 5_11
@@ -3218,6 +3263,7 @@ void setup() {
   uopt->deintMode = 0;
   uopt->wantVdsLineFilter = 1;
   uopt->wantPeaking = 1;
+  uopt->preferScalingRgbhv = 0;
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->enableDebugPings = false;
@@ -3482,7 +3528,7 @@ void handleWiFi() {
     static boolean wifiNoSleep = 0;
     static unsigned long lastTimePing = millis();
     if (millis() - lastTimePing > 1011) { // slightly odd value so not everything happens at once
-      webSocket.broadcastPing(); // sends a WS ping to all Client; returns true if ping is sent out
+      //webSocket.broadcastPing(); // sends a WS ping to all Client; returns true if ping is sent out
       if (webSocket.connectedClients() > 0) {
         char toSend[5] = { 0 };
         toSend[0] = '#'; // makeshift ping in slot 0
@@ -3802,8 +3848,8 @@ void loop() {
       SerialM.print("ADC: "); SerialM.println(rto->phaseADC);
     break;
     case '#':
-      rto->videoStandardInput = 14;
-      applyPresets(14);
+      rto->videoStandardInput = 13;
+      applyPresets(13);
       //Serial.println(getStatusHVSyncStable());
       //globalDelay++;
       //SerialM.println(globalDelay);
@@ -4462,9 +4508,57 @@ void loop() {
 
     }
 
-    if (rto->videoStandardInput == 15) { // RGBHV checks
+    if (rto->videoStandardInput >= 14) { // RGBHV checks
       static uint8_t RGBHVNoSyncCounter = 0;
       uint8_t VSHSStatus = GBS::STATUS_16::read();
+
+      if (uopt->preferScalingRgbhv) {
+        // is the source in range for scaling RGBHV?
+        uint16 sourceLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+        if ((sourceLines >= 480 && sourceLines <= 535) && rto->videoStandardInput == 15) {
+          uint16_t firstDetectedSourceLines = sourceLines;
+          boolean moveOn = 1;
+          for (int i = 0; i < 10; i++) {
+            sourceLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+            if (sourceLines != firstDetectedSourceLines) {
+              moveOn = 0;
+              break;
+            }
+            delay(20);
+          }
+          if (moveOn) {
+            GBS::ADC_SOGEN::write(0);
+            GBS::SP_SOG_MODE::write(0);
+            GBS::GBS_OPTION_SCALING_RGBHV::write(1);
+            rto->videoStandardInput = 3;
+            applyPresets(rto->videoStandardInput);
+            GBS::GBS_OPTION_SCALING_RGBHV::write(1);
+            rto->videoStandardInput = 14;
+            switchSyncProcessingMode(1);
+            GBS::IF_HB_ST2::write(0x70); 
+            GBS::IF_HB_SP2::write(0x80);
+            GBS::IF_HBIN_SP::write(0x60);
+            delay(100);
+          }
+        }
+        if ((sourceLines < 480 || sourceLines > 535) && rto->videoStandardInput == 14) {
+          uint16_t firstDetectedSourceLines = sourceLines;
+          boolean moveOn = 1;
+          for (int i = 0; i < 10; i++) {
+            sourceLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+            if (sourceLines != firstDetectedSourceLines) {
+              moveOn = 0;
+              break;
+            }
+            delay(20);
+          }
+          if (moveOn) {
+            rto->videoStandardInput = 15;
+            applyPresets(rto->videoStandardInput); // exception: apply preset here, not later in syncwatcher
+            delay(100);
+          }
+        }
+      }
 
       if ((VSHSStatus & 0x0a) != 0x0a) {
         LEDOFF;
@@ -4497,7 +4591,8 @@ void loop() {
         ( // what a mess 
         (((rto->continousStableCounter > 3) && (GBS::STATUS_MISC_PLLAD_LOCK::read() != 1))
           || (RGBHVNoSyncCounter > 1))
-        && (millis() - lastTimeCheck > 750)
+        && (millis() - lastTimeCheck > 750
+        && rto->videoStandardInput != 14)
         )
       {
         //static uint16_t currentPllDivider = GBS::PLLAD_MD::read();
@@ -5155,14 +5250,8 @@ void startWebserver()
         response.DestIPAddress.toString().c_str(),
         response.ResponseTime
         );
-      if (WiFi.status() == WL_CONNECTED)
-      {
-        // produce a stream of ping results if connection is good
-        if (rto->enableDebugPings) {
-          pinger.Ping(WiFi.gatewayIP(), 1, 500);
-        }
-      }
-      pingLastTime = millis(); //stop the regular interval pings
+
+      pingLastTime = millis() - 900; // produce a fast stream of pings if connection is good
     }
     else
     {
