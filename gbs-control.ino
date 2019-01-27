@@ -1729,7 +1729,7 @@ void applyBestHTotal(uint16_t bestHTotal) {
 
     uint16_t h_blank_memory_start_position = GBS::VDS_HB_ST::read();
     uint16_t h_blank_memory_stop_position = GBS::VDS_HB_SP::read();
-    h_blank_memory_start_position += (diffHTotal / 2);
+    h_blank_memory_start_position = h_blank_display_start_position; //+= (diffHTotal / 2);
     h_blank_memory_stop_position  += (diffHTotal / 2);
     
     if (diffHTotal < 0 ) {
@@ -1767,7 +1767,7 @@ void applyBestHTotal(uint16_t bestHTotal) {
     if (isLargeDiff) {
       h_blank_display_start_position = bestHTotal * 0.94f;
       h_blank_display_stop_position = bestHTotal * 0.194f;
-      h_blank_memory_start_position = h_blank_display_start_position * 0.96f;
+      h_blank_memory_start_position = h_blank_display_start_position; // -8
       h_blank_memory_stop_position = h_blank_display_stop_position * 0.72f;
       if (h_sync_start_position > h_sync_stop_position) { // is neg HSync
         h_sync_start_position = bestHTotal * 0.065f;
@@ -1859,8 +1859,8 @@ void doPostPresetLoadSteps() {
     GBS::SP_RT_HS_ST::write(0);
     GBS::SP_RT_HS_SP::write(GBS::PLLAD_MD::read() * 0.93f);
     // also new: fetch more pixels from RAM, made possible by extending HBST (memory) to close to htotal
-    //GBS::PB_FETCH_NUM::write(0x110);
-    //GBS::VDS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 8);
+    //GBS::PB_FETCH_NUM::write(0x110); // this is in presets now, except FB clock
+    GBS::VDS_HB_ST::write(GBS::VDS_DIS_HB_ST::read()); // was -8 // test: exactly the same
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
       GBS::VDS_TAP6_BYPS::write(0); // 3_24
@@ -1885,35 +1885,22 @@ void doPostPresetLoadSteps() {
       GBS::VDS_VSCALE::write(512);
       GBS::IF_HB_ST2::write(0xa8);  // 1_18
       GBS::IF_HB_SP2::write(0xb0);  // 1_1a for general case hshift
-      GBS::IF_HBIN_SP::write(0x86); // 1_26 works for all output presets
+      GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
       if (rto->presetID == 0x3) 
       { // out 720p
         GBS::VDS_VSCALE::write(720);
-        //GBS::IF_VB_ST::write(0x02);
-        //GBS::IF_VB_SP::write(0x04);
-        GBS::VDS_VB_ST::write(2);
+        GBS::VDS_VB_ST::write(44);
         GBS::VDS_VB_SP::write(46);
         GBS::VDS_DIS_VB_ST::write(746);
         GBS::VDS_DIS_VB_SP::write(50);
-        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8);
-        GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 8);
       }
       else if (rto->presetID == 0x2) 
       { // out x1024
-        GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 48);
-        GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - 12);
-        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8);
-        if (GBS::VDS_VB_SP::read() < 46) 
-        {
-          GBS::VDS_VB_ST::write(4); // could be 44 but seems safe to blank it all
-          GBS::VDS_VB_SP::write(46);
-          GBS::VDS_DIS_VB_SP::write(64);
-        }
+
       }
       else if (rto->presetID == 0x1) 
       { // out x960
-        //GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 16);
-        //GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() + 16);
+        GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 16);
       }
     }
     else if (rto->videoStandardInput == 4) 
@@ -2475,18 +2462,12 @@ static uint8_t getVideoMode() {
   if ((GBS::STATUS_05::read() & 0x0c) == 0x00) // 2: Horizontal unstable indicator AND 3: Vertical unstable indicator are both 0?
   {
     if (GBS::STATUS_00::read() == 0x07) { // the 3 stat0 stable indicators are on, none of the SD indicators are on
-      /*if (GBS::STATUS_04::read() != 0x00) {
-        return 0;
-      }
-      else {
-        return 14;
-      }*/
       if ((GBS::STATUS_03::read() & 0x02) == 0x02) // Graphic mode bit on (VGA/SVGA/XGA/SXGA)
       {
         // if valid once, lock vline detect counter (for graphic mode detect). 
         // resets once sync recovery gives up
         rto->blockModeDetectVSkew = true;
-        return 14;
+        return 13;
       }
       else {
         if (rto->syncWatcherEnabled) {
@@ -3652,6 +3633,7 @@ void loop() {
       // check for vertical adjust and undo if necessary
       if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
       {
+        GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
         GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
         GBS::IF_AUTO_OFST_RESERVED_2::write(0);
       }
@@ -4486,6 +4468,7 @@ void loop() {
           if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 0)
           {
             //SerialM.print("shift down, vlines: "); SerialM.println(rto->presetVlineShift);
+            GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() + rto->presetVlineShift);
             GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() + rto->presetVlineShift);
             GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as adjusted
           }
@@ -4496,6 +4479,7 @@ void loop() {
           if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
           {
             //SerialM.print("shift back up, vlines: "); SerialM.println(rto->presetVlineShift);
+            GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
             GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
             GBS::IF_AUTO_OFST_RESERVED_2::write(0);
           }
@@ -5443,6 +5427,7 @@ void savePresetToSPIFFS() {
     // next: check for vertical adjust and undo if necessary
     if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
     {
+      GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
       GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
       GBS::IF_AUTO_OFST_RESERVED_2::write(0);
     }
