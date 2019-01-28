@@ -1908,7 +1908,7 @@ void doPostPresetLoadSteps() {
       GBS::VDS_VSCALE::write(614);  // note: need a good vert. test image
       GBS::IF_HB_ST2::write(0xb4);  // 1_18
       GBS::IF_HB_SP2::write(0xc4);  // 1_1a for general case hshift
-      GBS::IF_HBIN_SP::write(0x9a); // 1_26 works for all output presets
+      GBS::IF_HBIN_SP::write(0x80); // 1_26 works for all output presets
       if (rto->presetID == 0x13) 
       { // out 720p
         GBS::VDS_VSCALE::write(808); // not well tested
@@ -1918,6 +1918,7 @@ void doPostPresetLoadSteps() {
         GBS::VDS_VB_ST::write(4); // blank it all
         GBS::VDS_VB_SP::write(30);
         GBS::VDS_DIS_VB_SP::write(34);
+        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 24);
       }
       else if (rto->presetID == 0x12) 
       { // out x1024
@@ -1928,6 +1929,7 @@ void doPostPresetLoadSteps() {
         GBS::VDS_VB_SP::write(50);
         GBS::VDS_DIS_VB_ST::write(1024);
         GBS::VDS_DIS_VB_SP::write(34);
+        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 16);
       }
       else if (rto->presetID == 0x11) 
       { // out x960
@@ -1939,6 +1941,7 @@ void doPostPresetLoadSteps() {
         GBS::VDS_VB_ST::write(4); // blank it all
         GBS::VDS_VB_SP::write(30);
         GBS::VDS_DIS_VB_SP::write(38);
+        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 28);
       }
     }
     else if (rto->videoStandardInput == 5) 
@@ -2091,7 +2094,7 @@ void doPostPresetLoadSteps() {
   //SerialM.print("to1 is: "); SerialM.println(millis() - timeout);
   if (getVideoMode() != 0) {
     // attempt this early to have clamped video when the DAC gets turned on
-    updateClampPosition();
+    updateClampPosition(0);
   }
   if (getVideoMode() != 0) {
     // nice to have early as well. also helps add a little delay
@@ -2689,9 +2692,12 @@ void updateCoastPosition() {
   }
 }
 
-void updateClampPosition() {
+// need to rewrite this
+void updateClampPosition(uint8_t stage) {
   if (rto->clampPositionIsSet || rto->videoStandardInput == 0) {
-    return;
+    if (stage != 1) {
+      return;
+    }
   }
 
   uint16_t inHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
@@ -2745,14 +2751,23 @@ void updateClampPosition() {
     // regular RGBS
     start = inHlength * 0.009f;
     stop = inHlength * 0.022f;
+    if (stage == 1) {
+      // switch to clamp on sync tip (mostly for Mega Drive, but should benefit others, too)
+      // can only reliably tell the hlength when IF stats working, ie: no bypass modes
+      if (rto->videoStandardInput < 13) {
+        inHlength = GBS::HPERIOD_IF::read() * 4; // example: h:429 * 4 = 1716
+        stop = 0;
+        start = inHlength * 0.92f;
+      }
+    }
   }
 
   GBS::SP_CS_CLP_ST::write(start);
   GBS::SP_CS_CLP_SP::write(stop);
 
-  /*SerialM.print("clamp ST: "); SerialM.print("0x"); SerialM.print(start, HEX); 
-  SerialM.print("  ");
-  SerialM.print("SP: "); SerialM.print("0x"); SerialM.println(stop, HEX);*/
+  //SerialM.print("clamp ST: "); SerialM.print("0x"); SerialM.print(start, HEX); 
+  //SerialM.print("  ");
+  //SerialM.print("SP: "); SerialM.print("0x"); SerialM.println(stop, HEX);
 
   GBS::SP_NO_CLAMP_REG::write(0);
   rto->clampPositionIsSet = true;
@@ -4602,7 +4617,7 @@ void loop() {
             if (lowRun > 1) {
               GBS::PLLAD_MD::write(1349); // should also enable the 30Mhz ADC filter
               rto->clampPositionIsSet = false;
-              //updateClampPosition();
+              //updateClampPosition(0);
               if (lowRun == 3) {
                 lowRun = 0;
               }
@@ -4610,7 +4625,7 @@ void loop() {
             else {
               GBS::PLLAD_MD::write(1856);
               rto->clampPositionIsSet = false;
-              //updateClampPosition();
+              //updateClampPosition(0);
             }
             lowRun++;
             toggle = 0;
@@ -4737,7 +4752,12 @@ void loop() {
       updateCoastPosition();
   }
   if (!rto->clampPositionIsSet && rto->continousStableCounter > 5) {
-    updateClampPosition();
+    updateClampPosition(0);
+  }
+  // new: switch to clamp on sync tip for RGBS, update clamp position occasionally
+  if (rto->clampPositionIsSet && rto->continousStableCounter == 10) {
+    updateClampPosition(1);
+    rto->continousStableCounter++; // hack: counter only increases x ms
   }
   
   // later stage post preset adjustments 
@@ -4754,7 +4774,7 @@ void loop() {
       }
       if (!rto->syncWatcherEnabled) 
       { 
-        updateClampPosition(); // else manual preset changes with syncwatcher disabled will leave clamp off
+        updateClampPosition(0); // else manual preset changes with syncwatcher disabled will leave clamp off
       }
       
       rto->applyPresetDoneStage = 0;
