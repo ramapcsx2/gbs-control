@@ -2038,7 +2038,7 @@ void doPostPresetLoadSteps() {
     GBS::RFF_LREQ_CUT::write(0); // was in motionadaptive toggle function but on, off seems nicer
     GBS::CAP_REQ_OVER::write(1); // 4_22 0  1=capture stop at hblank 0=free run
     GBS::PB_REQ_SEL::write(3); // PlayBack 11 High request Low request
-    GBS::PB_GENERAL_FLAG_REG::write(0x3f); // 4_2D max
+    GBS::PB_GENERAL_FLAG_REG::write(0x3d); // 4_2D
     GBS::RFF_WFF_OFFSET::write(0x0); // scanline fix
     //GBS::PB_MAST_FLAG_REG::write(0x16); // 4_2c should be set by preset
     // 4_12 should be set by preset
