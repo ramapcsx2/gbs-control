@@ -5,8 +5,10 @@
 #include "pal_feedbackclock.h"
 #include "ntsc_1280x720.h"
 #include "ntsc_1280x1024.h"
-#include "pal_1280x1024.h"
+#include "ntsc_1920x1080.h"
 #include "pal_1280x720.h"
+#include "pal_1280x1024.h"
+#include "pal_1920x1080.h"
 #include "presetMdSection.h"
 #include "presetDeinterlacerSection.h"
 #include "ofw_RGBS.h"
@@ -173,7 +175,7 @@ struct runTimeOptions *rto = &rtos;
 
 // userOptions holds user preferences / customizations
 struct userOptions {
-  uint8_t presetPreference; // 0 - normal, 1 - feedback clock, 2 - customized, 3 - 720p, 4 - 1280x1024, 5 - bypass
+  uint8_t presetPreference; // 0 - normal, 1 - feedback clock, 2 - customized, 3 - 720p, 4 - 1280x1024, 5 - 1920x1080, 10 - bypass
   uint8_t presetSlot;
   uint8_t enableFrameTimeLock;
   uint8_t frameTimeLockMethod;
@@ -2167,6 +2169,9 @@ void applyPresets(uint8_t result) {
     }
 #endif
     else if (uopt->presetPreference == 5) {
+      writeProgramArrayNew(ntsc_1920x1080, false);
+    }
+    else if (uopt->presetPreference == 10) {
       passThroughWithIfModeSwitch();
     }
   }
@@ -2197,6 +2202,9 @@ void applyPresets(uint8_t result) {
     }
 #endif
     else if (uopt->presetPreference == 5) {
+      writeProgramArrayNew(pal_1920x1080, false);
+    }
+    else if (uopt->presetPreference == 10) {
       passThroughWithIfModeSwitch();
     }
   }
@@ -2223,6 +2231,9 @@ void applyPresets(uint8_t result) {
     }
 #endif
     else if (uopt->presetPreference == 5) {
+      writeProgramArrayNew(ntsc_1920x1080, false);
+    }
+    else if (uopt->presetPreference == 10) {
       passThroughWithIfModeSwitch();
     }
   }
@@ -2249,6 +2260,9 @@ void applyPresets(uint8_t result) {
     }
 #endif
     else if (uopt->presetPreference == 5) {
+      writeProgramArrayNew(pal_1920x1080, false);
+    }
+    else if (uopt->presetPreference == 10) {
       passThroughWithIfModeSwitch();
     }
   }
@@ -2295,7 +2309,7 @@ void applyPresets(uint8_t result) {
   }
 
   rto->videoStandardInput = result;
-  if (uopt->presetPreference != 5) {
+  if (uopt->presetPreference != 10) { // != bypass
     doPostPresetLoadSteps();
   }
 }
@@ -3343,7 +3357,7 @@ void setup() {
 
       uopt->presetPreference = (uint8_t)(f.read() - '0');
       SerialM.print("preset preference = "); SerialM.println(uopt->presetPreference);
-      if (uopt->presetPreference > 5) uopt->presetPreference = 0; // fresh spiffs ?
+      if (uopt->presetPreference > 10) uopt->presetPreference = 0; // fresh spiffs ?
 
       uopt->enableFrameTimeLock = (uint8_t)(f.read() - '0');
       SerialM.print("frame time lock = "); SerialM.println(uopt->enableFrameTimeLock);
@@ -3545,6 +3559,10 @@ void handleWiFi() {
         case 0x04:
         case 0x14:
           toSend[1] = '4';
+          break;
+        case 0x05:
+        case 0x15:
+          toSend[1] = '5';
           break;
         case 0x09: // custom
           toSend[1] = '9';
@@ -3786,7 +3804,7 @@ void loop() {
     break;
     case 'K':
       passThroughWithIfModeSwitch();
-      uopt->presetPreference = 5;
+      uopt->presetPreference = 10;
       saveUserPrefs();
     break;
     case 'T':
@@ -4244,6 +4262,18 @@ void loop() {
       uint16_t if_hblank_scale_stop = GBS::IF_HBIN_SP::read();
       GBS::IF_HBIN_SP::write(if_hblank_scale_stop + 1);
       SerialM.print("1_26: "); SerialM.println(if_hblank_scale_stop + 1);
+    }
+    break;
+    case '(':
+    {
+      writeProgramArrayNew(ntsc_1920x1080, false);
+      doPostPresetLoadSteps();
+    }
+    break;
+    case ')':
+    {
+      writeProgramArrayNew(pal_1920x1080, false);
+      doPostPresetLoadSteps();
     }
     break;
     default:
@@ -4906,16 +4936,13 @@ void handleType2Command() {
     char argument = server.arg("plain").charAt(0);
     switch (argument) {
     case '0':
-      uopt->presetPreference = 0; // normal
-      saveUserPrefs();
+      //
       break;
     case '1':
-      uopt->presetPreference = 1; // prefer fb clock
-      saveUserPrefs();
+      //
       break;
     case '2':
-      uopt->presetPreference = 4; // prefer 1280x1024 preset
-      saveUserPrefs();
+      //
       break;
     case '3':  // load custom preset
     {
@@ -4962,8 +4989,7 @@ void handleType2Command() {
       saveUserPrefs();
     break;
     case '9':
-      uopt->presetPreference = 3; // prefer 720p preset
-      saveUserPrefs();
+      //
       break;
     case 'a':
       Serial.println("restart");
@@ -5026,6 +5052,7 @@ void handleType2Command() {
     case 'g':
     case 'h':
     case 'p':
+    case 's':
     {
       // load preset via webui
       uint8_t videoMode = getVideoMode();
@@ -5035,6 +5062,7 @@ void handleType2Command() {
       if (argument == 'g') uopt->presetPreference = 3; // 1280x720
       if (argument == 'h') uopt->presetPreference = 1; // 640x480
       if (argument == 'p') uopt->presetPreference = 4; // 1280x1024
+      if (argument == 's') uopt->presetPreference = 5; // 1920x1080
       rto->videoStandardInput = 0; // force hard reset
       applyPresets(videoMode);
       saveUserPrefs();
