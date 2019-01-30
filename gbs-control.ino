@@ -5,8 +5,10 @@
 #include "pal_feedbackclock.h"
 #include "ntsc_1280x720.h"
 #include "ntsc_1280x1024.h"
-#include "pal_1280x1024.h"
+#include "ntsc_1920x1080.h"
 #include "pal_1280x720.h"
+#include "pal_1280x1024.h"
+#include "pal_1920x1080.h"
 #include "presetMdSection.h"
 #include "presetDeinterlacerSection.h"
 #include "ofw_RGBS.h"
@@ -173,7 +175,7 @@ struct runTimeOptions *rto = &rtos;
 
 // userOptions holds user preferences / customizations
 struct userOptions {
-  uint8_t presetPreference; // 0 - normal, 1 - feedback clock, 2 - customized, 3 - 720p, 4 - 1280x1024, 5 - bypass
+  uint8_t presetPreference; // 0 - normal, 1 - feedback clock, 2 - customized, 3 - 720p, 4 - 1280x1024, 5 - 1920x1080, 10 - bypass
   uint8_t presetSlot;
   uint8_t enableFrameTimeLock;
   uint8_t frameTimeLockMethod;
@@ -1729,7 +1731,7 @@ void applyBestHTotal(uint16_t bestHTotal) {
 
     uint16_t h_blank_memory_start_position = GBS::VDS_HB_ST::read();
     uint16_t h_blank_memory_stop_position = GBS::VDS_HB_SP::read();
-    h_blank_memory_start_position += (diffHTotal / 2);
+    h_blank_memory_start_position = h_blank_display_start_position; //+= (diffHTotal / 2);
     h_blank_memory_stop_position  += (diffHTotal / 2);
     
     if (diffHTotal < 0 ) {
@@ -1767,7 +1769,7 @@ void applyBestHTotal(uint16_t bestHTotal) {
     if (isLargeDiff) {
       h_blank_display_start_position = bestHTotal * 0.94f;
       h_blank_display_stop_position = bestHTotal * 0.194f;
-      h_blank_memory_start_position = h_blank_display_start_position * 0.96f;
+      h_blank_memory_start_position = h_blank_display_start_position; // -8
       h_blank_memory_stop_position = h_blank_display_stop_position * 0.72f;
       if (h_sync_start_position > h_sync_stop_position) { // is neg HSync
         h_sync_start_position = bestHTotal * 0.065f;
@@ -1859,8 +1861,8 @@ void doPostPresetLoadSteps() {
     GBS::SP_RT_HS_ST::write(0);
     GBS::SP_RT_HS_SP::write(GBS::PLLAD_MD::read() * 0.93f);
     // also new: fetch more pixels from RAM, made possible by extending HBST (memory) to close to htotal
-    //GBS::PB_FETCH_NUM::write(0x110);
-    //GBS::VDS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 8);
+    //GBS::PB_FETCH_NUM::write(0x110); // this is in presets now, except FB clock
+    GBS::VDS_HB_ST::write(GBS::VDS_DIS_HB_ST::read()); // was -8 // test: exactly the same
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
       GBS::VDS_TAP6_BYPS::write(0); // 3_24
@@ -1885,35 +1887,22 @@ void doPostPresetLoadSteps() {
       GBS::VDS_VSCALE::write(512);
       GBS::IF_HB_ST2::write(0xa8);  // 1_18
       GBS::IF_HB_SP2::write(0xb0);  // 1_1a for general case hshift
-      GBS::IF_HBIN_SP::write(0x86); // 1_26 works for all output presets
+      GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
       if (rto->presetID == 0x3) 
       { // out 720p
         GBS::VDS_VSCALE::write(720);
-        //GBS::IF_VB_ST::write(0x02);
-        //GBS::IF_VB_SP::write(0x04);
-        GBS::VDS_VB_ST::write(2);
+        GBS::VDS_VB_ST::write(44);
         GBS::VDS_VB_SP::write(46);
         GBS::VDS_DIS_VB_ST::write(746);
         GBS::VDS_DIS_VB_SP::write(50);
-        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8);
-        GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 8);
       }
       else if (rto->presetID == 0x2) 
       { // out x1024
-        GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 48);
-        GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - 12);
-        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8);
-        if (GBS::VDS_VB_SP::read() < 46) 
-        {
-          GBS::VDS_VB_ST::write(4); // could be 44 but seems safe to blank it all
-          GBS::VDS_VB_SP::write(46);
-          GBS::VDS_DIS_VB_SP::write(64);
-        }
+
       }
       else if (rto->presetID == 0x1) 
       { // out x960
-        //GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 16);
-        //GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() + 16);
+        GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 16);
       }
     }
     else if (rto->videoStandardInput == 4) 
@@ -1921,7 +1910,7 @@ void doPostPresetLoadSteps() {
       GBS::VDS_VSCALE::write(614);  // note: need a good vert. test image
       GBS::IF_HB_ST2::write(0xb4);  // 1_18
       GBS::IF_HB_SP2::write(0xc4);  // 1_1a for general case hshift
-      GBS::IF_HBIN_SP::write(0x9a); // 1_26 works for all output presets
+      GBS::IF_HBIN_SP::write(0x80); // 1_26 works for all output presets
       if (rto->presetID == 0x13) 
       { // out 720p
         GBS::VDS_VSCALE::write(808); // not well tested
@@ -1931,6 +1920,7 @@ void doPostPresetLoadSteps() {
         GBS::VDS_VB_ST::write(4); // blank it all
         GBS::VDS_VB_SP::write(30);
         GBS::VDS_DIS_VB_SP::write(34);
+        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 24);
       }
       else if (rto->presetID == 0x12) 
       { // out x1024
@@ -1941,6 +1931,7 @@ void doPostPresetLoadSteps() {
         GBS::VDS_VB_SP::write(50);
         GBS::VDS_DIS_VB_ST::write(1024);
         GBS::VDS_DIS_VB_SP::write(34);
+        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 16);
       }
       else if (rto->presetID == 0x11) 
       { // out x960
@@ -1952,6 +1943,7 @@ void doPostPresetLoadSteps() {
         GBS::VDS_VB_ST::write(4); // blank it all
         GBS::VDS_VB_SP::write(30);
         GBS::VDS_DIS_VB_SP::write(38);
+        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 28);
       }
     }
     else if (rto->videoStandardInput == 5) 
@@ -2048,7 +2040,7 @@ void doPostPresetLoadSteps() {
     GBS::RFF_LREQ_CUT::write(0); // was in motionadaptive toggle function but on, off seems nicer
     GBS::CAP_REQ_OVER::write(1); // 4_22 0  1=capture stop at hblank 0=free run
     GBS::PB_REQ_SEL::write(3); // PlayBack 11 High request Low request
-    GBS::PB_GENERAL_FLAG_REG::write(0x3f); // 4_2D max
+    GBS::PB_GENERAL_FLAG_REG::write(0x3d); // 4_2D
     GBS::RFF_WFF_OFFSET::write(0x0); // scanline fix
     //GBS::PB_MAST_FLAG_REG::write(0x16); // 4_2c should be set by preset
     // 4_12 should be set by preset
@@ -2104,7 +2096,7 @@ void doPostPresetLoadSteps() {
   //SerialM.print("to1 is: "); SerialM.println(millis() - timeout);
   if (getVideoMode() != 0) {
     // attempt this early to have clamped video when the DAC gets turned on
-    updateClampPosition();
+    updateClampPosition(0);
   }
   if (getVideoMode() != 0) {
     // nice to have early as well. also helps add a little delay
@@ -2177,6 +2169,9 @@ void applyPresets(uint8_t result) {
     }
 #endif
     else if (uopt->presetPreference == 5) {
+      writeProgramArrayNew(ntsc_1920x1080, false);
+    }
+    else if (uopt->presetPreference == 10) {
       passThroughWithIfModeSwitch();
     }
   }
@@ -2207,6 +2202,9 @@ void applyPresets(uint8_t result) {
     }
 #endif
     else if (uopt->presetPreference == 5) {
+      writeProgramArrayNew(pal_1920x1080, false);
+    }
+    else if (uopt->presetPreference == 10) {
       passThroughWithIfModeSwitch();
     }
   }
@@ -2233,6 +2231,9 @@ void applyPresets(uint8_t result) {
     }
 #endif
     else if (uopt->presetPreference == 5) {
+      writeProgramArrayNew(ntsc_1920x1080, false);
+    }
+    else if (uopt->presetPreference == 10) {
       passThroughWithIfModeSwitch();
     }
   }
@@ -2259,6 +2260,9 @@ void applyPresets(uint8_t result) {
     }
 #endif
     else if (uopt->presetPreference == 5) {
+      writeProgramArrayNew(pal_1920x1080, false);
+    }
+    else if (uopt->presetPreference == 10) {
       passThroughWithIfModeSwitch();
     }
   }
@@ -2305,7 +2309,7 @@ void applyPresets(uint8_t result) {
   }
 
   rto->videoStandardInput = result;
-  if (uopt->presetPreference != 5) {
+  if (uopt->presetPreference != 10) { // != bypass
     doPostPresetLoadSteps();
   }
 }
@@ -2475,18 +2479,12 @@ static uint8_t getVideoMode() {
   if ((GBS::STATUS_05::read() & 0x0c) == 0x00) // 2: Horizontal unstable indicator AND 3: Vertical unstable indicator are both 0?
   {
     if (GBS::STATUS_00::read() == 0x07) { // the 3 stat0 stable indicators are on, none of the SD indicators are on
-      /*if (GBS::STATUS_04::read() != 0x00) {
-        return 0;
-      }
-      else {
-        return 14;
-      }*/
       if ((GBS::STATUS_03::read() & 0x02) == 0x02) // Graphic mode bit on (VGA/SVGA/XGA/SXGA)
       {
         // if valid once, lock vline detect counter (for graphic mode detect). 
         // resets once sync recovery gives up
         rto->blockModeDetectVSkew = true;
-        return 14;
+        return 13;
       }
       else {
         if (rto->syncWatcherEnabled) {
@@ -2708,9 +2706,12 @@ void updateCoastPosition() {
   }
 }
 
-void updateClampPosition() {
+// need to rewrite this
+void updateClampPosition(uint8_t stage) {
   if (rto->clampPositionIsSet || rto->videoStandardInput == 0) {
-    return;
+    if (stage != 1) {
+      return;
+    }
   }
 
   uint16_t inHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
@@ -2764,14 +2765,23 @@ void updateClampPosition() {
     // regular RGBS
     start = inHlength * 0.009f;
     stop = inHlength * 0.022f;
+    if (stage == 1) {
+      // switch to clamp on sync tip (mostly for Mega Drive, but should benefit others, too)
+      // can only reliably tell the hlength when IF stats working, ie: no bypass modes
+      if (rto->videoStandardInput < 13) {
+        inHlength = GBS::HPERIOD_IF::read() * 4; // example: h:429 * 4 = 1716
+        stop = 0;
+        start = inHlength * 0.92f;
+      }
+    }
   }
 
   GBS::SP_CS_CLP_ST::write(start);
   GBS::SP_CS_CLP_SP::write(stop);
 
-  /*SerialM.print("clamp ST: "); SerialM.print("0x"); SerialM.print(start, HEX); 
-  SerialM.print("  ");
-  SerialM.print("SP: "); SerialM.print("0x"); SerialM.println(stop, HEX);*/
+  //SerialM.print("clamp ST: "); SerialM.print("0x"); SerialM.print(start, HEX); 
+  //SerialM.print("  ");
+  //SerialM.print("SP: "); SerialM.print("0x"); SerialM.println(stop, HEX);
 
   GBS::SP_NO_CLAMP_REG::write(0);
   rto->clampPositionIsSet = true;
@@ -3347,7 +3357,7 @@ void setup() {
 
       uopt->presetPreference = (uint8_t)(f.read() - '0');
       SerialM.print("preset preference = "); SerialM.println(uopt->presetPreference);
-      if (uopt->presetPreference > 5) uopt->presetPreference = 0; // fresh spiffs ?
+      if (uopt->presetPreference > 10) uopt->presetPreference = 0; // fresh spiffs ?
 
       uopt->enableFrameTimeLock = (uint8_t)(f.read() - '0');
       SerialM.print("frame time lock = "); SerialM.println(uopt->enableFrameTimeLock);
@@ -3550,6 +3560,10 @@ void handleWiFi() {
         case 0x14:
           toSend[1] = '4';
           break;
+        case 0x05:
+        case 0x15:
+          toSend[1] = '5';
+          break;
         case 0x09: // custom
           toSend[1] = '9';
           break;
@@ -3652,6 +3666,7 @@ void loop() {
       // check for vertical adjust and undo if necessary
       if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
       {
+        GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
         GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
         GBS::IF_AUTO_OFST_RESERVED_2::write(0);
       }
@@ -3789,7 +3804,7 @@ void loop() {
     break;
     case 'K':
       passThroughWithIfModeSwitch();
-      uopt->presetPreference = 5;
+      uopt->presetPreference = 10;
       saveUserPrefs();
     break;
     case 'T':
@@ -4249,6 +4264,18 @@ void loop() {
       SerialM.print("1_26: "); SerialM.println(if_hblank_scale_stop + 1);
     }
     break;
+    case '(':
+    {
+      writeProgramArrayNew(ntsc_1920x1080, false);
+      doPostPresetLoadSteps();
+    }
+    break;
+    case ')':
+    {
+      writeProgramArrayNew(pal_1920x1080, false);
+      doPostPresetLoadSteps();
+    }
+    break;
     default:
       SerialM.println("unknown command");
       break;
@@ -4486,6 +4513,7 @@ void loop() {
           if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 0)
           {
             //SerialM.print("shift down, vlines: "); SerialM.println(rto->presetVlineShift);
+            GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() + rto->presetVlineShift);
             GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() + rto->presetVlineShift);
             GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as adjusted
           }
@@ -4496,6 +4524,7 @@ void loop() {
           if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
           {
             //SerialM.print("shift back up, vlines: "); SerialM.println(rto->presetVlineShift);
+            GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
             GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
             GBS::IF_AUTO_OFST_RESERVED_2::write(0);
           }
@@ -4618,7 +4647,7 @@ void loop() {
             if (lowRun > 1) {
               GBS::PLLAD_MD::write(1349); // should also enable the 30Mhz ADC filter
               rto->clampPositionIsSet = false;
-              //updateClampPosition();
+              //updateClampPosition(0);
               if (lowRun == 3) {
                 lowRun = 0;
               }
@@ -4626,7 +4655,7 @@ void loop() {
             else {
               GBS::PLLAD_MD::write(1856);
               rto->clampPositionIsSet = false;
-              //updateClampPosition();
+              //updateClampPosition(0);
             }
             lowRun++;
             toggle = 0;
@@ -4753,7 +4782,12 @@ void loop() {
       updateCoastPosition();
   }
   if (!rto->clampPositionIsSet && rto->continousStableCounter > 5) {
-    updateClampPosition();
+    updateClampPosition(0);
+  }
+  // new: switch to clamp on sync tip for RGBS, update clamp position occasionally
+  if (rto->clampPositionIsSet && rto->continousStableCounter == 10) {
+    updateClampPosition(1);
+    rto->continousStableCounter++; // hack: counter only increases x ms
   }
   
   // later stage post preset adjustments 
@@ -4770,7 +4804,7 @@ void loop() {
       }
       if (!rto->syncWatcherEnabled) 
       { 
-        updateClampPosition(); // else manual preset changes with syncwatcher disabled will leave clamp off
+        updateClampPosition(0); // else manual preset changes with syncwatcher disabled will leave clamp off
       }
       
       rto->applyPresetDoneStage = 0;
@@ -4902,16 +4936,13 @@ void handleType2Command() {
     char argument = server.arg("plain").charAt(0);
     switch (argument) {
     case '0':
-      uopt->presetPreference = 0; // normal
-      saveUserPrefs();
+      //
       break;
     case '1':
-      uopt->presetPreference = 1; // prefer fb clock
-      saveUserPrefs();
+      //
       break;
     case '2':
-      uopt->presetPreference = 4; // prefer 1280x1024 preset
-      saveUserPrefs();
+      //
       break;
     case '3':  // load custom preset
     {
@@ -4958,8 +4989,7 @@ void handleType2Command() {
       saveUserPrefs();
     break;
     case '9':
-      uopt->presetPreference = 3; // prefer 720p preset
-      saveUserPrefs();
+      //
       break;
     case 'a':
       Serial.println("restart");
@@ -5022,6 +5052,7 @@ void handleType2Command() {
     case 'g':
     case 'h':
     case 'p':
+    case 's':
     {
       // load preset via webui
       uint8_t videoMode = getVideoMode();
@@ -5031,6 +5062,7 @@ void handleType2Command() {
       if (argument == 'g') uopt->presetPreference = 3; // 1280x720
       if (argument == 'h') uopt->presetPreference = 1; // 640x480
       if (argument == 'p') uopt->presetPreference = 4; // 1280x1024
+      if (argument == 's') uopt->presetPreference = 5; // 1920x1080
       rto->videoStandardInput = 0; // force hard reset
       applyPresets(videoMode);
       saveUserPrefs();
@@ -5443,6 +5475,7 @@ void savePresetToSPIFFS() {
     // next: check for vertical adjust and undo if necessary
     if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
     {
+      GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
       GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
       GBS::IF_AUTO_OFST_RESERVED_2::write(0);
     }

@@ -12,7 +12,7 @@ const uint8_t ntsc_240p[] PROGMEM = {
 0x4, // s0_4A
 0x0, // s0_4B
 0x0, // s0_4C
-0x2A, // s0_4D
+0x22, // s0_4D
 0x0, // s0_4E
 0x3C, // s0_4F
 0x0, // s0_50
@@ -61,7 +61,7 @@ const uint8_t ntsc_240p[] PROGMEM = {
 0x50, // s1_B
 0xC6, // s1_C
 0x6E, // s1_D
-0x18, // s1_E
+0x48, // s1_E
 0x5, // s1_F
 0x2, // s1_10
 0x0, // s1_11
@@ -81,11 +81,11 @@ const uint8_t ntsc_240p[] PROGMEM = {
 0x0, // s1_1F
 0x0, // s1_20
 0x0, // s1_21
-0x19, // s1_22
+0x49, // s1_22
 0x5, // s1_23
 0x0, // s1_24
 0x0, // s1_25
-0x15, // s1_26
+0x10, // s1_26
 0x1, // s1_27
 0x3C, // s1_28
 0x0, // s1_29
@@ -99,7 +99,7 @@ const uint8_t ntsc_240p[] PROGMEM = {
 0xA, // s3_1
 0x87, // s3_2
 0x3E, // s3_3
-0x54, // s3_4
+0x96, // s3_4
 0x6, // s3_5
 0x10, // s3_6
 0x8, // s3_7
@@ -111,8 +111,8 @@ const uint8_t ntsc_240p[] PROGMEM = {
 0x1, // s3_D
 0x50, // s3_E
 0x0, // s3_F
-0x9E, // s3_10
-0x66, // s3_11
+0xA0, // s3_10
+0x6, // s3_11
 0x16, // s3_12
 0xDE, // s3_13
 0xC3, // s3_14
@@ -131,7 +131,7 @@ const uint8_t ntsc_240p[] PROGMEM = {
 0x0, // s3_21
 0x0, // s3_22
 0x0, // s3_23
-0x68, // s3_24
+0x60, // s3_24
 0x3, // s3_25
 0x0, // s3_26
 0xCF, // s3_27
@@ -268,7 +268,7 @@ const uint8_t ntsc_240p[] PROGMEM = {
 0x0, // s4_2A
 0x87, // s4_2B
 0x15, // s4_2C
-0x3F, // s4_2D
+0x3D, // s4_2D
 0x0, // s4_2E
 0x0, // s4_2F
 0x0, // s4_30
@@ -280,7 +280,7 @@ const uint8_t ntsc_240p[] PROGMEM = {
 0xC, // s4_36
 0x50, // s4_37
 0x1, // s4_38
-0x0, // s4_39
+0x10, // s4_39
 0x1, // s4_3A
 0x0, // s4_3B
 0x0, // s4_3C
@@ -311,7 +311,7 @@ const uint8_t ntsc_240p[] PROGMEM = {
 0x0, // s4_55
 0x0, // s4_56
 0x0, // s4_57
-0x1, // s4_58
+0x0, // s4_58
 0x80, // s4_59
 0x0, // s4_5A
 0xCC, // s4_5B
@@ -351,7 +351,7 @@ const uint8_t ntsc_240p[] PROGMEM = {
 0x0, // s5_1D
 0x0, // s5_1E
 0x85, // s5_1F
-0x2, // s5_20
+0x0, // s5_20
 0x20, // s5_21
 0x10, // s5_22
 0x0, // s5_23
