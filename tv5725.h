@@ -227,6 +227,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x2B, 0,  8> GBS_PRESET_ID;
     typedef UReg<0x01, 0x2C, 0,  1> GBS_OPTION_SCANLINES_ENABLED;
     typedef UReg<0x01, 0x2C, 1,  1> GBS_OPTION_SCALING_RGBHV;
+    typedef UReg<0x01, 0x2C, 2,  1> GBS_OPTION_PALFORCED60_ENABLED;
 
     // Mode Detect
     typedef UReg<0x01, 0x60, 0,  5> MD_HPERIOD_LOCK_VALUE;

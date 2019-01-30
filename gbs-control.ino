@@ -170,6 +170,7 @@ struct runTimeOptions {
   boolean scanlinesEnabled;
   boolean boardHasPower;
   boolean blockModeDetectVSkew;
+  boolean presetIsPalForce60;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -186,6 +187,7 @@ struct userOptions {
   uint8_t wantVdsLineFilter;
   uint8_t wantPeaking;
   uint8_t preferScalingRgbhv;
+  uint8_t PalForce60;
 } uopts;
 struct userOptions *uopt = &uopts;
 
@@ -1697,6 +1699,10 @@ void applyBestHTotal(uint16_t bestHTotal) {
     SerialM.print("already at bestHTotal: "); SerialM.println(bestHTotal);
     return; // nothing to do
   }
+  if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() == 1) {
+    // source is 50Hz, preset has to stay at 60Hz: return
+    return;
+  }
   boolean isLargeDiff = (diffHTotalUnsigned > (orig_htotal * 0.04f)) ? true : false; // typical diff: 1802 to 1794 (=8)
   if (isLargeDiff) {
     SerialM.println("large diff");
@@ -1969,6 +1975,15 @@ void doPostPresetLoadSteps() {
     }
   }
 
+  if (rto->presetIsPalForce60) {
+    if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() != 1) {
+      SerialM.println("pal forced 60hz: apply vshift");
+      GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 56);
+      GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 56);
+      GBS::GBS_OPTION_PALFORCED60_ENABLED::write(1);
+    }
+  }
+
   // 3_40 2 // 0 = input data triggered on falling clock edge, 1 = bypass
   GBS::VDS_IN_DREG_BYPS::write(0);
 
@@ -2142,6 +2157,13 @@ void doPostPresetLoadSteps() {
 }
 
 void applyPresets(uint8_t result) {
+  rto->presetIsPalForce60 = 0; // the default
+  if (uopt->PalForce60 == 1) {
+    if (result == 2 || result == 4) { Serial.println("PAL@50 to 60Hz"); rto->presetIsPalForce60 = 1; }
+    if (result == 2) {  result = 1; }
+    if (result == 4) {  result = 3; }
+  }
+
   if (result == 1) {
     SerialM.println("60Hz ");
     if (uopt->presetPreference == 0) {
@@ -3274,6 +3296,7 @@ void setup() {
   uopt->wantVdsLineFilter = 1;
   uopt->wantPeaking = 1;
   uopt->preferScalingRgbhv = 0;
+  uopt->PalForce60 = 1;
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->enableDebugPings = false;
@@ -3290,6 +3313,7 @@ void setup() {
   rto->scanlinesEnabled = false;
   rto->boardHasPower = true;
   rto->blockModeDetectVSkew = false;
+  rto->presetIsPalForce60 = false;
 
   // the following is just run time variables. don't change!
   rto->inputIsYpBpR = false;
@@ -3348,6 +3372,7 @@ void setup() {
       uopt->deintMode = 0;
       uopt->wantVdsLineFilter = 1;
       uopt->wantPeaking = 1;
+      uopt->PalForce60 = 0;
       saveUserPrefs(); // if this fails, there must be a spiffs problem
     }
     else {
@@ -3394,6 +3419,10 @@ void setup() {
       uopt->wantPeaking = (uint8_t)(f.read() - '0');
       SerialM.print("peaking = "); SerialM.println(uopt->wantPeaking);
       if (uopt->wantPeaking > 1) uopt->wantPeaking = 0;
+
+      uopt->PalForce60 = (uint8_t)(f.read() - '0');
+      SerialM.print("pal force 60 = "); SerialM.println(uopt->PalForce60);
+      if (uopt->PalForce60 > 1) uopt->PalForce60 = 0;
       
       f.close();
     }
@@ -3603,6 +3632,7 @@ void handleWiFi() {
         if (uopt->wantScanlines) { toSend[3] |= (1 << 1); }
         if (uopt->wantVdsLineFilter) { toSend[3] |= (1 << 2); }
         if (uopt->wantPeaking) { toSend[3] |= (1 << 3); }
+        if (uopt->PalForce60) { toSend[3] |= (1 << 4); }
 
         // ws client connected, go none sleep for low latency TCP
         if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 0)) {
@@ -3674,6 +3704,8 @@ void loop() {
       if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) {
         disableScanlines();
       }
+      // pal forced 60hz: no need to revert here. let the voffset function handle it
+
       // dump
       for (int segment = 0; segment <= 5; segment++) {
         dumpRegisters(segment);
@@ -4936,7 +4968,16 @@ void handleType2Command() {
     char argument = server.arg("plain").charAt(0);
     switch (argument) {
     case '0':
-      //
+      SerialM.print("pal force 60hz ");
+      if (uopt->PalForce60 == 0) {
+        uopt->PalForce60 = 1;
+        Serial.println("on");
+      }
+      else {
+        uopt->PalForce60 = 0;
+        Serial.println("off");
+      }
+      saveUserPrefs();
       break;
     case '1':
       //
@@ -5044,6 +5085,7 @@ void handleType2Command() {
         SerialM.print("deinterlacer mode = "); SerialM.println((uint8_t)(f.read() - '0'));
         SerialM.print("line filter = "); SerialM.println((uint8_t)(f.read() - '0'));
         SerialM.print("peaking = "); SerialM.println((uint8_t)(f.read() - '0'));
+        SerialM.print("pal force60 = "); SerialM.println((uint8_t)(f.read() - '0'));
         f.close();
       }
     }
@@ -5545,6 +5587,7 @@ void saveUserPrefs() {
   f.write(uopt->deintMode + '0');
   f.write(uopt->wantVdsLineFilter + '0');
   f.write(uopt->wantPeaking + '0');
+  f.write(uopt->PalForce60 + '0');
   f.close();
 }
 
