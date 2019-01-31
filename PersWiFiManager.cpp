@@ -24,7 +24,7 @@ PersWiFiManager::PersWiFiManager(ESP8266WebServer& s, DNSServer& d) {
 bool PersWiFiManager::attemptConnection(const String& ssid, const String& pass) {
   //attempt to connect to wifi
   WiFi.mode(WIFI_STA);
-  WiFi.hostname(device_hostname_full);
+  WiFi.hostname(device_hostname_full); // before WiFi.begin();
   if (ssid.length()) {
     if (pass.length()) WiFi.begin(ssid.c_str(), pass.c_str());
     else WiFi.begin(ssid.c_str());

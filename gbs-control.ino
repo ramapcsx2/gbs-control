@@ -1917,12 +1917,18 @@ void doPostPresetLoadSteps() {
       GBS::IF_HB_ST2::write(0xb4);  // 1_18
       GBS::IF_HB_SP2::write(0xc4);  // 1_1a for general case hshift
       GBS::IF_HBIN_SP::write(0x80); // 1_26 works for all output presets
-      if (rto->presetID == 0x13) 
+      if (rto->presetID == 0x15) 
+      { // out 1080p
+        GBS::VDS_VSCALE::write(512);
+        GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() - 8);
+        GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() - 8);
+      }
+      else if (rto->presetID == 0x13) 
       { // out 720p
         GBS::VDS_VSCALE::write(808); // not well tested
         GBS::VDS_HSCALE::write(940); // either
-        GBS::IF_VB_ST::write(0x24);
         GBS::IF_VB_SP::write(0x26);
+        GBS::IF_VB_ST::write(0x24);
         GBS::VDS_VB_ST::write(4); // blank it all
         GBS::VDS_VB_SP::write(30);
         GBS::VDS_DIS_VB_SP::write(34);
@@ -1931,8 +1937,8 @@ void doPostPresetLoadSteps() {
       else if (rto->presetID == 0x12) 
       { // out x1024
         GBS::VDS_VSCALE::write(608);
-        GBS::IF_VB_ST::write(0x20);
         GBS::IF_VB_SP::write(0x22);
+        GBS::IF_VB_ST::write(0x20);
         GBS::VDS_VB_ST::write(4); // blank it all
         GBS::VDS_VB_SP::write(50);
         GBS::VDS_DIS_VB_ST::write(1024);
@@ -1944,8 +1950,8 @@ void doPostPresetLoadSteps() {
         // at VDS_VSCALE 614
         //GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 16);
         //GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() + 16);
-        GBS::IF_VB_ST::write(0x20);
         GBS::IF_VB_SP::write(0x22);
+        GBS::IF_VB_ST::write(0x20);
         GBS::VDS_VB_ST::write(4); // blank it all
         GBS::VDS_VB_SP::write(30);
         GBS::VDS_DIS_VB_SP::write(38);
@@ -2908,9 +2914,10 @@ void passThroughWithIfModeSwitch() {
       GBS::SP_VS_PROC_INV_REG::write(0); // don't invert, causes flicker
     }
     if (rto->videoStandardInput == 7) { // 1080p
-      GBS::PLLAD_MD::write(0x5b0);
+      GBS::PLLAD_MD::write(0x5a0); // 0x5a0 = 1440 = 1920 / 4 * 3
+      GBS::PLLAD_ICP::write(6);
       GBS::SP_CS_HS_ST::write(0x90);
-      GBS::SP_CS_HS_SP::write(0x60);
+      GBS::SP_CS_HS_SP::write(0x62);
       GBS::SP_POST_COAST::write(0x16); // important
       delay(6);
     }
@@ -3259,9 +3266,10 @@ void setup() {
   Serial.setTimeout(10);
 #if defined(ESP8266)
   // start web services as early in boot as possible > greater chance to get a websocket connection in time for logging startup
-   WiFi.hostname(device_hostname_full);
+  WiFi.hostname(device_hostname_full);
   if (rto->webServerEnabled) {
     rto->allowUpdatesOTA = false; // need to initialize for handleWiFi()
+    WiFi.setSleepMode(WIFI_NONE_SLEEP); // low latency responses, less chance for missing packets
     startWebserver();
     WiFi.setOutputPower(14.0f); // float: min 0.0f, max 20.5f // reduced from max, but still strong
     rto->webServerStarted = true;
@@ -3564,7 +3572,6 @@ void handleWiFi() {
     // if there's a control command from the server, globalCommand will now hold it.
     // process it in the parser, then reset to 0 at the end of the sketch.
 
-    static boolean wifiNoSleep = 0;
     static unsigned long lastTimePing = millis();
     if (millis() - lastTimePing > 1011) { // slightly odd value so not everything happens at once
       //webSocket.broadcastPing(); // sends a WS ping to all Client; returns true if ping is sent out
@@ -3634,20 +3641,10 @@ void handleWiFi() {
         if (uopt->wantPeaking) { toSend[3] |= (1 << 3); }
         if (uopt->PalForce60) { toSend[3] |= (1 << 4); }
 
-        // ws client connected, go none sleep for low latency TCP
-        if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 0)) {
-          WiFi.setSleepMode(WIFI_NONE_SLEEP);
-          wifiNoSleep = 1;
-          delay(1);
-        }
         // send ping and stats
         webSocket.broadcastTXT(toSend);
       }
-      else if ((WiFi.getMode() == WIFI_STA) && (wifiNoSleep == 1)) {
-        WiFi.setSleepMode(WIFI_MODEM_SLEEP); // arduino default
-        wifiNoSleep = 0;
-        delay(1);
-      }
+      
       lastTimePing = millis();
     }
     server.handleClient(); // after websocket loop!
@@ -4912,9 +4909,11 @@ void loop() {
     debugRegBackup = GBS::TEST_BUS_SEL::read();
     GBS::PAD_BOUT_EN::write(0); // disable output to pin for test
     GBS::TEST_BUS_SEL::write(0xb); // decimation
+    //GBS::TEST_BUS_EN::write(0);
     //GBS::DEC_TEST_ENABLE::write(1);
     doAutoGain();
     //GBS::DEC_TEST_ENABLE::write(0);
+    //GBS::TEST_BUS_EN::write(1);
     GBS::TEST_BUS_SEL::write(debugRegBackup);
     GBS::PAD_BOUT_EN::write(debugPinBackup); // debug output pin back on
     lastTimeAutoGain = millis();
@@ -5273,17 +5272,6 @@ void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length)
 
 void startWebserver()
 {
-  // let wifimanager handle connections, should prevent pre-sketch connect attempt with bad hostname
-  if (WiFi.getAutoConnect() == 1)
-  {
-    //Serial.println("\n(WiFi) Disabling AutoConnect");
-    WiFi.setAutoConnect(0);
-  }
-  else
-  {
-    //Serial.println("\n(WiFi) AutoConnect already off");
-  }
-
   persWM.setApCredentials(ap_ssid, ap_password);
   persWM.onConnect([]() {
     SerialM.println("(WiFi): STA mode connected");
