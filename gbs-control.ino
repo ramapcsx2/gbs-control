@@ -11,6 +11,7 @@
 #include "pal_1920x1080.h"
 #include "presetMdSection.h"
 #include "presetDeinterlacerSection.h"
+#include "presetHdBypassSection.h"
 #include "ofw_RGBS.h"
 
 #include "tv5725.h"
@@ -282,6 +283,16 @@ void zeroAll()
       }
       writeBytes(z * 16, bank, 16);
     }
+  }
+}
+
+void loadHdBypassSection() {
+  uint16_t index = 0;
+  uint8_t bank[16];
+  writeOneByte(0xF0, 1);
+  for (int j = 3; j <= 5; j++) { // start at 0x30
+    copyBank(bank, presetHdBypassSection, &index);
+    writeBytes(j * 16, bank, 16);
   }
 }
 
@@ -590,7 +601,7 @@ void setAdcParametersGainAndOffset() {
 
 void setSpParameters() {
   writeOneByte(0xF0, 5);
-  GBS::SP_SOG_P_ATO::write(0); // 5_20 enable (NEW: disable!) sog auto polarity // sp will be negative
+  GBS::SP_SOG_P_ATO::write(1); // 5_20 enable sog auto polarity // sp will be negative // emucrt driver
   GBS::SP_JITTER_SYNC::write(0);
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input 0 ( 5_20 bit 3 )
   // H active detect control
@@ -678,7 +689,6 @@ void setSpParameters() {
   writeOneByte(0x54, 0x00); // 0xc0
 
   if (rto->videoStandardInput != 15 && (GBS::GBS_OPTION_SCALING_RGBHV::read() != 1)) {
-    writeOneByte(0x3e, 0x00); // SP sub coast on / with ofw protect disabled; snes 239 to normal rapid switches
     GBS::SP_CLAMP_MANUAL::write(0); // 0 = automatic on/off possible
     GBS::SP_CLP_SRC_SEL::write(1); // clamp source 1: pixel clock, 0: 27mhz
     GBS::SP_SOG_MODE::write(1);
@@ -1802,15 +1812,15 @@ void applyBestHTotal(uint16_t bestHTotal) {
 }
 
 void doPostPresetLoadSteps() {
+  GBS::PAD_SYNC_OUT_ENZ::write(1); // sync out off
   rto->presetID = GBS::GBS_PRESET_ID::read();
-  // 640x480 RGBHV scaling mode
   if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 1) {
-    rto->videoStandardInput = 3;
+    rto->videoStandardInput = 3; // 640x480 RGBHV scaling mode
     switchSyncProcessingMode(1);
   }
-  GBS::PAD_SYNC_OUT_ENZ::write(1); // sync out off
   GBS::OUT_SYNC_CNTRL::write(1); // prepare sync out to PAD
   //GBS::PAD_CKOUT_ENZ::write(0); // clock out to pin enabled for testing
+  loadHdBypassSection();
 
   boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
   setAndUpdateSogLevel(rto->currentLevelSOG); // update to previously determined sog level
@@ -1869,9 +1879,15 @@ void doPostPresetLoadSteps() {
     // also new: fetch more pixels from RAM, made possible by extending HBST (memory) to close to htotal
     //GBS::PB_FETCH_NUM::write(0x110); // this is in presets now, except FB clock
     GBS::VDS_HB_ST::write(GBS::VDS_DIS_HB_ST::read()); // was -8 // test: exactly the same
+    // one VB_ST base for all presets
+    GBS::VDS_VB_ST::write(4);
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
       GBS::VDS_TAP6_BYPS::write(0); // 3_24
+      if (rto->presetID == 0x2 || rto->presetID == 0x12 || rto->presetID == 0x3 || rto->presetID == 0x13) 
+      { // out x1024, out 720p
+        GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
+      }
     }
     if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4)
     {
@@ -1897,14 +1913,13 @@ void doPostPresetLoadSteps() {
       if (rto->presetID == 0x3) 
       { // out 720p
         GBS::VDS_VSCALE::write(720);
-        GBS::VDS_VB_ST::write(44);
         GBS::VDS_VB_SP::write(46);
         GBS::VDS_DIS_VB_ST::write(746);
         GBS::VDS_DIS_VB_SP::write(50);
       }
       else if (rto->presetID == 0x2) 
       { // out x1024
-
+        GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
       }
       else if (rto->presetID == 0x1) 
       { // out x960
@@ -1921,15 +1936,12 @@ void doPostPresetLoadSteps() {
       { // out 1080p
         GBS::VDS_VSCALE::write(512);
         GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() - 8);
-        GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() - 8);
       }
       else if (rto->presetID == 0x13) 
       { // out 720p
         GBS::VDS_VSCALE::write(808); // not well tested
         GBS::VDS_HSCALE::write(940); // either
         GBS::IF_VB_SP::write(0x26);
-        GBS::IF_VB_ST::write(0x24);
-        GBS::VDS_VB_ST::write(4); // blank it all
         GBS::VDS_VB_SP::write(30);
         GBS::VDS_DIS_VB_SP::write(34);
         GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 24);
@@ -1938,9 +1950,8 @@ void doPostPresetLoadSteps() {
       { // out x1024
         GBS::VDS_VSCALE::write(608);
         GBS::IF_VB_SP::write(0x22);
-        GBS::IF_VB_ST::write(0x20);
-        GBS::VDS_VB_ST::write(4); // blank it all
         GBS::VDS_VB_SP::write(50);
+        GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
         GBS::VDS_DIS_VB_ST::write(1024);
         GBS::VDS_DIS_VB_SP::write(34);
         GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 16);
@@ -1951,8 +1962,6 @@ void doPostPresetLoadSteps() {
         //GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 16);
         //GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() + 16);
         GBS::IF_VB_SP::write(0x22);
-        GBS::IF_VB_ST::write(0x20);
-        GBS::VDS_VB_ST::write(4); // blank it all
         GBS::VDS_VB_SP::write(30);
         GBS::VDS_DIS_VB_SP::write(38);
         GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 28);
@@ -1985,7 +1994,6 @@ void doPostPresetLoadSteps() {
     if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() != 1) {
       SerialM.println("pal forced 60hz: apply vshift");
       GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 56);
-      GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 56);
       GBS::GBS_OPTION_PALFORCED60_ENABLED::write(1);
     }
   }
@@ -2343,27 +2351,26 @@ void applyPresets(uint8_t result) {
 }
 
 void unfreezeVideo() {
-  if (GBS::CAP_REQ_FREEZ::read() == 1)
+  //if (GBS::CAP_REQ_FREEZ::read() == 1)
+  if (rto->videoIsFrozen == 1)
   {
-    //GBS::SFTRST_DEINT_RSTZ::write(1);
-    GBS::CAP_REQ_FREEZ::write(0);
+    /*GBS::CAP_REQ_FREEZ::write(0);
     delay(60);
-    GBS::CAPTURE_ENABLE::write(1);
-    //GBS::SFTRST_DEC_RSTZ::write(0);
-    //GBS::SFTRST_DEINT_RSTZ::write(1);
+    GBS::CAPTURE_ENABLE::write(1);*/
+    
+    //GBS::IF_VB_ST::write(4);
+    GBS::IF_VB_ST::write(GBS::IF_VB_SP::read() - 2);
   }
   rto->videoIsFrozen = false;
 }
 
 void freezeVideo() {
   if (rto->videoIsFrozen == false) {
-    GBS::CAP_REQ_FREEZ::write(1);
+    /*GBS::CAP_REQ_FREEZ::write(1);
     delay(1);
-    GBS::CAPTURE_ENABLE::write(0);
-    //GBS::CAPTURE_ENABLE::write(0);
-    //GBS::SFTRST_DEC_RSTZ::write(1);
+    GBS::CAPTURE_ENABLE::write(0);*/
+    GBS::IF_VB_ST::write(GBS::IF_VB_SP::read());
   }
-  //GBS::SFTRST_DEINT_RSTZ::write(0);
   rto->videoIsFrozen = true;
 }
 
@@ -2720,9 +2727,9 @@ void updateCoastPosition() {
       SerialM.print("coast ST: "); SerialM.print("0x"); SerialM.print(GBS::SP_H_CST_ST::read(), HEX);
       SerialM.print("  ");
       SerialM.print("SP: "); SerialM.print("0x"); SerialM.println(GBS::SP_H_CST_SP::read(), HEX);
-      GBS::SP_H_PROTECT::write(1);
+      GBS::SP_H_PROTECT::write(0); // dropouts in passthrough mode
       GBS::SP_DIS_SUB_COAST::write(0); // enable hsync coast
-      GBS::SP_HCST_AUTO_EN::write(1); // test: on
+      GBS::SP_HCST_AUTO_EN::write(0); // 5_55 7
       rto->coastPositionIsSet = true;
     }
   }
@@ -3068,6 +3075,7 @@ void bypassModeSwitch_RGBHV() {
   GBS::OUT_SYNC_SEL::write(2); // S0_4F, 6+7 | 0x10, H/V sync output from sync processor | 00 from vds_proc
   
   GBS::SP_SOG_SRC_SEL::write(0); // 5_20 0 | 0: from ADC 1: hs is sog source // useless in this mode
+  GBS::SP_SOG_P_ATO::write(1); // 5_20 enable sog auto polarity // sp will be negative // emucrt driver
   GBS::ADC_SOGEN::write(0); // 5_02 bit 0 // having it off loads the HS line???
   GBS::SP_CLAMP_MANUAL::write(1); // needs to be 1
   GBS::SP_SYNC_BYPS::write(1); // use external (H+V) sync for decimator (and sync out?) 1 to mirror in sync
@@ -3102,7 +3110,14 @@ void bypassModeSwitch_RGBHV() {
   delay(20);
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   delay(10);
+
+  uint16_t sourceVlines = GBS::STATUS_SYNC_PROC_VTOTAL::read(); // what SP sees
+  if (sourceVlines > 500) {
+    GBS::PLLAD_ICP::write(6); // ie: 720p sources, etc
+  }
+
   setPhaseSP();
+  rto->phaseADC = 14; // test / wavy ADC in higher source vline counts
   setPhaseADC();
   togglePhaseAdjustUnits();
   delay(100);
@@ -3171,12 +3186,12 @@ void doAutoGain() {
 
 void enableScanlines() {
   if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 0) {
-    //SerialM.println("enableScanlines())");
+    SerialM.println("enableScanlines())");
     GBS::RFF_WFF_OFFSET::write(0x0); // scanline fix
     GBS::MADPT_PD_RAM_BYPS::write(0);
     GBS::RFF_YUV_DEINTERLACE::write(1); // scanline fix 2
     GBS::MADPT_Y_MI_DET_BYPS::write(1); // make sure, so that mixing works
-    GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 0x38); // more luma gain
+    GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 0x30); // more luma gain
     GBS::MADPT_VIIR_COEF::write(0x14); // set up VIIR filter 2_27
     GBS::MADPT_Y_MI_OFFSET::write(0x28); // 2_0b offset (mixing factor here)
     GBS::MADPT_VIIR_BYPS::write(0); // enable VIIR 
@@ -3190,10 +3205,10 @@ void enableScanlines() {
 
 void disableScanlines() {
   if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) {
-    //SerialM.println("disableScanlines())");
+    SerialM.println("disableScanlines())");
     //GBS::RFF_WFF_OFFSET::write(0x100); // scanline fix
     GBS::MAPDT_VT_SEL_PRGV::write(1);
-    GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 0x38);
+    GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 0x30);
     GBS::MADPT_Y_MI_OFFSET::write(0xff); // 2_0b offset 0xff disables mixing
     GBS::MADPT_VIIR_BYPS::write(1); // disable VIIR
     GBS::MADPT_PD_RAM_BYPS::write(1);
@@ -3303,7 +3318,7 @@ void setup() {
   uopt->deintMode = 0;
   uopt->wantVdsLineFilter = 1;
   uopt->wantPeaking = 1;
-  uopt->preferScalingRgbhv = 0;
+  uopt->preferScalingRgbhv = 0; // test: set to 1
   uopt->PalForce60 = 1;
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
@@ -3693,7 +3708,6 @@ void loop() {
       // check for vertical adjust and undo if necessary
       if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
       {
-        GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
         GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
         GBS::IF_AUTO_OFST_RESERVED_2::write(0);
       }
@@ -4505,14 +4519,18 @@ void loop() {
               }
               if (getSyncStable()) {
                 if (!rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 0) { // ie v:524 or other, even counts > enable
+                  freezeVideo(); // make sure
                   if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
                     disableScanlines();
                   }
                   enableMotionAdaptDeinterlace();
                   preventScanlines = 1;
+                  rto->continousStableCounter = 0;
                 }
                 else if (rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 1) { // ie v:523 or other, uneven counts > disable
+                  freezeVideo(); // make sure
                   disableMotionAdaptDeinterlace();
+                  rto->continousStableCounter = 0;
                 }
               }
             }
@@ -4542,7 +4560,6 @@ void loop() {
           if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 0)
           {
             //SerialM.print("shift down, vlines: "); SerialM.println(rto->presetVlineShift);
-            GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() + rto->presetVlineShift);
             GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() + rto->presetVlineShift);
             GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as adjusted
           }
@@ -4553,7 +4570,6 @@ void loop() {
           if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
           {
             //SerialM.print("shift back up, vlines: "); SerialM.println(rto->presetVlineShift);
-            GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
             GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
             GBS::IF_AUTO_OFST_RESERVED_2::write(0);
           }
@@ -4986,25 +5002,17 @@ void handleType2Command() {
       break;
     case '3':  // load custom preset
     {
-      if (rto->videoStandardInput == 0) SerialM.println("no input detected, aborting action");
-      else {
-        const uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
-        writeProgramArrayNew(preset, false);
-        doPostPresetLoadSteps();
-        uopt->presetPreference = 2; // custom
-        saveUserPrefs();
-      }
+      const uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
+      writeProgramArrayNew(preset, false);
+      doPostPresetLoadSteps();
+      uopt->presetPreference = 2; // custom
+      saveUserPrefs();
     }
     break;
     case '4': // save custom preset
-      if (rto->videoStandardInput == 0) { 
-        SerialM.println("no input detected, aborting preset save");
-      }
-      else {
-        savePresetToSPIFFS();
-        uopt->presetPreference = 2; // custom
-        saveUserPrefs();
-      }
+      savePresetToSPIFFS();
+      uopt->presetPreference = 2; // custom
+      saveUserPrefs();
       break;
     case '5':
       //Frame Time Lock ON
@@ -5425,6 +5433,9 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
   else if (forVideoMode == 6) {
     f = SPIFFS.open("/preset_ntsc_1080p." + String(slot), "r");
   }
+  else if (forVideoMode == 0) {
+    f = SPIFFS.open("/preset_unknown." + String(slot), "r");
+  }
 
   if (!f) {
     SerialM.println("no preset file for this source");
@@ -5490,6 +5501,9 @@ void savePresetToSPIFFS() {
   else if (rto->videoStandardInput == 6) {
     f = SPIFFS.open("/preset_ntsc_1080p." + String(slot), "w");
   }
+  else if (rto->videoStandardInput == 0) {
+    f = SPIFFS.open("/preset_unknown." + String(slot), "w");
+  }
 
   if (!f) {
     SerialM.println("open save file failed!");
@@ -5505,7 +5519,6 @@ void savePresetToSPIFFS() {
     // next: check for vertical adjust and undo if necessary
     if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
     {
-      GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
       GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
       GBS::IF_AUTO_OFST_RESERVED_2::write(0);
     }
