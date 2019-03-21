@@ -640,7 +640,7 @@ void setSpParameters() {
   }
 
   if (GBS::GBS_OPTION_SCALING_RGBHV::read() != 1) {
-    GBS::SP_PRE_COAST::write(6); // SP test: 9
+    GBS::SP_PRE_COAST::write(7); // SP test: 9
     GBS::SP_POST_COAST::write(16); // SP test: 9
     if (rto->videoStandardInput == 7) {
       // override early for 1080p. depending on code flow, this may not trigger.
@@ -2703,15 +2703,15 @@ void updateCoastPosition() {
   }
 
   if (rto->videoStandardInput <= 2) { // including 0 (reset condition)
-    GBS::SP_PRE_COAST::write(6); // SP test: 9
+    GBS::SP_PRE_COAST::write(7); // SP test: 9
     GBS::SP_POST_COAST::write(16); // SP test: 9
   }
   else if (rto->videoStandardInput <= 5) {
-    GBS::SP_PRE_COAST::write(0x06);
+    GBS::SP_PRE_COAST::write(0x07);
     GBS::SP_POST_COAST::write(0x06);
   }
   else if (rto->videoStandardInput <= 7) { // 1080i,p
-    GBS::SP_PRE_COAST::write(0x06);
+    GBS::SP_PRE_COAST::write(0x07);
     GBS::SP_POST_COAST::write(0x13); // of 1124 input lines
   }
   else if (rto->videoStandardInput == 15) {
@@ -4736,13 +4736,13 @@ void loop() {
           static boolean toggle = rto->videoStandardInput > 2 ? 0 : 1;
           if (toggle) {
             GBS::SP_H_PULSE_IGNOR::write(0x02);
-            GBS::SP_PRE_COAST::write(0x06);
+            GBS::SP_PRE_COAST::write(0x07);
             GBS::SP_POST_COAST::write(0x12);
             GBS::SP_DIS_SUB_COAST::write(1);
           }
           else {
             GBS::SP_H_PULSE_IGNOR::write(0x10);
-            GBS::SP_PRE_COAST::write(6); // SP test: 9
+            GBS::SP_PRE_COAST::write(7); // SP test: 9
             GBS::SP_POST_COAST::write(16); // SP test: 9
             GBS::SP_DIS_SUB_COAST::write(1);
           }
