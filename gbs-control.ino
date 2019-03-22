@@ -1706,7 +1706,8 @@ void applyBestHTotal(uint16_t bestHTotal) {
   int diffHTotal = bestHTotal - orig_htotal;
   uint16_t diffHTotalUnsigned = abs(diffHTotal);
   if (diffHTotalUnsigned < 1 && !rto->forceRetime) {
-    SerialM.print("already at bestHTotal: "); SerialM.println(bestHTotal);
+    SerialM.print("already at bestHTotal: "); SerialM.print(bestHTotal);
+    SerialM.print(" Fieldrate: "); SerialM.println(getSourceFieldRate(), 3); // prec. 3
     return; // nothing to do
   }
   if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() == 1) {
@@ -1736,6 +1737,12 @@ void applyBestHTotal(uint16_t bestHTotal) {
         return; // just return, will give up FrameSync
       }
     }
+    // bestHTotal 0? could be an invald manual retime
+    if (bestHTotal == 0)
+    {
+      return;
+    }
+
     rto->failRetryAttempts = 0; // else all okay!, reset to 0
     rto->forceRetime = false;
 
@@ -1808,7 +1815,19 @@ void applyBestHTotal(uint16_t bestHTotal) {
     }
   }
   SerialM.print("Base: "); SerialM.print(orig_htotal);
-  SerialM.print(" Best: "); SerialM.println(bestHTotal);
+  SerialM.print(" Best: "); SerialM.print(bestHTotal);
+  SerialM.print(" Fieldrate: "); SerialM.println(getSourceFieldRate(), 3); // prec. 3
+}
+
+float getSourceFieldRate() {
+  double esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
+  uint32_t fieldTimeTicks = FrameSync::getFieldTimeTicks();
+  float retVal = 0;
+  if (fieldTimeTicks > 0) {
+    retVal = esp8266_clock_freq / (double)fieldTimeTicks;
+  }
+  
+  return retVal;
 }
 
 void doPostPresetLoadSteps() {
@@ -2586,37 +2605,45 @@ boolean getSyncStable() {
     }
   }
 
-  uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
-  uint8_t debug_backup_SP = GBS::TEST_BUS_SP_SEL::read();
-  uint16_t minSyncPulseLength = 0x0480;
-  if (rto->videoStandardInput == 7) {
-    minSyncPulseLength = 0x001B;
-  }
-
-  if (debug_backup != 0xa) {
-    GBS::TEST_BUS_SEL::write(0xa);
-  }
-  if (debug_backup_SP != 0x0f) {
-    GBS::TEST_BUS_SP_SEL::write(0x0f);
-  }
-  //todo: intermittant sync loss can read as okay briefly
-  //if ((GBS::TEST_BUS::read() & 0x0500) == 0x0500) {
-  if ((GBS::TEST_BUS::read() & 0x0fff) > minSyncPulseLength) {
-    if (debug_backup != 0xa) {
-      GBS::TEST_BUS_SEL::write(debug_backup);
-    }
-    if (debug_backup_SP != 0x0f) {
-      GBS::TEST_BUS_SP_SEL::write(debug_backup_SP);
-    }
+  // STAT_16 bit 1 is the "hsync active" flag, which appears to be a reliable indicator
+  // checking the flag replaces the code below (checking the debug bus pulse length manually)
+  if ((GBS::STATUS_16::read() & 0x02) == 0x02)
+  {
     return true;
   }
-  if (debug_backup != 0xa) {
-    GBS::TEST_BUS_SEL::write(debug_backup);
-  }
-  if (debug_backup_SP != 0x0f) {
-    GBS::TEST_BUS_SP_SEL::write(debug_backup_SP);
-  }
+
   return false;
+  //uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
+  //uint8_t debug_backup_SP = GBS::TEST_BUS_SP_SEL::read();
+  //uint16_t minSyncPulseLength = 0x0480;
+  //if (rto->videoStandardInput == 7) {
+  //  minSyncPulseLength = 0x001B;
+  //}
+
+  //if (debug_backup != 0xa) {
+  //  GBS::TEST_BUS_SEL::write(0xa);
+  //}
+  //if (debug_backup_SP != 0x0f) {
+  //  GBS::TEST_BUS_SP_SEL::write(0x0f);
+  //}
+  ////todo: intermittant sync loss can read as okay briefly
+  ////if ((GBS::TEST_BUS::read() & 0x0500) == 0x0500) {
+  //if ((GBS::TEST_BUS::read() & 0x0fff) > minSyncPulseLength) {
+  //  if (debug_backup != 0xa) {
+  //    GBS::TEST_BUS_SEL::write(debug_backup);
+  //  }
+  //  if (debug_backup_SP != 0x0f) {
+  //    GBS::TEST_BUS_SP_SEL::write(debug_backup_SP);
+  //  }
+  //  return true;
+  //}
+  //if (debug_backup != 0xa) {
+  //  GBS::TEST_BUS_SEL::write(debug_backup);
+  //}
+  //if (debug_backup_SP != 0x0f) {
+  //  GBS::TEST_BUS_SP_SEL::write(debug_backup_SP);
+  //}
+  //return false;
 }
 
 uint8_t getOverSampleRatio() {
@@ -2926,6 +2953,7 @@ void passThroughWithIfModeSwitch() {
       GBS::PLLAD_MD::write(0x768);
       GBS::SP_CS_HS_ST::write(0x90);
       GBS::SP_CS_HS_SP::write(0x38);
+      GBS::SP_HD_MODE::write(0); // flicker fix
       GBS::SP_VS_PROC_INV_REG::write(0); // don't invert, causes flicker
     }
     if (rto->videoStandardInput == 7) { // 1080p
@@ -3081,6 +3109,8 @@ void bypassModeSwitch_RGBHV() {
   GBS::PLL648_CONTROL_01::write(0x35);
   GBS::DAC_RGBS_ADC2DAC::write(1);
   GBS::OUT_SYNC_SEL::write(2); // S0_4F, 6+7 | 0x10, H/V sync output from sync processor | 00 from vds_proc
+  GBS::PAD_SYNC1_IN_ENZ::write(0); // filter H/V sync input1 (0 = on)
+  GBS::PAD_SYNC2_IN_ENZ::write(0); // filter H/V sync input2 (0 = on)
   
   GBS::SP_SOG_SRC_SEL::write(0); // 5_20 0 | 0: from ADC 1: hs is sog source // useless in this mode
   GBS::SP_SOG_P_ATO::write(1); // 5_20 enable sog auto polarity // sp will be negative // emucrt driver
@@ -3091,10 +3121,23 @@ void bypassModeSwitch_RGBHV() {
   GBS::SP_SOG_MODE::write(0); // 5_56 bit 0 // rgbhv bypass test: sog mode
   GBS::SP_CLP_SRC_SEL::write(1); // clamp source 1: pixel clock, 0: 27mhz // rgbhv bypass test: sog mode (unset before)
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
-  GBS::SP_HS2PLL_INV_REG::write(1); // rgbhv general test, seems more stable
+  // test incoming sync polarity: 0_16 bits 0(H) and 2(V) 1 = positive, 0 = negative // todo: make this continuous
+  if (GBS::STATUS_SYNC_PROC_HSPOL::read() == 0)
+  {
+    // H = low active > invert pll trigger
+    GBS::SP_HS2PLL_INV_REG::write(1);
+    SerialM.println("RGBHV: HS active low");
+  }
+  else
+  {
+    GBS::SP_HS2PLL_INV_REG::write(0);
+    SerialM.println("RGBHV: HS active high");
+  }
   GBS::SP_H_PROTECT::write(0); // 5_3e 4
   GBS::SP_DIS_SUB_COAST::write(1); // 5_3e 5
   GBS::SP_NO_COAST_REG::write(1);
+  GBS::SP_HS_PROC_INV_REG::write(0); // 5_56 5
+  GBS::SP_VS_PROC_INV_REG::write(0); // 5_56 6
   GBS::SP_PRE_COAST::write(0);
   GBS::SP_POST_COAST::write(0);
   GBS::ADC_CLK_ICLK2X::write(0); // oversampling 1x (off)

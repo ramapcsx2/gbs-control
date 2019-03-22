@@ -83,6 +83,7 @@ private:
   static bool vsyncPeriodAndPhase(int32_t *periodInput, int32_t *periodOutput, int32_t *phase) {
     uint32_t inStart, inStop, outStart, outStop;
     uint32_t inPeriod, outPeriod, diff;
+    uint8_t debugRegBackup = GBS::TEST_BUS_SEL::read();
 
     // 0x0 = IF (t1t28t3)
     GBS::TEST_BUS_SEL::write(0x0);
@@ -97,6 +98,9 @@ private:
       return false;
     }
     outPeriod = (outStop - outStart); //>> 1;
+
+    // to decide: where to leave test bus sel ?
+    GBS::TEST_BUS_SEL::write(debugRegBackup);
 
     diff = (outStart - inStart) % inPeriod;
     if (periodInput)
@@ -176,6 +180,18 @@ public:
 
     syncLockReady = true;
     return (uint16_t)bestHTotal;
+  }
+
+  static uint32_t getFieldTimeTicks() {
+    uint32_t inStart, inStop;
+    uint8_t debugRegBackup = GBS::TEST_BUS_SEL::read();
+    GBS::TEST_BUS_SEL::write(0x0); // 0x0 for IF vs, 0xa for SP vs | IF vs is averaged for interlaced frames
+    if (!vsyncInputSample(&inStart, &inStop)) {
+      GBS::TEST_BUS_SEL::write(debugRegBackup);
+      return 0;
+    }
+    GBS::TEST_BUS_SEL::write(debugRegBackup);
+    return inStop - inStart;
   }
 
   static bool ready(void) {
