@@ -3284,8 +3284,8 @@ void enableMotionAdaptDeinterlace() {
   //GBS::WFF_SAFE_GUARD::write(0); // 4_42 3
   GBS::RFF_WFF_OFFSET::write(0x100); // scanline fix
   GBS::RFF_YUV_DEINTERLACE::write(0); // scanline fix 2
-  //GBS::WFF_FF_STA_INV::write(0); // 4_42_2 // 22.03.19 : turned off
-  //GBS::WFF_LINE_FLIP::write(0); // 4_4a_4 // 22.03.19 : turned off
+  GBS::WFF_FF_STA_INV::write(0); // 4_42_2 // 22.03.19 : turned off // update: only required in PAL?
+  GBS::WFF_LINE_FLIP::write(0); // 4_4a_4 // 22.03.19 : turned off // update: only required in PAL?
   GBS::WFF_ENABLE::write(1); // 4_42 0
   GBS::RFF_ENABLE::write(1); // 4_4d 7
   GBS::MAPDT_VT_SEL_PRGV::write(0);   // 2_16_7
@@ -3297,8 +3297,8 @@ void disableMotionAdaptDeinterlace() {
   GBS::MAPDT_VT_SEL_PRGV::write(1);   // 2_16_7
   GBS::WFF_ENABLE::write(0);
   //GBS::RFF_ENABLE::write(0); // this causes the mem reset need
-  //GBS::WFF_FF_STA_INV::write(1); // 22.03.19 : turned off
-  //GBS::WFF_LINE_FLIP::write(1); // 22.03.19 : turned off
+  GBS::WFF_FF_STA_INV::write(1); // 22.03.19 : turned off // update: only required in PAL?
+  GBS::WFF_LINE_FLIP::write(1); // 22.03.19 : turned off // update: only required in PAL?
   GBS::RFF_WFF_OFFSET::write(0x0); // scanline fix
   //delay(10);
   GBS::DEINT_00::write(0xff); // 2_00
