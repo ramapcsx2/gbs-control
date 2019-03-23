@@ -675,8 +675,8 @@ void setSpParameters() {
     GBS::SP_SDCS_VSSP_REG_L::write(7); // 5_40 // should be 0b for NTSC, ~28 for PAL
   }
 
-  GBS::SP_CS_HS_ST::write(0x00);
-  GBS::SP_CS_HS_SP::write(0x08); // was 0x05, 720p source needs 0x08
+  GBS::SP_CS_HS_ST::write(0x04); // 5_45
+  GBS::SP_CS_HS_SP::write(0x28); // 5_47 720p source needs ~20 range 
 
   writeOneByte(0x49, 0x04); // 0x04 rgbhv: 20
   writeOneByte(0x4a, 0x00); // 0xc0
@@ -693,7 +693,7 @@ void setSpParameters() {
     GBS::SP_CLP_SRC_SEL::write(1); // clamp source 1: pixel clock, 0: 27mhz
     GBS::SP_SOG_MODE::write(1);
     if (rto->videoStandardInput <= 7) { // test with bypass mode: t0t4ft7 t0t4bt2, should output neg. hsync
-      GBS::SP_HS_PROC_INV_REG::write(1);
+      GBS::SP_HS_PROC_INV_REG::write(1); // this should probably be done elsewhere, if necessary (still using 1, as ofw)
     }
     //GBS::SP_NO_CLAMP_REG::write(0); // yuv inputs need this
     GBS::SP_H_CST_SP::write(0x38); //snes minimum: inHlength -12 (only required in 239 mode)
@@ -2071,9 +2071,10 @@ void doPostPresetLoadSteps() {
   GBS::PLLAD_S::write(3);
   GBS::PLL_R::write(1); // PLL lock detector skew
   GBS::PLL_S::write(2);
-  GBS::DEC_IDREG_EN::write(1);
-  //GBS::DEC_WEN_MODE::write(1); // keeps ADC phase consistent. around 4 lock positions vs totally random
-  GBS::DEC_WEN_MODE::write(0);
+  //GBS::DEC_IDREG_EN::write(1);
+  GBS::DEC_IDREG_EN::write(0);
+  GBS::DEC_WEN_MODE::write(1); // 1 keeps ADC phase consistent. around 4 lock positions vs totally random
+  //GBS::DEC_WEN_MODE::write(0);
 
   resetPLLAD(); // turns on pllad
 
@@ -3283,10 +3284,10 @@ void enableMotionAdaptDeinterlace() {
   //GBS::WFF_SAFE_GUARD::write(0); // 4_42 3
   GBS::RFF_WFF_OFFSET::write(0x100); // scanline fix
   GBS::RFF_YUV_DEINTERLACE::write(0); // scanline fix 2
-  GBS::WFF_FF_STA_INV::write(0); // 4_42_2
-  GBS::WFF_LINE_FLIP::write(0); // 4_4a_4
-  GBS::WFF_ENABLE::write(1);
-  GBS::RFF_ENABLE::write(1);
+  //GBS::WFF_FF_STA_INV::write(0); // 4_42_2 // 22.03.19 : turned off
+  //GBS::WFF_LINE_FLIP::write(0); // 4_4a_4 // 22.03.19 : turned off
+  GBS::WFF_ENABLE::write(1); // 4_42 0
+  GBS::RFF_ENABLE::write(1); // 4_4d 7
   GBS::MAPDT_VT_SEL_PRGV::write(0);   // 2_16_7
   //delay(120);
   rto->motionAdaptiveDeinterlaceActive = true;
@@ -3296,8 +3297,8 @@ void disableMotionAdaptDeinterlace() {
   GBS::MAPDT_VT_SEL_PRGV::write(1);   // 2_16_7
   GBS::WFF_ENABLE::write(0);
   //GBS::RFF_ENABLE::write(0); // this causes the mem reset need
-  GBS::WFF_FF_STA_INV::write(1);
-  GBS::WFF_LINE_FLIP::write(1);
+  //GBS::WFF_FF_STA_INV::write(1); // 22.03.19 : turned off
+  //GBS::WFF_LINE_FLIP::write(1); // 22.03.19 : turned off
   GBS::RFF_WFF_OFFSET::write(0x0); // scanline fix
   //delay(10);
   GBS::DEINT_00::write(0xff); // 2_00
@@ -4443,7 +4444,7 @@ void loop() {
     sprintf(print, "h:%4u v:%4u PLL%c%02u A:%02x%02x%02x S:%02x.%02x I:%02x D:%04x m:%hu ht:%4d vt:%3d hpw:%4d s:%2x W:%d F:%4d L:%lu",
       hperiod, vperiod, plllock, lockCounter,
       GBS::ADC_RGCTRL::read(), GBS::ADC_GGCTRL::read(), GBS::ADC_BGCTRL::read(),
-      GBS::STATUS_00::read(), GBS::STATUS_05::read(), GBS::STATUS_0F::read(),
+      GBS::STATUS_16::read(), GBS::STATUS_05::read(), GBS::STATUS_0F::read(),
       GBS::TEST_BUS::read(), getVideoMode(),
       GBS::STATUS_SYNC_PROC_HTOTAL::read(), GBS::STATUS_SYNC_PROC_VTOTAL::read() /*+ 1*/,   // emucrt: without +1 is correct line count 
       GBS::STATUS_SYNC_PROC_HLOW_LEN::read(), rto->continousStableCounter,
@@ -4576,12 +4577,12 @@ void loop() {
                   }
                   enableMotionAdaptDeinterlace();
                   preventScanlines = 1;
-                  rto->continousStableCounter = 0;
+                  //rto->continousStableCounter = 0;
                 }
                 else if (rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 1) { // ie v:523 or other, uneven counts > disable
                   freezeVideo(); // make sure
                   disableMotionAdaptDeinterlace();
-                  rto->continousStableCounter = 0;
+                  //rto->continousStableCounter = 0;
                 }
               }
             }
