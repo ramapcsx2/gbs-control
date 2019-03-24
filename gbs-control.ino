@@ -172,6 +172,7 @@ struct runTimeOptions {
   boolean boardHasPower;
   boolean blockModeDetectVSkew;
   boolean presetIsPalForce60;
+  boolean RGBHVsyncTypeCsync;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -448,6 +449,7 @@ void setResetParameters() {
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->scanlinesEnabled = false;
   rto->blockModeDetectVSkew = false;
+  rto->RGBHVsyncTypeCsync = false;
 
   adco->r_gain = 0;
   adco->g_gain = 0;
@@ -601,6 +603,10 @@ void setAdcParametersGainAndOffset() {
 
 void setSpParameters() {
   writeOneByte(0xF0, 5);
+  if (rto->videoStandardInput >= 14)
+  {
+    GBS::SP_SOG_SRC_SEL::write(1);
+  }
   GBS::SP_SOG_P_ATO::write(1); // 5_20 enable sog auto polarity // sp will be negative // emucrt driver
   GBS::SP_JITTER_SYNC::write(0);
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input 0 ( 5_20 bit 3 )
@@ -639,17 +645,22 @@ void setSpParameters() {
     writeOneByte(0x37, 0x02);
   }
 
-  if (GBS::GBS_OPTION_SCALING_RGBHV::read() != 1) {
-    GBS::SP_PRE_COAST::write(7); // SP test: 9
-    GBS::SP_POST_COAST::write(16); // SP test: 9
-    if (rto->videoStandardInput == 7) {
-      // override early for 1080p. depending on code flow, this may not trigger.
-      // it should trigger in passThroughWithIfModeSwitch then
-      GBS::SP_POST_COAST::write(0x16);
+  if (!rto->RGBHVsyncTypeCsync)
+  {
+    if (GBS::GBS_OPTION_SCALING_RGBHV::read() != 1) {  // seems fishy ..
+      GBS::SP_PRE_COAST::write(7); // SP test: 9
+      GBS::SP_POST_COAST::write(16); // SP test: 9
+      if (rto->videoStandardInput == 7) {
+        // override early for 1080p. depending on code flow, this may not trigger.
+        // it should trigger in passThroughWithIfModeSwitch then
+        GBS::SP_POST_COAST::write(0x16);
+      }
     }
   }
-  writeOneByte(0x3a, 0x03); // was 0x0a // range depends on source vtiming, from 0x03 to xxx, some good effect at lower levels
-
+  if (rto->videoStandardInput < 14)
+  {
+    writeOneByte(0x3a, 0x03); // was 0x0a // range depends on source vtiming, from 0x03 to xxx, some good effect at lower levels
+  }
   // this needs to be runtime, and based on current line count (vt:321 for PAL)
   //if (rto->videoStandardInput == 1)
   //{
@@ -676,7 +687,7 @@ void setSpParameters() {
   }
 
   GBS::SP_CS_HS_ST::write(0x04); // 5_45
-  GBS::SP_CS_HS_SP::write(0x28); // 5_47 720p source needs ~20 range 
+  GBS::SP_CS_HS_SP::write(0x40); // 5_47 720p source needs ~20 range, may be necessary to adjust at runtime, based on source res
 
   writeOneByte(0x49, 0x04); // 0x04 rgbhv: 20
   writeOneByte(0x4a, 0x00); // 0xc0
@@ -733,7 +744,6 @@ void setAndUpdateSogLevel(uint8_t level) {
 // Generally, the ADC has to stay enabled to perform SOG separation and thus "see" a source.
 // It is possible to run in low power mode.
 void goLowPowerWithInputDetection() {
-  SerialM.println("input detect mode");
   GBS::OUT_SYNC_CNTRL::write(0); // no H / V sync out to PAD
   GBS::DAC_RGBS_PWDNZ::write(0); // direct disableDAC()
   zeroAll();
@@ -743,6 +753,7 @@ void goLowPowerWithInputDetection() {
   setSpParameters();
   delay(300);
   rto->isInLowPowerMode = true;
+  SerialM.println("Scanning inputs for sources ...");
   LEDOFF;
 }
 
@@ -919,17 +930,18 @@ void switchSyncProcessingMode(uint8_t mode) {
 // This is done this way to not block the control MCU with active searching for sync.
 uint8_t detectAndSwitchToActiveInput() { // if any
   uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
-
   unsigned long timeout = millis();
-  while (millis() - timeout < 450) {
-    delay(10); // in case the input switch needs time to settle (it didn't in a short test though)
-    uint8_t videoMode = getVideoMode();
 
-    if (GBS::TEST_BUS_2F::read() != 0 || videoMode > 0) {
+  while (millis() - timeout < 450) {
+    delay(10);
+    uint8_t videoMode = getVideoMode();
+    if (GBS::TEST_BUS_2F::read() != 0 || videoMode > 0) 
+    {
       currentInput = GBS::ADC_INPUT_SEL::read();
-      videoMode = getVideoMode();
-      SerialM.print("found: "); SerialM.print(GBS::TEST_BUS_2F::read()); SerialM.print(" getVideoMode: "); SerialM.print(getVideoMode());
-      SerialM.print(" input: "); SerialM.println(currentInput);
+      SerialM.print("Activity detected, input: "); 
+      if(currentInput == 1) SerialM.println("RGBS/HV");
+      else SerialM.println("Component");
+
       if (currentInput == 1) { // RGBS or RGBHV
         boolean vsyncActive = 0;
         unsigned long timeOutStart = millis();
@@ -940,25 +952,26 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         if (!vsyncActive) {
           optimizeSogLevel(); // test: placing it here okay?
           delay(50);
-        }
-        timeOutStart = millis();
-        while ((millis() - timeOutStart) < 300) {
-          delay(8);
-          if (getVideoMode() > 0) {
-            SerialM.println(" RGBS");
-            return 1;
+          timeOutStart = millis();
+          while ((millis() - timeOutStart) < 300) {
+            delay(8);
+            if (getVideoMode() > 0) {
+              SerialM.println(" RGBS");
+              return 1;
+            }
           }
         }
-        // is it RGBHV instead?
-        GBS::SP_SOG_MODE::write(0);
+
+        // VSync is active > it's RGBHV or RGBHV with CSync on HS pin
+        //GBS::SP_SOG_MODE::write(0);
         vsyncActive = 0;
         timeOutStart = millis();
-        while (!vsyncActive && millis() - timeOutStart < 400) {
+        while (!vsyncActive && millis() - timeOutStart < 400) { // check again to make sure
           vsyncActive = GBS::STATUS_SYNC_PROC_VSACT::read();
           delay(1); // wifi stack
         }
         if (vsyncActive) {
-          SerialM.println("VS active");
+          SerialM.println("VSync: present");
           boolean hsyncActive = 0;
           timeOutStart = millis();
           while (!hsyncActive && millis() - timeOutStart < 400) {
@@ -966,7 +979,28 @@ uint8_t detectAndSwitchToActiveInput() { // if any
             delay(1); // wifi stack
           }
           if (hsyncActive) {
-            SerialM.println("HS active");
+            SerialM.print("HSync: ");
+            // The HSync pin is setup to detect CSync, if present (SOG mode on, coasting setup, debug bus setup, etc)
+            GBS::SP_SOG_SRC_SEL::write(1); // but this may be needed (HS pin as SOG source)
+            short decodeSuccess = 0;
+            for (int i = 0; i < 2; i++)
+            {
+              // no success if: no signal at all (returns 0.0f), no embedded VSync (returns ~18.5f)
+              if (getSourceFieldRate(1) > 40.0f) decodeSuccess++; // properly decoded vsync from 40 to xx Hz
+            }
+
+            if (decodeSuccess == 2)
+            {
+              // CSync is present
+              rto->RGBHVsyncTypeCsync = true;
+              SerialM.println("present (+ CSync)");
+            }
+            else
+            {
+              // Pure HSync
+              rto->RGBHVsyncTypeCsync = false;
+              SerialM.println("present");
+            }
             rto->inputIsYpBpR = 0;
             rto->sourceDisconnected = false;
             rto->videoStandardInput = 15;
@@ -975,7 +1009,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
             return 3;
           }
           else {
-            SerialM.println("but no HS!");
+            SerialM.println("but no HSync!");
           }
         }
 
@@ -1033,7 +1067,6 @@ uint8_t inputAndSyncDetect() {
   if (syncFound == 0) {
     if (!getSyncPresent()) {
       if (rto->isInLowPowerMode == false) {
-        SerialM.println("\n no sync found");
         rto->sourceDisconnected = true;
         rto->videoStandardInput = 0;
         // reset to base settings, then go to low power
@@ -1707,7 +1740,7 @@ void applyBestHTotal(uint16_t bestHTotal) {
   uint16_t diffHTotalUnsigned = abs(diffHTotal);
   if (diffHTotalUnsigned < 1 && !rto->forceRetime) {
     SerialM.print("already at bestHTotal: "); SerialM.print(bestHTotal);
-    SerialM.print(" Fieldrate: "); SerialM.println(getSourceFieldRate(), 3); // prec. 3
+    SerialM.print(" Fieldrate: "); SerialM.println(getSourceFieldRate(0), 3); // prec. 3 // use IF testbus
     return; // nothing to do
   }
   if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() == 1) {
@@ -1816,15 +1849,27 @@ void applyBestHTotal(uint16_t bestHTotal) {
   }
   SerialM.print("Base: "); SerialM.print(orig_htotal);
   SerialM.print(" Best: "); SerialM.print(bestHTotal);
-  SerialM.print(" Fieldrate: "); SerialM.println(getSourceFieldRate(), 3); // prec. 3
+  SerialM.print(" Fieldrate: "); SerialM.println(getSourceFieldRate(0), 3); // prec. 3 // use IF testbus
 }
 
-float getSourceFieldRate() {
+float getSourceFieldRate(boolean useSPBus) {
   double esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
-  uint32_t fieldTimeTicks = FrameSync::getFieldTimeTicks();
+  uint32_t fieldTimeTicks = FrameSync::getFieldTimeTicks(useSPBus);
   float retVal = 0;
   if (fieldTimeTicks > 0) {
     retVal = esp8266_clock_freq / (double)fieldTimeTicks;
+  }
+  
+  return retVal;
+}
+
+// used for RGBHV to determine the ADPLL speed "level"
+uint32_t getPllRate() {
+  uint32_t esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
+  uint32_t ticks = FrameSync::getPllRateTicks();
+  uint32_t retVal = 0;
+  if (ticks > 0) {
+    retVal = esp8266_clock_freq / ticks;
   }
   
   return retVal;
@@ -2743,8 +2788,12 @@ void updateCoastPosition() {
     GBS::SP_POST_COAST::write(0x13); // of 1124 input lines
   }
   else if (rto->videoStandardInput == 15) {
-    GBS::SP_PRE_COAST::write(0x00);
-    GBS::SP_POST_COAST::write(0x00);
+    if (!rto->RGBHVsyncTypeCsync)
+    {
+      GBS::SP_PRE_COAST::write(0x00);
+      GBS::SP_POST_COAST::write(0x00);
+    }
+    rto->coastPositionIsSet = true;
     return;
   }
 
@@ -2793,12 +2842,17 @@ void updateClampPosition(uint8_t stage) {
 
   GBS::SP_CLP_SRC_SEL::write(0); // 0: 27Mhz clock 1: pixel clock
   GBS::SP_CLAMP_INV_REG::write(0); // clamp normal (no invert)
+  // note: the values also heavily depend on HS_LOOP_SEL (5_57 6)
   uint16_t start = inHlength * 0.009f;
   uint16_t stop = inHlength * 0.022f;
   if (rto->videoStandardInput == 15) {
     //RGBHV bypass
-    start = inHlength * 0.034f;
-    stop = inHlength * 0.06f;
+    if (!rto->RGBHVsyncTypeCsync)
+    {
+      // override
+      start = inHlength * 0.02f;
+      stop = inHlength * 0.054f; // was 0.6
+    }
     GBS::SP_CLAMP_INV_REG::write(0); // clamp normal
   }
   else if (rto->inputIsYpBpR) {
@@ -3113,34 +3167,51 @@ void bypassModeSwitch_RGBHV() {
   GBS::PAD_SYNC1_IN_ENZ::write(0); // filter H/V sync input1 (0 = on)
   GBS::PAD_SYNC2_IN_ENZ::write(0); // filter H/V sync input2 (0 = on)
   
-  GBS::SP_SOG_SRC_SEL::write(0); // 5_20 0 | 0: from ADC 1: hs is sog source // useless in this mode
+  GBS::SP_SOG_SRC_SEL::write(1); // 5_20 0 | 0: from ADC 1: hs is sog source
   GBS::SP_SOG_P_ATO::write(1); // 5_20 enable sog auto polarity // sp will be negative // emucrt driver
-  GBS::ADC_SOGEN::write(0); // 5_02 bit 0 // having it off loads the HS line???
-  GBS::SP_CLAMP_MANUAL::write(1); // needs to be 1
-  GBS::SP_SYNC_BYPS::write(1); // use external (H+V) sync for decimator (and sync out?) 1 to mirror in sync
-  GBS::SP_HS_LOOP_SEL::write(0); // 5_57_6 | 0 enables retiming (required to fix short out sync pulses + any inversion)
-  GBS::SP_SOG_MODE::write(0); // 5_56 bit 0 // rgbhv bypass test: sog mode
-  GBS::SP_CLP_SRC_SEL::write(1); // clamp source 1: pixel clock, 0: 27mhz // rgbhv bypass test: sog mode (unset before)
-  GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
-  // test incoming sync polarity: 0_16 bits 0(H) and 2(V) 1 = positive, 0 = negative // todo: make this continuous
-  if (GBS::STATUS_SYNC_PROC_HSPOL::read() == 0)
+  if (!rto->RGBHVsyncTypeCsync)
   {
-    // H = low active > invert pll trigger
-    GBS::SP_HS2PLL_INV_REG::write(1);
-    SerialM.println("RGBHV: HS active low");
+    GBS::ADC_SOGEN::write(0); // 5_02 bit 0 // having it off loads the HS line???
+    GBS::SP_H_TOTAL_EQ_THD::write(0); // 5_3A valid hsyncs sync separation (for line counting)
+    GBS::SP_SOG_MODE::write(0); // 5_56 bit 0 // rgbhv bypass test: sog mode
+    GBS::SP_NO_COAST_REG::write(1); // coasting off
+    GBS::SP_PRE_COAST::write(0);
+    GBS::SP_POST_COAST::write(0);
+    GBS::SP_SYNC_BYPS::write(1); // use external (H+V) sync for decimator (and sync out) 1 to mirror in sync
+    GBS::SP_HS_LOOP_SEL::write(0); // 5_57_6 | 0 enables retiming (required to fix short out sync pulses + any inversion)
   }
   else
   {
-    GBS::SP_HS2PLL_INV_REG::write(0);
-    SerialM.println("RGBHV: HS active high");
+    GBS::ADC_SOGEN::write(1); // 5_02 bit 0 appears to be required on for stable Sync sep
+    GBS::SP_H_TOTAL_EQ_THD::write(3);
+    GBS::SP_SOG_MODE::write(1);
+    GBS::SP_NO_COAST_REG::write(0); // coasting on
+    GBS::SP_PRE_COAST::write(6);
+    GBS::SP_POST_COAST::write(6);
+    GBS::SP_SYNC_BYPS::write(0); // use regular sync for decimator (and sync out) path
+    GBS::SP_HS_LOOP_SEL::write(0); // 5_57_6 | 0 here as well
   }
+  GBS::SP_CLAMP_MANUAL::write(1); // needs to be 1
+  GBS::SP_CLP_SRC_SEL::write(1); // clamp source 1: pixel clock, 0: 27mhz // rgbhv bypass test: sog mode (unset before)
+  GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
+  
+  // test incoming sync polarity: 0_16 bits 0(H) and 2(V) 1 = positive, 0 = negative
+  // todo: make this continuous
+  //if (GBS::STATUS_SYNC_PROC_HSPOL::read() == 0)
+  //{
+  //  // H = low active > invert pll trigger
+  //  GBS::SP_HS2PLL_INV_REG::write(1);
+  //  SerialM.println("RGBHV: HS active low");
+  //}
+  //else
+  //{
+  //  GBS::SP_HS2PLL_INV_REG::write(0);
+  //  SerialM.println("RGBHV: HS active high");
+  //}
   GBS::SP_H_PROTECT::write(0); // 5_3e 4
-  GBS::SP_DIS_SUB_COAST::write(1); // 5_3e 5
-  GBS::SP_NO_COAST_REG::write(1);
+  GBS::SP_DIS_SUB_COAST::write(1); // 5_3e 5 
   GBS::SP_HS_PROC_INV_REG::write(0); // 5_56 5
   GBS::SP_VS_PROC_INV_REG::write(0); // 5_56 6
-  GBS::SP_PRE_COAST::write(0);
-  GBS::SP_POST_COAST::write(0);
   GBS::ADC_CLK_ICLK2X::write(0); // oversampling 1x (off)
   GBS::ADC_CLK_ICLK1X::write(0);
   GBS::PLLAD_KS::write(1); // 0 - 3
@@ -3162,11 +3233,6 @@ void bypassModeSwitch_RGBHV() {
   delay(20);
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   delay(10);
-
-  uint16_t sourceVlines = GBS::STATUS_SYNC_PROC_VTOTAL::read(); // what SP sees
-  if (sourceVlines > 500) {
-    GBS::PLLAD_ICP::write(6); // ie: 720p sources, etc
-  }
 
   setPhaseSP();
   rto->phaseADC = 14; // test / wavy ADC in higher source vline counts
@@ -3389,6 +3455,7 @@ void setup() {
   rto->boardHasPower = true;
   rto->blockModeDetectVSkew = false;
   rto->presetIsPalForce60 = false;
+  rto->RGBHVsyncTypeCsync = false;
 
   // the following is just run time variables. don't change!
   rto->inputIsYpBpR = false;
@@ -4419,7 +4486,7 @@ void loop() {
 
     char plllock = (GBS::STATUS_MISC_PLL648_LOCK::read() == 1) ? '.' : 'x';
     uint16_t hperiod = 0, vperiod = 0;
-    if (rto->videoStandardInput != 15) {
+    if (1/*rto->videoStandardInput != 15*/) {
       hperiod = GBS::HPERIOD_IF::read();
       vperiod = GBS::VPERIOD_IF::read();
     }
@@ -4639,10 +4706,11 @@ void loop() {
     }
 
     if (rto->videoStandardInput >= 14) { // RGBHV checks
-      static uint8_t RGBHVNoSyncCounter = 0;
+      static uint16_t RGBHVNoSyncCounter = 0;
       uint8_t VSHSStatus = GBS::STATUS_16::read();
 
-      if (uopt->preferScalingRgbhv) {
+      if (uopt->preferScalingRgbhv) 
+      {
         // is the source in range for scaling RGBHV?
         uint16 sourceLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
         if ((sourceLines >= 480 && sourceLines <= 535) && rto->videoStandardInput == 15) {
@@ -4706,7 +4774,7 @@ void loop() {
         }
       }
 
-      if (RGBHVNoSyncCounter > 200) {
+      if (RGBHVNoSyncCounter > 600) {
           RGBHVNoSyncCounter = 0;
           setResetParameters();
           setSpParameters();
@@ -4718,44 +4786,65 @@ void loop() {
       static unsigned long lastTimeCheck = millis();
       if 
         ( // what a mess 
-        (((rto->continousStableCounter > 3) )) && (((millis() - lastTimeCheck) > 50) && rto->videoStandardInput != 14)
+        (((rto->continousStableCounter > 20) )) && (((millis() - lastTimeCheck) > 1000) && rto->videoStandardInput != 14)
         )
       {
+        //short activeChargePumpLevel = GBS::PLLAD_ICP::read();
+        //short activeGainBoost = GBS::PLLAD_FS::read();
+        uint32_t currentPllRate = getPllRate();
         
-        uint16_t currentPllDivider = GBS::PLLAD_MD::read();
-        uint16_t STATUS_SYNC_PROC_HTOTAL = GBS::STATUS_SYNC_PROC_HTOTAL::read();
-        
-        if ((STATUS_SYNC_PROC_HTOTAL < (currentPllDivider - 8)) || (STATUS_SYNC_PROC_HTOTAL > (currentPllDivider + 8))) 
-        { // then it can't keep lock
-          if (currentPllDivider < 3600) {
-            if (currentPllDivider > 400 && currentPllDivider < 440) {
-              GBS::PLLAD_ICP::write(3);
-            }
-            else if (currentPllDivider > 1000 && currentPllDivider < 1040) {
-              GBS::PLLAD_ICP::write(5);
-            }
-            else if (currentPllDivider > 2200 && currentPllDivider < 2240) {
-              GBS::PLLAD_ICP::write(7);
-            }
-            GBS::PLLAD_MD::write(currentPllDivider + 16);
-          }
-          else {
-            GBS::PLLAD_FS::write(0);
-            GBS::PLLAD_MD::write(400);
-          }
-          latchPLLAD();
-          delay(30);
-          //setPhaseSP(); setPhaseADC();
-          togglePhaseAdjustUnits();
-          /*SerialM.print("PLLAD_MD: "); 
-          SerialM.print(GBS::PLLAD_MD::read());
-          SerialM.print(" SYNC_PROC_HTOTAL: "); 
-          SerialM.println(STATUS_SYNC_PROC_HTOTAL);*/
-          delay(30);
-
-          rto->clampPositionIsSet = false; // RGBHV should regularly check clamp position
-          lastTimeCheck = millis(); // had to adjust, check again sooner
+        /*uint8_t lockCounter = 0;
+        for (uint8_t i = 0; i < 20; i++) {
+          lockCounter += ((GBS::STATUS_MISC_PLLAD_LOCK::read() == 1) ? 1 : 0);
         }
+        lockCounter = getMovingAverage(lockCounter);
+
+        SerialM.print(" currentPllRate: "); SerialM.print(currentPllRate);
+        SerialM.print(" CPL: "); SerialM.print(activeChargePumpLevel);
+        SerialM.print(" Gain: "); SerialM.print(activeGainBoost);
+        SerialM.print(" KS: "); SerialM.print(GBS::PLLAD_KS::read());
+        SerialM.print(" lock: "); SerialM.println(lockCounter);*/
+
+        if (currentPllRate != 0)
+        {
+          if (currentPllRate < 1030) // ~ 970 to 1030 for 15kHz stuff
+          {
+            GBS::PLLAD_KS::write(2);
+            GBS::PLLAD_ICP::write(5);
+            latchPLLAD();
+          }
+          else if (currentPllRate < 2300)
+          {
+            GBS::PLLAD_KS::write(1);
+            GBS::PLLAD_FS::write(1);
+            GBS::PLLAD_ICP::write(5);
+            latchPLLAD();
+          }
+          else if (currentPllRate < 3200)
+          {
+            GBS::PLLAD_KS::write(1);
+            GBS::PLLAD_FS::write(1);
+            GBS::PLLAD_ICP::write(6); // would need 7 but this is risky
+            latchPLLAD();
+          }
+          else if (currentPllRate < 3800)
+          {
+            GBS::PLLAD_KS::write(0);
+            GBS::PLLAD_FS::write(0);
+            GBS::PLLAD_ICP::write(5);
+            latchPLLAD();
+          }
+          else // >= 3800
+          {
+            GBS::PLLAD_KS::write(0);
+            GBS::PLLAD_FS::write(1);
+            GBS::PLLAD_ICP::write(4);
+            latchPLLAD();
+          }
+        }
+
+        lastTimeCheck = millis();
+        rto->clampPositionIsSet = false; // RGBHV should regularly check clamp position
       }
     }
 

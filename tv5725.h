@@ -627,6 +627,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x37, 0,  8> SP_H_PULSE_IGNOR;
     typedef UReg<0x05, 0x38, 0,  8> SP_PRE_COAST;
     typedef UReg<0x05, 0x39, 0,  8> SP_POST_COAST;
+    typedef UReg<0x05, 0x3A, 0,  8> SP_H_TOTAL_EQ_THD;
     typedef UReg<0x05, 0x3B, 0,  3> SP_SDCS_VSST_REG_H;
     typedef UReg<0x05, 0x3B, 4,  3> SP_SDCS_VSSP_REG_H;
     typedef UReg<0x05, 0x3E, 0,  8> SP_CS_0x3E; // fake name

@@ -182,15 +182,45 @@ public:
     return (uint16_t)bestHTotal;
   }
 
-  static uint32_t getFieldTimeTicks() {
+  static uint32_t getFieldTimeTicks(boolean useSPBus) {
     uint32_t inStart, inStop;
     uint8_t debugRegBackup = GBS::TEST_BUS_SEL::read();
-    GBS::TEST_BUS_SEL::write(0x0); // 0x0 for IF vs, 0xa for SP vs | IF vs is averaged for interlaced frames
+    uint8_t debugRegBackup_SP = GBS::TEST_BUS_SP_SEL::read();
+    if (useSPBus)
+    {
+      GBS::TEST_BUS_SEL::write(0xa); // 0x0 for IF vs, 0xa for SP vs | IF vs is averaged for interlaced frames
+      GBS::TEST_BUS_SP_SEL::write(0x0f);
+    }
+    else
+    {
+      GBS::TEST_BUS_SEL::write(0x0);
+    }
+    
     if (!vsyncInputSample(&inStart, &inStop)) {
       GBS::TEST_BUS_SEL::write(debugRegBackup);
+      GBS::TEST_BUS_SP_SEL::write(debugRegBackup_SP);
       return 0;
     }
     GBS::TEST_BUS_SEL::write(debugRegBackup);
+    GBS::TEST_BUS_SP_SEL::write(debugRegBackup_SP);
+    return inStop - inStart;
+  }
+
+  static uint32_t getPllRateTicks() {
+    uint32_t inStart, inStop;
+    uint8_t debugRegBackup = GBS::TEST_BUS_SEL::read();
+    uint8_t debugRegBackup_SP = GBS::TEST_BUS_SP_SEL::read();
+
+    GBS::TEST_BUS_SEL::write(0xa); // SP test bus
+    GBS::TEST_BUS_SP_SEL::write(0x6B); // some kind of test..
+    if (!vsyncInputSample(&inStart, &inStop)) {
+      GBS::TEST_BUS_SEL::write(debugRegBackup);
+      GBS::TEST_BUS_SP_SEL::write(debugRegBackup_SP);
+      return 0;
+    }
+    GBS::TEST_BUS_SEL::write(debugRegBackup);
+    GBS::TEST_BUS_SP_SEL::write(debugRegBackup_SP);
+
     return inStop - inStart;
   }
 
