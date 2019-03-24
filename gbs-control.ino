@@ -2125,8 +2125,11 @@ void doPostPresetLoadSteps() {
 
   if (!isCustomPreset) {
     rto->phaseADC = GBS::PA_ADC_S::read();
-    rto->phaseSP = 15; // can hardcode this to 15 now
-
+    
+    if (rto->videoStandardInput < 14)
+    {
+      rto->phaseSP = 15; // can hardcode this to 15 now, except RGBHV modes
+    }
     // 4 segment 
     GBS::CAP_SAFE_GUARD_EN::write(0); // 4_21_5 // does more harm than good
     GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2 vertical scale down line buffer bypass (not the vds one, the internal one for reduction)
@@ -3148,8 +3151,6 @@ void bypassModeSwitch_RGBHV() {
   
   rto->videoStandardInput = 15; // making sure
   rto->autoBestHtotalEnabled = false; // not necessary, since VDS is off / bypassed
-  rto->phaseADC = 16;
-  rto->phaseSP = 15;
 
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC
 
@@ -3177,8 +3178,12 @@ void bypassModeSwitch_RGBHV() {
     GBS::SP_NO_COAST_REG::write(1); // coasting off
     GBS::SP_PRE_COAST::write(0);
     GBS::SP_POST_COAST::write(0);
-    GBS::SP_SYNC_BYPS::write(1); // use external (H+V) sync for decimator (and sync out) 1 to mirror in sync
+    GBS::SP_SYNC_BYPS::write(0); // external H+V sync for decimator (+ sync out) | 1 to mirror in sync, 0 to output processed sync
+    GBS::SP_HS_POL_ATO::write(1); // 5_55 4 auto polarity for retiming
+    GBS::SP_VS_POL_ATO::write(1); // 5_55 6
     GBS::SP_HS_LOOP_SEL::write(0); // 5_57_6 | 0 enables retiming (required to fix short out sync pulses + any inversion)
+    rto->phaseADC = 0;
+    rto->phaseSP = 4;
   }
   else
   {
@@ -3190,6 +3195,8 @@ void bypassModeSwitch_RGBHV() {
     GBS::SP_POST_COAST::write(6);
     GBS::SP_SYNC_BYPS::write(0); // use regular sync for decimator (and sync out) path
     GBS::SP_HS_LOOP_SEL::write(0); // 5_57_6 | 0 here as well
+    rto->phaseADC = 0;
+    rto->phaseSP = 16;
   }
   GBS::SP_CLAMP_MANUAL::write(1); // needs to be 1
   GBS::SP_CLP_SRC_SEL::write(1); // clamp source 1: pixel clock, 0: 27mhz // rgbhv bypass test: sog mode (unset before)
@@ -3234,8 +3241,7 @@ void bypassModeSwitch_RGBHV() {
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   delay(10);
 
-  setPhaseSP();
-  rto->phaseADC = 14; // test / wavy ADC in higher source vline counts
+  setPhaseSP(); // different for CSync and pure HV modes
   setPhaseADC();
   togglePhaseAdjustUnits();
   delay(100);
