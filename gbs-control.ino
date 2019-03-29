@@ -120,7 +120,6 @@ uint8_t getMovingAverage(uint8_t item)
 //
 struct FrameSyncAttrs {
   static const uint8_t debugInPin = DEBUG_IN_PIN;
-  static const uint32_t syncTimeout = 900000; // Sync lock sampling timeout in microseconds
   static const uint32_t lockInterval = 60 * 16; // every 60 frames. good range for this: 30 to 90 (milliseconds)
   static const int16_t syncCorrection = 2; // Sync correction in scanlines to apply when phase lags target
   static const int32_t syncTargetPhase = 90; // Target vsync phase offset (output trails input) in degrees
@@ -443,7 +442,7 @@ void setResetParameters() {
   rto->coastPositionIsSet = 0;
   rto->continousStableCounter = 0;
   rto->isInLowPowerMode = false;
-  rto->currentLevelSOG = 1;
+  rto->currentLevelSOG = 6;
   rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
   rto->failRetryAttempts = 0;
   rto->motionAdaptiveDeinterlaceActive = false;
@@ -814,7 +813,7 @@ void optimizeSogLevel() {
   if (rto->videoStandardInput == 15 || GBS::SP_SOG_MODE::read() != 1) return;
   
   if (rto->thisSourceMaxLevelSOG == 31) {
-    rto->currentLevelSOG = 8;
+    rto->currentLevelSOG = 6;
   }
   else {
     rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
@@ -1036,7 +1035,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         }
       }
       SerialM.println(" lost..");
-      rto->currentLevelSOG = 1;
+      rto->currentLevelSOG = 6;
       setAndUpdateSogLevel(rto->currentLevelSOG);
       //SerialM.println(" lost, attempt auto SOG");
       //optimizeSogLevel();
@@ -1854,15 +1853,37 @@ void applyBestHTotal(uint16_t bestHTotal) {
   }
   SerialM.print("Base: "); SerialM.print(orig_htotal);
   SerialM.print(" Best: "); SerialM.print(bestHTotal);
-  SerialM.print(" Fieldrate: "); SerialM.println(getSourceFieldRate(0), 3); // prec. 3 // use IF testbus
+  SerialM.print(" Fieldrate: ");
+  float sfr = getSourceFieldRate(0);
+  SerialM.println(sfr, 3); // prec. 3 // use IF testbus
 }
 
 float getSourceFieldRate(boolean useSPBus) {
   double esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
-  uint32_t fieldTimeTicks = FrameSync::getFieldTimeTicks(useSPBus);
+  uint8_t debugRegBackup = GBS::TEST_BUS_SEL::read();
+  uint8_t debugRegBackup_SP = GBS::TEST_BUS_SP_SEL::read();
+
+  if (useSPBus)
+  {
+    GBS::TEST_BUS_SEL::write(0xa); // 0x0 for IF vs, 0xa for SP vs | IF vs is averaged for interlaced frames
+    GBS::TEST_BUS_SP_SEL::write(0x0f);
+  }
+  else
+  {
+    GBS::TEST_BUS_SEL::write(0x0);
+  }
+  uint32_t fieldTimeTicks = FrameSync::getPulseTicks();
+  GBS::TEST_BUS_SEL::write(debugRegBackup);
+  GBS::TEST_BUS_SP_SEL::write(debugRegBackup_SP);
+
   float retVal = 0;
   if (fieldTimeTicks > 0) {
     retVal = esp8266_clock_freq / (double)fieldTimeTicks;
+    if (retVal > 1.0f) {
+      // account for measurment delays (referenced to PSX clock)
+      // PSX @60p: 53693175 / 263 / 3413 = 59.81733341
+      retVal -= 0.00968f;
+    }
   }
   
   return retVal;
@@ -1871,7 +1892,15 @@ float getSourceFieldRate(boolean useSPBus) {
 // used for RGBHV to determine the ADPLL speed "level"
 uint32_t getPllRate() {
   uint32_t esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
-  uint32_t ticks = FrameSync::getPllRateTicks();
+  uint8_t debugRegBackup = GBS::TEST_BUS_SEL::read();
+  uint8_t debugRegBackup_SP = GBS::TEST_BUS_SP_SEL::read();
+
+  GBS::TEST_BUS_SEL::write(0xa); // SP test bus
+  GBS::TEST_BUS_SP_SEL::write(0x6B); // some kind of test..
+  uint32_t ticks = FrameSync::getPulseTicks();
+  GBS::TEST_BUS_SEL::write(debugRegBackup);
+  GBS::TEST_BUS_SP_SEL::write(debugRegBackup_SP);
+
   uint32_t retVal = 0;
   if (ticks > 0) {
     retVal = esp8266_clock_freq / ticks;
@@ -4040,7 +4069,7 @@ void setup() {
     SerialM.println("\nCheck SDA, SCL connection! Check GBS for power!");
   }
 
-  rto->currentLevelSOG = 1;
+  rto->currentLevelSOG = 6;
   rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
 
   if (!powerOrWireIssue)
@@ -4769,6 +4798,12 @@ void loop() {
         readFromRegister(registerCurrent, 1, &readout);
         Serial.print(" : "); Serial.println(readout, HEX);
       }
+    }
+    break;
+    case '_':
+    {
+      uint32_t ticks = FrameSync::getPulseTicks();
+      Serial.println(ticks);
     }
     break;
     case 'w':

@@ -17,11 +17,20 @@
 
 //#define FS_DEBUG
 
-volatile uint32_t stopTime;
-void ICACHE_RAM_ATTR signalNextRisingEdge() {
+volatile uint32_t stopTime, startTime;
+
+void ICACHE_RAM_ATTR risingEdgeISR_measure() {
   noInterrupts();
   stopTime = ESP.getCycleCount();
-  detachInterrupt(digitalPinToInterrupt(DEBUG_IN_PIN));
+  detachInterrupt(DEBUG_IN_PIN);
+  interrupts();
+}
+
+void ICACHE_RAM_ATTR risingEdgeISR_prepare() {
+  noInterrupts();
+  startTime = ESP.getCycleCount();
+  detachInterrupt(DEBUG_IN_PIN);
+  attachInterrupt(DEBUG_IN_PIN, risingEdgeISR_measure, RISING);
   interrupts();
 }
 
@@ -36,7 +45,6 @@ private:
   typedef typename GBS::template Tie<VSYNC_RST, VSST, VSSP> VRST_SST_SSP;
 
   static const uint8_t debugInPin = Attrs::debugInPin;
-  static const uint32_t syncTimeout = Attrs::syncTimeout;
   static const int16_t syncCorrection = Attrs::syncCorrection;
   static const int32_t syncTargetPhase = Attrs::syncTargetPhase;
 
@@ -45,33 +53,32 @@ private:
 
   // Sample vsync start and stop times from debug pin.
   static bool vsyncOutputSample(uint32_t *start, uint32_t *stop) {
-    unsigned long timeoutStart = micros();
-    stopTime = 0; // reset this
-    while (digitalRead(debugInPin))
-      if (micros() - timeoutStart >= syncTimeout)
-        return false;
-    while (!digitalRead(debugInPin))
-      if (micros() - timeoutStart >= syncTimeout)
-        return false;
-
-    *start = ESP.getCycleCount();
-    delayMicroseconds(4); // glitch filter, not sure if needed
-    attachInterrupt(digitalPinToInterrupt(D6), signalNextRisingEdge, RISING);
-    delay(22); // PAL50: 20ms
-    *stop = stopTime;
-    if (*stop == 0) {
-      // extra delay, sometimes needed when tuning VDS clock
-      delay(50);
+    startTime = 0; stopTime = 0;
+    ESP.wdtDisable();
+    attachInterrupt(DEBUG_IN_PIN, risingEdgeISR_prepare, RISING);
+    // PAL50: 20ms, worst case 2 fields, sometimes needed when tuning VDS clock
+    for (uint32_t i = 0; i < 1500; i++)
+    {
+      if (stopTime > 0) {
+        break;
+      }
+      if ((i % 100) == 0) {
+        ESP.wdtFeed();
+      }
+      delayMicroseconds(100);
     }
+    *start = startTime;
     *stop = stopTime;
-    if ((*start > *stop) || *stop == 0) {
+    ESP.wdtEnable(0);
+
+    if ((*start > *stop) || *stop == 0 || *start == 0) {
       // ESP.getCycleCount() overflow oder no pulse, just fail this round
       return false;
     }
 #ifdef FS_DEBUG
     int32 tstC = *stop - *start;
     static int32_t tstP = tstC;
-    Serial.print("                                     in jitter: "); 
+    Serial.print("                                   out jitter: "); 
     Serial.println(abs(tstC - tstP));
     tstP = tstC;
 #endif
@@ -182,45 +189,11 @@ public:
     return (uint16_t)bestHTotal;
   }
 
-  static uint32_t getFieldTimeTicks(boolean useSPBus) {
+  static uint32_t getPulseTicks() {
     uint32_t inStart, inStop;
-    uint8_t debugRegBackup = GBS::TEST_BUS_SEL::read();
-    uint8_t debugRegBackup_SP = GBS::TEST_BUS_SP_SEL::read();
-    if (useSPBus)
-    {
-      GBS::TEST_BUS_SEL::write(0xa); // 0x0 for IF vs, 0xa for SP vs | IF vs is averaged for interlaced frames
-      GBS::TEST_BUS_SP_SEL::write(0x0f);
-    }
-    else
-    {
-      GBS::TEST_BUS_SEL::write(0x0);
-    }
-    
     if (!vsyncInputSample(&inStart, &inStop)) {
-      GBS::TEST_BUS_SEL::write(debugRegBackup);
-      GBS::TEST_BUS_SP_SEL::write(debugRegBackup_SP);
       return 0;
     }
-    GBS::TEST_BUS_SEL::write(debugRegBackup);
-    GBS::TEST_BUS_SP_SEL::write(debugRegBackup_SP);
-    return inStop - inStart;
-  }
-
-  static uint32_t getPllRateTicks() {
-    uint32_t inStart, inStop;
-    uint8_t debugRegBackup = GBS::TEST_BUS_SEL::read();
-    uint8_t debugRegBackup_SP = GBS::TEST_BUS_SP_SEL::read();
-
-    GBS::TEST_BUS_SEL::write(0xa); // SP test bus
-    GBS::TEST_BUS_SP_SEL::write(0x6B); // some kind of test..
-    if (!vsyncInputSample(&inStart, &inStop)) {
-      GBS::TEST_BUS_SEL::write(debugRegBackup);
-      GBS::TEST_BUS_SP_SEL::write(debugRegBackup_SP);
-      return 0;
-    }
-    GBS::TEST_BUS_SEL::write(debugRegBackup);
-    GBS::TEST_BUS_SP_SEL::write(debugRegBackup_SP);
-
     return inStop - inStart;
   }
 
@@ -234,33 +207,32 @@ public:
 
   // Sample vsync start and stop times from debug pin.
   static bool vsyncInputSample(uint32_t *start, uint32_t *stop) {
-    unsigned long timeoutStart = micros();
-    stopTime = 0; // reset this
-    while (digitalRead(debugInPin))
-      if (micros() - timeoutStart >= syncTimeout)
-        return false;
-    while (!digitalRead(debugInPin))
-      if (micros() - timeoutStart >= syncTimeout)
-        return false;
-
-    *start = ESP.getCycleCount();
-    delayMicroseconds(4); // glitch filter, not sure if needed
-    attachInterrupt(digitalPinToInterrupt(DEBUG_IN_PIN), signalNextRisingEdge, RISING);
-    delay(22); // PAL50: 20ms
-    *stop = stopTime;
-    if (*stop == 0) {
-      // extra delay, sometimes needed when tuning VDS clock
-      delay(50);
+    startTime = 0; stopTime = 0;
+    ESP.wdtDisable();
+    attachInterrupt(DEBUG_IN_PIN, risingEdgeISR_prepare, RISING);
+    // PAL50: 20ms, worst case 2 fields, sometimes needed when tuning VDS clock
+    for (uint32_t i = 0; i < 1500; i++)
+    {
+      if (stopTime > 0) {
+        break;
+      }
+      if ((i % 100) == 0) {
+        ESP.wdtFeed();
+      }
+      delayMicroseconds(100);
     }
+    *start = startTime;
     *stop = stopTime;
-    if ((*start > *stop) || *stop == 0) {
+    ESP.wdtEnable(0);
+
+    if ((*start > *stop) || *stop == 0 || *start == 0) {
       // ESP.getCycleCount() overflow oder no pulse, just fail this round
       return false;
     }
 #ifdef FS_DEBUG
     int32 tstC = *stop - *start;
     static int32_t tstP = tstC;
-    Serial.print("                                    out jitter: "); 
+    Serial.print("                                    in jitter: "); 
     Serial.println(abs(tstC - tstP));
     tstP = tstC;
 #endif
