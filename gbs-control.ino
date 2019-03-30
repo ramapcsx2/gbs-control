@@ -442,7 +442,7 @@ void setResetParameters() {
   rto->coastPositionIsSet = 0;
   rto->continousStableCounter = 0;
   rto->isInLowPowerMode = false;
-  rto->currentLevelSOG = 6;
+  rto->currentLevelSOG = 12;
   rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
   rto->failRetryAttempts = 0;
   rto->motionAdaptiveDeinterlaceActive = false;
@@ -473,7 +473,7 @@ void setResetParameters() {
   // adc for sog detection
   GBS::ADC_INPUT_SEL::write(1); // 1 = RGBS / RGBHV adc data input
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
-  //GBS::ADC_TR_RSEL::write(2); // 5_04 // ADC_TR_RSEL = 2 test
+  GBS::ADC_TR_RSEL::write(2); // 5_04 // ADC_TR_RSEL = 2 test
   //GBS::ADC_TR_ISEL::write(0); // leave current at default
   GBS::ADC_TEST::write(2); // 5_0c bit 2 // should work now
   GBS::SP_NO_CLAMP_REG::write(1);
@@ -742,6 +742,7 @@ void setAndUpdateSogLevel(uint8_t level) {
 
 // Generally, the ADC has to stay enabled to perform SOG separation and thus "see" a source.
 // It is possible to run in low power mode.
+// Function should not further nest, so it can be called in syncwatcher
 void goLowPowerWithInputDetection() {
   GBS::OUT_SYNC_CNTRL::write(0); // no H / V sync out to PAD
   GBS::DAC_RGBS_PWDNZ::write(0); // direct disableDAC()
@@ -813,7 +814,7 @@ void optimizeSogLevel() {
   if (rto->videoStandardInput == 15 || GBS::SP_SOG_MODE::read() != 1) return;
   
   if (rto->thisSourceMaxLevelSOG == 31) {
-    rto->currentLevelSOG = 6;
+    rto->currentLevelSOG = 12;
   }
   else {
     rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
@@ -869,7 +870,7 @@ void optimizeSogLevel() {
             retryAttempts++;
             SerialM.print("Auto SOG: retry #"); SerialM.println(retryAttempts);
             if (rto->thisSourceMaxLevelSOG == 31) {
-              rto->currentLevelSOG = 8;
+              rto->currentLevelSOG = 12;
             }
             else {
               rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
@@ -887,7 +888,7 @@ void optimizeSogLevel() {
       retryAttempts++;
       SerialM.print("Auto SOG: retry #"); SerialM.println(retryAttempts);
       if (rto->thisSourceMaxLevelSOG == 31) {
-        rto->currentLevelSOG = 8;
+        rto->currentLevelSOG = 12;
       }
       else {
         rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
@@ -1035,7 +1036,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         }
       }
       SerialM.println(" lost..");
-      rto->currentLevelSOG = 6;
+      rto->currentLevelSOG = 12;
       setAndUpdateSogLevel(rto->currentLevelSOG);
       //SerialM.println(" lost, attempt auto SOG");
       //optimizeSogLevel();
@@ -2180,7 +2181,7 @@ void doPostPresetLoadSteps() {
 
   ResetSDRAM();
 
-  GBS::ADC_TR_RSEL::write(2); // 5_04 // ADC_TR_RSEL = 2 test
+  GBS::ADC_TR_RSEL::write(2); // 5_04 // ADC_TR_RSEL = 2 test // also enabled in reset parameters
   GBS::ADC_TEST::write(1); // 5_0c 1 = 1; fixes occasional ADC issue with ADC_TR_RSEL enabled
   //GBS::ADC_TR_ISEL::write(7); // leave at 0
 
@@ -3422,7 +3423,9 @@ uint32_t runSyncWatcher()
       unfreezeVideo(); // briefly show image (one loop run)
       rto->clampPositionIsSet = false;
       rto->coastPositionIsSet = false;
-      FrameSync::reset(); // corner case: source quickly changed. this won't affect display if timings are the same
+      //FrameSync::reset(); // corner case: source quickly changed. // this can backfire and change the timings (SFC 91 revision)
+      // TODO: do something like this instead:
+      // rto->checkSourceHasChanged = 1;
       SerialM.print("!");
     }
   }
@@ -3431,70 +3434,49 @@ uint32_t runSyncWatcher()
   }
   // if format changed to valid
   if ((detectedVideoMode != 0 && detectedVideoMode != rto->videoStandardInput) ||
-    (detectedVideoMode != 0 && rto->videoStandardInput == 0 /*&& getSyncPresent()*/)) {
-
-    freezeVideo();
-    noSyncCounter = 0;
-
-    uint8_t test = 10;
-    uint8_t changeToPreset = detectedVideoMode;
-    uint8_t signalInputChangeCounter = 0;
-
-    // this first test is necessary with "dirty" sync (CVid) and/or some HD modes (especially 576p)
-    while (test > 0) { // what's the new preset?
-      delay(16);
-      detectedVideoMode = getVideoMode();
-      //SerialM.println(detectedVideoMode);
-      if (changeToPreset == detectedVideoMode) {
-        signalInputChangeCounter++;
-      }
-      else if (detectedVideoMode == 0) { // unstable
-        signalInputChangeCounter = 0;
-        test = 1; // NEW: early abort, yield to loop for next round
-      }
-      test--;
+    (detectedVideoMode != 0 && rto->videoStandardInput == 0 /*&& getSyncPresent()*/)) 
+  {
+    resetModeDetect();
+    unsigned long modeChangeTimeout = millis();
+    while ((getVideoMode() == 0) && (millis() - modeChangeTimeout <= 1000)) {
+      Serial.print(" "); Serial.print(millis() - modeChangeTimeout); Serial.print(" ");
+      delay(30); // 230 min (total) SFC '91 / Composite Video
     }
-    if (signalInputChangeCounter >= 8) { // video mode has changed
-      SerialM.println("New Input");
-      uint8_t timeout = 255;
-      while (detectedVideoMode == 0 && --timeout > 0) {
-        detectedVideoMode = getVideoMode();
-        delay(1); // rarely needed but better than not
+    SerialM.print("\nFormat change: ");
+    if (getVideoMode() == detectedVideoMode) { // video mode has changed
+      SerialM.println("stable");
+      // going to apply the new preset now
+      boolean wantPassThroughMode = ((rto->outModePassThroughWithIf == 1) && (rto->videoStandardInput <= 2));
+      if (!wantPassThroughMode) 
+      {
+        applyPresets(detectedVideoMode);
       }
-      if (timeout > 0) {
-        // going to apply the new preset now
-        boolean wantPassThroughMode = (
-          (rto->outModePassThroughWithIf == 1) &&
-          (rto->videoStandardInput <= 2)
-          );
-        if (!wantPassThroughMode) {
-          applyPresets(detectedVideoMode);
+      else 
+      {
+        if (detectedVideoMode <= 2) {
+          // is in PT, is SD
+          latchPLLAD(); // then this is enough
         }
-        else
-        {
-          if (detectedVideoMode <= 2) {
-            // is in PT, is SD
-            latchPLLAD(); // then this is enough
-          }
-          else {
-            applyPresets(detectedVideoMode); // we were in PT and new input is HD
-          }
+        else {
+          applyPresets(detectedVideoMode); // we were in PT and new input is HD
         }
-
-        rto->videoStandardInput = detectedVideoMode;
-        delay(2); // only a brief post delay
       }
-      else {
-        SerialM.println(" .. lost");
-        unfreezeVideo(); // show some life sign, will be disabled again if sync stays bad
-      }
+      rto->videoStandardInput = detectedVideoMode;
+      rto->continousStableCounter = 0; // also in postloadsteps
       noSyncCounter = 0;
+      delay(2); // a brief post delay
+    }
+    else {
+      SerialM.println("not stable!");
+      if (rto->videoStandardInput == 0) {
+        noSyncCounter = 300; // almost 400, in case an auto attempt gets something
+      }
     }
   }
   else if (getSyncStable() && detectedVideoMode != 0 && rto->videoStandardInput != 15
     && (rto->videoStandardInput == detectedVideoMode))
-  { // last used mode reappeared / stable again
-
+  { 
+    // last used mode reappeared / stable again
     if (rto->continousStableCounter < 255) {
       rto->continousStableCounter++;
     }
@@ -3789,11 +3771,8 @@ uint32_t runSyncWatcher()
     // restore initial conditions and move to input detect
     if (noSyncCounter >= 400) {
       GBS::DAC_RGBS_PWDNZ::write(0); // direct disableDAC()
-      setResetParameters();
-      setSpParameters();
-      resetSyncProcessor();
-      //resetModeDetect();
       noSyncCounter = 0;
+      goLowPowerWithInputDetection(); // does not further nest, so it can be called here // sets reset parameters
     }
   }
 
@@ -4069,7 +4048,7 @@ void setup() {
     SerialM.println("\nCheck SDA, SCL connection! Check GBS for power!");
   }
 
-  rto->currentLevelSOG = 6;
+  rto->currentLevelSOG = 12;
   rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
 
   if (!powerOrWireIssue)
@@ -4806,6 +4785,9 @@ void loop() {
       Serial.println(ticks);
     }
     break;
+    case '~':
+      goLowPowerWithInputDetection(); // test reset + input detect
+    break;
     case 'w':
     {
       //Serial.flush();
@@ -5026,14 +5008,14 @@ void loop() {
   }
   
   // update clamp + coast positions after preset change // do it quickly
-  if (!rto->coastPositionIsSet && rto->continousStableCounter > 7) {
+  if (!rto->coastPositionIsSet && rto->continousStableCounter > 7 && rto->videoStandardInput != 0) {
       updateCoastPosition();
   }
-  if (!rto->clampPositionIsSet && rto->continousStableCounter > 5) {
+  if (!rto->clampPositionIsSet && rto->continousStableCounter > 5 && rto->videoStandardInput != 0) {
     updateClampPosition(0);
   }
   // new: switch to clamp on sync tip for RGBS, update clamp position occasionally
-  if (rto->clampPositionIsSet && rto->continousStableCounter == 10) {
+  if (rto->clampPositionIsSet && rto->continousStableCounter == 10 && rto->videoStandardInput != 0) {
     updateClampPosition(1);
     rto->continousStableCounter++; // hack: counter only increases x ms
   }
