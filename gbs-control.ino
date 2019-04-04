@@ -3597,33 +3597,39 @@ uint32_t runSyncWatcher()
     {
       // is the source in range for scaling RGBHV?
       uint16 sourceLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-      if ((sourceLines >= 480 && sourceLines <= 535) && rto->videoStandardInput == 15) {
+      if ((sourceLines <= 535) && rto->videoStandardInput == 15) {
         uint16_t firstDetectedSourceLines = sourceLines;
         boolean moveOn = 1;
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 5; i++) { // not the best check, but we don't want to try if this is not stable (usually is though)
           sourceLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-          if (sourceLines != firstDetectedSourceLines) {
+          // range needed for interlace
+          if ((sourceLines < firstDetectedSourceLines-1) || (sourceLines > firstDetectedSourceLines+1)) {
             moveOn = 0;
             break;
           }
-          delay(20);
+          delay(10);
         }
         if (moveOn) {
           GBS::ADC_SOGEN::write(0);
           GBS::SP_SOG_MODE::write(0);
           GBS::GBS_OPTION_SCALING_RGBHV::write(1);
-          rto->videoStandardInput = 3;
+          if (sourceLines < 280) { // this is an "NTSC like?" check, seen 277 lines in "512x512 interlaced (emucrt)"
+            rto->videoStandardInput = 1;
+          }
+          else {
+            rto->videoStandardInput = 3;
+            GBS::IF_HB_ST2::write(0x70); // patches
+            GBS::IF_HB_SP2::write(0x80); // image
+            GBS::IF_HBIN_SP::write(0x60);// position
+          }
           applyPresets(rto->videoStandardInput);
           GBS::GBS_OPTION_SCALING_RGBHV::write(1);
           rto->videoStandardInput = 14;
           switchSyncProcessingMode(1);
-          GBS::IF_HB_ST2::write(0x70);
-          GBS::IF_HB_SP2::write(0x80);
-          GBS::IF_HBIN_SP::write(0x60);
           delay(100);
         }
       }
-      if ((sourceLines < 480 || sourceLines > 535) && rto->videoStandardInput == 14) {
+      if ((sourceLines > 535) && rto->videoStandardInput == 14) {
         uint16_t firstDetectedSourceLines = sourceLines;
         boolean moveOn = 1;
         for (int i = 0; i < 10; i++) {
