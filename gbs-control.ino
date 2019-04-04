@@ -2445,7 +2445,13 @@ void applyPresets(uint8_t result) {
     return;
   }
   else if (result == 15) {
-    SerialM.println("RGBHV bypass ");
+    SerialM.print("RGBHV bypass ");
+    if (uopt->preferScalingRgbhv) {
+      SerialM.println("(prefer scaling mode)");
+    }
+    else {
+      SerialM.println("");
+    }
     bypassModeSwitch_RGBHV();
   }
   else {
@@ -3628,7 +3634,7 @@ uint32_t runSyncWatcher()
           if (sourceLines < 280) { // this is an "NTSC like?" check, seen 277 lines in "512x512 interlaced (emucrt)"
             rto->videoStandardInput = 1;
           }
-          else if (sourceLines < 360) { // this is an "PAL like?" check, seen 351 lines (emucrt)
+          else if (sourceLines < 380) { // this is an "PAL like?" check, seen vt:369 (MDA mode)
             rto->videoStandardInput = 2;
           }
           else {
