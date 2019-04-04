@@ -1828,6 +1828,18 @@ void applyBestHTotal(uint16_t bestHTotal) {
 
     // finally, fix forced timings with large diff
     if (isLargeDiff) {
+      //// new: try keeping presets timings, but adjust the IF and VDS (scaling, etc?)
+      //uint16_t oldIF_HBIN_SP = GBS::IF_HBIN_SP::read();
+      //if (diffHTotal < 0) {
+      //  float ratioHTotal = (float)orig_htotal / (float)bestHTotal;
+      //  ratioHTotal *= 1.2f; // works better?
+      //  GBS::IF_HBIN_SP::write(oldIF_HBIN_SP * ratioHTotal); // untested
+      //}
+      //else {
+      //  float ratioHTotal = (float)bestHTotal / (float)orig_htotal;
+      //  ratioHTotal *= 1.2f; // works better?
+      //  GBS::IF_HBIN_SP::write(oldIF_HBIN_SP * ratioHTotal);
+      //}
       h_blank_display_start_position = bestHTotal * 0.94f;
       h_blank_display_stop_position = bestHTotal * 0.194f;
       h_blank_memory_start_position = h_blank_display_start_position; // -8
@@ -3616,6 +3628,9 @@ uint32_t runSyncWatcher()
           if (sourceLines < 280) { // this is an "NTSC like?" check, seen 277 lines in "512x512 interlaced (emucrt)"
             rto->videoStandardInput = 1;
           }
+          else if (sourceLines < 360) { // this is an "PAL like?" check, seen 351 lines (emucrt)
+            rto->videoStandardInput = 2;
+          }
           else {
             rto->videoStandardInput = 3;
             GBS::IF_HB_ST2::write(0x70); // patches
@@ -3624,6 +3639,10 @@ uint32_t runSyncWatcher()
           }
           applyPresets(rto->videoStandardInput);
           GBS::GBS_OPTION_SCALING_RGBHV::write(1);
+          if (GBS::PLLAD_ICP::read() >= 6) {
+            GBS::PLLAD_ICP::write(5); // reduce charge pump current for more general use
+            latchPLLAD();
+          }
           rto->videoStandardInput = 14;
           switchSyncProcessingMode(1);
           delay(100);
