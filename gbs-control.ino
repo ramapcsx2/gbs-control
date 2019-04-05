@@ -1707,6 +1707,27 @@ void enableDebugPort() {
   GBS::VDS_TEST_EN::write(1); // VDS test enable
 }
 
+void readEeprom() {
+  int addr = 0;
+  const uint8_t eepromAddr = 0x50;
+  Wire.beginTransmission(eepromAddr);
+  //if (addr >= 0x1000) { addr = 0; }
+  Wire.write(addr >> 8); // high addr byte, 4 bits +
+  Wire.write((uint8_t)addr); // low addr byte, 8 bits = 12 bits (0xfff max)
+  Wire.endTransmission();
+  Wire.requestFrom(eepromAddr, (uint8_t)128);
+  uint8_t readData = 0;
+  uint8_t i = 0;
+  while (Wire.available())
+  {
+    Serial.print("addr 0x"); Serial.print(i, HEX);
+    Serial.print(": 0x"); readData = Wire.read();
+    Serial.println(readData, HEX); 
+    //addr++;
+    i++;
+  }
+}
+
 void fastGetBestHtotal() {
   uint32_t inStart, inStop;
   signed long inPeriod = 1;
@@ -1828,30 +1849,32 @@ void applyBestHTotal(uint16_t bestHTotal) {
 
     // finally, fix forced timings with large diff
     if (isLargeDiff) {
-      //// new: try keeping presets timings, but adjust the IF and VDS (scaling, etc?)
-      //uint16_t oldIF_HBIN_SP = GBS::IF_HBIN_SP::read();
-      //if (diffHTotal < 0) {
-      //  float ratioHTotal = (float)orig_htotal / (float)bestHTotal;
-      //  ratioHTotal *= 1.2f; // works better?
-      //  GBS::IF_HBIN_SP::write(oldIF_HBIN_SP * ratioHTotal); // untested
-      //}
-      //else {
-      //  float ratioHTotal = (float)bestHTotal / (float)orig_htotal;
-      //  ratioHTotal *= 1.2f; // works better?
-      //  GBS::IF_HBIN_SP::write(oldIF_HBIN_SP * ratioHTotal);
-      //}
-      h_blank_display_start_position = bestHTotal * 0.94f;
-      h_blank_display_stop_position = bestHTotal * 0.194f;
-      h_blank_memory_start_position = h_blank_display_start_position; // -8
-      h_blank_memory_stop_position = h_blank_display_stop_position * 0.72f;
+      // new: try keeping presets timings, but adjust the IF and VDS (scaling, etc?)
+      uint16_t oldIF_HBIN_SP = GBS::IF_HBIN_SP::read();
+      if (diffHTotal < 0) {
+        float ratioHTotal = (float)orig_htotal / (float)bestHTotal;
+        ratioHTotal *= 1.2f; // works better?
+        GBS::IF_HBIN_SP::write((uint16_t)(oldIF_HBIN_SP * ratioHTotal) & 0xfffc); // untested // aligned, fixing color inversion eff.
+      }
+      else {
+        float ratioHTotal = (float)bestHTotal / (float)orig_htotal;
+        ratioHTotal *= 1.2f; // works better?
+        GBS::IF_HBIN_SP::write((uint16_t)(oldIF_HBIN_SP * ratioHTotal) & 0xfffc);
+      }
       if (h_sync_start_position > h_sync_stop_position) { // is neg HSync
-        h_sync_start_position = bestHTotal * 0.065f;
         h_sync_stop_position = 8;
+        // stop = at least start, then a bit outwards
+        h_sync_start_position = 16 + (h_blank_display_stop_position * 0.4f); 
       }
       else {
         h_sync_start_position = 8;
-        h_sync_stop_position = bestHTotal * 0.065f;
+        h_sync_stop_position = 16 + (h_blank_display_stop_position * 0.4f); 
       }
+
+      //h_blank_display_start_position = bestHTotal * 0.94f;
+      //h_blank_display_stop_position = bestHTotal * 0.194f;
+      //h_blank_memory_start_position = h_blank_display_start_position; // -8
+      //h_blank_memory_stop_position = h_blank_display_stop_position * 0.72f;
     }
 
     if (diffHTotal != 0) { // apply
@@ -1892,11 +1915,10 @@ float getSourceFieldRate(boolean useSPBus) {
   float retVal = 0;
   if (fieldTimeTicks > 0) {
     retVal = esp8266_clock_freq / (double)fieldTimeTicks;
-    if (retVal > 1.0f) {
-      // account for measurment delays (referenced to PSX clock)
-      // PSX @60p: 53693175 / 263 / 3413 = 59.81733341
-      retVal -= 0.00968f;
-    }
+    //if (retVal > 1.0f) {
+    //  // account for measurment delays (referenced to modern PC GPU clock)
+    //  retVal -= 0.00646f;
+    //}
   }
   
   return retVal;
@@ -2987,7 +3009,8 @@ void passThroughWithIfModeSwitch() {
   GBS::VDS_HSYNC_RST::write(0xfff); // max
   GBS::VDS_VSYNC_RST::write(0x7ff); // max
   GBS::VDS_D_RAM_BYPS::write(1); // 3_26 6 line buffer bypass (not required)
-  GBS::PLLAD_MD::write(0x768); // psx 256, 320, 384 pix
+  //GBS::PLLAD_MD::write(0x768); // psx 256, 320, 384 pix
+  GBS::PLLAD_MD::write(1996); // seems to work better (xbox)
   GBS::PLLAD_ICP::write(5);
   GBS::PLLAD_FS::write(0);
   GBS::DEC1_BYPS::write(1);
@@ -3027,13 +3050,16 @@ void passThroughWithIfModeSwitch() {
     GBS::IF_HB_SP::write(0x7FF);
     //
     if (rto->videoStandardInput == 5) {
-      GBS::PLLAD_MD::write(0x768); // psx 256, 320, 384 pix
+      //GBS::PLLAD_MD::write(0x768); // psx 256, 320, 384 pix
+      GBS::PLLAD_MD::write(1996); // seems to work better (xbox 720p) (perfect in ps2 as well)
       GBS::SP_CS_HS_ST::write(0xd0); // > SP = hs positive
       GBS::SP_CS_HS_SP::write(0x40);
       GBS::SP_VS_PROC_INV_REG::write(1); // invert VS to be sync positive
     }
     if (rto->videoStandardInput == 6) { // 1080i
-      GBS::PLLAD_MD::write(0x768);
+      //GBS::PLLAD_MD::write(0x768);
+      GBS::PLLAD_MD::write(2047); // seems to work better (xbox 1080i) (but needs low gain, like 720p)
+      GBS::PLLAD_FS::write(0); // 5_11 gain
       GBS::SP_CS_HS_ST::write(0x90);
       GBS::SP_CS_HS_SP::write(0x38);
       GBS::SP_HD_MODE::write(0); // flicker fix
@@ -3104,7 +3130,7 @@ void passThroughWithIfModeSwitch() {
   GBS::IF_HS_DEC_FACTOR::write(0);
   GBS::IF_HBIN_SP::write(0x02); // 1_26, adjusts left border at 0xf1+, UV switch
   if (rto->videoStandardInput > 4) {
-    GBS::IF_HB_ST::write(0x001); // S1_10 // was 0x7ff (colors)
+    GBS::IF_HB_ST::write(0xfff); // S1_10 // was 0x7ff (colors) // f may look better than 1 (test: t1t02t7 for color inv)
   }
   else {
     GBS::IF_HB_ST::write(0);
@@ -4327,9 +4353,9 @@ void loop() {
       scaleHorizontalSmaller();
     break;
     case 'q':
-      resetDigital();
-      delay(2);
-      ResetSDRAM();
+      resetDigital(); delay(2);
+      ResetSDRAM(); delay(2);
+      togglePhaseAdjustUnits();
       //enableVDS();
     break;
     case 'D':
@@ -4465,6 +4491,35 @@ void loop() {
     break;
     case '!':
       //fastGetBestHtotal();
+      readEeprom();
+    break;
+    case '$':
+      {
+      // EEPROM write protect pin (7, next to Vcc) is under original MCU control
+      // MCU drags to Vcc to write, EEPROM drags to Gnd normally
+      // This routine only works with that "WP" pin disconnected
+      // 0x17 = input selector? // 0x18 = input selector related?
+      // 0x54 = coast start 0x55 = coast end
+      uint16_t writeAddr = 0x54;
+      const uint8_t eepromAddr = 0x50;
+      for (; writeAddr < 0x56; writeAddr++)
+      {
+        Wire.beginTransmission(eepromAddr);
+        Wire.write(writeAddr >> 8); // high addr byte, 4 bits +
+        Wire.write((uint8_t)writeAddr); // mlow addr byte, 8 bits = 12 bits (0xfff max)
+        Wire.write(0x10); // coast end value ?
+        Wire.endTransmission();
+        delay(5);
+      }
+
+      //Wire.beginTransmission(eepromAddr);
+      //Wire.write((uint8_t)0); Wire.write((uint8_t)0);
+      //Wire.write(0xff); // force eeprom clear probably
+      //Wire.endTransmission();
+      //delay(5);
+
+      Serial.println("done");
+      }
     break;
     case 'j':
       //resetPLL();
@@ -5067,7 +5122,10 @@ void loop() {
       { 
         updateClampPosition(0); // else manual preset changes with syncwatcher disabled will leave clamp off
       }
-      
+
+      uint8_t currentSogLevel = GBS::ADC_SOGCTRL::read();
+      SerialM.print("SOG Lvl: "); SerialM.println(currentSogLevel);
+
       rto->applyPresetDoneStage = 0;
     }
   }
