@@ -651,7 +651,7 @@ void setSpParameters() {
       GBS::SP_POST_COAST::write(16); // SP test: 9
       if (rto->videoStandardInput == 7) {
         // override early for 1080p. depending on code flow, this may not trigger.
-        // it should trigger in passThroughWithIfModeSwitch then
+        // it should trigger in passThroughModeSwitch then
         GBS::SP_POST_COAST::write(0x16);
       }
     }
@@ -2006,6 +2006,8 @@ void doPostPresetLoadSteps() {
   }
 
   if (!isCustomPreset) {
+    // new: always enable IF WEN bit (eventhough the manual mentions only for HD mode)
+    GBS::IF_SEL_WEN::write(1);
     // new: set retiming hs ST, SP
     GBS::SP_RT_HS_ST::write(0);
     GBS::SP_RT_HS_SP::write(GBS::PLLAD_MD::read() * 0.93f);
@@ -2474,7 +2476,7 @@ void applyPresets(uint8_t result) {
       rto->videoStandardInput = 13;
     }
 
-    passThroughWithIfModeSwitch();
+    passThroughModeSwitch();
     return;
   }
   else if (result == 15) {
@@ -2974,7 +2976,7 @@ void updateClampPosition(uint8_t stage) {
 // use t5t00t2 and adjust t5t11t5 to find this sources ideal sampling clock for this preset (affected by htotal)
 // 2431 for psx, 2437 for MD
 // in this mode, sampling clock is free to choose
-void passThroughWithIfModeSwitch() {
+void passThroughModeSwitch() {
   rto->autoBestHtotalEnabled = false; // disable while in this mode
   // first load default presets
   if (rto->videoStandardInput == 2 || rto->videoStandardInput == 4) {
@@ -3018,6 +3020,7 @@ void passThroughWithIfModeSwitch() {
   GBS::PIP_EN::write(1);
   GBS::VDS_HSYNC_RST::write(0xfff); // max
   GBS::VDS_VSYNC_RST::write(0x7ff); // max
+  GBS::PB_BYPASS::write(1);
   GBS::VDS_D_SP::write(0); // 3_25 VDS data line buffer (default would be 3) // 0 fixes vertical bar
   GBS::VDS_D_RAM_BYPS::write(1); // 3_26 6 line buffer bypass (not required)
   //GBS::PLLAD_MD::write(1896); // psx 256, 320, 384 pix
@@ -3028,19 +3031,21 @@ void passThroughWithIfModeSwitch() {
   GBS::DEC2_BYPS::write(1);
   GBS::VDS_HB_ST::write(4094);
   GBS::VDS_HB_SP::write(0);
-  GBS::PB_BYPASS::write(1);
   GBS::PLL648_CONTROL_01::write(0x35);
-  GBS::IF_HSYNC_RST::write(0x7ff); // (lineLength)
+  GBS::IF_HSYNC_RST::write(1023); // (lineLength)
+  GBS::IF_LINE_ST::write(0);
+  GBS::IF_LINE_SP::write(4095); // new
+  // new: always enable IF WEN bit (eventhough the manual mentions only for HD mode)
+  GBS::IF_SEL_WEN::write(1);
   if (rto->videoStandardInput <= 2) {
     //GBS::IF_HB_SP::write(0x4);
-    GBS::VDS_HB_ST::write(0); // overwrite
-    GBS::VDS_HB_SP::write(8); // fix random UV swap 
+    GBS::VDS_HB_SP::write(4095);
     GBS::SP_CS_HS_ST::write(0);
     GBS::SP_CS_HS_SP::write(0x50); // with PLLAD_MD = 1996
   }
   else if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4) { // 480p, 576p
     GBS::VDS_HB_ST::write(0); // overwrite
-    GBS::VDS_HB_SP::write(8); // fix random UV swap 
+    GBS::VDS_HB_SP::write(2); // fix random UV swap attempt
     GBS::ADC_CLK_ICLK1X::write(0); // new
     GBS::ADC_CLK_ICLK2X::write(0); // new
     GBS::PLLAD_ICP::write(5);
@@ -3077,8 +3082,8 @@ void passThroughWithIfModeSwitch() {
       GBS::SP_VS_PROC_INV_REG::write(0); // don't invert, causes flicker
     }
     if (rto->videoStandardInput == 7) { // 1080p
-      GBS::PLLAD_MD::write(1440); // 0x5a0 = 1440 = 1920 / 4 * 3
-      GBS::PLLAD_ICP::write(6);
+      GBS::PLLAD_MD::write(1280); // 1440 nicer but not stable on some GBS, probably display timing issues
+      GBS::PLLAD_ICP::write(5);
       GBS::SP_CS_HS_ST::write(0x90);
       GBS::SP_CS_HS_SP::write(0x62);
       GBS::SP_POST_COAST::write(0x16); // important
@@ -3146,23 +3151,11 @@ void passThroughWithIfModeSwitch() {
 
   GBS::IF_HB_ST::write(0); // S1_10 // f may avoid vertical bar better than 1 (test: t1t02t7 for color inv)
   GBS::IF_HB_SP::write(1); // new 06.04.2019
-  GBS::IF_HBIN_ST::write(0); // new 06.04.2019
-  if (rto->videoStandardInput <= 2) {
-    GBS::IF_HBIN_SP::write(2); // 1_26, adjusts left border at 0xf1+
-  }
-  else if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4) {
-    GBS::IF_HBIN_SP::write(2); // 1_26
-    GBS::IF_HB_ST::write(1);
-    GBS::IF_HB_SP::write(0);
-  }
-  else {
-    GBS::IF_HBIN_SP::write(1);
-    GBS::VDS_D_SP::write(1); // UV fix attempt
-    GBS::VDS_D_SP::write(0);
-  }
+  GBS::IF_HBIN_ST::write(0);
+  GBS::IF_HBIN_SP::write(1);
 
   GBS::IF_HB_ST2::write(0); // S1_18 // just move the bar out of the way
-  GBS::IF_HB_SP2::write(8); // S1_1a // just move the bar out of the way
+  GBS::IF_HB_SP2::write(1); // S1_1a // just move the bar out of the way
   //GBS::IF_LINE_SP::write(0); // may be related to RFF / WFF and 2_16_7 = 0
   GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2
   GBS::MADPT_VIIR_BYPS::write(1); // 2_26_6
@@ -3170,9 +3163,21 @@ void passThroughWithIfModeSwitch() {
 
   GBS::SFTRST_SYNC_RSTZ::write(0); // reset SP 0_47 bit 2
   GBS::SFTRST_SYNC_RSTZ::write(1);
-  delay(30);
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   GBS::PAD_SYNC_OUT_ENZ::write(0); // sync out now
+  delay(30);
+  // UV fixes / alignment to do after DAC enabled and sync out enabled
+  GBS::VDS_Y_DELAY::write(2); // sharpenss
+  //GBS::IF_HBIN_SP::write(2); // 1_26
+  if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
+    GBS::VDS_WEN_DELAY::write(0);
+  }
+  if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4) {
+    GBS::VDS_WEN_DELAY::write(3);
+  }
+  //else { } // nothing to change for HD modes
+  GBS::VDS_D_SP::write(1); GBS::VDS_D_SP::write(0); // align VDS
+
   rto->outModePassThroughWithIf = 1;
   rto->presetID = 0x21; // bypass flavor 1
   SerialM.println("pass-through on");
@@ -3479,9 +3484,11 @@ void startWire() {
 uint32_t runSyncWatcher()
 {
   static uint16_t noSyncCounter = 0;
+  static uint8_t newVideoModeCounter = 0;
   uint8_t detectedVideoMode = getVideoMode();
   if ((detectedVideoMode == 0 || !getSyncStable()) && rto->videoStandardInput != 15) {
     noSyncCounter++;
+    // don't reset newVideoModeCounter here (new mode can be detected but be sync unstable)
     rto->continousStableCounter = 0;
     LEDOFF; // always LEDOFF on sync loss, except if RGBHV
     freezeVideo();
@@ -3494,7 +3501,8 @@ uint32_t runSyncWatcher()
       unfreezeVideo(); // briefly show image (one loop run)
       rto->clampPositionIsSet = false;
       rto->coastPositionIsSet = false;
-      //FrameSync::reset(); // corner case: source quickly changed. // this can backfire and change the timings (SFC 91 revision)
+      //FrameSync::reset(); // corner case: source quickly changed. 
+      // this can backfire and change the timings (SFC 91 revision)
       // TODO: do something like this instead:
       // rto->checkSourceHasChanged = 1;
       SerialM.print("!");
@@ -3507,47 +3515,60 @@ uint32_t runSyncWatcher()
   if ((detectedVideoMode != 0 && detectedVideoMode != rto->videoStandardInput) ||
     (detectedVideoMode != 0 && rto->videoStandardInput == 0 /*&& getSyncPresent()*/)) 
   {
-    SerialM.print("\nFormat change:");
-    resetModeDetect();
-    unsigned long modeChangeTimeoutStart = millis();
-    unsigned long modeChangeTimeout = millis() - modeChangeTimeoutStart;
-    while ((getVideoMode() == 0) && (modeChangeTimeout <= 700)) {
-      modeChangeTimeout = millis() - modeChangeTimeoutStart;
-      if (modeChangeTimeout < 400) {
-        Serial.print(" "); Serial.print(modeChangeTimeout); Serial.print(" ");
+    // new: before thoroughly checking for a mode change, use newVideoModeCounter
+    if (newVideoModeCounter < 255) { 
+      newVideoModeCounter++;
+      // don't reset any other counters here (1080p mode requires longer post coast)
+    }
+    if (newVideoModeCounter > 10)
+    {
+      SerialM.print("\nFormat change:");
+      newVideoModeCounter = 0;
+      //resetModeDetect();
+      //unsigned long modeChangeTimeoutStart = millis();
+      //unsigned long modeChangeTimeout = millis() - modeChangeTimeoutStart;
+      //while ((getVideoMode() == 0) && (modeChangeTimeout <= 700)) {
+      //  modeChangeTimeout = millis() - modeChangeTimeoutStart;
+      //  if (modeChangeTimeout < 400) {
+      //    Serial.print(" "); Serial.print(modeChangeTimeout); Serial.print(" ");
+      //  }
+      //  else {
+      //    Serial.print("*");
+      //  }
+      //  delay(30); // 230 min (total) SFC '91 / Composite Video
+      //}
+      if (getVideoMode() == detectedVideoMode) { // video mode has changed
+        SerialM.println(" <stable>");
+        // going to apply the new preset now
+        // todo: pt modes could apply quicker if there was a continous pt parameter update function in loop
+        boolean wantPassThroughMode = ((rto->outModePassThroughWithIf == 1) && (rto->videoStandardInput <= 2));
+        if (!wantPassThroughMode)
+        {
+          applyPresets(detectedVideoMode);
+        }
+        else
+        {
+          if (detectedVideoMode <= 2) {
+            // is in PT, is SD
+            latchPLLAD(); // then this is enough
+          }
+          else {
+            applyPresets(detectedVideoMode); // we were in PT and new input is HD
+          }
+        }
+        rto->videoStandardInput = detectedVideoMode;
+        rto->continousStableCounter = 0; // also in postloadsteps
+        noSyncCounter = 0;
+        delay(2); // a brief post delay
       }
       else {
-        Serial.print("*");
-      }
-      delay(30); // 230 min (total) SFC '91 / Composite Video
-    }
-    if (getVideoMode() == detectedVideoMode) { // video mode has changed
-      SerialM.println(" <stable>");
-      // going to apply the new preset now
-      boolean wantPassThroughMode = ((rto->outModePassThroughWithIf == 1) && (rto->videoStandardInput <= 2));
-      if (!wantPassThroughMode) 
-      {
-        applyPresets(detectedVideoMode);
-      }
-      else 
-      {
-        if (detectedVideoMode <= 2) {
-          // is in PT, is SD
-          latchPLLAD(); // then this is enough
+        SerialM.println(" <not stable>");
+        if (rto->videoStandardInput == 0) {
+          // if we got here from standby mode, return there soon
+          // but occasionally, this is a regular new mode that needs a SP parameter change to work
+          // ie: 1080p needs longer post coast, which the syncwatcher loop applies at some point
+          noSyncCounter = 300; // 400 = no sync, give some time in normal loop
         }
-        else {
-          applyPresets(detectedVideoMode); // we were in PT and new input is HD
-        }
-      }
-      rto->videoStandardInput = detectedVideoMode;
-      rto->continousStableCounter = 0; // also in postloadsteps
-      noSyncCounter = 0;
-      delay(2); // a brief post delay
-    }
-    else {
-      SerialM.println(" <not stable>");
-      if (rto->videoStandardInput == 0) {
-        noSyncCounter = 300; // almost 400, in case an auto attempt gets something
       }
     }
   }
@@ -3559,6 +3580,11 @@ uint32_t runSyncWatcher()
       rto->continousStableCounter++;
     }
     noSyncCounter = 0;
+    if (newVideoModeCounter > 0) {
+      SerialM.print("newVideoModeCounter was set (change prevented): "); 
+      SerialM.println(newVideoModeCounter);
+    }
+    newVideoModeCounter = 0;
 
     if ((rto->videoStandardInput == 1 || rto->videoStandardInput == 2) &&
       !rto->outModePassThroughWithIf)
@@ -4490,7 +4516,7 @@ void loop() {
       //bypassModeSwitch_SOG();  // arduino space saving
     break;
     case 'K':
-      passThroughWithIfModeSwitch();
+      passThroughModeSwitch();
       uopt->presetPreference = 10;
       saveUserPrefs();
     break;
@@ -5180,10 +5206,11 @@ void loop() {
       GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
     }
   }
-  else if (rto->applyPresetDoneStage == 10)
+  
+  if (rto->applyPresetDoneStage == 10)
   {
     rto->applyPresetDoneStage = 11; // set first, so we don't loop applying presets
-    passThroughWithIfModeSwitch();
+    passThroughModeSwitch();
   }
 
   if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true && rto->boardHasPower)
