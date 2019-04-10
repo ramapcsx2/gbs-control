@@ -1,16 +1,72 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset='utf-8'/>
         <link rel='icon' href='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGklEQVR42mPsSDI9w0ABYBw1YNSAUQOGiwEAE54ewU+zbsAAAAAASUVORK5CYII='>
-        <title>gbscontrol</title>
+        <!-- Design by Szymon Pluta -->
+        <title>GBS User Interface</title>
         <style>
+            @font-face {
+                /* Iceberg font by Victor Kharyk for Cyreal (www.cyreal.org) SIL Open Font License, Version 1.1 */
+                src: url(data:application/x-font-woff;charset=utf-8;base64,d09GRgABAAAAAEDMABAAAAAAg4AAAQACAAAAAAAAAAAAAAAAAAAAAAAAAABGRlRNAABAsAAAABwAAAAcapK7gkdERUYAAECQAAAAHQAAAB4AJwDiT1MvMgAAAeQAAABUAAAAYFdc%2F8NjbWFwAAAEKAAAAXsAAAHK0o3BBmN2dCAAAAmUAAAAIQAAACYDGQytZnBnbQAABaQAAAOeAAAKUQ208mdnYXNwAABAiAAAAAgAAAAIAAAAEGdseWYAAAt0AAAx0gAAakw%2F8i2%2BaGVhZAAAAWwAAAA2AAAANvkV6WRoaGVhAAABpAAAACAAAAAkBxMDfWhtdHgAAAI4AAAB8AAAA3CiojR5bG9jYQAACbgAAAG6AAABuqFRiVZtYXhwAAABxAAAACAAAAAgA0AGRm5hbWUAAD1IAAABoAAAAxsGt%2BIjcG9zdAAAPugAAAGeAAACJVGcJOFwcmVwAAAJRAAAAE0AAABNDvvInwABAAAAAQCDTiahq18PPPUAHwPoAAAAAMs831QAAAAAyz3GHP%2B2%2FuQDsgOoAAAACAACAAAAAAAAeJxjYGRgYF7x7wkDAwvv%2F23%2F1zNvYgCKoIA7AKkqB5UAAQAAANwAqQAGACAABAACAHwAiwAwAAABqgTvAAMAAXicY2BmfMs4gYGVgYFpD1MXAwNDP4RmPMpgxMgMFGVgYYCABgYGZSDlDOUy%2BDo6BzE4MPAqCTGv%2BPeEgYF5BaMMUJgRJMfEzrQZSCkwMAIAjqwMbHicbZG%2Fa1NRFMe%2F9z6hWCNPCBSFYEV4SEiWgIVMjxQC4pOUOj0NbxACHRyMk4uQIZODf4CLnQQnwUlEujoIgjhk61IQLIVslSqCz889eZaqffDhvHvuuefH90TvdUV%2FvleSW9PIzTTyU130hdLonjK%2Fqdw18A81htQ%2FUN%2FN1XLr%2BAeq25tJuY8vg25Fp7LZCX9qNHQHetW5ZXamTrRN3bEKnyv3bbhP%2Fjns8h98j6jTJEbqcDfyCfyCl1BwfwuKijY9PpMsX1d9m2NV3fDvftLLlh5bz1vM09VlNy9%2F6F35xh2SO1bhXmjgz2rgvsI65y%2B67uvYmH6Wyxl9FW6FOkdQw1cSf0537c0nzk901d0o97jbdHvU%2BMiMO2px7runzDxUYrmGVj%2FXUaU9WvkNepiSD%2F1DjF8irqnamfP0%2FNxm75huaM9c4S5xr3k3xTfhDpjlkH5NC8sb6k1Uo7a9j1bK%2FQW82aGHoNMpRBew7WoPJ2mWu9TNsN%2BxMbFLx3v4B%2BJvUjP5Lz%2B78CkxQVd0Pw3%2FFssu3AG1DswuiMsPaHMbHFxCo8z28E3Xwi7%2BAq280wb3adjHMXXqs2vbCTpHy%2FTymfi1cm400GyoVbTN0ShhzqB1z1jo0DNi7h7S59i0F2S2O%2BqGvVa7Vcj1G6y7uTt4nGNgYGBmgGAZBkYGEDgC5DGC%2BSwMK4C0GoMCkMUGZPEy1DH8ZzRkDGY6znSL6Y6CiIKUgpyCkoKVgotCicIaJaH%2F%2F8Em8AJ1LACqC2I6BlYnrCChIANUZ4mkjvH%2F1%2F%2BP%2Fx%2F6P%2FF%2F4d%2F%2Ff9%2F%2BffNg24PNDzY9WP9g5oMJDxIfaN07CnUPEYAR6DqYYkYmIMGErgDoRRZWNnYOTi5uHl4%2BfgFBIWERUTFxCUkpaRlZOXkFRSVlFVU1dQ1NLW0dXT19A0MjYxNTM3MLSytrG1s7ewdHJ2cXVzd3D08vbx9fP%2F%2BAwKDgkNCw8IjIqOiY2Lj4hESGtvbO7skz5i1etGTZ0uUrV69as3b9ug0bN2%2Fdsm3H9j279%2B5jKEpJzbxYsbAgm6Esi6FjFkMxA0N6Odh1OTUMK3Y1JueB2Lm1DElNrdMPHzl56tz502d2MhxkuHLt0mWgTOXZCwwtPc29Xf0TJvZNncYwZc7c2YeOnihkYDhexcBwDAB2CIDEAHicxVZLb9tGEOaKkiwrsuTEltKGbjvsVm5qLRlfGuggFAEZSVBPcpEAZHtZ%2BpHf0TN%2FzTBBgxzz0%2FottXQilLCdAm4BkZzZeXzzpMiOoksm%2FUays06u0oAFDog%2Frrl5%2FDs%2FiP9IfOl7eUK8Xic%2Bv0g94qmhpmlK3Jpnl%2FzUsK058akhTo3Gx3VCbyjPM%2BLuOtE4ISPrGuq5oZ5rT6dp6rEzSVOLDfCG4h0ZcRuXY66Y2%2FFZwjvx5K0jnFhHPLo6gp6rIKM578YX3I3PXwbc3JwQHMqi3RxrmucyM6mUyI5nomPykEGFx%2B5YZi9h21IsNBHvxb8aCQgZpdw33G%2Fg%2BuACbhsAbowjG0mxB7ro48ZiJAnO4B8azXGU5wRsbp34kkVW0Z61x1XyKfCWQFlq%2FvO8yoQK4QxjWsBmyg1L%2FNUQDSEEQPELeEc53JHR%2B8Gg03BEJ46imLQGUtFuTALuKNI80BQDXBtE%2FM4SSTOwkh9dHXm%2Bj3x2FXcm3DkJuKuIllRFADxJ%2Betk%2B8gzJg8ALEbcPWExPA24p%2Bhn%2BAx4D%2BfOvFRF%2BWEFKrtmnVHhOCFqvmRnkelp0RNDoPYVzWhZQaA22TTggQofzwLe%2F4eMRXwB%2BUNVNJzRmELuxJoW5ZAgQTCrPF%2FJcxYyersvxPAQCI%2FQsSEZYamIvuH8IOQ%2BZAc3yA5V4YjDAx6AHip%2BiMcTqI%2FQWmNgHysWk6s8lESzHBULFwhkgXGZpWGxKw7RiG%2B2jTZBr7A0CFpMiLUZtRdnyTuXmuS9c4%2BbT9IokmVU3IvLZy5XcqG5FWNGtBnuzVK5sb6U3IyzSwydG2ceaG0GGmoZQsLyygW6JuFnYSsEsgwAbjbuZLksYLRpU8tMpbGHLRCwQUBwccf6eNJPP3lNc%2BRssqjNG%2F5C3kX63lb6xzZ9ZI5RpFBObZW%2BUkUPO%2FPvS7X4suqYcM2IzySGunQQ0uyZn9pwHivumTfPwS%2F24OtbWl91%2B%2Bh%2F6za799Bs69S0vey17dd1d0fqsxp9a3Iv58PCS5u%2BnF3X57sbdGrXh%2B5gsP7cwL8rQq3196W1ab4dCkxFJZM1stqYf7hBcQttfJvHWqvjcsbcTYfte4%2BdVwkmGH%2FSVeut4MO%2Bc2Hm0R2vLqq5dD%2BJzmX17vKv%2Ff94T%2F5ra%2FX0nsG2KvfTf5FZLfLJptN2y%2B1bQZtPLqzf9itkcrtqbSXV3e22Qgu%2BEK%2FWSahwe6Y43HwV%2FA3tnNsYAAC5CAAIAGMgsAojQiCwACNwsBBFICCwKGBmIIpVWLAKQ2MjYrAJI0KzBQYDAiuzBwwDAiuzDRIDAisbsQkKQ0JZsgsoAkVSQrMHDAQCKwAAAHicY2BgSGIIB%2BJkIBnOtJmBgVmMiZ2B4d9fZDYAeqIH0QAAAAAAA2gDaANoA2gDkAOcBEYE5AWcBigGSgaQBtYH9AhSCHYImgi0CN4JFglgCaAKFApCCqQK6AsaC3ILtgvIC9oL8AweDDQMdA1IDaQOIg5eDrwPGg9uD9IQHBA0EGgQwBDmEWAR0hIKEnAS3BNGE5ATyBQSFFYUthUYFWYVmhXWFgAWOhZQFnAWlBb8F0AXdhfaGBoYahi4GQQZPBmGGcoZ7BpMGpYazhs0G3YbwhwCHFocpBzMHRYdVh2yHeIeTB52Ht4fNh82H14f1CBUIIYg%2FiE6IYghxiJUIswi7CMSIxojtCPOJAIkGCRoJOolEiVeJZ4lrCXgJh4mYiaCJpgmribEJwInDicaJyYnMidEJ8YoSijaKOYo8ij%2BKRApHCkoKTQpRinCKc4p2inmKfIp%2FioQKi4quCrEKtAq3CruKvorPCvEK9Ar3CvoK%2FQsACwQLKYtLC04LUQtUC1cLWgtdC2ALYwt2i3mLfIt%2Fi4KLhYuIi48LuYu8i7%2BLwovFi8iL2ovdi%2BOMBQwnjDGMRgxXDGYMbgx2DJOMl4yZjMSMyozNjNgM3QziDOyM%2Fw0gDSgNLg01DT8NSYAAHiczXwLdFzVdejZ537nzkcajUYj62MhC3swcgB5GI9rW%2BPxB9sa4Q%2FYutcyMjW6Nr98BBSSlwjSJimBEtJXYpu4EIJNXAzE8lJwCNghpes5QFrS12CaEkhKXlaS9xJDVpvUxVDQ6O19zr137sgymDbrrWePZqQ755y7zz77%2F7mMs3Mmv6E8zq9i7ewR9V9KMw%2F81UP7Hrh%2F55duu%2FXjN9ubLr%2BsVLzwQ%2FO6s3PaWoEljO7%2B8eiGzaXd%2ByEa2%2Fsgj0c7wIrvas80pRvqElFTizJr87ncgNuBG1vP4wovF7immOkrgEPjp%2F7bRz987Y7VK5csurgnFmlgsWism0Xj0W5mxVncYnMZgziDLAMjDkaWGTxu8KwOXIlzJcvicatJBUXRgLWaoGlmE4tEgj8imbrW%2FvE6BO5z7wMce3%2FgtGmAA2BGnE0PVkTlIbi0TAxBafz%2FGU8tCNzODwbcp1Zf3KOakYiEUYCIEJrmB4YvwsyICaytBlAm8JZA0GYiaHf%2B%2FkGLW3GEj1ndCBzrRtCgGwEzugks3h0AdTo8BxCeL%2F2%2FhgfBYFqEIGlnEdOMAGvBQzQJMAFnMx3iSYTs3rOETP29QKYiplRF7WbvA119a%2Bm%2B9wdM%2F30AphvdTOd6Nztr4JKD8t%2F4hd2z5xd5%2FgLIFqGA7wb%2BJMDIGI0zea4wO9uY4Eaj3mXMhMz8Bbn5TZlGHYfQn%2BJzFn49RxdzlfzFhVlzsl34k4CsTkNmKnJ4timjZ%2FHjAuiapRtz8t7wBXhD%2FIW%2BmbMgpxWVQhHoFvnC%2FHYwCvMNfi%2BPRIxYT3tz1tLTVnlmPqHVa1essaJRvg4WQjJ35XojGsv0ZDRLT3QkOU%2FMSFkpkxuJjpQZs2IRroDVUFffMaMualrQmmhN8HgspjR2p82GVENE4bFkI47XrRkNmqXFZsSVWHt9vKUpgTgFmLfi4tmJBdvPMRQL2MAn1s2LzlzanchYZWXGKgW%2BSmBE57ackyOotgoYY2u2ciuib%2F4tzL7y2o8t0FIxMxUFI6YiBZpci8c0SKSQujWVgxbVtEjM1BU9Uq9wrqe4ocRbcRN6lMZHI0qsVYP6VhUAj1Q1aSuJqKqpmpHSm5cUF2caZrfo9U3JplS6fsE8VYEWDpcoCuPMZYwd54eRCgw290lD11SFK0Z3qQUY5wzS%2BLXRhL%2Fin60MwISMipSQMpK5ZFc%2Bd9x1R0YgcRXXJ9aOMDY5yVz4GfyJYtXPQdJj9Qa%2BH8UlOGtmZf4Jfj2SVQd7ozSTsY6Z7W34V2tzpjHVkKyvS8QRG3R3iJPePB%2B59fyWJm4gXjhviGoct4ZgcMbaLB3fDcZaYxFTMQyLZTSPvxdUZ4jvaCTgSNZOC9AuWAv9Rsu0%2Bus1662lTdWJzGSWbiL07XgPHVkGf4tBBLkoQgsx0MQyTEP20VS6EmUKjyriO7Ewk8tagmnA6DJyRlcdFMRPIUc%2FS8HAnzrAr%2FgnBud0jgzOjW5KPxIdaLphcE72lsHzI076gOmkB8dmHYJ3nN0D%2BcU34Gtgt5NfNIIvZzfDEytOPsA7lCaWEVh9uTSrra25ua2jDVHb3Nrc2jIj05RCKRKPRS1DR8RKi4TwtDIJrB6JBVUcqGpjuhFpKiKxxsECDb%2FA7SD7IwJYqwG6bjTFo1xVaXsKItLkGbO1tC0JZj1EVLCmLIMSBy9ZHuY0NULLMdOk1RgtxuQBMsPA31VVod8VxWyKA3KKQCHdIi4Q2JXOZZJGV9rId2WR6rL5Qi5fSOeUfFc6lexK8o5nhx1nuP%2FWgReHbXu4f%2BTowJs2HzpoVyac5n7XAcU%2B6Mwou5WJgwcrB0CpTDA8uzIisEmxEIooSwkMTpZmNTc3NpqmxF1jppGEcDIRN6NmlGgzRJm9qXpu1sU4GCpH4LmhNhLmdFANUBmnrdKWNAsNnUgTsjXRYCvRjckyukesi09fhCYwExSTMBdecMoSWmup35sdwdm6nG2BoinduDk0XUxBjkxXQcfpdAqqERHUipgNIGJiNVNKd6MrmyzkMgp0geL9Dohf%2BlGanAEHX%2Fsq%2F7AOcj9xbPznwE0DlS86%2BA8xbMP4u28qVuVh%2FE1xnIn9hGcYlNgm%2FnfwbQjlTBNyzjOltkyGsUxLpmVGM15pakyhrkMaJe6P%2BjS6ApEfQxaLgMk0lDxKuj7ONRNM3hjRUUYBIxzjhjTiwlakIqPJApOIFtEkRJXRWlpfswoPryJknoJ4aI8gkhgR5%2Bmr%2BcTYJIVfxGPpVFfWEJRIPxkizXQmle1K86GB4SdHe8pH7MFVH7NvtV331mU3jcKWwcpkuewcGLpj1HH63IMDY5WJxx4jxYzykj2HdKiw8w%2Fj7n0Ci6G8ZQ0IUIRleGvJ8v%2BcxQc98fuc6%2FIVwzAX1xiZfBTacI0Ic0tWxCQhDnjc3lIdxK%2BgiP3SC01JIQhJnEd4Rm0tzQ1G4G0Ukl3t3tgWZEpJJ%2FTRrNHNNUEa6a5kDtpsx7FxXw4%2FjGe%2BlvZTnHyUnajCIgR6CBYd0A5heCdaUSFYfJHJIyBgCUZwggYIFglEi5hDcoI%2BJCyLgbQQSYdiuUxEKQFxiOZ0thI%2Bws9XNopzljw%2BC75bamtrM822WW2zkL0bzZSZkrqHsCZobw7COdRAyg%2FlKOnTznOaFa61gsFnxLhuaGkEDBqTuLFUS5TrDZaJ9hMyoMY9nUEqo40RNiSSm3ADPlEpGQvZ%2FwK8x5YPcg9aCw8Vb3CGu4XvEPEEzPb%2F3B2YylCxKaffCwU3HYNhSDFOH81Wa%2BnDp93GfA9kgakh%2F%2FG5090vAu9zt%2Bigp1PzBWS%2FnIZaIZtHfZrPpDP492xkxNnZvJFJFzisX%2F%2B7a9ZfC9eVH6X%2F%2FXuvW%2F%2Fhyv9ZD9riJUsW8X9cd92GD6%2F%2Fbv8j5Uf7vl5%2B7HvrL%2F9o33U3L1YW98JiJg1mF47BO6gd%2FqKEsklyFdGy7tNyiwb0N0ghhMpU4t%2BCjOLhvwstBLpcO1JVJV3QRzNSfLc%2FipE9pojNo7okDTx1tDboKcSuPJJ9PpfOwbF9zt69zj5Q6H0fE7A7k6vYCTaCHDDnCQIavZHSDB0BgLSUIwBV4U%2FmXMag9TIn7N6%2B8jUbj46U5TopUGARbEG4ukuW5FgUE7QYpxXICiJBK9eij2ZFSscCLBo4PgBbHEesI2xMhEdhrU8QIgieRA0QHOflyJ4cGRkR9578Fcq0PUIu5mruLXEfp2Xn0c1RaqB8jBJA6N%2F4AjKCOgz2VL5%2BBWxWrHcfVK4SOgi3BftRB5HOX1xKmGZVs2sI0mzUpKh%2BOQnCQEIawueuQqqFNSVpx%2F3OmG2POe4uVIRcQ%2BnzDtcm3hH7Xohvj%2BH9ouyaUiwaSEPN13CzDB0tRbSx6bbCAKK7hfGCev48fxBSAKid4bE1KNRp33MhjxaSkS3kUDo%2FVnl4X2yk%2BJefQ1V9Ej8n9nsw7UGY6tglpVgi7kNF%2B%2B8xkEaQFyGNZgW6lUSLeLO5eMtAJValGqlXgel0Z7ozX8gTUZLFsKfyJmr9AxP3Dw88YcP1lbdjzuffffXgQY8WevDtHrx%2FI9tfqpfWqeQt1H2EFwpJLUvWRxUdOUnRGwGxn1aYgAfIYO9EslZAVyRzaEwEH4SLwshFkQZNa2n5mddADTf3bBbxjSLiM1QzhXxnvjNtoDEK9wx8a8C976FDlVOwbXeRTCAye9Ycijkju2JOcPZ7xNn3kB7UNU8PljrQ0FGJDtJI04BQkLmILNpUZcdOZG%2BkL7xVvgB73Imf3fIf%2B9wx6Pr5W08dd3GOT8f17K5SvbTvT8PhxfVEtpzzadAWMnFqdozmUr5m2hRMnXFeLaaSSBCEJeIMd9cp2FJ5d8zHEQw6B22fF8cFfupYf6khFovVxYQepo2IfZR6yLUFsow1hYwXVVM8AzbgTR0dmBALBLzZmSanQfDnuH0Ub6yeQlj2eixKroG0TOU5PSDgWFCyJB4VTud0rjCimGBP5DyOfABQZb1AGIBBhE%2Fkn%2ByEB%2B5z79s7DDvg0r88%2FA%2F3%2F%2B4gCDOq6O01zpIszbaVmhoaEomGdEO6MZVIJtD3RZ8JTLzncsvAzUXRuuUxDX2CuMo1VSXS1aBRh2lRYNSgwAhQ4BmmGVSHwk1CRDxnr8iV%2F7o8f%2FlNX%2FwKnQibXN77F%2Bv6dhdXbPi2%2BmTlsMQJF%2FDuf5%2BzIZjwcPCI8GxQaHChwEPn4UUNfFlBZ5MqkKnWiZqrK5tK5pJF%2B4jjVCbwaIb38SESnXg2DvBKBdE9Ock24zLPw9P1c1jy31nSYMnJf4e1LPINgKdg7Xi8m8aUUNe9JMbU%2FVqO%2BXXtGLJJWQnxvxi1qn5YAYgihmaj9ILx3soLkO9989Ylb4Gy5HmhI7rZGOr9cWEzoubxtT5RRCeJPkWaLIoQw2QeS%2BuVPpqJdwGFRBJ%2F4FjlWpSF%2BANXDFQmBqbCwVWEA7IF0LKQP7UEFlT%2BbgksfH5JZeKtJQQHycm7vTNASU1cLm1UIakFSKgq0lF0UEiq4RGAOlfsQBjTNV61IsiCjCZfSiuoa%2BHuo85u1xlzbhgZgauPjNgnSEhP7B%2BROrsyoSxG%2FdsBS0otM9vRUSNzOZUM5A1Jm5ivj%2B0G0HRkHKa2oqeppDvauIkACSteUbkivf8owRONoj2saV4kwEL6VVUiGdJlIvZu0TeWFbMyUc%2BO2nTG1aPotUWFq1u9z9mtjXbrld6yYHzAZQOjDHDRqiNde4NY4FTjaynkKAyU6iLc55JIIUYniamMstjes2LZTava7NvXds%2F9xJLXBw%2BtWv7gxG%2F4Nc7Ev7oO70YPa8WKVd9x%2Bp9C0bm68mU%2B9O5e21U2CnWK4A3hWwzpxGQJdltJUIlphCxVwt%2BHEoC%2BDYDG0zoako1IgGiFgFR%2BgUgLohOlnmnG89PGS6%2B4qgA6u5L0v4BbQ%2BWV57Hh110HBs%2BtvNy%2FlyQLcXjlcP93mbDmKB6QQrhjQiYeLLU0NMTjUibGk%2FGkjAcQjVn%2BLhZHSCFB2gSoR9eCgaE0oi%2Bh4D4VitGR5RRQf6QmwIGKbdU0sxk5LKgZFU1TOkw0uNFfoWgJk3GuaRaKyDPFDXblO1G65lC84pZFGCrlVA44LrQ6vb3lsb19%2B06gsjEGHGe0t1x%2BqlIp%2B%2FIVaO%2FwjrDBlpYs4iaSqiRhPlSXiJjCNpjeFGVhS1QPWaIUgEiStfCOc8q2Tznua6%2B5nrJbs%2F3gxDt9rh%2BDSQlaibPPleojkUg8EvfxHFDLBeiNQAwlCidkCYZQwqjVPKZiPrlcfPoENB7QqekMxONp04waRJKiLvgI3OG4J%2Fo83Aljerzfw9nTAme3%2BzaPdMmAGT7kFyIW0SHA3aC1zDSdDLv2GtiRfWtAz4dmeCAHE8PA18wzpKUtQEc7w4uFPC2Bf7Nv7M03Bexvlm0R%2FKrCHme3%2BBwq7cEA5%2BepyGxRZEqEI%2FD9ULfW2PqoRdEfuCA0lKsIeWeNtzhlgi4dRsKvgBaJBZ5%2B0%2FUgFWxJsCJfSjh5h7Arv1Cqr6%2BLRateb4DjnAWkdxLA4ohXMssociSiNKwa3ZXeMB25qRL3FSzQzmaWZ4mbJGJxpjDBoZNyDQUywaVtxzsq95%2FY54y5ZfS8oJUPTbwDil3ZUC4TwUt%2F05MtbilByqrGd6ddzDQp%2BE1UAiII0Y4eelUEolM%2BpzqAiwESp56T4Ms9PST3cklyunjKPeG6fftctHof5ocrh8vC65c%2B8HMizzIj8IFjkqlDHrAM6x32%2FCRpg%2F2Bb5dKGZElZkUJQSiExjO7g75JXkCTnOyR%2Fc6zjjuGhu%2FVKBg2Dj9BqArhqp59opTwpW4tbaKHpmgKIkSrpyBG2lcfvF2dgrWLxFBVDuXeUC6GSgg91%2BEM%2BMvn6gDNdonD11z4s6WOh8YnX7nhU7fHbQ9eQ%2Fjwc5%2BUgIpsFWIH0ZGWCA37Jqrk1RxJR25UhnBdfnhivz0s1gJ%2BP66VZI%2BXGpJTpIpJ%2B%2F8N7j8b4VyntVE1MMo8CZGiibwI0YPqh%2BRRRZ8MjVcp1jLvDLMEKxf8lVHdoItN5tv5NF7VZQhWqTqmAH66BPxwPbG0gv8zhLxMrpDj97vFy25f8ycbiu43rold93Xg7b2VSYDeiZ%2Fzx3%2F%2Bc%2BbRIfCV%2FJsoiw5NI4tov11RlasSlyKHAd7JEU75lL2e743FQaRMpYnAmIhmBTPosxm3u9BfWFNA0WAu7Vklvyo0l4fnMjnV8PbrbTWVyyKfrXzmkYGi%2BzcP20UX%2BJbFEz%2BjU12KdObpOeP3EufxjDRS7wZ6KiK54Z6ojfRU9aqF2ukLpYZoNFoXrZNxDaLQQHb2aCi6E0J0W6iT8A906t5L3KOGKpw%2BxxP7oamny33Dy1N4gj%2FQsFL0k4aFLY4v%2FNHdIgUg8zSTZYG7KGtg9wjfryHW4GdnQ3uZn6QzI%2F9DMaiYoBF3ilNCOhOHh6xvYYQtqZmkTTMpbFrXOvee6SUCvsGp5AppbmweoHyUOJk1mx3nWxvd0PFIOxmCM2pk%2F71UT1k9X7uFdNv8egtFa2MKnVlk2XQdiIARciTo3vkEDKkExvKS6iQlmKRqnKvkL%2BqKmMtoKvd4mfKcoRBTZ1eB4nXBUaVxjyQD%2BXMrPnNCHpdz2SOrnl8LfGK%2FtCyc%2BMO0p5WeHdnANpQSck8yz4u8XFpkRThat2mU2XWky1SylVXhKopwM6neqnwJjsDk0lnslElXqT%2FooxPeqRz85cDA72z35V8gui0vxepc8of7RYpV4pl5cS%2BD9dV4zxLDjcRuU0hVaS21UJyRoSVDX%2FLwl2pgvyBqYM%2F97n24%2BhDiYci7n%2B%2F%2FRNmOkhcHI1kSxFjPIQ0hBBQ00gl6RjT3qZIirKg5%2FCE%2BEYphfs1DrZcjrJAc%2FUcXpzzmuK8Pk%2BUhgJIw0bmcFDANku4mf0zobglRe0RXUNChICSN4KmrIBrfWuqU3yu%2BNvN8rZBoCrK1uSTKfbQ9T35t5Ks7rm65Fs3%2B1%2BCHld6vfAWOyTih0iRo%2FpOlevLdKd4roQlovquhLkY3NMjr0FEwClNdSkIIFHs%2BGKWLcLWPI2G2EaJ8bzjMsWbIAfZBle9K086rbrpxeKe7pXXIHWrb4u7effPNu%2FnMicrWrZzj%2BxauebG5XyH8afYZou%2B6BNE3nW7Vs03Vxy0Ufo0RRHAaKVwVBsoZzbq8HK9Vx3Nv%2FPtbeflslwj1UZQTd4HvRgZ%2B5f5R7CPDu3YN3xz7sLvzSwcefvjAM8e%2Ft%2BWS%2Ffsv2fK94yFaiCN9epETyRRVW5TkJ8kMCjOSwvOg9hiAMgByAEXhOTko3rAQsCFbX8h8n0LhpLPB3WCjPSXEPcpIGKwcgEEWxKiPCTrNE50GeeNSV8QkcSaNgKpsnqof50IeRFAc0hTvugXOq%2FwIvlB5Geb%2BCLJbnX%2Bq%2FNOQuM%2Fo5KMwV9RabJwiEyh2lJk%2BL41iofP98tGqzEcnpQc299Ch%2Fn5HuUpkov%2FrOaQUdMFSGByqHAxSSKH89pn2Mm1eW%2BzlffLZajWfnaRs9sGD%2FLDz7oN0z5nwW96iuCJuqFH8EoyskU3xlt7nn17yFr%2Bg99SpXsjLPb89uRFOIowKOzfwMzLMy9ax05J1GrkGJysavDNmi%2FnfQiEm6xHm%2BfO9igSBLuZjy2K1yOrKousyNsqHDrEgz4PaCm3rneRL%2BkmKGn%2B9oINEH08nRSVSTbywNuBWa0gsljPhbGZWhVNY5%2BZl%2BQbqWnSPKG%2B13y27tv21yy%2FZV%2FnX8ktU1XDQscdgUBgQnA1NnoRjyiy08RLs0lICbbxEVOSupE25wCB%2FB1WNZ6ahbUnmUgrv3lAla2uKkWlKAZk3koUgn3gMHVu3OOK4%2BxzHHubPXVs5UHSIZysHCK9UZHEfl5at5XtrxLNzKXEI6QjCagofO1C0VlOVGFG96zIWLLiGgkdwn3vHa6%2Fb9l4Y3769csBBEeHFFulejytNnl1bL%2B3aRFyeYiC%2FcjGRYKJT1Mmux7NA04OnqjaFFQR%2FqidYkLPg%2FWad%2BfQoyFhQ0EZJwuPDa3bY9tjw8KWb8NwQ%2FrHhiWWwv59Q5uHsccRZHVtFPq4fv5Z20kUi30MJepll4poMTAS3tmq1mi4Enxd1o9IDyvs8XvmtbR9BHG5eshc4QSCywt79hyjniTwVZSOlkIepBXWO5NDj0VGlBBNODyXZIk1hwvHi%2BMJaqQ72dEE4I%2BQP9SI%2FaaLxpIj73HO8%2BFF7wHU%2Bzw%2BfQJLagPJF8urFqBleELw6VCIAkiwpM8NSvFFmqhQTARxpTBrIfH59zlxWrRG0poZwPGMupmQinmoirWQgv8kDhBfs43tdu%2FKLgaOuCPkRoSsTb9v225cKMpS4O6acI3LolhWZYk%2BeawrTLYq032joXElVc3RWKKB93nsNO1McW9S%2FHXP3uW7fdgfGEV9%2FPVz5Sr%2FHG%2FRxlD8j8kTlaiTCKw2hcIQsnq3GbgXzoTpv9r%2FErzh4h4dfKVKOkvhPFo66%2BI8PuUjG396O4yZ%2FWJlgh8X9LLQkLN9rDzTPHDL3GUUdFEFE4Zixx1AxTrg4t2ZgKKMVGqYFoBCFJwuHXde5Y3AWAfTuLtvm1%2BwI6PpbKBNjbNOTXiDBP5g2VZSbxKLCHYGU0BZVO%2BwcVRBx6GuOyqR6EBKAAlpYSe80njnlOMO7XRe6T15vb668DW2VX%2FBn3CC%2BWodw6KzzCV2TOo9cS4UWDsXEFHG6SHdoLNQN2%2B6Aw68bnsgH%2FuEB5IEGtDUbpKVcjX6aAb1RuaYG6QaipCCgo3NNQ9FONrr0KBbhMMXwhjH6EtFb1UlBMEfoJzNMgVaIAkVUDPk3gy9%2BwN3l7kRSdHtRNxA1Coo0%2BvuXLnWqMWZD%2BkHViGfVDwqxgEf9pIsCLtEkl6j%2BEE9t%2BEVNZ%2BISAR88PbyXQLN9mML6A2H6IHGYqSrytHqbx0nOHrGHKZlPctZXjXi%2FQZRjz3BD6KsvhuMwEhnVGDYKsCCmosqYSrW02aoJPBASYqKStEBib8osGl0Nvkw70%2FeCfGSJSAw8M3DIdddcPeDuXUMpcMVCpImdDHlxmLWV3wrcUa5mTSkhczWxKOlewt18tDKAC3tDpwgr4lCWdp0RkeTVa0ZShtB9tUkmD7JCGXUnDArNiYQV6E1H1C0YvuwNbI1A9pL8ohfSjFRdVRwG%2BQqkKlHkUh0mvq61TqreS75KVeNE8Gs227DFPRKiK2Cz8O1Woc%2FXyJi1rNqQ%2Bnx%2BHFhMBDwQK9PHO6zaeIfuF5mjPhe1CWgXwq2n7nSc13%2BKb1%2BHcRttQTIH5f0nf4Zvm9BvSrDREhXlJliiqi0DKssaxEjxGFdTJGKJk0RIbKo51lrqqY6s1nEKHBHARFNT5pi%2BpydMuC5RDw%2BbnOLoHc6oc64r9Kjgjj73ICJgA8lpXzacRYzEet8YiaB662xiJPAtJDI0ZilGIsWW50cJ%2F6ADeXXmYVwbDy7lC1wWYalqUkQwfyaZQX0M%2B79w2V3Dl21w77rrLtjtVl5btw5mucF6%2FM9xvQa27gmRIfE319KQDNVIKUg0KW9b6MXMnPql0Bj%2BZpRwAEOCIN74n982YDsbPz1c7nf7%2Boc%2F%2FWnb%2FjTscyvH%2B9bDeW7llvV9cIErakip1u1colNfL0mYMiF%2FiMfCALXWfHM6NBSG8KIQGVKPcI%2B7YYN7222HD99224H16w88Pjp66xNP3Dr6KRGHQnlI555gf1xKyHVlRLqa69Uo8JE2SZ6hz6AJjSBkIQ%2Bq3j0REhNm%2B%2FzaCZJ%2FBX1OncS9SYJWtcDm84gCbT77KNpVSBhoKJ%2BqpQ3C2zZBr2cRl7CmjUsU8l2yWA%2B2VV746U8h%2F%2BMf7%2F9f85zHftyN68%2F26uXr2ZdLifo6n3dDtb3onXCVUpUJ1PZKmvSFlPde94%2Bo0NVEzCKQ%2FhGVeHnZGWaKkJ6s3ZqyRkvgXtBHs%2BHX2JP5JXLLaASJUnvkILtcLJaRsy%2Bgl1P5xdJi5X978W30%2BY8Kv31xrd%2BeqBqDspfgTNEAum8GRQqang5FO0SsA%2FJVPPnZsTCeyIpUPC9eQacEEqJ2X6GSsEDoalPjIYSnM8wUvrMMxVXXEAhqCQQ4fUg8LYZkIStbAASmuoqEINvu70e91lJcCm2IpeP0EjjCG%2F4MiSxO%2FDBtLG6uDLWdKZ3FvHQWo3RWwQvLnV02i8lslgc3yu6sV4qVy%2BfgZwObnYtse4t9oSiaplJJm3rzJjey48gH0%2FXmicJEkWCsanwusp1LQWjQLpd6894annibf3NE2hTlyQfgh%2Fx6UXHzNaq4YUxW3JDHV83xBBU3801qP0LqjUXRMxe5Gh3ChlLEMBVJvFXHfpWYZIQnodVbZdaQtUS1NYF%2Fb9Zke6J%2BtsfIe54%2B6mdpcsIPB3Jkt7jl3MCdZduRTV6D4qMaJ%2BmhCCnq6Bb2aKmhZQbVrhGnS78psOeXZogMWQMaiVQnn25GLCUTZJHqaNuDH3wMN6sFClpWNqw%2B4wrojmhc12Qf1vutZPrWTzpDMSmDNowyM0%2FNgpR84e0fe2301kuHB07QJu2ep8rDozYk%2BNBHPtI7SnUQw085zvGe8mhvYHvv4Av4etH3Yj6RztRpnOKGGYocGtkC%2Fc%2FQ%2FzrIGhm%2BYMuq4qqhoVVLLhm6YuWSS7YOrSpekrzr7rvhiisu6V0xNLQC365YUVwxtHVlccUVd999V6BzOwSO95XaBIeKMkHq5oqF3KeYj%2B2L0qhu45qmkwLRIiD6J3l71OLV9gjZaxhYjyu9KehMIVlEVDNCgW%2Bv9ZJC4H7LRJS6DekHkSxWECgWy%2FgWOHVNULwGMYpyNSMi%2BIRs3jFwvfvXA9c9M7DjIXBv%2Fri778jg1WPU2mQ7Dz154OabDzz5kGOL3KgvY88cyRaVoG01MteLZL936aj0uKnSRUhgdHR%2FAhe8%2ByBcSPdFPU71w3SWq0sWiS66MWnEvKjKbBA1xAhPgow0i6SXVM7V2H1Yj%2BtCI3dlc%2FlsXtYJI9mhMaGkMknY4%2Byyf%2FL3zjpn98Avf3nlqn%2BEP0Pq6nvh1cF1NzvOml%2B8tHUlvFx55wuiqxZhi%2FEhaOPfFzixp8n4tSh%2Bq4jidTbQUQuFI9CiSFVUbX2pUUpe%2Bi%2BfI8sc2rZu%2FebQEB%2B64YYbhP8wOrlRucfr4WxlT5aaTJPor7ZnM%2BKfTl9rS7pRNXRZXJeq5zp66QadmEoVjqL2j3pep8lGEDWFeBW5%2Fr3WAirX9tp4Tl81vJLh2UZePrszObWeT7nHnvia6%2FDrbHdiHNXEUds%2Bij7jXhdpU7Ech3ou333zEFoE4wMD%2FcNjlQ19w%2FJcelDbbRN1PY3skVID0Yhf3xJUtwgJSL2UXHqS9cJn4tXGD9ldxtvCPRLCtvOkuei0WOWtALUrkPCkR1ughDemXylkw%2FmNlUFYPi1KvjKicmmbe2m7bQ%2F12d93PmtXfgTngYKuoO30bQdOaX5b7neIL4QKojyK8i4aQXlLdd4o5VDe4U%2BBL1zyg5f%2BYOfVX7639wfHH1j24ou9O%2B%2B990ulF1%2F0bU4H9sAWnN8dqitqk0kP2TDeElAEB6%2Fae3YX5b%2BQZyon4KOOyIFPTvp9Uw06Yp%2B0vsMcxVK2CTptRhL4n6UW02xrbZlBrEt2VZVag%2B7XSzNJburNCa6aXBBZEzVhcEVpZKau6qY6V0P5idZ8lujNEPRmeVTG2yIguueEotHpkBx%2FOe205fSIGdE7malFTC0rerXVLMrXyBmWZpGIv3JEhqtmhwm4K5sWdQxEwyhguhTLpngu1x23koK%2F%2B6Odw7b79qa%2B3bfdhmKFb7WRvvnWia%2FZ99wD2ibHeag%2F%2F5Q4j9koVxRRLxfuGavGNaVzSKIBlNdeo3IAtG%2FgHbhaaRJ4Xnh6vGlWNd6kTsfl0nwCSYHUEpeGq50R2x5xnBG%2BYWCAPkdG8HyJVo7xy%2BvnoGflJA32Mp76Jpb8BoNxZzzeTb0Hk5u83oMe2ALLUEbF2EjJovx1TW%2FubCviOTSmjLr5UIWtZVSDF04ZF7aSp8mLyliK6MoSwgTdoGWViYNHnGHnwAHYcstjixznsodjYfjq2AulWCzqP4NBxAYiFCuLg6ImTAMtzzoESiHPiwBAo5d3ep5EuP00ooj%2Bdtrcxe8xVfQtTzu3VHzvaUGvyfRujOE%2FdIGIz3cDM7AMt%2F6NzevuA2VwEMZt%2B6biOs1ZvXmziOecJFr7T%2BeJRb%2BjctDdpViHDklfDPU1xWJj7JpSyBIK5cwo4qKKcIpSm91s8gLwMuJCFahhD7smGeYNrUZckl2ed%2F30cJ%2FjunuHy2WKLFb9anQY%2BTw%2BhHCtoXQufsYoD0Z2xMV4dxTDQZBOdEEBNQXDPGG6cqHB%2FTIULlAtNp808L4GVRwU%2BLz%2BAdeZjXw9tHpizoDSOZGz4W9tUAekXHTZKXYcrk5Rponh7yZxzCliFOR3xNlahCjKFlGsUVIhQXZeFET7IxGBaVDuplo8PL1R0yWcBVh76ZfKz47095aP9vUtLa3u7xM4iCG954XNsHkaC64l6PWiUswgSSRb07tqvlTEty1B9YsCflM6lStR3gTyO2Lljx0axTuu7T%2BEYJNO3uLVJVIuMuiskp6o7Kya5z0Nwi8OVGSFX2BZBlRgqF7%2FmTQZSFVmyT3a4ow6%2BKIyDJfKPhxPS45RYxU7XVfqJldRV6aEqgRSldlndy166Qe9kD%2F%2BgyW774ULdva%2B%2BOIyuOrFF0tfuhfPcfJXCJWlWPVZ9kN4rHIA5eDoT6j36h%2FZj3D9CJ7qU5UDsj%2BLxvIJMfZmKpF%2Fr7EU95my7i3%2FMe1Y6lGb3Ah7uMTk8qn9UReIQxXJDK8%2FSqV6INkfxaUZ4nuhqqCcpUBSkjyCrmwKnefiEdEbZaPA33v0Bvv1Q4eQqq8ckXQsas6U2xvmsHPFM25%2BxHZNe%2F0VpPHq9UeC66%2By%2B0LX9wTXf1xz%2FZPyOu7%2FevYYG0Nu4Xx8TGwfqUGO%2BTxaGPREjQMldOMbRNeM73UFFl6RnLL6eAz9J60JDD0FaKmm0UIQjT1aN5IjUh6XjhMTeSHq3lOCR2isOosFFMNLmod7Jfxax%2FCTM3J%2BQk88OaMDRK%2BQgiYafKt0L3UMbS4t%2B0hxPjUNzV6%2BfBn%2FbXFirdc9VHSKxTdEB9Hk8uUrvN6n10T9doas%2F6a09yChUA9UEMtYkRE9TbrWiHJcCfqa9Iiwz1kEDdUICEs9XEtb89AVNKPWTl3FpCS8qZlq53SLeY%2BBCbVLhZuJLK%2BPRHZNVTtJZPvUa5XDx6kB7ETfvhMnKr%2Br%2FEv%2FHX4Xlegs4Rqi4tlA31AdaBt7vtRIh0V91UEUWXpAhIP1ba1NadU04kD1%2B4qqpBuT3KhnaBkCWYLVVIn%2F0AVypE2TQNakdgpniSOtpY3%2FyRWrRQKnrWr53rrIx0hxflqT00hvGaX7czcsvbXa7bS0bz4J%2BsWhrqdhya8iNyr48jzkM539yJ3uOvHrM6HrjwTjX%2F1YePwn5XXBlzcJvgSfL1He%2FQSHviTWnCfv9RM5l%2Fqdl4Wuv1IW1yffwusfEveS1199S46vw%2Bsd4l7zvHsptfdC%2Bkda4jNEn0uafb3UHI%2FH03GPB6qxzYADFhnUq4uuH0%2FHyO02ScGgeY%2B%2F%2BKWSQXt3BOSpMz%2BqtyY8WWPy8Tka1xTqKzeAnA0R2Ta9yLZ2hqWCBjqRtPIq09NUolLgM%2BzKX101EHNcuMZ2X79%2F84p%2B1F1b7MGNspb7oF15vN%2BzI4CvFHKzx5ObD%2Frng5KJcDxf4n6UTXOdzvlE6PojwfVX2c7Q9T3B9R%2Bzz4auf1JeF2fylSlyGVgf%2Bww8DP%2BMekk%2FbMheYxlvy6B6hYeLN9605CZ83Vi88TtLbrxxyY039d6ELyZk%2BuzJ7%2FGV%2FLcszhpQoj1dSlAsjY4zaqGr51vk62L0tJ4EVU6BppgaR58NpTEXeYY4yvKUoVPQVeVkKM%2BV3Y01XYQUaPX7Y6zW0voPvCBX0FM844qDnl3YRRsnxi0Ixi10KekcX7nQfvPclbnC5n%2BZvXzb68Yv9F%2B%2Bzo8MTPybM3vrgvW8zpmz%2FdCMyhf%2FuXKgaaquXVhzprXXq2da1bULp9G1n5TXxdntn8q7slZXrLnEW%2FM4C%2FeTRNDf6ys1WJaVsBKUiw8yvqUL4yQAEWteYUDQqh%2Fu0vACcV43PFBEMpnznlNQ4Ibzpuu%2BKVozFHuMH3YGKu%2BCWjks7VZZB2XhMfw95fKm5C5ELiZZTz6TeHqH0kBFiKBU3aagmSjixwJVP2QvxUP%2BPadr6BJpStXmVoPaqj84y3mi0CVcjWP4DdLU%2FFDIS6OAwpBwzNnnFG%2Fbfqfr7LN7yqLOw907sZae7XRHT788f1Ffqlh4VisFXay4tXr9O8F1g32cnj8YjG8Kxj87FF6nPrj%2BvQ2h6%2Fz7wfXrrw2P75DXkzp7fjtIKgLpx1De4bNol7azfyi1tLV6bfMUxI5NExFf0wLcomdc8HQ78DpGbChiMoFMDeLGxJDUXR4FpL8m05PWXoslmiZDLRCJRoHiO%2B0QwaWMMy5V7VMXdT1eW75Vq5jD2YmY7%2BfmvLLRUPFsl1eg9Fl718D8nT9%2FfVkJ3Y9dly%2FY%2FVb5yMKFn99MD4cbqxxwli8XRRQw6Cxc6NVxrEW7hWpZm9kzpUZ6DqS03nw0BXZLP0WOG5CgLNB0JY0wszSKVq9gU9dE%2B7cgKgTYNINiCQOEzRUoo5hKNsv6D7yaYZjh%2BovaFa2gbiWXPt1oEcW1d%2Fb2r72n%2F7mRXrtaZRtYK1Tm6NkHj4vnZq4RdLvC8ynWSnoOrvv0vFbU3jV515GePd9E1lx9P7h%2B%2FQ3Szvhb%2FHhF8MX%2FkPySkuMvo1y7vN5I1z%2B%2BVV6n4MoVgl%2Fk9Wcb5fUZeH2u4At5%2Ffq4l1ukWiG0BkhzrSlZRPV%2BV%2FuClCj2o0eFiOBbuOZClDhUi%2Fynb2%2FPZ4280KAoHOqATGTxUJexTTvmX1q6YtsF17lle698DuGgfd2HP7S2uGX46u5r%2F7RM%2FdeB3UY8fpnkcY%2F3s3j9UYHby08JnNxYxeEPBU4u93B%2BvIpbgZPLJc7dEM7F%2BpfXrO%2BdRXDdlyHdrAjHeAc912SoiN5ukg3BOMqSl%2FFrEUUselFEGJdmBdLlusm%2Fg2%2FyhfIZMgClBvwncreETKpCF3VHSeSWVajOQRN1anGDc12EEqIWFaMrgRrvnGoW%2BLVrVbugfzyFq60%2B29VqbYLTlyutOZuVpjEvTlvK1xtkViF1oF2V6YZkLpPsUuCbzpGuXEeHfaR9UVfXZ3aaY%2BbnHGfBxYs6kM16ei7uqvzbpZCq%2FEaeQ1HwEJ3zZo%2Fn7hTXNwTnv7nm%2FDdInvOu4%2Fl75ynrq74fXL9%2Bu7xO9TeSd4eqvEt%2BK16XvQR1bL1fV09yz9PnVGqoUIGiymUyTxXdBNOX1LNQqWFQaRi0ExRkP4GotOkTlYbP%2FWHlvnCtoQenhH%2BoSqey%2Fo8d5R1IfZnDwKhGK6ZwHi7OyslSZVmjLOykV0S%2FWTP7TqklnU43p5t9G7aae4pWc0%2BiDpPkBDOET65R4UA4bVatNjCarAiX7nO12GAjeheKXMHzxzWIhFdgwRM8w0%2FEoUd7RiLVaGrYK4%2FKeGrWC6uRT%2B455p3UBvzKGz0X%2FdS2f3pRzxtv9O974w300nt6yOXEd88vFz3ByPv8AdRtaZSYiIumpqYZTTOkjgtbAlVcoOmkS0sgXUf14Z4lEChtE4hn%2FEJ7KuIOGwCEiwYwDVRjEbGCKVaIhFeoPn9XqP2gBplwMb3ej06j9yVSxJNh%2BQPOLqdn1%2BunUM%2Bjau%2Be96BTeXinr%2FBRzSPTdXf7RRkw%2BRs%2BBKsVVJ%2FsoieIEIJ6uKhGZEXHOou3lurwL69inILsioypZinMvvqqyzZsHuNDV155VKy3ElZzimP%2BaXW9qL9eg7de%2F3iMovjBJVEF1T8eP31c43TjTk4dJ%2BFrkElDAITPezy6QogxUsMbLnPGeGXr1qPEE7N5PzulzBQx34EniFAFlL24aqsXoWF0VqFeAVkycG7tt9MmO2TVgJ%2BwyhqZUwvdQsFdOG%2Fx0iL%2FzIIFOxYuzBWLvTS6g2%2BCRUo97mrdE0LQ%2BG5DOz1vk6r5kHuAzqAh1OiltZZaT%2F%2FePxkZ7cb7orWTyedg0eq7YfX6O1fy%2B1Zd%2F4fbLrt6m1dztUU8Q%2FKs%2BtHo8VmwhToVQRE1W7Pxtz0fcP6eyhfhj7z5DoyzE%2FwVNIP%2F1n8WpqSRWbrol6JSKhRoYqGW4AyYCOZ7pDMjPDLwYCzKCUgyOrulGt97qbNZxSO0VCFNzOjYveU%2BfsflR0c8OV6Ch9hL%2FAX0busmf82HZMScD0kbwn9WGhtBCV%2F3ayGvAb0WgZs4zKLspOyvUX0UnRfXKeORNg2qekvR7wIqLtHfSqUdYUTNrB0fKvgIY%2BuDrNp4Vque%2FECroq9OBQvBUK8Lp4UqUEA2ENZgXR%2BsRftSqGL%2FWbtYLssjuLvmHODL%2FAW07MQ50HkwFFqsITgPMu68g5HnAl%2FGcxHPsKsXowUIs9kpdgKeRtnxIV9ylM4hkaC%2Bh0gISYQT9gwbX7CW3m2p03vQ1lwqcj%2F6YU0BryasAEtFXQR8V5ZEyHFFb5x4Vp3MD3mZIZkSkrdk8GmRO81PlzsVaVP%2FETet4m8pPOjv4Emtn668uB4uplIWhfpKyygxtol%2Bue0i5x9lUVnhH3TMnWtpKohHlVY744Xb5%2Fe1SNnVGQyjhL9I0bWFJnDv8QLiQZtJeqZuAbYd6btqx0N%2FqVhH%2B5qvqrxq%2F819Em9U67YQbZsM%2B3aJ2DLDMrKjPlzpFmjzZU1AVjp6mXWgqehXGuA%2FupEUC2slnWs0mRBu2wvaVk1RsrF%2Byho4GOi5yYaiKoY6N%2FRAzPCS7Ewren6qCLaKn850Jz07mV4FvtA58Yrz2ZHNGTZZOWnb3qO0B5yg82HA89m7EYvHPqA8Fo9C9OQxw3M9pdxONmUwP9RL7LUSn3J3jSrWaM349tpnEIfT8JLmC6d2uaPK7aOj3n0grzzyX7A18ttKRecrinXJJV8l%2FanoqD%2F3IKbP8%2FXne6rGaTTjqntWKpeuWrWsb%2BVKVMn%2FF6wMfd0AAHichZLNSsNAFIXP1Pq3sLoUFzIUhBZqkhZX2RYKilTown2MQxqoTZgZDX0NH0DEpQ%2FiE%2FggLnwAT6bjX0HMkOTLnXvP3DMZAHt4gcDyusCjZ4FNAc8N8r7nNRyJmecm40%2Be17EjPnU2sCvePbdw0IhZJZrb%2FHpwCjULzrx5bqAltjyv4UxIz03G7z2v40A8e97AoXj13MJJo4khCpRYQCNHhiksJDpI0eV7gAh9jh556HIUEsxcRuVGwMzveEAtTZWuq6ioaKkoMeG84a1xx%2Bc1IyNmzt1aY1beMCrRxinVFK5cZsbvABgW5ULn2dTKTtqVg6jf78nhQqtkJjtVVQWp46DQWbcnq9xO5UQZpe%2FUtRwVcyvHyY2S7dNUXSmdtSn4ew34GbgeM9zSRcIZTFR2O0sIP33%2F5zqmi9%2F68Y9dxLLv1bZj6XuInb2%2FO7x0EcNdrfdOUjGgckR9XCpt8mIu%2B0EUDVYVjle9ecXjL4%2F1X7c8BTFCDsPq%2BjSUjBmuUa%2F47TLkSR%2FhnEXWlnEYmlTnpTWByZ2d8GJ0jg9deY5HeJxtzFdsDQAARuHvVmlV7b33pmrvUXvvvev2ti6lddtrz9iEEAlPxHoh9o4YD4i9YgsSb%2FbmFdFXJznJn5zkF%2BMfv9sp53%2B8%2BGtAjHxi5VdAnHgFJSgkUWFFFFVMcSWUVEppZZT9%2B1NeBRVVUlkVVVVTXQ011VJbHXXVU18DDTXSWJImkjXVTHMttNRKa2201U57HXTUSWddpOiqm%2B566KmX3vroq5%2F%2BBhhokMGGGGqY4UYYaZTRxhhrnPEmmGiSyVIdsMcKK5231RurbLTedvvsDcRY57nltvjmuw22WeOSV77aYb%2Bffvhlt4Ouu%2BqQKYI2SXNTyDU33HXLbXe8le6Be%2B47LMMXmz320CNTvffRWtOETTdDppl2yjJLtogcUblmm%2BOdueabZ4FFFjpjlyUWW2qZDz4564kjjnrqtZeeOea4U0677ISTrljtgovOBfIFYn0O5A8UCMQF4uOiM8PJySndE9OzopGcaHYoEs6KxPaIRrISMiKps0NJwdScUEJqMJqbN4sGw5FgdEZ6ZmhuXsoNZ6blpT8t5HuBAAAAAQAB%2F%2F8AD3icY2BkYGDgAWIxIGZiYATC20DMAuYxAAANBwEKAAAAAAAAAQAAAADUGBYRAAAAAMs831QAAAAAyz3GHA%3D%3D);
+                font-family: 'Iceberg';
+            }
+
             html {
-                font-family: 'Droid Sans', sans-serif;
-                font-size: large;
-                background-color: #e6bc8b;
-                max-width: fit-content;
-                margin: auto;
+                background-color: #333;
+                color: #bbbbbb;
+                font-family: 'Iceberg', cursive;
+                font-weight: 400;
+            }
+
+            .btn-h {
+                width: 12.6vw;
+                max-width: 12%;
+                min-width: max-content;
+                height: 8vh;
+                max-height: 220px;
+                background-color: #26C6DA;
+                border-radius: 500px;
+                border: none;
+                margin: 0.66vh 0.5vw;
+                -webkit-transition-duration: 0.2s;
+                transition-duration: 0.2s;
+                font-family: 'Iceberg', cursive;
+                font-size: calc(13px + 0.8vw);
+                color: #333;
+            }
+
+            .div1 {
+                /* navi */
+                text-align: center;
+                margin-bottom: 4%;
+            }
+
+            .div2 {
+                /* content */
+                text-align: center;
+            }
+
+            .div3 {
+                /* terminal */
+                text-align: center;
+                resize: none;
+            }
+
+            .btn-h:hover {
+                background-color: #006064;
+                font-weight: 700;
+                color: #bbb;
+            }
+
+            .btn-h:focus {
+                background-color: #006064;
+                color: #bbb;
+                outline: 0;
+            }
+
+            .btn-h:active {
+                background-color: #004548;
             }
 
             h1 {
@@ -32,48 +88,58 @@
             }
 
             .button {
-                background-color: #2e657d;
-                border: double;
-                border-radius: 12px;
-                color: antiquewhite;
+                background-color: #26A69A;
+                border: none;
+                border-radius: 500px;
+                color: #333;
                 text-align: center;
                 text-decoration: none;
                 display: inline-block;
-                font-size: x-large;
-                margin: 10px 16px;
-                cursor: pointer;
+                margin: 1.5vh 1vw;
+                font-family: 'Iceberg', cursive;
                 -webkit-transition-duration: 0.2s;
                 transition-duration: 0.2s;
-                width: 36vw;
-                height: 8vw;
-                max-width: 300px;
-                max-height: 100px;
-                min-width: 200px;
-                min-height: 88px;
-                float: left;
+                width: 16vw;
+                max-width: 12%;
+                min-width: max-content;
+                height: 8vh;
+                max-height: 220px;
+                font-size: calc(11px + 0.8vw);
             }
 
             .button.preset, .button.slot, .button.option {
-                background-color: #2e657d;
+                background-color: #26A69A;
             }
 
             .button.preset.active, .button.slot.active, .button.option.active {
-                background-color: #4CAF50;
+                background-color: #004D40;
+                color: #bbb;
             }
 
             .button:hover {
-                background-color: #4CAF50;
+                background-color: #004D40;
+                color: #bbb;
+            }
+
+            .button:active {
+                background-color: #001f10;
+            }
+
+            .button:focus {
+                outline: 0;
             }
 
             textarea {
-                width: -moz-available;
-                width: -webkit-fill-available;
-                max-width: 1024px;
+                width: 80vw;
+                max-width: 880px;
+                height: 50vh;
+                max-height: 400px;
+                margin: 20px;
                 resize: none;
-                background: antiquewhite;
-                height: 400px;
-                font-size: large;
-                border-radius: 16px;
+                color: #26C6DA;
+                background: #333;
+                border-radius: 10px;
+                border: solid thin #555;
             }
 
             br {
@@ -85,7 +151,113 @@
             }
         </style>
         <script>
+            function content1() {
+                document.getElementById("display").innerHTML = 
+                '<p>These are the default presets. Your selection will be applied and becomes the new startup preset as well.</p>' +
+                '<button class="button preset" type="button" id="1" onclick="loadUser(\'f\')">1280x960 (default)</button>' + 
+                '<button class="button preset" type="button" id="2" onclick="loadUser(\'p\')">1280x1024</button>' + 
+                '<button class="button preset" type="button" id="3" onclick="loadUser(\'g\')">1280x720</button>' + 
+                '<button class="button preset" type="button" id="5" onclick="loadUser(\'s\')">1920x1080</button>' + 
+                '<button class="button preset" type="button" id="4" onclick="loadUser(\'h\')">640x480</button>' + 
+                '<button class="button preset" type="button" id="8" onclick="loadDoc(\'K\')">Source Pass-through</button>' + 
+                '<br><br><br>' + 
+                '<p>If you want to save your customizations, firt select a slot for your new preset, then save to or load from that slot.</p>' + 
+                '<p>Selecting a slot also makes it the new startup preset.</p>' + 
+                '<button class="button slot" type="button" id="11" onclick="loadUser(\'b\')">Slot 1</button>' + 
+                '<button class="button slot" type="button" id="12" onclick="loadUser(\'c\')">Slot 2</button>' + 
+                '<button class="button slot" type="button" id="13" onclick="loadUser(\'d\')">Slot 3</button>' + 
+                '<button class="button slot" type="button" id="14" onclick="loadUser(\'j\')">Slot 4</button>' + 
+                '<button class="button slot" type="button" id="15" onclick="loadUser(\'k\')">Slot 5</button>' + 
+                '<br>' + 
+                '<button class="button preset" type="button" id="9" onclick="loadUser(\'3\')">Load Custom Preset</button>' + 
+                '<button class="button" type="button" onclick="loadUser(\'4\')">Save Custom Preset</button>';
+            }
+            function content2() {
+                document.getElementById("display").innerHTML = 
+                '<h2>Move Picture</h2>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'*\')">Picture Up</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'/\')">Picture Down</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'7\')">Picture Left</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'6\')">Picture Right</button>' + 
+                '<h2>Scaling</h2>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'z\')">Horizontal +</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'h\')">Horizontal -</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'4\')">Vertical +</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'5\')">Vertical -</button>' + 
+                '<h2>Boarder Masking</h2>' + 
+                '<button class="button" type="button" onclick="loadUser(\'A\')">Horizontal +</button>' + 
+                '<button class="button" type="button" onclick="loadUser(\'B\')">Horizontal -</button>' + 
+                '<button class="button" type="button" onclick="loadUser(\'C\')">Vertical +</button>' + 
+                '<button class="button" type="button" onclick="loadUser(\'D\')">Vertical -</button>' + '<br>' + 
+                '<h2>ADC Gain (brightness)</h2>' + 
+                '<p>Gain +/- adjusts the gain for the currently loaded preset. Auto Gain is saved across reboots.</p>' + 
+                '<button class="button" type="button" onclick="loadUser(\'n\')">Gain +</button>' + 
+                '<button class="button" type="button" onclick="loadUser(\'o\')">Gain -</button>' + 
+                '<button class="button option adcAutoGain" type="button" onclick="loadDoc(\'T\')">Auto Gain Adjust Toggle</button>';
+            }
+            function content3() {
+                document.getElementById("display").innerHTML = 
+                '<button class="button option scanlines" type="button" onclick="loadUser(\'7\')">Scanlines</button>' + 
+                '<button class="button option vdsLineFilter" type="button" onclick="loadUser(\'m\')">Line Filter</button>' + 
+                '<button class="button option peaking" type="button" onclick="loadDoc(\'f\')">Peaking</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'o\')">Oversampling</button>';
+            }
+            function content4() {
+                document.getElementById("display").innerHTML = 
+                '<button class="button" type="button" onclick="loadUser(\'r\')">Use Motion Adaptive</button>' + 
+                '<button class="button" type="button" onclick="loadUser(\'q\')">Use Bob</button>';
+            }
+            function content5() {
+                document.getElementById("display").innerHTML = 
+                '<h2>Output Format: VGA / YPbPr (Component Video)</h2>' + 
+                '<p>The default output mode is VGA, suitable for VGA cables or HDMI converters.</p>' + 
+                '<p>A new YPbPr mode can also be selected, but compatibility with some options is still spotty.</p>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'L\')">Component/VGA Output Toggle</button>' + 
+                '<h2>Output Frame Rate: Force PAL 50Hz to 60Hz</h2>' + 
+                '<p>If your TV does not support 50Hz sources (displaying unknown format, no matter the preset), try this option.</p>' + 
+                '<p>The frame rate will be more jerky. Please restart to apply.</p>' + 
+                '<button class="button option palForce60" type="button" onclick="loadUser(\'0\')">Force PAL 60Hz</button>' + 
+                '<h2>Active FrameTime Lock (not compatible with all displays)</h2>' + 
+                '<p>This option keeps the input and output timings aligned, fixing the horizontal tear line that can appear sometimes.</p>' + 
+                '<p>Two methods are available. Try switching methods if your display goes blank.</p>' + 
+                '<button class="button" type="button" onclick="loadUser(\'5\')">FrameTime Lock ON</button>' + 
+                '<button class="button" type="button" onclick="loadUser(\'6\')">FrameTime Lock OFF</button>' + 
+                '<button class="button" type="button" onclick="loadUser(\'i\')">Switch Lock Method</button>';
+            }
+            function content6() {
+                document.getElementById("display").innerHTML = 
+                '<h2>Move Picture (memory blank, HS)</h2>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'-\')">Left</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'+\')">Right</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'1\')">HS Left</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'0\')">HS Right</button>' + 
+                '<h2>Information</h2>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'i\')">Print Infos</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\',\')">Get Video Timings</button>' + 
+                '<h2>Commands</h2>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'J\')">Latch PLL</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'q\')">Reset Chip</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'.\')">Resynchronize HTotal</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'l\')">Reset SyncProcessor</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'D\')">Debug View</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'F\')">ADC Filter</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'a\')">HTotal++</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'n\')">PLL divider++</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'b\')">Advance Phase</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'8\')">Invert Sync</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'c\')">Enable OTA Firmware Update</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'m\')">SyncWatcher</button>';
+            }
+            function content7() {
+                document.getElementById("display").innerHTML = 
+                '<button class="button" type="button" onclick="javascript:location.href=\'/wifi.htm\'">Connect to WiFi Network</button>' + 
+                '<button class="button" type="button" onclick="loadUser(\'a\')">Restart</button>' + 
+                '<button class="button" type="button" onclick="loadUser(\'e\')">List Files, Options</button>' + 
+                '<button class="button" type="button" onclick="loadUser(\'l\')">Cycle SDRAM clock speed</button>';
+            }
             window.addEventListener('load', function(event) {
+                /* show first page on page load */
+                content1();
                 theTerminal = document.getElementById('outputTextArea');
                 createWebSocket();
             });
@@ -247,106 +419,20 @@
         </script>
     </head>
     <body>
-        <h1>Default Presets</h1>
-        <p>Loads one of the default presets. The selection will also be loaded on reset.</p>
-        <button class='button preset' type='button' id='1' onclick="loadUser('f')">1280x960 (default)</button>
-        <button class='button preset' type='button' id='2' onclick="loadUser('p')">1280x1024</button>
-        <button class='button preset' type='button' id='3' onclick="loadUser('g')">1280x720</button>
-        <button class='button preset' type='button' id='5' onclick="loadUser('s')">1920x1080</button>
-        <button class='button preset' type='button' id='4' onclick="loadUser('h')">640x480</button>
-        <br>
-        <h1>Custom Preset</h1>
-        <p>Select a slot for storing customized presets. Saving, loading or selecting a slot will mark the preset to be loaded on reset.</p>
-        <button class='button preset' type='button' id='9' onclick="loadUser('3')">Load Custom Preset</button>
-        <button class='button' type='button' onclick="loadUser('4')">Save Custom Preset</button>
-        <br>
-        <button class='button slot' type='button' id='11' onclick="loadUser('b')">Slot 1</button>
-        <button class='button slot' type='button' id='12' onclick="loadUser('c')">Slot 2</button>
-        <button class='button slot' type='button' id='13' onclick="loadUser('d')">Slot 3</button>
-        <button class='button slot' type='button' id='14' onclick="loadUser('j')">Slot 4</button>
-        <button class='button slot' type='button' id='15' onclick="loadUser('k')">Slot 5</button>
-        <button class='button preset' type='button' id='8' onclick="loadDoc('K')">Source Pass-through</button>
-        <br>
-        <h1>Picture Control</h1>
-        <h2>Move Picture</h2>
-        <button class='button' type='button' onclick="loadDoc('*')">Picture Up</button>
-        <button class='button' type='button' onclick="loadDoc('/')">Picture Down</button>
-        <button class='button' type='button' onclick="loadDoc('7')">Picture Left</button>
-        <button class='button' type='button' onclick="loadDoc('6')">Picture Right</button>
-        <h2>Scaling</h2>
-        <button class='button' type='button' onclick="loadDoc('z')">Horizontal +</button>
-        <button class='button' type='button' onclick="loadDoc('h')">Horizontal -</button>
-        <button class='button' type='button' onclick="loadDoc('4')">Vertical +</button>
-        <button class='button' type='button' onclick="loadDoc('5')">Vertical -</button>
-        <h2>Boarder Masking</h2>
-        <button class='button' type='button' onclick="loadUser('A')">Horizontal +</button>
-        <button class='button' type='button' onclick="loadUser('B')">Horizontal -</button>
-        <button class='button' type='button' onclick="loadUser('C')">Vertical +</button>
-        <button class='button' type='button' onclick="loadUser('D')">Vertical -</button>
-        <br>
-        <h2>ADC Gain (brightness)</h2>
-        <p>Gain +/- adjusts the gain for the currently loaded preset. Auto Gain is saved across reboots.</p>
-        <button class='button' type='button' onclick="loadUser('n')">Gain +</button>
-        <button class='button' type='button' onclick="loadUser('o')">Gain -</button>
-        <button class='button option adcAutoGain' type='button' onclick="loadDoc('T')">Auto Gain Adjust Toggle</button>
-        <br>
-        <h1>Enhancements</h1>
-        <button class='button option scanlines' type='button' onclick="loadUser('7')">Scanlines</button>
-        <button class='button option vdsLineFilter' type='button' onclick="loadUser('m')">Line Filter</button>
-        <button class='button option peaking' type='button' onclick="loadDoc('f')">Peaking</button>
-        <button class='button' type='button' onclick="loadDoc('o')">Oversampling</button>
-        <br>
-        <h1>Deinterlacer</h1>
-        <button class='button' type='button' onclick="loadUser('r')">Use Motion Adaptive</button>
-        <button class='button' type='button' onclick="loadUser('q')">Use Bob</button>
-        <br>
-        <h1>Preferences</h1>
-        <h2>Output Format: VGA / YPbPr (Component Video)</h2>
-        <p>The default output mode is VGA, suitable for VGA cables or HDMI converters.</p>
-        <p>A new YPbPr mode can also be selected, but compatibility with some options is still spotty.</p>
-        <button class='button' type='button' onclick="loadDoc('L')">Component/VGA Output Toggle</button>
-        <h2>Output Frame Rate: Force PAL 50Hz to 60Hz</h2>
-        <p>If your TV does not support 50Hz sources (displaying unknown format, no matter the preset), try this option.</p>
-        <p>The frame rate will be more jerky. Please restart to apply.</p>
-        <button class='button option palForce60' type='button' onclick="loadUser('0')">Force PAL 60Hz</button>
-        <h2>Active FrameTime Lock (not compatible with all displays)</h2>
-        <p>This option keeps the input and output timings aligned, fixing the horizontal tear line that can appear sometimes.</p>
-        <p>Two methods are available. Try switching methods if your display goes blank.</p>
-        <button class='button' type='button' onclick="loadUser('5')">FrameTime Lock ON</button>
-        <button class='button' type='button' onclick="loadUser('6')">FrameTime Lock OFF</button>
-        <button class='button' type='button' onclick="loadUser('i')">Switch Lock Method</button>
-        <br>
-        <h1>Development</h1>
-        <h2>Move Picture (memory blank, HS)</h2>
-        <button class='button' type='button' onclick="loadDoc('-')">Left</button>
-        <button class='button' type='button' onclick="loadDoc('+')">Right</button>
-        <button class='button' type='button' onclick="loadDoc('1')">HS Left</button>
-        <button class='button' type='button' onclick="loadDoc('0')">HS Right</button>
-        <h2>Information</h2>
-        <button class='button' type='button' onclick="loadDoc('i')">Print Infos</button>
-        <button class='button' type='button' onclick="loadDoc(',')">Get Video Timings</button>
-        <h2>Commands</h2>
-        <button class='button' type='button' onclick="loadDoc('j')">Reset PLL/PLLAD</button>
-        <button class='button' type='button' onclick="loadDoc('q')">Reset Chip</button>
-        <button class='button' type='button' onclick="loadDoc('.')">Resynchronize with Source (AutoBestHTotal)</button>
-        <button class='button' type='button' onclick="loadDoc('l')">Reset SyncProcessor</button>
-        <button class='button' type='button' onclick="loadDoc('D')">Debug View</button>
-        <button class='button' type='button' onclick="loadDoc('F')">ADC Filter</button>
-        <button class='button' type='button' onclick="loadDoc('a')">HTotal++</button>
-        <button class='button' type='button' onclick="loadDoc('n')">PLL divider++</button>
-        <button class='button' type='button' onclick="loadDoc('b')">Advance Phase</button>
-        <button class='button' type='button' onclick="loadDoc('8')">Invert Sync</button>
-        <button class='button' type='button' onclick="loadDoc('c')">Enable OTA Firmware Update</button>
-        <button class='button' type='button' onclick="loadDoc('m')">SyncWatcher</button>
-        <br>
-        <h1>System</h1>
-        <button class='button' type='button' onclick="javascript:location.href='/wifi.htm'">Connect to WiFi Network</button>
-        <button class='button' type='button' onclick="loadUser('a')">Restart</button>
-        <button class='button' type='button' onclick="loadUser('e')">List Files, Options</button>
-        <button class='button' type='button' onclick="loadUser('l')">Cycle SDRAM clock speed</button>
-        <br>
-        <form>
-            <textarea id='outputTextArea' readonly></textarea>
-        </form>
+        <div class="div1">
+            <button class="btn-h" onclick="content1()">Presets</button>
+            <button class="btn-h" onclick="content2()">Picture Control</button>
+            <button class="btn-h" onclick="content3()">Enhancements</button>
+            <button class="btn-h" onclick="content4()">Deinterlacer</button>
+            <button class="btn-h" onclick="content5()">Preferences</button>
+            <button class="btn-h" onclick="content6()">Development</button>
+            <button class="btn-h" onclick="content7()">System</button>
+        </div>
+        <div class="div2" id="display"></div>
+        <div class="div3" id="terminal">
+            <form>
+                <textarea id='outputTextArea' readonly></textarea>
+            </form>
+        </div>
     </body>
 </html>
