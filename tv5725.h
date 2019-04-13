@@ -169,6 +169,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x47, 0,  1> SFTRST_DEC_RSTZ;
     typedef UReg<0x00, 0x47, 1,  1> SFTRST_MODE_RSTZ;
     typedef UReg<0x00, 0x47, 2,  1> SFTRST_SYNC_RSTZ;
+    typedef UReg<0x00, 0x47, 3,  1> SFTRST_HDBYPS_RSTZ;
     typedef UReg<0x00, 0x48, 0,  8> PAD_CONTROL_00_0x48;
     typedef UReg<0x00, 0x48, 0,  1> PAD_BOUT_EN; // aka debug pin
     typedef UReg<0x00, 0x48, 6,  1> PAD_SYNC1_IN_ENZ;
@@ -231,6 +232,19 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x2C, 0,  1> GBS_OPTION_SCANLINES_ENABLED;
     typedef UReg<0x01, 0x2C, 1,  1> GBS_OPTION_SCALING_RGBHV;
     typedef UReg<0x01, 0x2C, 2,  1> GBS_OPTION_PALFORCED60_ENABLED;
+
+    // HDBypass
+    typedef UReg<0x01, 0x30, 1,  1> HD_MATRIX_BYPS;
+    typedef UReg<0x01, 0x30, 2,  1> HD_DYN_BYPS;
+    typedef UReg<0x01, 0x30, 3,  1> HD_SEL_BLK_IN;
+    typedef UReg<0x01, 0x37, 0, 11> HD_HSYNC_RST;
+    typedef UReg<0x01, 0x39, 0, 11> HD_INI_ST;
+    typedef UReg<0x01, 0x3B, 0, 12> HD_HB_ST;
+    typedef UReg<0x01, 0x3D, 0, 12> HD_HB_SP;
+    typedef UReg<0x01, 0x3F, 0, 12> HD_HS_ST;
+    typedef UReg<0x01, 0x41, 0, 12> HD_HS_SP;
+    typedef UReg<0x01, 0x47, 0, 12> HD_VS_ST;
+    typedef UReg<0x01, 0x49, 0, 12> HD_VS_SP;
 
     // Mode Detect
     typedef UReg<0x01, 0x60, 0,  5> MD_HPERIOD_LOCK_VALUE;

@@ -470,6 +470,7 @@ void setResetParameters() {
   GBS::PAD_CONTROL_00_0x48::write(0x2b); //disable digital inputs, enable debug out pin
   GBS::PAD_CONTROL_01_0x49::write(0x1f); //pad control pull down/up transistors on
   GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
+  loadHdBypassSection(); // 1_30 to 1_55
   // adc for sog detection
   GBS::ADC_INPUT_SEL::write(1); // 1 = RGBS / RGBHV adc data input
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
@@ -477,7 +478,6 @@ void setResetParameters() {
   //GBS::ADC_TR_ISEL::write(0); // leave current at default
   GBS::ADC_TEST::write(2); // 5_0c bit 2 // should work now
   GBS::SP_NO_CLAMP_REG::write(1);
-  GBS::SP_JITTER_SYNC::write(1); // Mega Drive / CV Sync or Master System for testing // use phase = 25
   GBS::ADC_SOGEN::write(1);
   GBS::ADC_POWDZ::write(1); // ADC on
   GBS::PLLAD_ICP::write(0); // lowest charge pump current
@@ -586,16 +586,20 @@ void applyRGBPatches() {
 }
 
 void setAdcParametersGainAndOffset() {
-  if (rto->inputIsYpBpR == 1) {
-    GBS::ADC_ROFCTRL::write(0x3f); // R and B ADC channels are less offset
-    GBS::ADC_GOFCTRL::write(0x43); // calibrate with VP2 in 480p mode
-    GBS::ADC_BOFCTRL::write(0x3f);
-  }
-  else {
-    GBS::ADC_ROFCTRL::write(0x3f); // R and B ADC channels seem to be offset from G in hardware
-    GBS::ADC_GOFCTRL::write(0x43);
-    GBS::ADC_BOFCTRL::write(0x3f);
-  }
+  //if (rto->inputIsYpBpR == 1) {
+  //  GBS::ADC_ROFCTRL::write(0x3f); // R and B ADC channels are less offset
+  //  GBS::ADC_GOFCTRL::write(0x43); // calibrate with VP2 in 480p mode
+  //  GBS::ADC_BOFCTRL::write(0x3f);
+  //}
+  //else {
+  //  GBS::ADC_ROFCTRL::write(0x3f); // R and B ADC channels seem to be offset from G in hardware
+  //  GBS::ADC_GOFCTRL::write(0x43);
+  //  GBS::ADC_BOFCTRL::write(0x3f);
+  //}
+
+  GBS::ADC_ROFCTRL::write(0x3f); // R and B ADC channels seem to be offset from G in hardware
+  GBS::ADC_GOFCTRL::write(0x3f);
+  GBS::ADC_BOFCTRL::write(0x3f);
   GBS::ADC_RGCTRL::write(0x7b); // ADC_TR_RSEL = 2 test
   GBS::ADC_GGCTRL::write(0x7b);
   GBS::ADC_BGCTRL::write(0x7b);
@@ -608,8 +612,7 @@ void setSpParameters() {
     GBS::SP_SOG_SRC_SEL::write(1);
   }
   GBS::SP_SOG_P_ATO::write(1); // 5_20 enable sog auto polarity // sp will be negative // emucrt driver
-  //GBS::SP_JITTER_SYNC::write(0);
-  GBS::SP_JITTER_SYNC::write(1);
+  GBS::SP_JITTER_SYNC::write(0);
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input 0 ( 5_20 bit 3 )
   // H active detect control
   writeOneByte(0x21, 0x20); // SP_SYNC_TGL_THD // 5_21   H Sync toggle times threshold  0x20 // ! lower than 5_33, 4 ticks (ie 20 < 24)  !
@@ -1165,7 +1168,7 @@ void resetDigital() {
       GBS::RESET_CONTROL_0x46::write(0x41); // VDS + IF on
     }
     //else leave 0_46 at 0 (all off)
-    GBS::RESET_CONTROL_0x47::write(0x17);
+    GBS::RESET_CONTROL_0x47::write(0x1F);
     return;
   }
 
@@ -1175,10 +1178,16 @@ void resetDigital() {
   else {
     GBS::RESET_CONTROL_0x46::write(0x00);
   }
-  GBS::RESET_CONTROL_0x47::write(0x00);
-  // enable
+  if (GBS::SFTRST_HDBYPS_RSTZ::read() == 1) { // if HDBypass enabled
+    GBS::RESET_CONTROL_0x47::write(0x00);
+    GBS::RESET_CONTROL_0x47::write(0x1F);
+  }
+  else {
+    GBS::RESET_CONTROL_0x46::write(0x00);
+    GBS::RESET_CONTROL_0x47::write(0x17);
+  }
+
   if (rto->videoStandardInput != 15) GBS::RESET_CONTROL_0x46::write(0x7f);
-  GBS::RESET_CONTROL_0x47::write(0x17);  // all on except HD bypass
 }
 
 void resetSyncProcessor() {
@@ -1904,7 +1913,6 @@ void doPostPresetLoadSteps() {
   }
   GBS::OUT_SYNC_CNTRL::write(1); // prepare sync out to PAD
   //GBS::PAD_CKOUT_ENZ::write(0); // clock out to pin enabled for testing
-  loadHdBypassSection();
 
   boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
   setAndUpdateSogLevel(rto->currentLevelSOG); // update to previously determined sog level
@@ -2150,7 +2158,7 @@ void doPostPresetLoadSteps() {
     
     if (rto->videoStandardInput < 14)
     {
-      rto->phaseSP = 24; // 9 or 24. 24 if jitter sync enabled
+      rto->phaseSP = 9; // 9 or 24. 24 if jitter sync enabled
     }
     // 4 segment 
     GBS::CAP_SAFE_GUARD_EN::write(0); // 4_21_5 // does more harm than good
@@ -2251,9 +2259,10 @@ void doPostPresetLoadSteps() {
   // presetPreference 10 means the user prefers bypass mode at startup
   // it's best to run a normal format detect > apply preset loop, then enter bypass mode
   // this can lead to an endless loop, so applyPresetDoneStage = 10 applyPresetDoneStage = 11 
-  // are introduced to break out of it
+  // are introduced to break out of it.
+  // also need to check for mode 15
   // also make sure to turn off autoBestHtotal
-  if (uopt->presetPreference == 10 ) 
+  if (uopt->presetPreference == 10 && rto->videoStandardInput != 15) 
   {
     rto->autoBestHtotalEnabled = 0;
     if (rto->applyPresetDoneStage == 11) {
@@ -2931,15 +2940,10 @@ void updateClampPosition(uint8_t stage) {
 // in this mode, sampling clock is free to choose
 void passThroughModeSwitch() {
   rto->autoBestHtotalEnabled = false; // disable while in this mode
-  // first load default presets
-  if (rto->videoStandardInput == 2 || rto->videoStandardInput == 4) {
-    writeProgramArrayNew(pal_240p, true);
-    doPostPresetLoadSteps();
-  }
-  else {
-    writeProgramArrayNew(ntsc_240p, true);
-    doPostPresetLoadSteps();
-  }
+  // first load base preset
+  writeProgramArrayNew(ntsc_240p, true);
+  doPostPresetLoadSteps();
+
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC
   rto->autoBestHtotalEnabled = false; // need to re-set this
   GBS::PAD_SYNC_OUT_ENZ::write(1); // no sync out yet
@@ -2948,114 +2952,116 @@ void passThroughModeSwitch() {
   GBS::PAD_TRI_ENZ::write(1); // enable tri state
   GBS::PLL_MS::write(2); // select feedback clock (but need to enable tri state!)
   GBS::MEM_PAD_CLK_INVERT::write(0); // helps also
-  GBS::OUT_SYNC_SEL::write(2);
-  GBS::SP_HS_LOOP_SEL::write(0); // (5_57_6) // with = 0, 5_45 and 5_47 set output
-  GBS::SP_HS_PROC_INV_REG::write(0); // (5_56_5) do not invert HS (5_57_6 = 0)
-  if (rto->inputIsYpBpR) 
-  {
-    GBS::DAC_RGBS_ADC2DAC::write(0); // IF + VDS for YUV enabled (VDS for for YUV > RGB)
-    GBS::SFTRST_IF_RSTZ::write(1); // need IF
-    GBS::SFTRST_VDS_RSTZ::write(1); // need VDS
-    GBS::VDS_U_OFST::write(0x03); // 0 3_3b // color mixing, better black level
-    GBS::VDS_V_OFST::write(0x03); // 0 3_3c // same
+  GBS::OUT_SYNC_SEL::write(2); // 0_4f sync from SP
+  GBS::SP_HS_PROC_INV_REG::write(0); // (5_56_5) do not invert HS
+  
+  // update: found the real use of HDBypass :D
+  GBS::DAC_RGBS_BYPS2DAC::write(1);
+  GBS::SFTRST_HDBYPS_RSTZ::write(1); // need HDBypass
+  // rto->inputIsYpBpR can be "fake" RGB or more commonly true YCbCr
+  // !rto->inputIsYpBpR > always assume RGB (but a user option would be nice)
+  if (rto->inputIsYpBpR) {
+    GBS::SP_HS_LOOP_SEL::write(1);
+    GBS::OUT_SYNC_SEL::write(1); // 0_4f 1=sync from HDBypass, 2=sync from SP
+    GBS::HD_MATRIX_BYPS::write(0); // use, treat source as YCbCr
+    GBS::HD_DYN_BYPS::write(0); //
+    GBS::HD_SEL_BLK_IN::write(0); // from SP, enabled
   }
-  else 
-  {
-    GBS::DAC_RGBS_ADC2DAC::write(1); // 0_4B 2 // IF + VDS disabled
-    //GBS::SP_CS_HS_ST::write(0x710); // invert sync detection
+  else {
+    GBS::SP_HS_LOOP_SEL::write(0); // 5_57_6 don't bypass, use to retime sync  5_45 and 5_47 set output
+    GBS::OUT_SYNC_SEL::write(2); // 0_4f 1=sync from HDBypass, 2=sync from SP
+    GBS::HD_MATRIX_BYPS::write(1); // bypass, treat source as RGB
+    GBS::HD_DYN_BYPS::write(1); //
+    GBS::HD_SEL_BLK_IN::write(1); // "DVI", effectively disabled
   }
-  GBS::VDS_HSCALE_BYPS::write(1);
-  GBS::VDS_VSCALE_BYPS::write(1);
-  GBS::VDS_SYNC_EN::write(1); // VDS sync to synclock
-  // blanking to mask eventual hsync pulse that the ADC picked up from SOG
-  // new: instead of blanking use pip?
-  GBS::VDS_BLK_BF_EN::write(0);
-  GBS::VDS_SYNC_IN_SEL::write(1); // 3_72
-  GBS::PIP_H_SP::write(0xc0);
-  GBS::PIP_EN::write(1);
-  GBS::VDS_HSYNC_RST::write(0xfff); // max
-  GBS::VDS_VSYNC_RST::write(0x7ff); // max
+
   GBS::PB_BYPASS::write(1);
-  GBS::VDS_D_SP::write(0); // 3_25 VDS data line buffer (default would be 3) // 0 fixes vertical bar
-  GBS::VDS_D_RAM_BYPS::write(1); // 3_26 6 line buffer bypass (not required)
-  //GBS::PLLAD_MD::write(1896); // psx 256, 320, 384 pix
-  GBS::PLLAD_MD::write(1996); // seems to work better (xbox)
+  GBS::PLLAD_MD::write(2132); // seems to work better (xbox: 1996)
   GBS::PLLAD_ICP::write(5);
   GBS::PLLAD_FS::write(0);
   GBS::ADC_CLK_ICLK1X::write(0); // 5_00 3/4
   GBS::ADC_CLK_ICLK2X::write(0);
+  GBS::PLLAD_KS::write(0); // 5_16 post divider 0 : FCKO1 > 87MHz, 3 : FCKO1<23MHz
   GBS::PLLAD_CKOS::write(0); // 5_16
-  GBS::DEC1_BYPS::write(1); GBS::DEC2_BYPS::write(1); // for most sources
-  GBS::VDS_HB_ST::write(4094);
-  GBS::VDS_HB_SP::write(0);
+  GBS::DEC1_BYPS::write(1); // 5_1f bypass both decimators
+  GBS::DEC2_BYPS::write(1);
   GBS::PLL648_CONTROL_01::write(0x35);
-  GBS::IF_HSYNC_RST::write(1023); // (lineLength)
-  GBS::IF_LINE_ST::write(0);
-  GBS::IF_LINE_SP::write(4095); // new
-  // new: always enable IF WEN bit (eventhough the manual mentions only for HD mode)
-  GBS::IF_SEL_WEN::write(1);
+
+  GBS::HD_HSYNC_RST::write(0x3ff); // max 0x7ff
+  GBS::HD_INI_ST::write(0x298);
+  // timing into HDB is PLLAD_MD with PLLAD_KS divider: KS = 0 > full PLLAD_MD
   if (rto->videoStandardInput <= 2) {
-    //GBS::IF_HB_SP::write(0x4);
-    GBS::PLLAD_CKOS::write(1); // at 0 gives double PIP blanking bar
-    GBS::DEC1_BYPS::write(0); GBS::DEC2_BYPS::write(0); // sharper with both enabled
-    GBS::VDS_HB_SP::write(4095);
+    // interl. source: make long enough to mask double throw HSync
+    GBS::PLLAD_ICP::write(4); // 5-6 pretty unstable
+    GBS::PLLAD_KS::write(1); // 5_16 post divider 0 : FCKO1 > 87MHz, 3 : FCKO1<23MHz
+    GBS::PLLAD_CKOS::write(0); // 5_16
     GBS::SP_CS_HS_ST::write(0);
-    GBS::SP_CS_HS_SP::write(0x50); // with PLLAD_MD = 1996
+    GBS::SP_CS_HS_SP::write(0x50);
+    GBS::HD_HB_ST::write(0); // for use with HDB blanking
+    GBS::HD_HB_SP::write(0xe0); // for use with HDB blanking
+    GBS::HD_HS_ST::write(0x70);
+    GBS::HD_HS_SP::write(0xc8); // interl. source
+    GBS::HD_INI_ST::write(0x100);
   }
   else if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4) { // 480p, 576p
-    GBS::VDS_HB_ST::write(0); // overwrite
-    GBS::VDS_HB_SP::write(2); // fix random UV swap attempt
-    GBS::PLLAD_ICP::write(5);
+    GBS::PLLAD_MD::write(1800); // 2132 unstable
+    GBS::PLLAD_KS::write(1);
     GBS::SP_CS_HS_ST::write(0x38); // < SP = hs negative
     GBS::SP_CS_HS_SP::write(0x68);
+    GBS::HD_HB_ST::write(0);
+    GBS::HD_HB_SP::write(0xe0);
+    GBS::HD_HS_ST::write(0);
+    GBS::HD_HS_SP::write(0xa0);
     GBS::SP_VS_PROC_INV_REG::write(1);
-    GBS::PLLAD_FS::write(1); // 5_11 gain
-    GBS::PLLAD_KS::write(1); // 5_16
   }
   else if (rto->videoStandardInput <= 7 || rto->videoStandardInput == 13) {
     // HD shared
-    GBS::SP_DIS_SUB_COAST::write(1);
-    GBS::PLLAD_FS::write(1); // 5_11 gain
-    GBS::PLLAD_KS::write(1); // todo: check
-    //
+    GBS::PLLAD_FS::write(0); // 5_11 gain
     if (rto->videoStandardInput == 5) {
-      //GBS::PLLAD_MD::write(1896); // psx 256, 320, 384 pix
-      GBS::PLLAD_MD::write(1996); // seems to work better (xbox 720p) (perfect in ps2 as well)
-      GBS::SP_CS_HS_ST::write(0xd0); // > SP = hs positive
+      GBS::SP_CS_HS_ST::write(0xd0); // > SP = hs positive // for use with SP sync if it were on
       GBS::SP_CS_HS_SP::write(0x40);
+      GBS::HD_HB_ST::write(0); // for use with HDB blanking
+      GBS::HD_HB_SP::write(0x120); // for use with HDB blanking
+      GBS::HD_HS_ST::write(0x70);
+      GBS::HD_HS_SP::write(0xe0);
       GBS::SP_VS_PROC_INV_REG::write(1); // invert VS to be sync positive
     }
     if (rto->videoStandardInput == 6) { // 1080i
-      //GBS::PLLAD_MD::write(1896);
-      GBS::PLLAD_MD::write(2047); // seems to work better (xbox 1080i) (but needs low gain, like 720p)
-      GBS::PLLAD_FS::write(0); // 5_11 gain
+      // interl. source
       GBS::SP_CS_HS_ST::write(0x90);
       GBS::SP_CS_HS_SP::write(0x38);
-      GBS::SP_HD_MODE::write(0); // flicker fix
+      GBS::HD_HB_ST::write(0);
+      GBS::HD_HB_SP::write(0xb8);
+      GBS::HD_HS_ST::write(0); //0x850
+      GBS::HD_HS_SP::write(0x80);
       GBS::SP_VS_PROC_INV_REG::write(0); // don't invert, causes flicker
     }
     if (rto->videoStandardInput == 7) { // 1080p
-      GBS::PLLAD_MD::write(1280); // 1440 nicer but not stable on some GBS, probably display timing issues
       GBS::PLLAD_ICP::write(5);
       GBS::SP_CS_HS_ST::write(0x90);
       GBS::SP_CS_HS_SP::write(0x62);
+      GBS::HD_HB_ST::write(0x08);
+      GBS::HD_HB_SP::write(0x80);
+      GBS::HD_HS_ST::write(0x38);
+      GBS::HD_HS_SP::write(0x68);
       GBS::SP_POST_COAST::write(0x16); // important
-      delay(6);
     }
     if (rto->videoStandardInput == 13) { // odd HD mode (PS2 "VGA" over Component)
       applyRGBPatches(); // treat mostly as RGB, clamp R/B to gnd
       GBS::SP_PRE_COAST::write(3);
       GBS::SP_POST_COAST::write(3);
-      GBS::DAC_RGBS_ADC2DAC::write(1); // bypass IF + VDS since we'll treat source as RGB
-      GBS::DEC_MATRIX_BYPS::write(1);
+      GBS::HD_MATRIX_BYPS::write(1); // bypass since we'll treat source as RGB
+      GBS::HD_DYN_BYPS::write(1); // bypass since we'll treat source as RGB
       GBS::SP_VS_PROC_INV_REG::write(0); // don't invert
     }
   }
 
-  GBS::SP_JITTER_SYNC::write(1);
-  rto->phaseSP = 24; // 9 or 24. 24 if jitter sync enabled
+  // HDBypass parameters
+  //GBS::HD_HSYNC_RST::write(GBS::PLLAD_MD::read()); // hardcoded seems to work atm
+
+  rto->phaseSP = 9; // 9 or 24. 24 if jitter sync enabled
   setPhaseSP();
-  rto->phaseADC = 0; 
+  rto->phaseADC = 1; 
   setPhaseADC();
   latchPLLAD();
   delay(30);
@@ -3086,8 +3092,8 @@ void passThroughModeSwitch() {
 
   GBS::SP_SDCS_VSST_REG_H::write(0x00); // S5_3B
   GBS::SP_SDCS_VSSP_REG_H::write(0x00); // S5_3B
-  GBS::SP_SDCS_VSST_REG_L::write(0x04); // S5_3F
-  GBS::SP_SDCS_VSSP_REG_L::write(0x07); // S5_40
+  GBS::SP_SDCS_VSST_REG_L::write(0x03); // S5_3F
+  GBS::SP_SDCS_VSSP_REG_L::write(0x0A); // S5_40 // check with interlaced sources
   // IF
   // Discovery 06.04.2019: The ADC output data phase affects the IF_HB_ST/SP at 1_10/1_12 first (or early).
   // U/V swap issues due to ADC phase shift are avoided in bypass mode by 1_10 = 0, 1_12 = 0x7ff
@@ -3095,19 +3101,6 @@ void passThroughModeSwitch() {
   // IF HTOTAL at 1_0e/0f seems to determine the scale IF_HB_ST can slot into. Without scale, no slots (when 1_0e/0f = 0)
   // At some later point, probably the IF material is passed on to VDS line buffer at 3_25.
   // Scaling modes have this at 3_25 = 3, bypass mode can avoid a vertical bar by 3_25 = 0.
-  GBS::IF_HS_TAP11_BYPS::write(1); // 1_02 bit 4 filter off looks better
-  GBS::IF_HS_Y_PDELAY::write(3); // 1_02 bits 5+6
-  GBS::IF_LD_RAM_BYPS::write(1);
-  GBS::IF_HS_DEC_FACTOR::write(0);
-
-  GBS::IF_HB_ST::write(0); // S1_10 // f may avoid vertical bar better than 1 (test: t1t02t7 for color inv)
-  GBS::IF_HB_SP::write(1); // new 06.04.2019
-  GBS::IF_HBIN_ST::write(0);
-  GBS::IF_HBIN_SP::write(1);
-
-  GBS::IF_HB_ST2::write(0); // S1_18 // just move the bar out of the way
-  GBS::IF_HB_SP2::write(1); // S1_1a // just move the bar out of the way
-  //GBS::IF_LINE_SP::write(0); // may be related to RFF / WFF and 2_16_7 = 0
   GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2
   GBS::MADPT_VIIR_BYPS::write(1); // 2_26_6
   GBS::MADPT_Y_DELAY_UV_DELAY::write(0x44); // 2_17
@@ -3121,19 +3114,6 @@ void passThroughModeSwitch() {
   rto->presetID = 0x21; // bypass flavor 1
   SerialM.println("pass-through on");
   delay(300); // 1080i/p can take some time to stabilize
-
-  // UV fixes / alignment to do after DAC enabled and sync out enabled
-  GBS::VDS_Y_DELAY::write(2); // sharpenss
-  //GBS::IF_HBIN_SP::write(2); // 1_26
-  if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
-    GBS::VDS_WEN_DELAY::write(0);
-  }
-  if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4) {
-    GBS::VDS_WEN_DELAY::write(3);
-  }
-  //else { } // nothing to change for HD modes
-  delay(10);
-  GBS::VDS_D_SP::write(1); GBS::VDS_D_SP::write(0); // align VDS
 }
 
 void bypassModeSwitch_SOG() {
@@ -3198,8 +3178,17 @@ void bypassModeSwitch_RGBHV() {
   GBS::PAD_TRI_ENZ::write(1); // enable some pad's tri state (they become high-z / inputs), helps noise
   GBS::MEM_PAD_CLK_INVERT::write(0); // helps also
   GBS::PLL648_CONTROL_01::write(0x35);
+  
   GBS::DAC_RGBS_ADC2DAC::write(1);
   GBS::OUT_SYNC_SEL::write(2); // S0_4F, 6+7 | 0x10, H/V sync output from sync processor | 00 from vds_proc
+    //GBS::DAC_RGBS_BYPS2DAC::write(1);
+    //GBS::OUT_SYNC_SEL::write(2); // 0_4f sync from SP
+    //GBS::SFTRST_HDBYPS_RSTZ::write(1); // need HDBypass
+    //GBS::SP_HS_LOOP_SEL::write(1); // (5_57_6) // can bypass since HDBypass does sync
+    //GBS::HD_MATRIX_BYPS::write(1); // bypass since we'll treat source as RGB
+    //GBS::HD_DYN_BYPS::write(1); // bypass since we'll treat source as RGB
+    //GBS::HD_SEL_BLK_IN::write(1); // "DVI", not regular
+
   GBS::PAD_SYNC1_IN_ENZ::write(0); // filter H/V sync input1 (0 = on)
   GBS::PAD_SYNC2_IN_ENZ::write(0); // filter H/V sync input2 (0 = on)
   
@@ -4887,6 +4876,7 @@ void loop() {
     }
     break;
     case '~':
+      setResetParameters();
       goLowPowerWithInputDetection(); // test reset + input detect
     break;
     case 'w':
@@ -4908,6 +4898,9 @@ void loop() {
           if (!rto->outModePassThroughWithIf) {
             rto->forceRetime = 1;
             applyBestHTotal(value);
+          }
+          else {
+            GBS::VDS_HSYNC_RST::write(value);
           }
         }
         else if (what.equals("vt")) {
