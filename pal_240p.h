@@ -105,7 +105,7 @@ const uint8_t pal_240p[] PROGMEM = {
 0x4, // s3_7
 0x80, // s3_8
 0x1, // s3_9
-0x8, // s3_A
+0x0, // s3_A
 0x20, // s3_B
 0x8, // s3_C
 0x1, // s3_D

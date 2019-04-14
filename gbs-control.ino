@@ -606,6 +606,7 @@ void setAdcParametersGainAndOffset() {
 }
 
 void setSpParameters() {
+
   writeOneByte(0xF0, 5);
   if (rto->videoStandardInput >= 14)
   {
@@ -639,10 +640,7 @@ void setSpParameters() {
   writeOneByte(0x35, 0x25); // SP_DLT_REG [7:0]   start at higher value, update later // SP test: a0
   writeOneByte(0x36, 0x00); // SP_DLT_REG [11:8]
 
-  if (rto->videoStandardInput == 0) {
-    writeOneByte(0x37, 0x02); // need to detect tri level sync (max 0x0c in a test)
-  }
-  else if (rto->videoStandardInput <= 2) {
+  if (rto->videoStandardInput <= 2 && rto->videoStandardInput != 0) {
     writeOneByte(0x37, 0x10); // SP_H_PULSE_IGNOR // SP test (snes needs 2+, MD in MS mode needs 0x0e)
   }
   else {
@@ -686,8 +684,8 @@ void setSpParameters() {
   {
     GBS::SP_SDCS_VSST_REG_H::write(0);
     GBS::SP_SDCS_VSSP_REG_H::write(0);
-    GBS::SP_SDCS_VSST_REG_L::write(4); // 5_3f // should be 08 for NTSC, ~24 for PAL (test with bypass mode: t0t4ft7 t0t4bt2)
-    GBS::SP_SDCS_VSSP_REG_L::write(7); // 5_40 // should be 0b for NTSC, ~28 for PAL
+    GBS::SP_SDCS_VSST_REG_L::write(0); // 5_3f // should be 08 for NTSC, ~24 for PAL (test with bypass mode: t0t4ft7 t0t4bt2)
+    GBS::SP_SDCS_VSSP_REG_L::write(11); // 5_40 // should be 0b=11 for NTSC, ~28 for PAL
   }
 
   GBS::SP_CS_HS_ST::write(0); // 5_45
@@ -707,16 +705,14 @@ void setSpParameters() {
     GBS::SP_CLAMP_MANUAL::write(0); // 0 = automatic on/off possible
     GBS::SP_CLP_SRC_SEL::write(1); // clamp source 1: pixel clock, 0: 27mhz
     GBS::SP_SOG_MODE::write(1);
-    if (rto->videoStandardInput <= 7) { // test with bypass mode: t0t4ft7 t0t4bt2, should output neg. hsync
-      GBS::SP_HS_PROC_INV_REG::write(1); // this should probably be done elsewhere, if necessary (still using 1, as ofw)
-    }
-    //GBS::SP_NO_CLAMP_REG::write(0); // yuv inputs need this
-    GBS::SP_H_CST_SP::write(0x100); //snes minimum: inHlength -12 (only required in 239 mode)
     GBS::SP_H_CST_ST::write(0x6a); // low but not near 0 (typical: 0x6a)
-    GBS::SP_DIS_SUB_COAST::write(1); // auto coast initially off (hsync coast)
+    GBS::SP_H_CST_SP::write(0x100); // some arbitrary higher than ST position
+    GBS::SP_DIS_SUB_COAST::write(1); // auto coast initially off (vsync H pulse coast)
     GBS::SP_HCST_AUTO_EN::write(0);
-    //GBS::SP_HS2PLL_INV_REG::write(0); // rgbhv is improved with = 1, but ADC sync might demand 0
   }
+
+  GBS::SP_HS_PROC_INV_REG::write(0); // no SP sync inversion
+  GBS::SP_VS_PROC_INV_REG::write(0); //
 
   writeOneByte(0x58, 0x05); //rgbhv: 0
   writeOneByte(0x59, 0x00); //rgbhv: 0
@@ -1329,31 +1325,29 @@ void scaleHorizontalLarger() {
 }
 
 void moveHS(uint16_t amountToAdd, bool subtracting) {
-  uint8_t high, low;
-  uint16_t newST, newSP;
+  uint16_t VDS_HS_ST = GBS::VDS_HS_ST::read();
+  uint16_t VDS_HS_SP = GBS::VDS_HS_SP::read();
+  uint16_t htotal = GBS::VDS_HSYNC_RST::read();
+  int16_t amount = subtracting ? (0 - amountToAdd) : amountToAdd;
 
-  writeOneByte(0xf0, 3);
-  readFromRegister(0x0a, 1, &low);
-  readFromRegister(0x0b, 1, &high);
-  newST = ((((uint16_t)high) & 0x000f) << 8) | (uint16_t)low;
-  readFromRegister(0x0b, 1, &low);
-  readFromRegister(0x0c, 1, &high);
-  newSP = ((((uint16_t)high) & 0x00ff) << 4) | ((((uint16_t)low) & 0x00f0) >> 4);
-
-  if (subtracting) {
-    newST -= amountToAdd;
-    newSP -= amountToAdd;
+  if ((VDS_HS_ST + amount) >= 0 && (VDS_HS_SP + amount) >= 0)
+  {
+    GBS::VDS_HS_ST::write((VDS_HS_ST + amount) % htotal);
+    GBS::VDS_HS_SP::write((VDS_HS_SP + amount) % htotal);
   }
-  else {
-    newST += amountToAdd;
-    newSP += amountToAdd;
+  else if ((VDS_HS_ST + amount) < 0)
+  {
+    GBS::VDS_HS_ST::write((htotal + amount) % htotal);
+    GBS::VDS_HS_SP::write((VDS_HS_SP + amount) % htotal);
   }
-  //SerialM.print("HSST: "); SerialM.print(newST);
-  //SerialM.print(" HSSP: "); SerialM.println(newSP);
+  else if ((VDS_HS_SP + amount) < 0)
+  {
+    GBS::VDS_HS_ST::write((VDS_HS_ST + amount) % htotal);
+    GBS::VDS_HS_SP::write((htotal + amount) % htotal);
+  }
 
-  writeOneByte(0x0a, (uint8_t)(newST & 0x00ff));
-  writeOneByte(0x0b, ((uint8_t)(newSP & 0x000f) << 4) | ((uint8_t)((newST & 0x0f00) >> 8)));
-  writeOneByte(0x0c, (uint8_t)((newSP & 0x0ff0) >> 4));
+  SerialM.print("HSST: "); SerialM.print(GBS::VDS_HS_ST::read());
+  SerialM.print(" HSSP: "); SerialM.println(GBS::VDS_HS_SP::read());
 }
 
 void moveVS(uint16_t amountToAdd, bool subtracting) {
@@ -1822,12 +1816,12 @@ void applyBestHTotal(uint16_t bestHTotal) {
         GBS::IF_HBIN_SP::write((uint16_t)(oldIF_HBIN_SP * ratioHTotal) & 0xfffc);
       }
       if (h_sync_start_position > h_sync_stop_position) { // is neg HSync
-        h_sync_stop_position = 8;
+        h_sync_stop_position = 0;
         // stop = at least start, then a bit outwards
         h_sync_start_position = 16 + (h_blank_display_stop_position * 0.4f); 
       }
       else {
-        h_sync_start_position = 8;
+        h_sync_start_position = 0;
         h_sync_stop_position = 16 + (h_blank_display_stop_position * 0.4f); 
       }
 
@@ -1905,6 +1899,7 @@ uint32_t getPllRate() {
 }
 
 void doPostPresetLoadSteps() {
+
   GBS::PAD_SYNC_OUT_ENZ::write(1); // sync out off
   rto->presetID = GBS::GBS_PRESET_ID::read();
   if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 1) {
@@ -1912,7 +1907,6 @@ void doPostPresetLoadSteps() {
     switchSyncProcessingMode(1);
   }
   GBS::OUT_SYNC_CNTRL::write(1); // prepare sync out to PAD
-  //GBS::PAD_CKOUT_ENZ::write(0); // clock out to pin enabled for testing
 
   boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
   setAndUpdateSogLevel(rto->currentLevelSOG); // update to previously determined sog level
@@ -1967,8 +1961,8 @@ void doPostPresetLoadSteps() {
   if (!isCustomPreset) {
     // new: always enable IF WEN bit (eventhough the manual mentions only for HD mode)
     GBS::IF_SEL_WEN::write(1);
-    // new: set retiming hs ST, SP
-    GBS::SP_RT_HS_ST::write(0);
+    // new: set retiming hs ST, SP (no effect in SOG modes)
+    GBS::SP_RT_HS_ST::write(0); // 5_49
     GBS::SP_RT_HS_SP::write(GBS::PLLAD_MD::read() * 0.93f);
     // also new: fetch more pixels from RAM, made possible by extending HBST (memory) to close to htotal
     //GBS::PB_FETCH_NUM::write(0x110); // this is in presets now, except FB clock
@@ -2223,8 +2217,9 @@ void doPostPresetLoadSteps() {
   }
 
   unsigned long timeout = millis();
-  while (getVideoMode() == 0 && millis() - timeout < 800) { delay(1); }
-  while (millis() - timeout < 150) { delay(1); } // at least minimum delay (bypass modes) 
+  while ((!getSyncStable()) && (millis() - timeout < 800)) { delay(1); }
+  while ((getVideoMode() == 0) && (millis() - timeout < 800)) { delay(1); }
+  while (millis() - timeout < 250) { delay(1); } // at least minimum delay (bypass modes) 
   //SerialM.print("to1 is: "); SerialM.println(millis() - timeout);
   if (getVideoMode() != 0) {
     // attempt this early to have clamped video when the DAC gets turned on
@@ -2704,7 +2699,7 @@ boolean getSyncStable() {
   }
 
   // STAT_16 bit 1 is the "hsync active" flag, which appears to be a reliable indicator
-  // checking the flag replaces the code below (checking the debug bus pulse length manually)
+  // checking the flag replaces checking the debug bus pulse length manually
   if ((GBS::STATUS_16::read() & 0x02) == 0x02)
   {
     return true;
@@ -2858,8 +2853,8 @@ void updateClampPosition(uint8_t stage) {
   }
 
   uint16_t inHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
-  if (inHlength < 100 || inHlength > 4095) { 
-      //SerialM.println("updateClampPosition: not stable yet"); // assert: must be valid
+  if (inHlength < 400 || inHlength > 4095) { 
+      SerialM.println("updateClampPosition: not stable yet"); // assert: must be valid
       return;
   }
 
@@ -5065,7 +5060,7 @@ void loop() {
 
   // frame sync + besthtotal init routine. this only runs if !FrameSync::ready(), ie manual retiming, preset load, etc)
   // also do this with a custom preset (applyBestHTotal will bail out, but FrameSync will be readied)
-  if (!FrameSync::ready() && rto->continousStableCounter > 1 && rto->syncWatcherEnabled == true
+  if (!FrameSync::ready() && rto->continousStableCounter > 2 && rto->syncWatcherEnabled == true
     && rto->autoBestHtotalEnabled == true && getSyncStable() 
     && rto->videoStandardInput != 0 && rto->videoStandardInput != 15)
   {
