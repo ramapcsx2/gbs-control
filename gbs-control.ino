@@ -469,7 +469,6 @@ void setResetParameters() {
   GBS::PLL_MS::write(2); // fb memory clock can go lower power
   GBS::PAD_CONTROL_00_0x48::write(0x2b); //disable digital inputs, enable debug out pin
   GBS::PAD_CONTROL_01_0x49::write(0x1f); //pad control pull down/up transistors on
-  GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
   loadHdBypassSection(); // 1_30 to 1_55
   // adc for sog detection
   GBS::ADC_INPUT_SEL::write(1); // 1 = RGBS / RGBHV adc data input
@@ -491,6 +490,7 @@ void setResetParameters() {
   GBS::PLLAD_CONTROL_00_5x11::write(0x01); // reset on
   resetDebugPort();
   GBS::RESET_CONTROL_0x47::write(0x16);
+  GBS::INTERRUPT_CONTROL_01::write(0xf5); // enable interrupts (leave out source mode switch bits)
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
   GBS::RESET_CONTROL_0x47::write(0x16); // decimation off
@@ -770,7 +770,7 @@ void setSpParameters() {
 void setAndUpdateSogLevel(uint8_t level) {
   GBS::ADC_SOGCTRL::write(level);
   rto->currentLevelSOG = level;
-  GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
+  GBS::INTERRUPT_CONTROL_00::write(0xf5); // reset irq status, leave out 1 and 3 (mode switches)
   GBS::INTERRUPT_CONTROL_00::write(0x00);
   //SerialM.print("sog: "); SerialM.println(rto->currentLevelSOG);
 }
@@ -2068,6 +2068,7 @@ void doPostPresetLoadSteps() {
       else if (rto->presetID == 0x1) 
       { // out x960
         GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 16);
+        GBS::IF_VB_SP::write(10); GBS::IF_VB_ST::write(8);
       }
     }
     else if (rto->videoStandardInput == 4) 
@@ -2098,7 +2099,7 @@ void doPostPresetLoadSteps() {
         GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
         GBS::VDS_DIS_VB_ST::write(1024);
         GBS::VDS_DIS_VB_SP::write(34);
-        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 16);
+        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8);
       }
       else if (rto->presetID == 0x11) 
       { // out x960
@@ -2137,7 +2138,12 @@ void doPostPresetLoadSteps() {
   if (rto->presetIsPalForce60) {
     if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() != 1) {
       SerialM.println("pal forced 60hz: apply vshift");
-      GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 56);
+      uint16_t vshift = 56; // default shift
+      if (rto->presetID == 0x5) { GBS::IF_VB_SP::write(4); } // out 1080p
+      else {
+        GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + vshift);
+      }
+      GBS::IF_VB_ST::write(GBS::IF_VB_SP::read() - 2);
       GBS::GBS_OPTION_PALFORCED60_ENABLED::write(1);
     }
   }
@@ -2208,6 +2214,11 @@ void doPostPresetLoadSteps() {
     if (rto->videoStandardInput < 14)
     {
       rto->phaseSP = 9; // 9 or 24. 24 if jitter sync enabled
+      if (GBS::SP_HS2PLL_INV_REG::read() == 1) {
+        if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4) {
+          rto->phaseSP = 0; // some kind of sync issue
+        }
+      }
     }
     // 4 segment 
     GBS::CAP_SAFE_GUARD_EN::write(0); // 4_21_5 // does more harm than good
@@ -2276,14 +2287,14 @@ void doPostPresetLoadSteps() {
   while ((getVideoMode() == 0) && (millis() - timeout < 800)) { delay(1); }
   while (millis() - timeout < 250) { delay(1); } // at least minimum delay (bypass modes) 
   //SerialM.print("to1 is: "); SerialM.println(millis() - timeout);
-  if (getVideoMode() != 0) {
-    // attempt this early to have clamped video when the DAC gets turned on
-    updateClampPosition();
-  }
-  if (getVideoMode() != 0) {
-    // nice to have early as well. also helps add a little delay
-    updateCoastPosition();
-  }
+  //if (getVideoMode() != 0) {
+  //  // attempt this early to have clamped video when the DAC gets turned on
+  //  updateClampPosition();
+  //}
+  //if (getVideoMode() != 0) {
+  //  // nice to have early as well. also helps add a little delay
+  //  updateCoastPosition();
+  //}
 
   setPhaseSP(); setPhaseADC();
   
@@ -2302,6 +2313,7 @@ void doPostPresetLoadSteps() {
     GBS::PAD_SYNC_OUT_ENZ::write(0);
   }
 
+  GBS::INTERRUPT_CONTROL_01::write(0xf5); // enable interrupts (leave out source mode switch bits)
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
   
@@ -3851,7 +3863,7 @@ uint32_t runSyncWatcher()
       static uint8_t runsWithSOGStatus = 0;
       static uint8_t HPLLState = 0, oldHPLLState = 0;
       uint8_t status0f = GBS::STATUS_0F::read();
-      GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
+      GBS::INTERRUPT_CONTROL_00::write(0xf5); // reset irq status, leave out 1 and 3 (mode switches)
       GBS::INTERRUPT_CONTROL_00::write(0x00); //
       if (rto->RGBHVsyncTypeCsync == false)
       {
@@ -5157,11 +5169,14 @@ void loop() {
     lastVsyncLock = millis();
   }
 
-  if (rto->boardHasPower && (millis() - lastTimeInterruptClear > 1000) && !rto->syncWatcherEnabled) {
-    GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
-    GBS::INTERRUPT_CONTROL_00::write(0x00);
-    lastTimeInterruptClear = millis();
+  if (rto->syncWatcherEnabled && rto->boardHasPower) {
+    if ((millis() - lastTimeInterruptClear) > 500) {
+      GBS::INTERRUPT_CONTROL_00::write(0xf5); // reset irq status, leave out 1 and 3 (mode switches)
+      GBS::INTERRUPT_CONTROL_00::write(0x00);
+      lastTimeInterruptClear = millis();
+    }
   }
+
 
   if (rto->printInfos == true) { // information mode
     static unsigned long lastTimeInfoLoop = millis();
