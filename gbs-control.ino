@@ -2054,7 +2054,13 @@ void doPostPresetLoadSteps() {
       GBS::IF_HB_ST2::write(0xf8);  // 1_18
       GBS::IF_HB_SP2::write(0x100);  // 1_1a for general case hshift
       GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
-      if (rto->presetID == 0x3) 
+      if (rto->presetID == 0x5) 
+      { // out 1080p
+        GBS::VDS_VB_SP::write(64);
+        GBS::IF_VB_SP::write(4);
+        GBS::VDS_VSCALE::write(496);
+      }
+      else if (rto->presetID == 0x3) 
       { // out 720p
         GBS::VDS_VSCALE::write(720);
         GBS::VDS_VB_SP::write(46);
@@ -2079,8 +2085,9 @@ void doPostPresetLoadSteps() {
       GBS::IF_HBIN_SP::write(0x80); // 1_26 works for all output presets
       if (rto->presetID == 0x15) 
       { // out 1080p
-        GBS::VDS_VSCALE::write(512);
-        GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() - 8);
+        GBS::VDS_VSCALE::write(548);
+        GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() - 12);
+        GBS::IF_HB_SP2::write(0x112);  // 1_1a need to correct a lot
       }
       else if (rto->presetID == 0x13) 
       { // out 720p
@@ -4353,9 +4360,9 @@ void handleWiFi() {
     // process it in the parser, then reset to 0 at the end of the sketch.
 
     static unsigned long lastTimePing = millis();
-    if (millis() - lastTimePing > 1011) { // slightly odd value so not everything happens at once
+    if (millis() - lastTimePing > 733) { // slightly odd value so not everything happens at once
       //webSocket.broadcastPing(); // sends a WS ping to all Client; returns true if ping is sent out
-      if (webSocket.connectedClients() > 0) {
+      if (webSocket.connectedClients(true) > 0) { // true = with builtin ping (should help the WS lib detect issues)
         char toSend[5] = { 0 };
         toSend[0] = '#'; // makeshift ping in slot 0
 
