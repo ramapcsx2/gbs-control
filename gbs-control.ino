@@ -1762,8 +1762,10 @@ void applyBestHTotal(uint16_t bestHTotal) {
   int diffHTotal = bestHTotal - orig_htotal;
   uint16_t diffHTotalUnsigned = abs(diffHTotal);
   if (diffHTotalUnsigned < 1 && !rto->forceRetime) {
-    SerialM.print("already at bestHTotal: "); SerialM.print(bestHTotal);
-    SerialM.print(" Fieldrate: "); SerialM.println(getSourceFieldRate(0), 3); // prec. 3 // use IF testbus
+    if (!uopt->enableFrameTimeLock) { // FTL can double throw this when it resets to adjust
+      SerialM.print("already at bestHTotal: "); SerialM.print(bestHTotal);
+      SerialM.print(" Fieldrate: "); SerialM.println(getSourceFieldRate(0), 3); // prec. 3 // use IF testbus
+    }
     return; // nothing to do
   }
   if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() == 1) {
@@ -1805,14 +1807,26 @@ void applyBestHTotal(uint16_t bestHTotal) {
     // move blanking (display)
     uint16_t h_blank_display_start_position = GBS::VDS_DIS_HB_ST::read();
     uint16_t h_blank_display_stop_position = GBS::VDS_DIS_HB_SP::read();
-    h_blank_display_start_position += (diffHTotal / 2);
-    h_blank_display_stop_position += (diffHTotal / 2);
-
     uint16_t h_blank_memory_start_position = GBS::VDS_HB_ST::read();
     uint16_t h_blank_memory_stop_position = GBS::VDS_HB_SP::read();
-    h_blank_memory_start_position = h_blank_display_start_position; //+= (diffHTotal / 2);
-    h_blank_memory_stop_position  += (diffHTotal / 2);
-    
+    // h_blank_memory_start_position usually is == h_blank_display_start_position
+    // but there is an exception when VDS h scaling is pretty large (value low, ie 512)
+    // this will be stored in the preset, so check here and adjust accordingly
+    if (h_blank_memory_start_position == h_blank_display_start_position) {
+      h_blank_display_start_position += (diffHTotal / 2);
+      h_blank_display_stop_position += (diffHTotal / 2);
+
+      h_blank_memory_start_position = h_blank_display_start_position; // normal case
+      h_blank_memory_stop_position += (diffHTotal / 2);
+    }
+    else {
+      h_blank_display_start_position += (diffHTotal / 2);
+      h_blank_display_stop_position += (diffHTotal / 2);
+
+      h_blank_memory_start_position += (diffHTotal / 2); // the exception (currently 1280x1024)
+      h_blank_memory_stop_position += (diffHTotal / 2);
+    }
+
     if (diffHTotal < 0 ) {
       h_blank_display_start_position &= 0xfffe;
       h_blank_display_stop_position &= 0xfffe;
@@ -1833,6 +1847,7 @@ void applyBestHTotal(uint16_t bestHTotal) {
     // fix over / underflows
     if (h_blank_display_start_position > bestHTotal) {
       h_blank_display_start_position = bestHTotal * 0.91f;
+      h_blank_memory_start_position = h_blank_display_start_position;
     }
     if (h_blank_display_stop_position > bestHTotal) {
       h_blank_display_stop_position = bestHTotal * 0.178f;
@@ -2020,7 +2035,9 @@ void doPostPresetLoadSteps() {
     GBS::IF_SEL_WEN::write(1); // always enable IF WEN bit (eventhough the manual mentions only for HD mode)
     GBS::SP_RT_HS_ST::write(0); // 5_49 // set retiming hs ST, SP (no effect in SOG modes)
     GBS::SP_RT_HS_SP::write(GBS::PLLAD_MD::read() * 0.93f);
-    GBS::VDS_HB_ST::write(GBS::VDS_DIS_HB_ST::read()); // was -8 // now the same, works well
+    // not forcing VDS_HB_ST (VDS memory blank start position) anymore, allows more active pixels
+    // in 1280x1024 preset
+    //GBS::VDS_HB_ST::write(GBS::VDS_DIS_HB_ST::read()); // was -8 // now the same, works well
     GBS::VDS_VB_ST::write(4); // one memory VBlank ST base for all presets
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
@@ -2052,7 +2069,7 @@ void doPostPresetLoadSteps() {
     { // ED YUV 60
       GBS::VDS_VSCALE::write(512);
       GBS::IF_HB_ST2::write(0xf8);  // 1_18
-      GBS::IF_HB_SP2::write(0x100);  // 1_1a for general case hshift
+      GBS::IF_HB_SP2::write(0x100);  // 1_1a
       GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
       if (rto->presetID == 0x5) 
       { // out 1080p
@@ -2070,6 +2087,7 @@ void doPostPresetLoadSteps() {
       else if (rto->presetID == 0x2) 
       { // out x1024
         GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
+        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8); // extend right blank
       }
       else if (rto->presetID == 0x1) 
       { // out x960
