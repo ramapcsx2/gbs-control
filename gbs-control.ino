@@ -2039,6 +2039,9 @@ void doPostPresetLoadSteps() {
     // in 1280x1024 preset
     //GBS::VDS_HB_ST::write(GBS::VDS_DIS_HB_ST::read()); // was -8 // now the same, works well
     GBS::VDS_VB_ST::write(4); // one memory VBlank ST base for all presets
+    //if (rto->videoStandardInput == 1 || rto->videoStandardInput == 3) {
+    //  GBS::VDS_UV_STEP_BYPS::write(0); // enable step response for 60Hz presets (PAL needs better PLLAD clock)
+    //}
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
       GBS::VDS_TAP6_BYPS::write(0); // 3_24
@@ -2097,7 +2100,6 @@ void doPostPresetLoadSteps() {
     }
     else if (rto->videoStandardInput == 4) 
     { // ED YUV 50
-      GBS::VDS_VSCALE::write(614);  // note: need a good vert. test image
       GBS::IF_HB_ST2::write(0xb4);  // 1_18
       GBS::IF_HB_SP2::write(0xc4);  // 1_1a for general case hshift
       GBS::IF_HBIN_SP::write(0x80); // 1_26 works for all output presets
@@ -2118,17 +2120,17 @@ void doPostPresetLoadSteps() {
       }
       else if (rto->presetID == 0x12) 
       { // out x1024
-        GBS::VDS_VSCALE::write(608);
-        GBS::IF_VB_SP::write(0x22);
-        GBS::VDS_VB_SP::write(50);
+        GBS::VDS_VSCALE::write(512);
         GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
-        GBS::VDS_DIS_VB_ST::write(1024);
-        GBS::VDS_DIS_VB_SP::write(34);
+        GBS::IF_VB_SP::write(0x30);
+        GBS::IF_VB_ST::write(0x28);
+        GBS::IF_HB_ST2::write(0x108);  // 1_18
+        GBS::IF_HB_SP2::write(0x110);  // 1_1a
         GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8);
       }
       else if (rto->presetID == 0x11) 
       { // out x960
-        // at VDS_VSCALE 614
+        GBS::VDS_VSCALE::write(614);  // note: need a good vert. test image
         //GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 16);
         //GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() + 16);
         GBS::IF_VB_SP::write(0x22);
