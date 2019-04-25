@@ -150,6 +150,7 @@ struct runTimeOptions {
   uint8_t continousStableCounter;
   uint8_t failRetryAttempts;
   uint8_t presetID;
+  uint8_t HPLLState;
   boolean isInLowPowerMode;
   boolean clampPositionIsSet;
   boolean coastPositionIsSet;
@@ -445,6 +446,7 @@ void setResetParameters() {
   rto->currentLevelSOG = 11;
   rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
   rto->failRetryAttempts = 0;
+  rto->HPLLState = 0;
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->scanlinesEnabled = false;
   rto->blockModeDetectVSkew = false;
@@ -3888,7 +3890,7 @@ uint32_t runSyncWatcher()
       oldPllRate = currentPllRate;
 
       static uint8_t runsWithSOGStatus = 0;
-      static uint8_t HPLLState = 0, oldHPLLState = 0;
+      static uint8_t oldHPLLState = 0;
       uint8_t status0f = GBS::STATUS_0F::read();
       GBS::INTERRUPT_CONTROL_00::write(0xf5); // reset irq status, leave out 1 and 3 (mode switches)
       GBS::INTERRUPT_CONTROL_00::write(0x00); //
@@ -3900,7 +3902,7 @@ uint32_t runSyncWatcher()
           if (runsWithSOGStatus >= 8) {
             SerialM.println("(SP) RGB/HV > SOG");
             rto->RGBHVsyncTypeCsync = true;
-            noSyncCounter = HPLLState = runsWithSOGStatus = 
+            noSyncCounter = rto->HPLLState = runsWithSOGStatus = 
             RGBHVNoSyncCounter = rto->continousStableCounter = 0;
             applyPresets(rto->videoStandardInput); // calls bypass to RGBHV and postPresetLoadSteps
             return 0;
@@ -3924,53 +3926,58 @@ uint32_t runSyncWatcher()
 
       if (currentPllRate != 0)
       {
+        updateHSyncEdge();
         if (currentPllRate < 1030) // ~ 970 to 1030 for 15kHz stuff
         {
-          GBS::PLLAD_FS::write(0); // new, check 640x200@60
-          GBS::PLLAD_KS::write(2);
-          GBS::PLLAD_ICP::write(5);
-          latchPLLAD();
-          HPLLState = 1;
+          if (rto->HPLLState != 1) {
+            GBS::PLLAD_FS::write(0); // new, check 640x200@60
+            GBS::PLLAD_KS::write(2);
+            GBS::PLLAD_ICP::write(5);
+            rto->HPLLState = 1;
+          }
         }
         else if (currentPllRate < 2300)
         {
-          GBS::PLLAD_KS::write(1);
-          GBS::PLLAD_FS::write(1);
-          GBS::PLLAD_ICP::write(5);
-          latchPLLAD();
-          HPLLState = 2;
+          if (rto->HPLLState != 2) {
+            GBS::PLLAD_KS::write(1);
+            GBS::PLLAD_FS::write(1);
+            GBS::PLLAD_ICP::write(5);
+            rto->HPLLState = 2;
+          }
         }
         else if (currentPllRate < 3200)
         {
-          GBS::PLLAD_KS::write(1);
-          GBS::PLLAD_FS::write(1);
-          GBS::PLLAD_ICP::write(6); // would need 7 but this is risky
-          latchPLLAD();
-          HPLLState = 3;
+          if (rto->HPLLState != 3) {
+            GBS::PLLAD_KS::write(1);
+            GBS::PLLAD_FS::write(1);
+            GBS::PLLAD_ICP::write(6); // would need 7 but this is risky
+            rto->HPLLState = 3;
+          }
         }
         else if (currentPllRate < 3800)
         {
-          GBS::PLLAD_KS::write(0);
-          GBS::PLLAD_FS::write(0);
-          GBS::PLLAD_ICP::write(5);
-          latchPLLAD();
-          HPLLState = 4;
+          if (rto->HPLLState != 4) {
+            GBS::PLLAD_KS::write(0);
+            GBS::PLLAD_FS::write(0);
+            GBS::PLLAD_ICP::write(5);
+            rto->HPLLState = 4;
+          }
         }
         else // >= 3800
         {
-          GBS::PLLAD_KS::write(0);
-          GBS::PLLAD_FS::write(1);
-          GBS::PLLAD_ICP::write(4);
-          latchPLLAD();
-          HPLLState = 5;
+          if (rto->HPLLState != 5) {
+            GBS::PLLAD_KS::write(0);
+            GBS::PLLAD_FS::write(1);
+            GBS::PLLAD_ICP::write(4);
+            rto->HPLLState = 5;
+          }
         }
-
-        updateHSyncEdge();
       }
-      if (oldHPLLState != HPLLState) {
-        SerialM.print("(H-PLL) state: "); SerialM.println(HPLLState);
+      if (oldHPLLState != rto->HPLLState) {
+        latchPLLAD();
+        SerialM.print("(H-PLL) state: "); SerialM.println(rto->HPLLState);
       }
-      oldHPLLState = HPLLState;
+      oldHPLLState = rto->HPLLState;
 
       lastTimeCheck = millis();
       rto->clampPositionIsSet = false; // RGBHV should regularly check clamp position
@@ -4109,6 +4116,7 @@ void setup() {
   rto->phaseSP = 24;
   rto->failRetryAttempts = 0;
   rto->presetID = 0;
+  rto->HPLLState = 0;
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->deinterlaceAutoEnabled = true;
   rto->scanlinesEnabled = false;
