@@ -227,7 +227,10 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x28, 3,  1> IF_TEST_EN;
     typedef UReg<0x01, 0x28, 4,  4> IF_TEST_SEL;
     typedef UReg<0x01, 0x29, 0,  1> IF_AUTO_OFST_EN;
+    typedef UReg<0x01, 0x29, 1,  1> IF_AUTO_OFST_PRD;
     typedef UReg<0x01, 0x29, 2,  1> IF_AUTO_OFST_RESERVED_2;
+    typedef UReg<0x01, 0x2A, 0,  4> IF_AUTO_OFST_U_RANGE;
+    typedef UReg<0x01, 0x2A, 4,  4> IF_AUTO_OFST_V_RANGE;
     typedef UReg<0x01, 0x2B, 0,  8> GBS_PRESET_ID;
     typedef UReg<0x01, 0x2C, 0,  1> GBS_OPTION_SCANLINES_ENABLED;
     typedef UReg<0x01, 0x2C, 1,  1> GBS_OPTION_SCALING_RGBHV;

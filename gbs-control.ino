@@ -555,6 +555,12 @@ void applyYuvPatches() {
   GBS::ADC_RYSEL_R::write(1); // midlevel clamp red
   GBS::ADC_RYSEL_B::write(1); // midlevel clamp blue
   GBS::IF_MATRIX_BYPS::write(1);
+  // auto offset
+  GBS::DEC_MATRIX_BYPS::write(1); // ADC
+  GBS::IF_AUTO_OFST_U_RANGE::write(1);
+  GBS::IF_AUTO_OFST_V_RANGE::write(1);
+  GBS::IF_AUTO_OFST_PRD::write(1);
+  GBS::IF_AUTO_OFST_EN::write(1);
   // colors
   GBS::VDS_Y_GAIN::write(0x80); // 0x80 = 0
   GBS::VDS_VCOS_GAIN::write(0x28); // red
@@ -571,7 +577,13 @@ void applyYuvPatches() {
 void applyRGBPatches() {
   GBS::ADC_RYSEL_R::write(0); // gnd clamp red
   GBS::ADC_RYSEL_B::write(0); // gnd clamp blue
-  GBS::IF_MATRIX_BYPS::write(0);
+  // auto offset
+  GBS::DEC_MATRIX_BYPS::write(0); // ADC
+  GBS::IF_AUTO_OFST_U_RANGE::write(1);
+  GBS::IF_AUTO_OFST_V_RANGE::write(1);
+  GBS::IF_AUTO_OFST_PRD::write(1);
+  GBS::IF_AUTO_OFST_EN::write(1);
+  GBS::IF_MATRIX_BYPS::write(1);
   // colors
   GBS::VDS_Y_GAIN::write(0x80); // 0x80 = 0
   GBS::VDS_VCOS_GAIN::write(0x28); // red
@@ -588,19 +600,8 @@ void applyRGBPatches() {
 }
 
 void setAdcParametersGainAndOffset() {
-  //if (rto->inputIsYpBpR == 1) {
-  //  GBS::ADC_ROFCTRL::write(0x3f); // R and B ADC channels are less offset
-  //  GBS::ADC_GOFCTRL::write(0x43); // calibrate with VP2 in 480p mode
-  //  GBS::ADC_BOFCTRL::write(0x3f);
-  //}
-  //else {
-  //  GBS::ADC_ROFCTRL::write(0x3f); // R and B ADC channels seem to be offset from G in hardware
-  //  GBS::ADC_GOFCTRL::write(0x43);
-  //  GBS::ADC_BOFCTRL::write(0x3f);
-  //}
-
   GBS::ADC_ROFCTRL::write(0x3f); // R and B ADC channels seem to be offset from G in hardware
-  GBS::ADC_GOFCTRL::write(0x3f);
+  GBS::ADC_GOFCTRL::write(0x42);
   GBS::ADC_BOFCTRL::write(0x3f);
   GBS::ADC_RGCTRL::write(0x7b); // ADC_TR_RSEL = 2 test
   GBS::ADC_GGCTRL::write(0x7b);
@@ -2928,9 +2929,9 @@ void updateCoastPosition() {
       // At start = 0, all desired HS pulses get through normally, so lock shortly after 
       GBS::SP_H_CST_ST::write(32);
       GBS::SP_H_CST_SP::write((inHlength * 6) / 7); // best result a fraction before full length // remember snes jitter
-      Serial.print("coast ST: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_ST::read(), HEX);
-      Serial.print(", ");
-      Serial.print("SP: "); Serial.print("0x"); Serial.println(GBS::SP_H_CST_SP::read(), HEX);
+      //Serial.print("coast ST: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_ST::read(), HEX);
+      //Serial.print(", ");
+      //Serial.print("SP: "); Serial.print("0x"); Serial.println(GBS::SP_H_CST_SP::read(), HEX);
       GBS::SP_H_PROTECT::write(0); // dropouts in passthrough mode
       //GBS::SP_DIS_SUB_COAST::write(0); // enable hsync coast
       GBS::SP_DIS_SUB_COAST::write(1); // not yet
@@ -3023,9 +3024,9 @@ void updateClampPosition() {
   {
     GBS::SP_CS_CLP_ST::write(start);
     GBS::SP_CS_CLP_SP::write(stop);
-    Serial.print("clamp ST: "); Serial.print("0x"); Serial.print(start, HEX);
+    /*Serial.print("clamp ST: "); Serial.print("0x"); Serial.print(start, HEX);
     Serial.print(", ");
-    Serial.print("SP: "); Serial.print("0x"); Serial.println(stop, HEX);
+    Serial.print("SP: "); Serial.print("0x"); Serial.println(stop, HEX);*/
   }
   
   if (GBS::SP_NO_CLAMP_REG::read() == 1) {
@@ -3059,18 +3060,10 @@ void passThroughModeSwitch() {
   GBS::SFTRST_HDBYPS_RSTZ::write(1); // need HDBypass
   // rto->inputIsYpBpR can be "fake" RGB or more commonly true YCbCr
   // !rto->inputIsYpBpR > always assume RGB (but a user option would be nice)
-  if (rto->inputIsYpBpR) {
-    GBS::SP_HS_LOOP_SEL::write(1);
-    GBS::OUT_SYNC_SEL::write(1); // 0_4f 1=sync from HDBypass, 2=sync from SP
-    GBS::HD_MATRIX_BYPS::write(0); // use, treat source as YCbCr
-    GBS::HD_DYN_BYPS::write(0); //
-  }
-  else {
-    GBS::SP_HS_LOOP_SEL::write(1); // 5_57_6 bypass, use HDBypass to retime sync
-    GBS::OUT_SYNC_SEL::write(1); // 0_4f 1=sync from HDBypass, 2=sync from SP
-    GBS::HD_MATRIX_BYPS::write(1); // bypass, treat source as RGB
-    GBS::HD_DYN_BYPS::write(1); //
-  }
+  GBS::SP_HS_LOOP_SEL::write(1);
+  GBS::OUT_SYNC_SEL::write(1); // 0_4f 1=sync from HDBypass, 2=sync from SP
+  GBS::HD_MATRIX_BYPS::write(0);
+  GBS::HD_DYN_BYPS::write(0);
   GBS::HD_SEL_BLK_IN::write(0); // 0 enables HDB blank timing (1 would be DVI, not working atm)
 
   GBS::PB_BYPASS::write(1);
@@ -3168,6 +3161,7 @@ void passThroughModeSwitch() {
     }
     if (rto->videoStandardInput == 13) { // odd HD mode (PS2 "VGA" over Component)
       applyRGBPatches(); // treat mostly as RGB, clamp R/B to gnd
+      GBS::DEC_MATRIX_BYPS::write(1); // overwrite for this mode 
       GBS::SP_PRE_COAST::write(3);
       GBS::SP_POST_COAST::write(3);
       GBS::HD_MATRIX_BYPS::write(1); // bypass since we'll treat source as RGB
