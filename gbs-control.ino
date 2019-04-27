@@ -601,7 +601,7 @@ void applyRGBPatches() {
 
 void setAdcParametersGainAndOffset() {
   GBS::ADC_ROFCTRL::write(0x3f); // R and B ADC channels seem to be offset from G in hardware
-  GBS::ADC_GOFCTRL::write(0x42);
+  GBS::ADC_GOFCTRL::write(0x3f);
   GBS::ADC_BOFCTRL::write(0x3f);
   GBS::ADC_RGCTRL::write(0x7b); // ADC_TR_RSEL = 2 test
   GBS::ADC_GGCTRL::write(0x7b);
@@ -938,6 +938,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
 
   while (millis() - timeout < 450) {
     delay(10);
+    handleWiFi();
     uint8_t videoMode = getVideoMode();
     if (GBS::TEST_BUS_2F::read() != 0 || videoMode > 0) 
     {
@@ -951,7 +952,8 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         unsigned long timeOutStart = millis();
         while (!vsyncActive && ((millis() - timeOutStart) < 250)) { // short vsync test
           vsyncActive = GBS::STATUS_SYNC_PROC_VSACT::read();
-          delay(1); // wifi stack
+          handleWiFi(); // wifi stack
+          delay(1);
         }
         if (!vsyncActive) {
           optimizeSogLevel(); // test: placing it here okay?
@@ -971,7 +973,8 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         timeOutStart = millis();
         while (!vsyncActive && millis() - timeOutStart < 400) { // check again to make sure
           vsyncActive = GBS::STATUS_SYNC_PROC_VSACT::read();
-          delay(1); // wifi stack
+          handleWiFi(); // wifi stack
+          delay(1);
         }
         if (vsyncActive) {
           SerialM.println("VSync: present");
@@ -979,7 +982,8 @@ uint8_t detectAndSwitchToActiveInput() { // if any
           timeOutStart = millis();
           while (!hsyncActive && millis() - timeOutStart < 400) {
             hsyncActive = GBS::STATUS_SYNC_PROC_HSACT::read();
-            delay(1); // wifi stack
+            handleWiFi(); // wifi stack
+            delay(1);
           }
           if (hsyncActive) {
             SerialM.println("HSync: present");
@@ -1016,6 +1020,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         optimizeSogLevel(); // test: placing it here okay?
         unsigned long timeOutStart = millis();
         while ((millis() - timeOutStart) < 800) {
+          handleWiFi(); // wifi stack
           delay(30);
           if (getVideoMode() > 0) {
             return 2;
@@ -3401,21 +3406,21 @@ void bypassModeSwitch_RGBHV() {
 void doAutoGain() {
   uint8_t r_found = 0, g_found = 0, b_found = 0;
 
-  GBS::DEC_TEST_SEL::write(3); // 0xbc
+  GBS::DEC_TEST_SEL::write(2); // out of 7 // was 3 and TEST_BUS_2E::read()
   for (uint8_t i = 0; i < 7; i++) {
-    uint8_t redValue = GBS::TEST_BUS_2E::read();
+    uint8_t redValue = GBS::TEST_BUS_2F::read();
     if (redValue == 0x7f) { // full on found
       r_found++;
     }
   }
-  GBS::DEC_TEST_SEL::write(2); // 0xac
+  GBS::DEC_TEST_SEL::write(1); // out of 7 // was 2 and TEST_BUS_2E::read()
   for (uint8_t i = 0; i < 7; i++) {
-    uint8_t greenValue = GBS::TEST_BUS_2E::read();
+    uint8_t greenValue = GBS::TEST_BUS_2F::read();
     if (greenValue == 0x7f) {
       g_found++;
     }
   }
-  GBS::DEC_TEST_SEL::write(1); // 0x9c
+  GBS::DEC_TEST_SEL::write(1); // out of 7
   for (uint8_t i = 0; i < 7; i++) {
     uint8_t blueValue = GBS::TEST_BUS_2E::read();
     if (blueValue == 0x7f) {
