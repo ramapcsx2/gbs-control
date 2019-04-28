@@ -3405,26 +3405,30 @@ void bypassModeSwitch_RGBHV() {
 
 void doAutoGain() {
   uint8_t r_found = 0, g_found = 0, b_found = 0;
+  uint8_t status00reg = GBS::STATUS_00::read(); // confirm no mode changes happened
 
   GBS::DEC_TEST_SEL::write(2); // out of 7 // was 3 and TEST_BUS_2E::read()
   for (uint8_t i = 0; i < 7; i++) {
     uint8_t redValue = GBS::TEST_BUS_2F::read();
     if (redValue == 0x7f) { // full on found
-      r_found++;
+      if (getSyncStable() && (GBS::STATUS_00::read() == status00reg)) { r_found++; }
+      else return;
     }
   }
   GBS::DEC_TEST_SEL::write(1); // out of 7 // was 2 and TEST_BUS_2E::read()
   for (uint8_t i = 0; i < 7; i++) {
     uint8_t greenValue = GBS::TEST_BUS_2F::read();
     if (greenValue == 0x7f) {
-      g_found++;
+      if (getSyncStable() && (GBS::STATUS_00::read() == status00reg)) { g_found++; }
+      else return;
     }
   }
   GBS::DEC_TEST_SEL::write(1); // out of 7
   for (uint8_t i = 0; i < 7; i++) {
     uint8_t blueValue = GBS::TEST_BUS_2E::read();
     if (blueValue == 0x7f) {
-      b_found++;
+      if (getSyncStable() && (GBS::STATUS_00::read() == status00reg)) { b_found++; }
+      else return;
     }
   }
 
@@ -4560,46 +4564,33 @@ void loop() {
       //enableVDS();
     break;
     case 'D':
-      //debug stuff: shift h blanking into good view, enhance noise
-      if (GBS::ADC_ROFCTRL_FAKE::read() == 0x00) { // "remembers" debug view 
-        //shiftHorizontal(700, false); // only do noise for now
-        
+      if (GBS::ADC_UNUSED_62::read() == 0x00) { // "remembers" debug view 
         //GBS::VDS_PK_Y_H_BYPS::write(0); // enable peaking
         //GBS::VDS_PK_LB_CORE::write(0); // peaking high pass open
         //GBS::VDS_PK_VL_HL_SEL::write(0);
         //GBS::VDS_PK_VL_HH_SEL::write(0);
         //GBS::VDS_PK_VH_HL_SEL::write(0);
         //GBS::VDS_PK_VH_HH_SEL::write(0);
-        //GBS::ADC_FLTR::write(0); // 150Mhz / off
-        GBS::ADC_ROFCTRL_FAKE::write(GBS::ADC_ROFCTRL::read()); // backup
-        GBS::ADC_GOFCTRL_FAKE::write(GBS::ADC_GOFCTRL::read());
-        GBS::ADC_BOFCTRL_FAKE::write(GBS::ADC_BOFCTRL::read());
-        GBS::ADC_GOFCTRL::write(GBS::ADC_GOFCTRL::read() - 0x32);
-        if (!rto->inputIsYpBpR)
-        {
-          GBS::ADC_ROFCTRL::write(GBS::ADC_ROFCTRL::read() - 0x32);
-          GBS::ADC_BOFCTRL::write(GBS::ADC_BOFCTRL::read() - 0x32);
-        }
+        GBS::ADC_UNUSED_60::write(GBS::VDS_Y_OFST::read()); // backup
+        GBS::ADC_UNUSED_61::write(GBS::HD_Y_OFFSET::read());
+        GBS::ADC_UNUSED_62::write(GBS::ADC_FLTR::read() + 1); // remember to remove the 1 on restore
+        GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 0x30);
+        GBS::HD_Y_OFFSET::write(GBS::HD_Y_OFFSET::read() + 0x30);
+        GBS::ADC_FLTR::write(0); // 150Mhz
       }
       else {
-        //shiftHorizontal(700, true);
-        
         //GBS::VDS_PK_Y_H_BYPS::write(1);
         //GBS::VDS_PK_LB_CORE::write(1);
         //GBS::VDS_PK_VL_HL_SEL::write(1);
         //GBS::VDS_PK_VL_HH_SEL::write(1);
         //GBS::VDS_PK_VH_HL_SEL::write(1);
         //GBS::VDS_PK_VH_HH_SEL::write(1);
-        //GBS::ADC_FLTR::write(3); // 40Mhz / full
-        GBS::ADC_GOFCTRL::write(GBS::ADC_GOFCTRL_FAKE::read());
-        if (!rto->inputIsYpBpR)
-        {
-          GBS::ADC_ROFCTRL::write(GBS::ADC_ROFCTRL_FAKE::read());
-          GBS::ADC_BOFCTRL::write(GBS::ADC_BOFCTRL_FAKE::read());
-        }
-        GBS::ADC_ROFCTRL_FAKE::write(0); // .. and clear
-        GBS::ADC_GOFCTRL_FAKE::write(0);
-        GBS::ADC_BOFCTRL_FAKE::write(0);
+        GBS::VDS_Y_OFST::write(GBS::ADC_UNUSED_60::read()); // restore
+        GBS::HD_Y_OFFSET::write(GBS::ADC_UNUSED_61::read());
+        GBS::ADC_FLTR::write(GBS::ADC_UNUSED_62::read() - 1); // usually 40Mhz
+        GBS::ADC_UNUSED_60::write(0); // .. and clear
+        GBS::ADC_UNUSED_61::write(0);
+        GBS::ADC_UNUSED_62::write(0);
       }
     break;
     case 'C':
@@ -5393,7 +5384,7 @@ void loop() {
   // run auto ADC gain feature (if enabled)
   static uint8_t nextTimeAutoGain = 8;
   if (rto->syncWatcherEnabled && uopt->enableAutoGain == 1 && !rto->sourceDisconnected 
-    && rto->videoStandardInput > 0 && rto->continousStableCounter > 8 && rto->clampPositionIsSet
+    && rto->videoStandardInput > 0 && rto->continousStableCounter > 40 && rto->clampPositionIsSet
     && !rto->inputIsYpBpR && (millis() - lastTimeAutoGain > nextTimeAutoGain))
   {
     uint8_t debugRegBackup = 0, debugPinBackup = 0;
@@ -5401,15 +5392,12 @@ void loop() {
     debugRegBackup = GBS::TEST_BUS_SEL::read();
     GBS::PAD_BOUT_EN::write(0); // disable output to pin for test
     GBS::TEST_BUS_SEL::write(0xb); // decimation
-    //GBS::TEST_BUS_EN::write(0);
-    //GBS::DEC_TEST_ENABLE::write(1);
+    delay(1);
     doAutoGain();
-    //GBS::DEC_TEST_ENABLE::write(0);
-    //GBS::TEST_BUS_EN::write(1);
     GBS::TEST_BUS_SEL::write(debugRegBackup);
     GBS::PAD_BOUT_EN::write(debugPinBackup); // debug output pin back on
-    lastTimeAutoGain = millis();
     nextTimeAutoGain = random(4, 13);
+    lastTimeAutoGain = millis();
   }
 
 #ifdef HAVE_PINGER_LIBRARY

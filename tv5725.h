@@ -240,6 +240,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x30, 1,  1> HD_MATRIX_BYPS;
     typedef UReg<0x01, 0x30, 2,  1> HD_DYN_BYPS;
     typedef UReg<0x01, 0x30, 3,  1> HD_SEL_BLK_IN;
+    typedef UReg<0x01, 0x32, 0,  8> HD_Y_OFFSET;
     typedef UReg<0x01, 0x37, 0, 11> HD_HSYNC_RST;
     typedef UReg<0x01, 0x39, 0, 11> HD_INI_ST;
     typedef UReg<0x01, 0x3B, 0, 12> HD_HB_ST;
@@ -676,9 +677,9 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x57, 0,  1> SP_NO_CLAMP_REG;
     typedef UReg<0x05, 0x57, 2,  1> SP_NO_COAST_REG;
     typedef UReg<0x05, 0x57, 6,  1> SP_HS_LOOP_SEL;
-    typedef UReg<0x05, 0x60, 0,  8> ADC_ROFCTRL_FAKE;
-    typedef UReg<0x05, 0x61, 0,  8> ADC_GOFCTRL_FAKE;
-    typedef UReg<0x05, 0x62, 0,  8> ADC_BOFCTRL_FAKE;
+    typedef UReg<0x05, 0x60, 0,  8> ADC_UNUSED_60;
+    typedef UReg<0x05, 0x61, 0,  8> ADC_UNUSED_61;
+    typedef UReg<0x05, 0x62, 0,  8> ADC_UNUSED_62;
     typedef UReg<0x05, 0x63, 0,  8> TEST_BUS_SP_SEL;
 
 
