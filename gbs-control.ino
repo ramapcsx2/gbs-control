@@ -1970,17 +1970,51 @@ uint32_t getPllRate() {
   return retVal;
 }
 
+void applyOverScanPatches() {
+  // no scaling RGB for now, just regular scaling presets
+  if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 2) {
+    if (rto->presetID == 0x1) { // out x960 @ 60
+      GBS::PLLAD_MD::write(2132);
+      GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.5f); // or a bit more ?
+      GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);
+      GBS::IF_HBIN_SP::write(144); // 1_26; instead of 256
+      GBS::IF_HB_ST::write(0); // 1_10; magic number; instead of 0x02
+      //GBS::IF_HB_SP::write(0x08); // 1_12; magic number; instead of 0x08
+      GBS::IF_HB_SP1::write(0x26); // 1_16; magic number; instead of 0x0b
+      GBS::VDS_HSCALE::write(640);
+      GBS::VDS_DIS_HB_ST::write(1720);
+      GBS::VDS_HB_ST::write(1720);
+      GBS::VDS_DIS_HB_SP::write(304);
+      GBS::VDS_HB_SP::write(160);
+      GBS::PB_FETCH_NUM::write(0xe8); // reduce line memory fetch
+      //GBS::WFF_SAFE_GUARD::write(0); // for now
+    }
+    if (rto->presetID == 0x11) { // out x960 @ 50
+
+    }
+  }
+}
+
 void doPostPresetLoadSteps() {
 
   GBS::PAD_SYNC_OUT_ENZ::write(1); // sync out off
   rto->presetID = GBS::GBS_PRESET_ID::read();
+  boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
+
   if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 1) {
     rto->videoStandardInput = 3; // 640x480 RGBHV scaling mode
     switchSyncProcessingMode(1);
   }
-  GBS::OUT_SYNC_CNTRL::write(1); // prepare sync out to PAD
+  if (uopt->overscan) {
+    // no scaling RGB or EDTV for now, just regular scaling presets
+    if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 2) {
+      if (!isCustomPreset) { // else it's already applied
+        applyOverScanPatches();
+      }
+    }
+  }
 
-  boolean isCustomPreset = GBS::ADC_0X00_RESERVED_5::read();
+  GBS::OUT_SYNC_CNTRL::write(1); // prepare sync out to PAD
 
   // SOG level can be too high
   if (rto->inputIsYpBpR == false) {
@@ -2038,6 +2072,10 @@ void doPostPresetLoadSteps() {
 
     // new assumption: this should be a bit longer than a half line
     GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() * 0.68); // see update above
+    if (uopt->overscan) {
+      // requires a different length for some reason
+      GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() * 0.52);
+    }
   }
 
   if (!isCustomPreset) {
