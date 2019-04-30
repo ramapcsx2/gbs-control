@@ -190,13 +190,14 @@
                 '<button class="button" type="button" onclick="loadUser(\'C\')">Vertical +</button>' + 
                 '<button class="button" type="button" onclick="loadUser(\'D\')">Vertical -</button>' + '<br>' + 
                 '<h2>ADC Gain (brightness)</h2>' + 
-                '<p>Gain +/- adjusts the gain for the currently loaded preset. Auto Gain is saved across reboots.</p>' + 
+                '<p>Gain +/- adjusts the gain for the currently loaded preset.</p>' + 
                 '<button class="button" type="button" onclick="loadUser(\'n\')">Gain +</button>' + 
                 '<button class="button" type="button" onclick="loadUser(\'o\')">Gain -</button>' + 
                 '<button class="button option adcAutoGain" type="button" onclick="loadDoc(\'T\')">Auto Gain Adjust Toggle</button>';
             }
             function content3() {
                 document.getElementById("display").innerHTML = 
+                '<p>These are image filters and enhancements. The line filter and peaking option is recommended, the rest is optional.</p>' + 
                 '<button class="button option scanlines" type="button" onclick="loadUser(\'7\')">Scanlines</button>' + 
                 '<button class="button option vdsLineFilter" type="button" onclick="loadUser(\'m\')">Line Filter</button>' + 
                 '<button class="button option peaking" type="button" onclick="loadDoc(\'f\')">Peaking</button>' + 
@@ -204,15 +205,22 @@
             }
             function content4() {
                 document.getElementById("display").innerHTML = 
-                '<button class="button" type="button" onclick="loadUser(\'r\')">Use Motion Adaptive</button>' + 
-                '<button class="button" type="button" onclick="loadUser(\'q\')">Use Bob</button>';
+                '<p>Gbscontrol automatically detects interlaced content. There are 2 methods to handle it: <br>' + 
+                '- Bob Deinterlacing is fast (no added lag) but slightly flickers <br>' + 
+                '- Motion Adaptive removes the flicker at the cost of some artefacts and an additional frame of lag <br>' + 
+                'It is best to configure the source for progressive output. If that\'s not possible, Motion Adaptive is recommended.</p>' + 
+                '<button class="button option motionAdaptive" type="button" onclick="loadUser(\'r\')">Use Motion Adaptive</button>' + 
+                '<button class="button option bob" type="button" onclick="loadUser(\'q\')">Use Bob</button>';
             }
             function content5() {
                 document.getElementById("display").innerHTML = 
+                '<h2>Overscan</h2>' + 
+                '<p>Supported presets will allow for more overscan at a slightly reduced image quality.</p>' + 
+                '<button class="button option overscan" type="button" onclick="loadDoc(\'Z\')">Use Overscan</button>' + 
                 '<h2>Output Format: VGA / YPbPr (Component Video)</h2>' + 
                 '<p>The default output mode is VGA, suitable for VGA cables or HDMI converters.</p>' + 
                 '<p>A new YPbPr mode can also be selected, but compatibility with some options is still spotty.</p>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'L\')">Component/VGA Output Toggle</button>' + 
+                '<button class="button option wantOutputComponent" type="button" onclick="loadDoc(\'L\')">Component/VGA Output Toggle</button>' + 
                 '<h2>Output Frame Rate: Force PAL 50Hz to 60Hz</h2>' + 
                 '<p>If your TV does not support 50Hz sources (displaying unknown format, no matter the preset), try this option.</p>' + 
                 '<p>The frame rate will be more jerky. Please restart to apply.</p>' + 
@@ -220,12 +228,12 @@
                 '<h2>Active FrameTime Lock (not compatible with all displays)</h2>' + 
                 '<p>This option keeps the input and output timings aligned, fixing the horizontal tear line that can appear sometimes.</p>' + 
                 '<p>Two methods are available. Try switching methods if your display goes blank.</p>' + 
-                '<button class="button" type="button" onclick="loadUser(\'5\')">FrameTime Lock ON</button>' + 
-                '<button class="button" type="button" onclick="loadUser(\'6\')">FrameTime Lock OFF</button>' + 
+                '<button class="button option frameTimeLock" type="button" onclick="loadUser(\'5\')">FrameTime Lock</button>' + 
                 '<button class="button" type="button" onclick="loadUser(\'i\')">Switch Lock Method</button>';
             }
             function content6() {
                 document.getElementById("display").innerHTML = 
+                '<p>Options that aid in development of gbscontrol. Users normally don\'t need to adjust these.</p>' + 
                 '<h2>Move Picture (memory blank, HS)</h2>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'-\')">Left</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'+\')">Right</button>' + 
@@ -374,10 +382,12 @@
                             }
                         }
 
-                        if (e.data[3]) {
+                        if (e.data[3] && e.data[4]) {
                             var optionByte0 = e.data[3].charCodeAt(0);
+                            var optionByte1 = e.data[4].charCodeAt(0);
                             var optionButtonList = document.getElementsByClassName('button option');
                             for (let button of optionButtonList) {
+                                /* optionByte0 */
                                 if (button.classList.contains('adcAutoGain')) {
                                     if ((optionByte0 & 0x01) == 0x01) {
                                         button.classList.add('active');
@@ -404,6 +414,42 @@
                                     }
                                 } else if (button.classList.contains('palForce60')) {
                                     if ((optionByte0 & 0x10) == 0x10) {
+                                        button.classList.add('active');
+                                    } else {
+                                        button.classList.remove('active');
+                                    }
+                                } else if (button.classList.contains('wantOutputComponent')) {
+                                    if ((optionByte0 & 0x20) == 0x20) {
+                                        button.classList.add('active');
+                                    } else {
+                                        button.classList.remove('active');
+                                    }
+                                }
+                                /* optionByte1 */
+                                if (button.classList.contains('overscan')) {
+                                    if ((optionByte1 & 0x01) == 0x01) {
+                                        button.classList.add('active');
+                                    } else {
+                                        button.classList.remove('active');
+                                    }
+                                }
+                                if (button.classList.contains('frameTimeLock')) {
+                                    if ((optionByte1 & 0x02) == 0x02) {
+                                        button.classList.add('active');
+                                    } else {
+                                        button.classList.remove('active');
+                                    }
+                                }
+                                if (button.classList.contains('motionAdaptive')) {
+                                    if ((optionByte1 & 0x04) == 0x04) {
+                                        button.classList.remove('active');
+                                    } else {
+                                        button.classList.add('active');
+                                    }
+                                }
+                                /* inverse of motionAdaptive, 1=bob*/
+                                if (button.classList.contains('bob')) {
+                                    if ((optionByte1 & 0x04) == 0x04) {
                                         button.classList.add('active');
                                     } else {
                                         button.classList.remove('active');

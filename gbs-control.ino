@@ -190,6 +190,7 @@ struct userOptions {
   uint8_t wantPeaking;
   uint8_t preferScalingRgbhv;
   uint8_t PalForce60;
+  uint8_t overscan;
 } uopts;
 struct userOptions *uopt = &uopts;
 
@@ -2191,9 +2192,9 @@ void doPostPresetLoadSteps() {
   // auto ADC gain
   if (uopt->enableAutoGain == 1 && /*!isCustomPreset &&*/ !rto->inputIsYpBpR && adco->r_gain == 0) {
     SerialM.println("ADC gain: reset");
-    GBS::ADC_RGCTRL::write(0x40);
-    GBS::ADC_GGCTRL::write(0x40);
-    GBS::ADC_BGCTRL::write(0x40);
+    GBS::ADC_RGCTRL::write(0x50);
+    GBS::ADC_GGCTRL::write(0x50);
+    GBS::ADC_BGCTRL::write(0x50);
     GBS::DEC_TEST_ENABLE::write(1);
   }
   else if (uopt->enableAutoGain == 1 && /*!isCustomPreset &&*/ !rto->inputIsYpBpR && adco->r_gain != 0) {
@@ -3436,15 +3437,15 @@ void doAutoGain() {
     uint8_t red = GBS::ADC_RGCTRL::read();
     uint8_t green = GBS::ADC_GGCTRL::read();
     uint8_t blue = GBS::ADC_BGCTRL::read();
-    if ((red < (blue - 8)) || (red < (green - 8))) {
+    if ((red < (blue - 4)) || (red < (green - 4))) {
       red += 1;
       GBS::ADC_RGCTRL::write(red);
     }
-    if ((green < (blue - 8)) || (green < (red - 8))) {
+    if ((green < (blue - 4)) || (green < (red - 4))) {
       green += 1;
       GBS::ADC_GGCTRL::write(green);
     }
-    if ((blue < (red - 8)) || (blue < (green - 8))) {
+    if ((blue < (red - 4)) || (blue < (green - 4))) {
       blue += 1;
       GBS::ADC_BGCTRL::write(blue);
     }
@@ -3586,8 +3587,8 @@ uint32_t runSyncWatcher()
     LEDON;
   }
   // if format changed to valid
-  if ((detectedVideoMode != 0 && detectedVideoMode != rto->videoStandardInput) ||
-    (detectedVideoMode != 0 && rto->videoStandardInput == 0 /*&& getSyncPresent()*/) &&
+  if (((detectedVideoMode != 0 && detectedVideoMode != rto->videoStandardInput) ||
+    (detectedVideoMode != 0 && rto->videoStandardInput == 0 /*&& getSyncPresent()*/)) &&
     rto->videoStandardInput != 15)
   {
     // new: before thoroughly checking for a mode change, use newVideoModeCounter
@@ -4108,6 +4109,7 @@ void setup() {
   uopt->wantPeaking = 1;
   uopt->preferScalingRgbhv = 0; // test: set to 1
   uopt->PalForce60 = 1;
+  uopt->overscan = 0;
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->enableDebugPings = false;
@@ -4186,6 +4188,7 @@ void setup() {
       uopt->wantVdsLineFilter = 1;
       uopt->wantPeaking = 1;
       uopt->PalForce60 = 0;
+      uopt->overscan = 0;
       saveUserPrefs(); // if this fails, there must be a spiffs problem
     }
     else {
@@ -4237,6 +4240,10 @@ void setup() {
       SerialM.print("pal force 60 = "); SerialM.println(uopt->PalForce60);
       if (uopt->PalForce60 > 1) uopt->PalForce60 = 0;
       
+      uopt->overscan = (uint8_t)(f.read() - '0');
+      SerialM.print("overscan = "); SerialM.println(uopt->overscan);
+      if (uopt->overscan > 1) uopt->overscan = 0;
+
       f.close();
     }
   }
@@ -4392,9 +4399,9 @@ void handleWiFi() {
 
     static unsigned long lastTimePing = millis();
     if (millis() - lastTimePing > 733) { // slightly odd value so not everything happens at once
-      //webSocket.broadcastPing(); // sends a WS ping to all Client; returns true if ping is sent out
+
       if (webSocket.connectedClients(true) > 0) { // true = with builtin ping (should help the WS lib detect issues)
-        char toSend[5] = { 0 };
+        char toSend[6] = { 0 };
         toSend[0] = '#'; // makeshift ping in slot 0
 
         switch (rto->presetID) {
@@ -4452,18 +4459,28 @@ void handleWiFi() {
         }
 
         toSend[3] = '@'; // 0x40
+        toSend[4] = '@'; // 0x40
 
         if (uopt->enableAutoGain) { toSend[3] |= (1 << 0); }
         if (uopt->wantScanlines) { toSend[3] |= (1 << 1); }
         if (uopt->wantVdsLineFilter) { toSend[3] |= (1 << 2); }
         if (uopt->wantPeaking) { toSend[3] |= (1 << 3); }
-        if (uopt->PalForce60) { toSend[3] |= (1 << 4); }
+        if (uopt->PalForce60) { toSend[3] |= (1 << 4); } 
+        if (uopt->wantOutputComponent) { toSend[3] |= (1 << 5); }
+
+        if (uopt->overscan) { toSend[4] |= (1 << 0); }
+        if (uopt->enableFrameTimeLock) { toSend[4] |= (1 << 1); }
+        if (uopt->deintMode) { toSend[4] |= (1 << 2); }
 
         // send ping and stats
         webSocket.broadcastTXT(toSend);
+        lastTimePing = millis();
+      }
+      else {
+        // no ws client connected, hasten ws recheck
+        lastTimePing = millis() + 400;
       }
       
-      lastTimePing = millis();
     }
     server.handleClient(); // after websocket loop!
   }
@@ -4653,9 +4670,9 @@ void loop() {
       if (uopt->enableAutoGain == 0) {
         uopt->enableAutoGain = 1;
         if (!rto->outModePassThroughWithIf && !rto->inputIsYpBpR) { // no readout possible
-          GBS::ADC_RGCTRL::write(0x40);
-          GBS::ADC_GGCTRL::write(0x40);
-          GBS::ADC_BGCTRL::write(0x40);
+          GBS::ADC_RGCTRL::write(0x50);
+          GBS::ADC_GGCTRL::write(0x50);
+          GBS::ADC_BGCTRL::write(0x50);
           GBS::DEC_TEST_ENABLE::write(1);
         }
         SerialM.println("on");
@@ -4863,6 +4880,13 @@ void loop() {
       resetSyncProcessor();
       //delay(10);
       //unfreezeVideo();
+    break;
+    case 'Z':
+    {
+      // Overscan option
+      uopt->overscan = !uopt->overscan;
+      saveUserPrefs();
+    }
     break;
     case 'W':
       uopt->enableFrameTimeLock = !uopt->enableFrameTimeLock;
@@ -5243,6 +5267,11 @@ void loop() {
     lastTimeInfoLoop = millis();
   } // end information mode
 
+  //uint16_t testbus = GBS::TEST_BUS::read();
+  //if ((testbus > 0x8900 && testbus <= 0xff00) || (testbus > 0x0900 && testbus <= 0x7f00)){
+  //  SerialM.println(testbus,HEX);
+  //}
+
   // syncwatcher polls SP status. when necessary, initiates adjustments or preset changes
   if (rto->sourceDisconnected == false && rto->syncWatcherEnabled == true 
     && (millis() - lastTimeSyncWatcher) > 20) 
@@ -5479,16 +5508,14 @@ void handleType2Command() {
       saveUserPrefs();
       break;
     case '5':
-      //Frame Time Lock ON
-      uopt->enableFrameTimeLock = 1;
+      //Frame Time Lock toggle
+      uopt->enableFrameTimeLock = !uopt->enableFrameTimeLock;
       saveUserPrefs();
-      SerialM.println("FTL on");
+      if (uopt->enableFrameTimeLock) { SerialM.println("FTL on"); }
+      else { SerialM.println("FTL off"); }
       break;
     case '6':
-      //Frame Time Lock OFF
-      uopt->enableFrameTimeLock = 0;
-      saveUserPrefs();
-      SerialM.println("FTL off");
+      //
       break;
     case '7':
       uopt->wantScanlines = !uopt->wantScanlines;
@@ -5565,6 +5592,7 @@ void handleType2Command() {
         SerialM.print("line filter = "); SerialM.println((uint8_t)(f.read() - '0'));
         SerialM.print("peaking = "); SerialM.println((uint8_t)(f.read() - '0'));
         SerialM.print("pal force60 = "); SerialM.println((uint8_t)(f.read() - '0'));
+        SerialM.print("overscan = "); SerialM.println((uint8_t)(f.read() - '0'));
         f.close();
       }
     }
@@ -5639,6 +5667,7 @@ void handleType2Command() {
       break;
     case 'n':
       SerialM.print("ADC gain++ : ");
+      uopt->enableAutoGain = 0;
       GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() - 1);
       GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() - 1);
       GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() - 1);
@@ -5646,6 +5675,7 @@ void handleType2Command() {
       break;
     case 'o':
       SerialM.print("ADC gain-- : ");
+      uopt->enableAutoGain = 0;
       GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 1);
       GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 1);
       GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 1);
@@ -6067,6 +6097,7 @@ void saveUserPrefs() {
   f.write(uopt->wantVdsLineFilter + '0');
   f.write(uopt->wantPeaking + '0');
   f.write(uopt->PalForce60 + '0');
+  f.write(uopt->overscan + '0');
   f.close();
 }
 
