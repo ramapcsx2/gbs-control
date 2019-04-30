@@ -5951,8 +5951,6 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
 
     f.close();
     if ((uint8_t)(result[2] - '0') < 10) slot = result[2]; // otherwise not stored on spiffs
-    SerialM.print("loading from preset slot "); SerialM.print((uint8_t)(slot - '0'));
-    SerialM.print(": ");
   }
   else {
     // file not found, we don't know what preset to load
@@ -5960,6 +5958,9 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
     if (forVideoMode == 2 || forVideoMode == 4) return pal_240p;
     else return ntsc_240p;
   }
+
+  SerialM.print("loading from preset slot "); SerialM.print(String(slot));
+  SerialM.print(": ");
 
   if (forVideoMode == 1) {
     f = SPIFFS.open("/preset_ntsc." + String(slot), "r");
@@ -6021,13 +6022,14 @@ void savePresetToSPIFFS() {
 
     f.close();
     slot = result[2];
-    SerialM.print("saving to preset slot "); SerialM.println(result[2]); // custom preset slot (console)
   }
   else {
     // file not found, we don't know where to save this preset
     SerialM.println("please select a preset slot first!");
     return;
   }
+
+  SerialM.print("saving to preset slot "); SerialM.println(String(slot));
 
   if (rto->videoStandardInput == 1) {
     f = SPIFFS.open("/preset_ntsc." + String(slot), "w");
