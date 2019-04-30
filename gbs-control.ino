@@ -2444,9 +2444,11 @@ void applyPresets(uint8_t result) {
   rto->outModePassThroughWithIf = 0; // the default at this stage
 
   if (uopt->PalForce60 == 1) {
-    if (result == 2 || result == 4) { Serial.println("PAL@50 to 60Hz"); rto->presetIsPalForce60 = 1; }
-    if (result == 2) {  result = 1; }
-    if (result == 4) {  result = 3; }
+    if (uopt->presetPreference != 2) { // != custom. custom saved as pal preset has ntsc customization
+      if (result == 2 || result == 4) { Serial.println("PAL@50 to 60Hz"); rto->presetIsPalForce60 = 1; }
+      if (result == 2) { result = 1; }
+      if (result == 4) { result = 3; }
+    }
   }
 
   if (result == 1) {
