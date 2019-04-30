@@ -1975,7 +1975,7 @@ void applyOverScanPatches() {
   if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 2) {
     if (rto->presetID == 0x1) { // out x960 @ 60
       GBS::PLLAD_MD::write(2132);
-      GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.5f); // or a bit more ?
+      GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.5f); // longer = more headroom to move picture left
       GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);
       GBS::IF_HBIN_SP::write(144); // 1_26; instead of 256
       GBS::IF_HB_ST::write(0); // 1_10; magic number; instead of 0x02
@@ -1990,7 +1990,14 @@ void applyOverScanPatches() {
       //GBS::WFF_SAFE_GUARD::write(0); // for now
     }
     if (rto->presetID == 0x11) { // out x960 @ 50
-
+      GBS::PLLAD_MD::write(2270);
+      GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.51f); // longer = more headroom to move picture left
+      GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);
+      GBS::IF_HBIN_SP::write(176); // 1_26; instead of 256
+      GBS::VDS_HSCALE::write(607);
+      GBS::VDS_DIS_HB_ST::write(2056);
+      GBS::VDS_HB_ST::write(2056);
+      GBS::PB_FETCH_NUM::write(0xfa);
     }
   }
 }
