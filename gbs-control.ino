@@ -1987,7 +1987,6 @@ void applyOverScanPatches() {
       GBS::VDS_DIS_HB_SP::write(304);
       GBS::VDS_HB_SP::write(160);
       GBS::PB_FETCH_NUM::write(0xe8); // reduce line memory fetch
-      //GBS::WFF_SAFE_GUARD::write(0); // for now
     }
     if (rto->presetID == 0x11) { // out x960 @ 50
       GBS::PLLAD_MD::write(2270);
@@ -1997,6 +1996,30 @@ void applyOverScanPatches() {
       GBS::VDS_HSCALE::write(607);
       GBS::VDS_DIS_HB_ST::write(2056);
       GBS::VDS_HB_ST::write(2056);
+      GBS::PB_FETCH_NUM::write(0xfa);
+    }
+    if (rto->presetID == 0x5) { // out 1080p @ 60
+      GBS::PLLAD_MD::write(2132);
+      GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.51f);
+      GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);
+      GBS::IF_HBIN_SP::write(168); // 1_26; instead of 256
+      GBS::IF_HB_ST::write(0);
+      GBS::IF_HB_SP1::write(10); // 1_16; magic number
+      GBS::VDS_HSCALE::write(602);
+      GBS::VDS_DIS_HB_ST::write(1840);
+      GBS::VDS_HB_ST::write(1840);
+      GBS::VDS_DIS_HB_SP::write(296);
+      GBS::VDS_HB_SP::write(192);
+      GBS::PB_FETCH_NUM::write(0xe8);
+    }
+    if (rto->presetID == 0x15) { // out 1080p @ 50
+      GBS::PLLAD_MD::write(2270);
+      GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.51f);
+      GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);
+      GBS::IF_HBIN_SP::write(176); // 1_26; instead of 256
+      GBS::VDS_HSCALE::write(512);
+      GBS::VDS_DIS_HB_ST::write(2696);
+      GBS::VDS_HB_ST::write(2696);
       GBS::PB_FETCH_NUM::write(0xfa);
     }
   }
