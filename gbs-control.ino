@@ -1989,14 +1989,14 @@ void applyOverScanPatches() {
       GBS::PB_FETCH_NUM::write(0xe8); // reduce line memory fetch
     }
     if (rto->presetID == 0x11) { // out x960 @ 50
-      GBS::PLLAD_MD::write(2270);
-      GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.51f); // longer = more headroom to move picture left
-      GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);
-      GBS::IF_HBIN_SP::write(176); // 1_26; instead of 256
-      GBS::VDS_HSCALE::write(607);
-      GBS::VDS_DIS_HB_ST::write(2056);
-      GBS::VDS_HB_ST::write(2056);
-      GBS::PB_FETCH_NUM::write(0xfa);
+      //GBS::PLLAD_MD::write(2270);
+      //GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.51f); // longer = more headroom to move picture left
+      //GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);
+      //GBS::IF_HBIN_SP::write(176); // 1_26; instead of 256
+      //GBS::VDS_HSCALE::write(607);
+      //GBS::VDS_DIS_HB_ST::write(2056);
+      //GBS::VDS_HB_ST::write(2056);
+      //GBS::PB_FETCH_NUM::write(0xfa);
     }
     if (rto->presetID == 0x5) { // out 1080p @ 60
       GBS::PLLAD_MD::write(2132);
@@ -2208,13 +2208,9 @@ void doPostPresetLoadSteps() {
       }
       else if (rto->presetID == 0x11) 
       { // out x960
-        GBS::VDS_VSCALE::write(614);  // note: need a good vert. test image
-        //GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 16);
-        //GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() + 16);
-        GBS::IF_VB_SP::write(0x22);
-        GBS::VDS_VB_SP::write(30);
-        GBS::VDS_DIS_VB_SP::write(38);
-        //GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 4); // no need since expanding default pal presets
+        GBS::IF_HB_SP2::write(0xd0);  // 1_1a
+        GBS::IF_HB_ST::write(0x28); // 1_10, blue bar on the right
+        GBS::IF_HBIN_ST::write(0x18); // 1_24, odd but need to set this here (blue bar)
       }
     }
     else if (rto->videoStandardInput == 5) 
