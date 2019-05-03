@@ -1972,35 +1972,27 @@ uint32_t getPllRate() {
 
 void applyOverScanPatches() {
   // no scaling RGB for now, just regular scaling presets
-  if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 2) {
+  if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 4) {
     if (rto->presetID == 0x1) { // out x960 @ 60
       GBS::PLLAD_MD::write(2132);
-      GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.5f); // longer = more headroom to move picture left
+      GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.512f); // longer = more headroom to move picture left
       GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);
       GBS::IF_HBIN_SP::write(144); // 1_26; instead of 256
       GBS::IF_HB_ST::write(0); // 1_10; magic number; instead of 0x02
-      //GBS::IF_HB_SP::write(0x08); // 1_12; magic number; instead of 0x08
-      GBS::IF_HB_SP1::write(0x26); // 1_16; magic number; instead of 0x0b
+      //GBS::IF_HB_SP1::write(0x26); // 1_16; magic number; instead of 0x0b
       GBS::VDS_HSCALE::write(640);
       GBS::VDS_DIS_HB_ST::write(1720);
       GBS::VDS_HB_ST::write(1720);
-      GBS::VDS_DIS_HB_SP::write(304);
+      GBS::VDS_DIS_HB_SP::write(280);
       GBS::VDS_HB_SP::write(160);
       GBS::PB_FETCH_NUM::write(0xe8); // reduce line memory fetch
     }
     if (rto->presetID == 0x11) { // out x960 @ 50
-      //GBS::PLLAD_MD::write(2270);
-      //GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.51f); // longer = more headroom to move picture left
-      //GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);
-      //GBS::IF_HBIN_SP::write(176); // 1_26; instead of 256
-      //GBS::VDS_HSCALE::write(607);
-      //GBS::VDS_DIS_HB_ST::write(2056);
-      //GBS::VDS_HB_ST::write(2056);
-      //GBS::PB_FETCH_NUM::write(0xfa);
+      //
     }
     if (rto->presetID == 0x5) { // out 1080p @ 60
       GBS::PLLAD_MD::write(2132);
-      GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.51f);
+      GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.512f);
       GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);
       GBS::IF_HBIN_SP::write(168); // 1_26; instead of 256
       GBS::IF_HB_ST::write(0);
@@ -2013,15 +2005,7 @@ void applyOverScanPatches() {
       GBS::PB_FETCH_NUM::write(0xe8);
     }
     if (rto->presetID == 0x15) { // out 1080p @ 50
-      //GBS::PLL648_CONTROL_01::write(0x95); // display clock
-      //GBS::PLLAD_MD::write(2431);
-      //GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.51f);
-      //GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);
-      //GBS::IF_HBIN_SP::write(176); // 1_26; instead of 256
-      //GBS::VDS_HSCALE::write(585);
-      //GBS::VDS_DIS_HB_ST::write(2200);
-      //GBS::VDS_HB_ST::write(2200);
-      //GBS::PB_FETCH_NUM::write(0xfa);
+      //
     }
   }
 }
@@ -2038,7 +2022,7 @@ void doPostPresetLoadSteps() {
   }
   if (uopt->overscan) {
     // no scaling RGB or EDTV for now, just regular scaling presets
-    if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 2) {
+    if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 4) {
       if (!isCustomPreset) { // else it's already applied
         applyOverScanPatches();
       }
@@ -2149,11 +2133,16 @@ void doPostPresetLoadSteps() {
     if (rto->videoStandardInput == 3) 
     { // ED YUV 60
       GBS::VDS_VSCALE::write(512);
-      GBS::IF_HB_ST2::write(0xf8);  // 1_18
-      GBS::IF_HB_SP2::write(0x100);  // 1_1a
+      GBS::IF_HB_ST::write(2); // 1_10; magic number
+      GBS::IF_HB_ST2::write(0x60);  // 1_18
+      GBS::IF_HB_SP2::write(0x118);  // 1_1a
       GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
       if (rto->presetID == 0x5) 
       { // out 1080p
+        if (uopt->overscan) {
+          GBS::IF_HB_ST::write(0x30); // 1_10
+          GBS::IF_HB_SP2::write(0xc8);  // 1_1a
+        }
         GBS::VDS_VB_SP::write(64);
         GBS::IF_VB_SP::write(4);
         GBS::VDS_VSCALE::write(496);
@@ -2172,6 +2161,10 @@ void doPostPresetLoadSteps() {
       }
       else if (rto->presetID == 0x1) 
       { // out x960
+        if (uopt->overscan) {
+          GBS::IF_HB_ST::write(0x30); // 1_10
+          GBS::IF_HB_SP2::write(0xc8);  // 1_1a
+        }
         GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 16);
         GBS::IF_VB_SP::write(10); GBS::IF_VB_ST::write(8);
       }
@@ -2185,25 +2178,24 @@ void doPostPresetLoadSteps() {
       { // out 1080p
         GBS::VDS_VSCALE::write(548);
         GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() - 12);
-        GBS::IF_HB_SP2::write(0x112);  // 1_1a need to correct a lot
       }
       else if (rto->presetID == 0x13) 
       { // out 720p
+        GBS::IF_HB_SP2::write(0x118);  // 1_1a
         GBS::VDS_VSCALE::write(808); // not well tested
-        GBS::VDS_HSCALE::write(940); // either
+        GBS::VDS_HSCALE::write(940); // neither
         GBS::IF_VB_SP::write(0x26);
         GBS::VDS_VB_SP::write(30);
         GBS::VDS_DIS_VB_SP::write(34);
-        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 24);
+        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8);
       }
       else if (rto->presetID == 0x12) 
       { // out x1024
-        GBS::VDS_VSCALE::write(512);
+        //GBS::VDS_VSCALE::write(512); // could be 578 or so
         GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
-        GBS::IF_VB_SP::write(0x30);
-        GBS::IF_VB_ST::write(0x28);
-        GBS::IF_HB_ST2::write(0x108);  // 1_18
-        GBS::IF_HB_SP2::write(0x110);  // 1_1a
+        //GBS::IF_VB_SP::write(0x30);
+        //GBS::IF_VB_ST::write(0x28);
+        GBS::IF_HB_SP2::write(0x118);  // 1_1a
         GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8);
       }
       else if (rto->presetID == 0x11) 
