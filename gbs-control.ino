@@ -560,15 +560,15 @@ void applyYuvPatches() {
   GBS::DEC_MATRIX_BYPS::write(1); // ADC
   GBS::IF_AUTO_OFST_U_RANGE::write(1);
   GBS::IF_AUTO_OFST_V_RANGE::write(1);
-  GBS::IF_AUTO_OFST_PRD::write(1);
+  GBS::IF_AUTO_OFST_PRD::write(0); // 0 = by line, 1 = by frame
   GBS::IF_AUTO_OFST_EN::write(1);
   // colors
   GBS::VDS_Y_GAIN::write(0x80); // 0x80 = 0
   GBS::VDS_VCOS_GAIN::write(0x28); // red
   GBS::VDS_UCOS_GAIN::write(0x1c); // blue
-  GBS::VDS_Y_OFST::write(0x00); // 0 3_3a
-  GBS::VDS_U_OFST::write(0x00); // 0 3_3b
-  GBS::VDS_V_OFST::write(0x00); // 0 3_3c
+  GBS::VDS_Y_OFST::write(0xFE); // 0 3_3a
+  GBS::VDS_U_OFST::write(0x01); // 0 3_3b
+  GBS::VDS_V_OFST::write(0x01); // 0 3_3c
 
   if (uopt->wantOutputComponent) {
     applyComponentColorMixing();
@@ -582,7 +582,7 @@ void applyRGBPatches() {
   GBS::DEC_MATRIX_BYPS::write(0); // ADC
   GBS::IF_AUTO_OFST_U_RANGE::write(1);
   GBS::IF_AUTO_OFST_V_RANGE::write(1);
-  GBS::IF_AUTO_OFST_PRD::write(1);
+  GBS::IF_AUTO_OFST_PRD::write(0); // 0 = by line, 1 = by frame
   GBS::IF_AUTO_OFST_EN::write(1);
   GBS::IF_MATRIX_BYPS::write(1);
   // colors
@@ -591,7 +591,7 @@ void applyRGBPatches() {
   GBS::VDS_UCOS_GAIN::write(0x1c); // blue
   GBS::VDS_USIN_GAIN::write(0x00); // 3_38
   GBS::VDS_VSIN_GAIN::write(0x00); // 3_39
-  GBS::VDS_Y_OFST::write(0x00); // 3_3a
+  GBS::VDS_Y_OFST::write(0xFF); // 3_3a
   GBS::VDS_U_OFST::write(0x00); // 3_3b
   GBS::VDS_V_OFST::write(0x00); // 3_3c
 
