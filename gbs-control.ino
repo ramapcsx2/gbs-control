@@ -2108,9 +2108,9 @@ void doPostPresetLoadSteps() {
     {
       GBS::VDS_TAP6_BYPS::write(0); // 3_24
 
-      if (rto->presetID == 0x2 || rto->presetID == 0x12 || rto->presetID == 0x3 || 
-          rto->presetID == 0x13 || rto->presetID == 0x5 || rto->presetID == 0x15) 
-      { // out x1024, out 720p, and 1080p // doesn't work between diff sources, use VB_ST = VB_SP_D -2 
+      if (rto->presetID == 0x2 /*|| rto->presetID == 0x12*/ || rto->presetID == 0x3 || 
+          rto->presetID == 0x13 || rto->presetID == 0x5 /*|| rto->presetID == 0x15*/) 
+      {
         GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
       }
     }
@@ -2191,18 +2191,15 @@ void doPostPresetLoadSteps() {
       }
       else if (rto->presetID == 0x12) 
       { // out x1024
-        //GBS::VDS_VSCALE::write(512); // could be 578 or so
-        GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
-        //GBS::IF_VB_SP::write(0x30);
-        //GBS::IF_VB_ST::write(0x28);
-        GBS::IF_HB_SP2::write(0x118);  // 1_1a
-        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8);
+        GBS::IF_HBIN_ST::write(0x20); // 1_24, odd but need to set this here (blue bar)
+        GBS::IF_HB_ST::write(0x30); // 1_10
+        GBS::IF_HB_SP2::write(0xd8);  // 1_1a
       }
       else if (rto->presetID == 0x11) 
       { // out x960
         GBS::IF_HB_SP2::write(0xd0);  // 1_1a
-        GBS::IF_HB_ST::write(0x28); // 1_10, blue bar on the right
-        GBS::IF_HBIN_ST::write(0x18); // 1_24, odd but need to set this here (blue bar)
+        GBS::IF_HB_ST::write(0x28); // 1_10
+        GBS::IF_HBIN_ST::write(0x18); // 1_24
       }
     }
     else if (rto->videoStandardInput == 5) 
