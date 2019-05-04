@@ -2000,7 +2000,7 @@ void applyOverScanPatches() {
       GBS::VDS_HSCALE::write(602);
       GBS::VDS_DIS_HB_ST::write(1840);
       GBS::VDS_HB_ST::write(1840);
-      GBS::VDS_DIS_HB_SP::write(296);
+      GBS::VDS_DIS_HB_SP::write(300);
       GBS::VDS_HB_SP::write(192);
       GBS::PB_FETCH_NUM::write(0xe8);
     }
@@ -2139,8 +2139,8 @@ void doPostPresetLoadSteps() {
       GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
       if (rto->presetID == 0x5) 
       { // out 1080p
+        GBS::IF_HB_ST::write(0x30); // 1_10
         if (uopt->overscan) {
-          GBS::IF_HB_ST::write(0x30); // 1_10
           GBS::IF_HB_SP2::write(0xc8);  // 1_1a
         }
         GBS::VDS_VB_SP::write(64);
