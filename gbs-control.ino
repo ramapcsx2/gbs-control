@@ -561,7 +561,7 @@ void applyYuvPatches() {
   GBS::IF_AUTO_OFST_U_RANGE::write(1);
   GBS::IF_AUTO_OFST_V_RANGE::write(1);
   GBS::IF_AUTO_OFST_PRD::write(0); // 0 = by line, 1 = by frame
-  GBS::IF_AUTO_OFST_EN::write(1);
+  GBS::IF_AUTO_OFST_EN::write(0); // not too reliable yet
   // colors
   GBS::VDS_Y_GAIN::write(0x80); // 0x80 = 0
   GBS::VDS_VCOS_GAIN::write(0x28); // red
@@ -583,7 +583,7 @@ void applyRGBPatches() {
   GBS::IF_AUTO_OFST_U_RANGE::write(1);
   GBS::IF_AUTO_OFST_V_RANGE::write(1);
   GBS::IF_AUTO_OFST_PRD::write(0); // 0 = by line, 1 = by frame
-  GBS::IF_AUTO_OFST_EN::write(1);
+  GBS::IF_AUTO_OFST_EN::write(0); // not too reliable yet
   GBS::IF_MATRIX_BYPS::write(1);
   // colors
   GBS::VDS_Y_GAIN::write(0x80); // 0x80 = 0
