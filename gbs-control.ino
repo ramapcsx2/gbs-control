@@ -2108,8 +2108,7 @@ void doPostPresetLoadSteps() {
     {
       GBS::VDS_TAP6_BYPS::write(0); // 3_24
 
-      if (rto->presetID == 0x2 /*|| rto->presetID == 0x12*/ || rto->presetID == 0x3 || 
-          rto->presetID == 0x13 || rto->presetID == 0x5 /*|| rto->presetID == 0x15*/) 
+      if (rto->presetID == 0x2 || rto->presetID == 0x3 || rto->presetID == 0x5) 
       {
         GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
       }
@@ -2172,8 +2171,8 @@ void doPostPresetLoadSteps() {
     else if (rto->videoStandardInput == 4) 
     { // ED YUV 50
       GBS::IF_HB_ST2::write(0xb4);  // 1_18
-      GBS::IF_HB_SP2::write(0xc4);  // 1_1a for general case hshift
-      GBS::IF_HBIN_SP::write(0x80); // 1_26 works for all output presets
+      GBS::IF_HB_SP2::write(0xc4);  // 1_1a for hshift
+      GBS::IF_HBIN_SP::write(0x80); // 1_26
       if (rto->presetID == 0x15) 
       { // out 1080p
         GBS::VDS_VSCALE::write(548);
@@ -2181,17 +2180,13 @@ void doPostPresetLoadSteps() {
       }
       else if (rto->presetID == 0x13) 
       { // out 720p
-        GBS::IF_HB_SP2::write(0x118);  // 1_1a
-        GBS::VDS_VSCALE::write(808); // not well tested
-        GBS::VDS_HSCALE::write(940); // neither
-        GBS::IF_VB_SP::write(0x26);
-        GBS::VDS_VB_SP::write(30);
-        GBS::VDS_DIS_VB_SP::write(34);
-        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8);
+        GBS::IF_HBIN_ST::write(0x20); // 1_24, odd but need to set this here (blue bar)
+        GBS::IF_HB_ST::write(0x30); // 1_10
+        GBS::IF_HB_SP2::write(0xe0);  // 1_1a
       }
       else if (rto->presetID == 0x12) 
       { // out x1024
-        GBS::IF_HBIN_ST::write(0x20); // 1_24, odd but need to set this here (blue bar)
+        GBS::IF_HBIN_ST::write(0x20); // 1_24
         GBS::IF_HB_ST::write(0x30); // 1_10
         GBS::IF_HB_SP2::write(0xd8);  // 1_1a
       }
