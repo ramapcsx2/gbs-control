@@ -2155,7 +2155,9 @@ void doPostPresetLoadSteps() {
       }
       else if (rto->presetID == 0x2) 
       { // out x1024
-        GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
+        GBS::VDS_VSCALE::write(482); // same as base preset
+        GBS::IF_HB_ST::write(0x10); // 1_10
+        GBS::IF_HBIN_ST::write(0x20); // 1_24
         GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8); // extend right blank
       }
       else if (rto->presetID == 0x1) 
@@ -3094,6 +3096,7 @@ void passThroughModeSwitch() {
   rto->autoBestHtotalEnabled = false; // disable while in this mode
   // first load base preset
   writeProgramArrayNew(ntsc_240p, true);
+  loadHdBypassSection(); // this would be ignored otherwise
   doPostPresetLoadSteps();
 
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC
