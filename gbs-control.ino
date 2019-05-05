@@ -2171,30 +2171,25 @@ void doPostPresetLoadSteps() {
     else if (rto->videoStandardInput == 4) 
     { // ED YUV 50
       GBS::IF_HB_ST2::write(0xb4);  // 1_18
-      GBS::IF_HB_SP2::write(0xc4);  // 1_1a for hshift
+      GBS::IF_HB_SP2::write(0xc4);  // 1_1a for hshift (now only left for out 640x480)
       GBS::IF_HBIN_SP::write(0x80); // 1_26
+      GBS::IF_HBIN_ST::write(0x20); // 1_24, odd but need to set this here (blue bar)
+      GBS::IF_HB_ST::write(0x30); // 1_10
       if (rto->presetID == 0x15) 
       { // out 1080p
-        GBS::VDS_VSCALE::write(548);
-        GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() - 12);
+        GBS::IF_HB_SP2::write(0xd0);  // 1_1a
       }
       else if (rto->presetID == 0x13) 
       { // out 720p
-        GBS::IF_HBIN_ST::write(0x20); // 1_24, odd but need to set this here (blue bar)
-        GBS::IF_HB_ST::write(0x30); // 1_10
-        GBS::IF_HB_SP2::write(0xe0);  // 1_1a
+        GBS::IF_HB_SP2::write(0xe0);
       }
       else if (rto->presetID == 0x12) 
       { // out x1024
-        GBS::IF_HBIN_ST::write(0x20); // 1_24
-        GBS::IF_HB_ST::write(0x30); // 1_10
-        GBS::IF_HB_SP2::write(0xd8);  // 1_1a
+        GBS::IF_HB_SP2::write(0xd8);
       }
       else if (rto->presetID == 0x11) 
       { // out x960
-        GBS::IF_HB_SP2::write(0xd0);  // 1_1a
-        GBS::IF_HB_ST::write(0x28); // 1_10
-        GBS::IF_HBIN_ST::write(0x18); // 1_24
+        GBS::IF_HB_SP2::write(0xd0);
       }
     }
     else if (rto->videoStandardInput == 5) 
