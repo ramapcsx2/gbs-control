@@ -2094,7 +2094,15 @@ void doPostPresetLoadSteps() {
   }
 
   if (!isCustomPreset) {
-    GBS::IF_SEL_WEN::write(1); // always enable IF WEN bit (eventhough the manual mentions only for HD mode)
+    GBS::IF_SEL_WEN::write(1); // 1_02 0
+    // (setting can block or unblock other 1_02 bits, especially bit 2 for even scrolling with non ideal pllad_m)
+    // (1 unblocks, tested in NTSC / PAL SD modes)
+    GBS::IF_HS_INT_LPF_BYPS::write(0); // // 1_02 0
+    // 0 allows int/lpf for smoother scrolling with non-ideal scaling, also reduces jailbars and even noise
+    // the pllad_m/scale factor is never 100% so this is a good thing
+    // drawbacks seen so far: nothing on MD, pixel definition roughly the same
+    // filter selected is "interpolation", lpf smears a little
+    GBS::IF_HS_PSHIFT_BYPS::write(1); // 1_02 3 phase shift bypass 1 since no nonlinear scale down used anywhere
     GBS::SP_RT_HS_ST::write(0); // 5_49 // set retiming hs ST, SP (no effect in SOG modes)
     GBS::SP_RT_HS_SP::write(GBS::PLLAD_MD::read() * 0.93f);
     // not forcing VDS_HB_ST (VDS memory blank start position) anymore, allows more active pixels
@@ -4812,13 +4820,17 @@ void loop() {
         pll_divider += 1;
         GBS::PLLAD_MD::write(pll_divider);
         if (!rto->outModePassThroughWithIf) {
-          float divider = (float)GBS::STATUS_SYNC_PROC_HTOTAL::read() / 4096.0f;
-          uint16_t newHT = (GBS::HPERIOD_IF::read() * 4) * (divider + 0.14f);
-          //SerialM.println(divider);
-          //SerialM.println(newHT);
-          GBS::IF_HSYNC_RST::write(newHT);
-          GBS::IF_INI_ST::write(newHT >> 2);
+          //float divider = (float)GBS::STATUS_SYNC_PROC_HTOTAL::read() / 4096.0f; // old
+          //uint16_t newHT = (GBS::HPERIOD_IF::read() * 4) * (divider + 0.14f);    // old
+          uint16_t newHT = (GBS::PLLAD_MD::read() >> 1) + 1;
+          //newHT += newHT * 0.03f;
+          GBS::IF_HSYNC_RST::write(newHT); // 1_0e
           GBS::IF_LINE_SP::write(newHT + 1); // 1_22
+          GBS::IF_INI_ST::write(newHT * 0.68f);
+
+          // s1s03sff s1s04sff s1s05sff s1s06sff s1s07sff s1s08sff s1s09sff s1s0asff s1s0bs4f
+          // s1s03s00 s1s04s00 s1s05s00 s1s06s00 s1s07s00 s1s08s00 s1s09s00 s1s0as00 s1s0bs50
+          // when using nonlinear scale then remember to zero 1_02 bit 3 (IF_HS_PSHIFT_BYPS)
         }
         latchPLLAD();
         //applyBestHTotal(GBS::VDS_HSYNC_RST::read());
