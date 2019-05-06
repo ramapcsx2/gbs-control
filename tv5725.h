@@ -684,6 +684,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x62, 0,  8> ADC_UNUSED_62;
     typedef UReg<0x05, 0x63, 0,  8> TEST_BUS_SP_SEL;
 
+    typedef UReg<0x05, 0xD0, 0,  32> VERYWIDEDUMMYREG;
 
     static const uint8_t OSD_ZOOM_1X = 0;
     static const uint8_t OSD_ZOOM_2X = 1;

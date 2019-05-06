@@ -806,19 +806,16 @@ void goLowPowerWithInputDetection() {
 }
 
 void optimizeSogLevel() {
-  if (!checkBoardPower())
+  if (/*!checkBoardPower()*/ rto->boardHasPower == false) // checkBoardPower is too invasive now
   {
     return;
   }
+  if (rto->videoStandardInput == 15 || GBS::SP_SOG_MODE::read() != 1) {
+    return;
+  }
 
-  if (rto->videoStandardInput == 15 || GBS::SP_SOG_MODE::read() != 1) return;
-  
-  if (rto->thisSourceMaxLevelSOG == 31) {
-    rto->currentLevelSOG = 11;
-  }
-  else {
-    rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
-  }
+  if (rto->thisSourceMaxLevelSOG == 31) { rto->currentLevelSOG = 11; }
+  else { rto->currentLevelSOG = rto->thisSourceMaxLevelSOG; }
   setAndUpdateSogLevel(rto->currentLevelSOG);
 
   uint8_t retryAttempts = 0;
@@ -838,11 +835,13 @@ void optimizeSogLevel() {
   GBS::MD_VPERIOD_UNLOCK_VALUE::write(1);
   GBS::MD_HPERIOD_LOCK_VALUE::write(20);
   GBS::MD_VPERIOD_LOCK_VALUE::write(1);
-  resetSyncProcessor(); delay(2); // let it see sync is unstable
+  resetSyncProcessor(); 
+  resetModeDetect();
+  delay(300); // let it see sync is unstable
   while (retryAttempts < 3) {
     uint8_t syncGoodCounter = 0;
     unsigned long timeout = millis();
-    while ((syncGoodCounter < 30) && ((millis() - timeout) < 350)) {
+    while ((syncGoodCounter < 31) && ((millis() - timeout) < 150)) {
       delay(1);
       if (getStatusHVSyncStable() == 1) {
         syncGoodCounter++;
@@ -852,13 +851,14 @@ void optimizeSogLevel() {
       }
     }
     if (syncGoodCounter >= 30) {
-      //Serial.print(" @SOG "); Serial.print(rto->currentLevelSOG); 
-      //Serial.print(" STATUS_00: "); 
-      //uint8_t status00 = GBS::STATUS_00::read();
-      //Serial.println(status00, HEX); 
+      /*Serial.print(" @SOG "); Serial.print(rto->currentLevelSOG); 
+      Serial.print(" STATUS_00: "); 
+      uint8_t status00 = GBS::STATUS_00::read();
+      Serial.println(status00, HEX); */
       if ((getStatusHVSyncStable() == 1)) {
-        delay(6);
+        delay(20);
         if (getVideoMode() != 0) {
+          //SerialM.println("getVideoMode good");
           break;
         }
         else {
@@ -877,12 +877,14 @@ void optimizeSogLevel() {
             }
             setAndUpdateSogLevel(rto->currentLevelSOG);
           }
-          resetSyncProcessor();
+          //resetSyncProcessor(); // too slow and not necessary
+          delay(80); // let new sog level settle
         }
       }
     }
     else if (rto->currentLevelSOG > 3) {
       rto->currentLevelSOG--;
+      delay(80); // let new sog level settle
     }
     else { 
       retryAttempts++;
@@ -945,7 +947,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
     {
       currentInput = GBS::ADC_INPUT_SEL::read();
       SerialM.print("Activity detected, input: "); 
-      if(currentInput == 1) SerialM.println("RGBS/HV");
+      if(currentInput == 1) SerialM.println("RGB");
       else SerialM.println("Component");
 
       if (currentInput == 1) { // RGBS or RGBHV
@@ -1240,7 +1242,7 @@ void resetDigital() {
 
 void resetSyncProcessor() {
   GBS::SFTRST_SYNC_RSTZ::write(0);
-  delay(1);
+  delayMicroseconds(10);
   GBS::SFTRST_SYNC_RSTZ::write(1);
 }
 
@@ -3599,6 +3601,12 @@ void disableMotionAdaptDeinterlace() {
   rto->motionAdaptiveDeinterlaceActive = false;
 }
 
+void stopWire() {
+  pinMode(SCL, INPUT);
+  pinMode(SDA, INPUT);
+  delayMicroseconds(40);
+}
+
 void startWire() {
   Wire.begin();
   // The i2c wire library sets pullup resistors on by default. Disable this so that 5V MCUs aren't trying to drive the 3.3V bus.
@@ -3611,6 +3619,13 @@ void startWire() {
   digitalWrite(SDA, LOW);
   Wire.setClock(100000);
 #endif
+  delayMicroseconds(40);
+  {
+    // run some dummy commands to reinit I2C
+    GBS::SP_SOG_MODE::read(); GBS::SP_SOG_MODE::read();
+    writeOneByte(0xF0, 0); writeOneByte(0x00, 0); // update cached segment
+    GBS::STATUS_00::read();
+  }
 }
 
 uint32_t runSyncWatcher()
@@ -4061,6 +4076,7 @@ uint32_t runSyncWatcher()
           //SerialM.print("SOG: "); SerialM.println(rto->currentLevelSOG);
         }
       }
+      // the * check needs to be first (go before auto sog level) to support SD > HDTV detection
       if (noSyncCounter % 40 == 0) {
         SerialM.print("*");
         static boolean toggle = rto->videoStandardInput > 2 ? 0 : 1;
@@ -4095,29 +4111,27 @@ uint32_t runSyncWatcher()
 // checks both I2C lines for high level, returns false if either one is low
 boolean checkBoardPower()
 {
-  //Serial.println("power check");
-  boolean retVal = 1;
-  boolean restartWire = 1;
-  pinMode(SCL, INPUT); pinMode(SDA, INPUT);
-  if (!digitalRead(SCL) && !digitalRead(SDA))
-  {
-    delay(5);
-    if (!digitalRead(SCL) && !digitalRead(SDA))
-    {
-      Serial.println("power lost");
-      rto->syncWatcherEnabled = false;
-      rto->boardHasPower = false;
-      rto->continousStableCounter = 0;
-      restartWire = 0;
-      retVal = 0;
-    }
-  }
-  if (restartWire)
-  {
-    startWire();
+  stopWire(); // sets pinmodes SDA, SCL to INPUT
+  uint8_t SCL_SDA = 0;
+  for (int i = 0; i < 3; i++) {
+    SCL_SDA += digitalRead(SCL);
+    SCL_SDA += digitalRead(SDA);
   }
 
-  return retVal;
+  if (SCL_SDA != 6)
+  {
+    if (rto->boardHasPower == true) {
+      Serial.println("! power / i2c lost !");
+    }
+    rto->boardHasPower = false;
+    rto->continousStableCounter = 0;
+    rto->syncWatcherEnabled = false;
+    // I2C stays off and pins are INPUT
+    return 0;
+  }
+
+  startWire();
+  return 1;
 }
 
 void setup() {
@@ -4201,6 +4215,8 @@ void setup() {
   rto->clampPositionIsSet = 0;
   rto->coastPositionIsSet = 0;
   rto->continousStableCounter = 0;
+  rto->currentLevelSOG = 11;
+  rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
 
   adco->r_gain = 0;
   adco->g_gain = 0;
@@ -4249,32 +4265,25 @@ void setup() {
       saveUserPrefs(); // if this fails, there must be a spiffs problem
     }
     else {
-      SerialM.println("userprefs open ok");
-      //on a fresh / spiffs not formatted yet MCU:
-      //userprefs.txt open ok //result = 207
+      //on a fresh / spiffs not formatted yet MCU:  userprefs.txt open ok //result = 207
 
       uopt->presetPreference = (uint8_t)(f.read() - '0');
       SerialM.print("preset preference = "); SerialM.println(uopt->presetPreference);
       if (uopt->presetPreference > 10) uopt->presetPreference = 0; // fresh spiffs ?
 
       uopt->enableFrameTimeLock = (uint8_t)(f.read() - '0');
-      SerialM.print("frame time lock = "); SerialM.println(uopt->enableFrameTimeLock);
       if (uopt->enableFrameTimeLock > 1) uopt->enableFrameTimeLock = 0;
 
       uopt->presetSlot = (uint8_t)(f.read() - '0');
-      SerialM.print("preset slot = "); SerialM.println(uopt->presetSlot);
       if (uopt->presetSlot > 5) uopt->presetSlot = 1;
 
       uopt->frameTimeLockMethod = (uint8_t)(f.read() - '0');
-      SerialM.print("frame lock method = "); SerialM.println(uopt->frameTimeLockMethod);
       if (uopt->frameTimeLockMethod > 1) uopt->frameTimeLockMethod = 0;
 
       uopt->enableAutoGain = (uint8_t)(f.read() - '0');
-      SerialM.print("auto gain = "); SerialM.println(uopt->enableAutoGain);
       if (uopt->enableAutoGain > 1) uopt->enableAutoGain = 0;
 
       uopt->wantScanlines = (uint8_t)(f.read() - '0');
-      SerialM.print("scanlines = "); SerialM.println(uopt->wantScanlines);
       if (uopt->wantScanlines > 1) uopt->wantScanlines = 0;
 
       uopt->wantOutputComponent = (uint8_t)(f.read() - '0');
@@ -4282,15 +4291,12 @@ void setup() {
       if (uopt->wantOutputComponent > 1) uopt->wantOutputComponent = 0;
 
       uopt->deintMode = (uint8_t)(f.read() - '0');
-      SerialM.print("deinterlacer mode = "); SerialM.println(uopt->deintMode);
       if (uopt->deintMode > 2) uopt->deintMode = 0;
       
       uopt->wantVdsLineFilter = (uint8_t)(f.read() - '0');
-      SerialM.print("line filter = "); SerialM.println(uopt->wantVdsLineFilter);
       if (uopt->wantVdsLineFilter > 1) uopt->wantVdsLineFilter = 1;
 
       uopt->wantPeaking = (uint8_t)(f.read() - '0');
-      SerialM.print("peaking = "); SerialM.println(uopt->wantPeaking);
       if (uopt->wantPeaking > 1) uopt->wantPeaking = 0;
 
       uopt->PalForce60 = (uint8_t)(f.read() - '0');
@@ -4308,74 +4314,34 @@ void setup() {
 #else
   delay(500); // give the entire system some time to start up.
 #endif
-  startWire();
-  delay(1); // extra time for pins to register high on the MCU
 
-  boolean powerOrWireIssue = 0;
+  boolean powerOrWireIssue = 0;  
   if ( !checkBoardPower() )
   {
-    powerOrWireIssue = 1;
-  }
-  // i2c can get stuck
-  if (!powerOrWireIssue && (digitalRead(SDA) == 0)) {
-    unsigned long timeout = millis();
-    while (millis() - timeout <= 4000) {
-      yield(); // wifi
-      handleWiFi(); // also keep web ui stuff going
-      if (digitalRead(SDA) == 0) {
-        static uint8_t result = 0;
-        static boolean printDone = 0;
-        static uint8_t counter = 0;
-        if (!printDone) {
-          SerialM.print("i2c: ");
-          printDone = 1;
-        }
-        if (counter > 70) {
-          counter = 0;
-          SerialM.println("");
-        }
-        pinMode(SCL, INPUT); pinMode(SDA, INPUT);
-        delay(100);
-        pinMode(SCL, OUTPUT);
-        for (int i = 0; i < 10; i++) {
-          digitalWrite(SCL, HIGH); delayMicroseconds(5);
-          digitalWrite(SCL, LOW); delayMicroseconds(5);
-        }
-        pinMode(SCL, INPUT);
-        startWire();
-        writeOneByte(0xf0, 0); readFromRegister(0x0c, 1, &result);
-        SerialM.print(result, HEX);
-        
-        counter++;
-      }
-      else {
-        break;
-      }
+    for (int i = 0; i < 30; i++) {
+      // I2C SDA probably stuck, attempt recovery (max attempts in tests was around 10)
+      startWire();
+      digitalWrite(SCL, 0); delayMicroseconds(10);
+      stopWire();
+      if (digitalRead(SDA) == 1) { i = 100; } // unstuck
     }
-    SerialM.print("\n");
-    if (millis() - timeout > 4000) {
-      // never got to see a pulled up SDA. Scaler board is probably not powered
-      // or SDA cable not connected
-      powerOrWireIssue = 1;
-      // don't reboot, go into loop instead (allow for config changes via web ui)
+    if (!checkBoardPower()) {
+      powerOrWireIssue = 1; // fail
+      rto->boardHasPower = false;
       rto->syncWatcherEnabled = false;
-      rto->boardHasPower = false; // maybe remove this, as it's not strictly true
+      SerialM.println("\nCheck SDA, SCL connection! Check GBS for power!");
+    }
+    else { // success
+      rto->syncWatcherEnabled = true;
+      rto->boardHasPower = true;
+      SerialM.println("recovered");
     }
   }
 
-  if (powerOrWireIssue)
+  if (powerOrWireIssue == 0)
   {
-    SerialM.println("\nCheck SDA, SCL connection! Check GBS for power!");
-  }
-
-  rto->currentLevelSOG = 11;
-  rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
-
-  if (!powerOrWireIssue)
-  {
+    startWire();
     zeroAll();
-    GBS::TEST_BUS_EN::write(0); // to init some template variables
-    GBS::TEST_BUS_SEL::write(0);
     setAndUpdateSogLevel(rto->currentLevelSOG);
     setResetParameters();
     loadPresetMdSection(); // fills 1_60 to 1_83 (mode detect segment, mostly static)
@@ -4852,7 +4818,12 @@ void loop() {
       SerialM.print("HTotal--: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
     break;
     case 'M':
+    {
+      /*for (int a = 0; a < 10000; a++) {
+        GBS::VERYWIDEDUMMYREG::read();
+      }*/
       optimizeSogLevel();
+    }
     break;
     case 'm':
       SerialM.print("syncwatcher ");
@@ -5428,6 +5399,25 @@ void loop() {
     passThroughModeSwitch();
   }
 
+  // run auto ADC gain feature (if enabled)
+  static uint8_t nextTimeAutoGain = 8;
+  if (rto->syncWatcherEnabled && uopt->enableAutoGain == 1 && !rto->sourceDisconnected
+    && rto->videoStandardInput > 0 && rto->continousStableCounter > 40 && rto->clampPositionIsSet
+    && !rto->inputIsYpBpR && (millis() - lastTimeAutoGain > nextTimeAutoGain) && rto->boardHasPower)
+  {
+    uint8_t debugRegBackup = 0, debugPinBackup = 0;
+    debugPinBackup = GBS::PAD_BOUT_EN::read();
+    debugRegBackup = GBS::TEST_BUS_SEL::read();
+    GBS::PAD_BOUT_EN::write(0); // disable output to pin for test
+    GBS::TEST_BUS_SEL::write(0xb); // decimation
+    delay(1);
+    doAutoGain();
+    GBS::TEST_BUS_SEL::write(debugRegBackup);
+    GBS::PAD_BOUT_EN::write(debugPinBackup); // debug output pin back on
+    nextTimeAutoGain = random(4, 13);
+    lastTimeAutoGain = millis();
+  }
+
   if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true && rto->boardHasPower)
   {
     if ((millis() - lastTimeSourceCheck) > 1000) 
@@ -5439,6 +5429,12 @@ void loop() {
       lastTimeSourceCheck = millis();
     }
   }
+
+  //static long stuff = millis();
+  //if ((millis() - stuff) > 100) {
+  //  checkBoardPower();
+  //  stuff = millis();
+  //}
 
   // has the GBS board lost power? // check at 2 points, in case one doesn't register
   // values around 21 chosen to not do this check for small sync issues
@@ -5462,6 +5458,7 @@ void loop() {
       if (digitalRead(SCL) && digitalRead(SDA)) 
       {
         Serial.println("power good");
+        delay(350); // i've seen the MTV230 go on briefly on GBS power cycle
         startWire();
         rto->syncWatcherEnabled = true;
         rto->boardHasPower = true;
@@ -5469,25 +5466,6 @@ void loop() {
         goLowPowerWithInputDetection();
       }
     }
-  }
-
-  // run auto ADC gain feature (if enabled)
-  static uint8_t nextTimeAutoGain = 8;
-  if (rto->syncWatcherEnabled && uopt->enableAutoGain == 1 && !rto->sourceDisconnected 
-    && rto->videoStandardInput > 0 && rto->continousStableCounter > 40 && rto->clampPositionIsSet
-    && !rto->inputIsYpBpR && (millis() - lastTimeAutoGain > nextTimeAutoGain))
-  {
-    uint8_t debugRegBackup = 0, debugPinBackup = 0;
-    debugPinBackup = GBS::PAD_BOUT_EN::read();
-    debugRegBackup = GBS::TEST_BUS_SEL::read();
-    GBS::PAD_BOUT_EN::write(0); // disable output to pin for test
-    GBS::TEST_BUS_SEL::write(0xb); // decimation
-    delay(1);
-    doAutoGain();
-    GBS::TEST_BUS_SEL::write(debugRegBackup);
-    GBS::PAD_BOUT_EN::write(debugPinBackup); // debug output pin back on
-    nextTimeAutoGain = random(4, 13);
-    lastTimeAutoGain = millis();
   }
 
 #ifdef HAVE_PINGER_LIBRARY
