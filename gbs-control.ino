@@ -2163,19 +2163,18 @@ void doPostPresetLoadSteps() {
     if (rto->videoStandardInput == 3) 
     { // ED YUV 60
       GBS::VDS_VSCALE::write(512);
-      GBS::IF_HB_ST::write(2); // 1_10; magic number
+      GBS::IF_HB_ST::write(30); // 1_10; magic number
       GBS::IF_HB_ST2::write(0x60);  // 1_18
       GBS::IF_HB_SP2::write(0x118);  // 1_1a
       GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
       if (rto->presetID == 0x5) 
       { // out 1080p
-        GBS::IF_HB_ST::write(0x30); // 1_10
         if (uopt->overscan) {
           GBS::IF_HB_SP2::write(0xc8);  // 1_1a
         }
         GBS::VDS_VB_SP::write(64); // change this to an offset
         GBS::IF_VB_SP::write(4);
-        GBS::VDS_VSCALE::write(496);
+        GBS::VDS_VSCALE::write(496); // increase / fill more height
       }
       else if (rto->presetID == 0x3) 
       { // out 720p
@@ -2187,17 +2186,15 @@ void doPostPresetLoadSteps() {
       else if (rto->presetID == 0x2) 
       { // out x1024
         GBS::VDS_VSCALE::write(482); // same as base preset
-        GBS::IF_HB_ST::write(0x10); // 1_10
         GBS::IF_HBIN_ST::write(0x20); // 1_24
         GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 8); // extend right blank
       }
       else if (rto->presetID == 0x1) 
       { // out x960
         if (uopt->overscan) {
-          GBS::IF_HB_ST::write(0x30); // 1_10
           GBS::IF_HB_SP2::write(0xc8);  // 1_1a
         }
-        GBS::IF_VB_SP::write(10); GBS::IF_VB_ST::write(8); // change this to an offset
+        //GBS::IF_VB_SP::write(10); GBS::IF_VB_ST::write(8); // change this to an offset
         //GBS::IF_VB_SP::write(10); GBS::IF_VB_ST::write(8); // fix this
       }
     }
