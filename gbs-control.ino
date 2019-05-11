@@ -788,7 +788,7 @@ void goLowPowerWithInputDetection() {
 }
 
 void optimizeSogLevel() {
-  if (/*!checkBoardPower()*/ rto->boardHasPower == false) // checkBoardPower is too invasive now
+  if (rto->boardHasPower == false) // checkBoardPower is too invasive now
   {
     return;
   }
@@ -796,35 +796,29 @@ void optimizeSogLevel() {
     return;
   }
 
-  if (rto->thisSourceMaxLevelSOG == 31) { 
-    if (rto->inputIsYpBpR) rto->currentLevelSOG = 16; // test: wii white to black min 13
-    else                   rto->currentLevelSOG = 11;
-  }
-  else { 
-    rto->currentLevelSOG = rto->thisSourceMaxLevelSOG; 
+  if (rto->inputIsYpBpR) rto->currentLevelSOG = 16; // test: wii white to black min 13
+  else                   rto->currentLevelSOG = 11;
+
+  if (rto->thisSourceMaxLevelSOG < rto->currentLevelSOG) {
+    rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
   }
   setAndUpdateSogLevel(rto->currentLevelSOG);
+  Serial.println(" autosog ");
 
-  uint8_t retryAttempts = 0;
-  boolean clampWasOn = 0;
   if (rto->inputIsYpBpR) {
-    clampWasOn = GBS::SP_NO_CLAMP_REG::read();
-    if (clampWasOn) {
-      GBS::SP_NO_CLAMP_REG::write(1);
-      rto->clampPositionIsSet = false;
-    }
+    GBS::SP_NO_CLAMP_REG::write(1);
+    rto->clampPositionIsSet = false;
   }
-  uint8_t unlockH = GBS::MD_HPERIOD_UNLOCK_VALUE::read();
-  uint8_t unlockV = GBS::MD_VPERIOD_UNLOCK_VALUE::read();
-  uint8_t lockH = GBS::MD_HPERIOD_LOCK_VALUE::read();
-  uint8_t lockV = GBS::MD_VPERIOD_LOCK_VALUE::read();
-  GBS::MD_HPERIOD_UNLOCK_VALUE::write(2);
-  GBS::MD_VPERIOD_UNLOCK_VALUE::write(2);
-  GBS::MD_HPERIOD_LOCK_VALUE::write(9);
-  GBS::MD_VPERIOD_LOCK_VALUE::write(1);
+
+  // test: also enable coast H overflow protect
+  //GBS::SP_H_PROTECT::write(1);
   resetSyncProcessor(); 
   resetModeDetect();
-  delay(300); // let it see sync is unstable // tune with lock / unlock values above!
+  delay(500); // let it see sync is unstable // maybe tune with MD lock / unlock values
+  // to test
+  //rto->syncWatcherEnabled = false;
+  //return; 
+  uint8_t retryAttempts = 0;
   while (retryAttempts < 3) {
     uint8_t syncGoodCounter = 0;
     unsigned long timeout = millis();
@@ -838,10 +832,10 @@ void optimizeSogLevel() {
       }
     }
     if (syncGoodCounter >= 30) {
-      /*Serial.print(" @SOG "); Serial.print(rto->currentLevelSOG); 
-      Serial.print(" STATUS_00: "); 
-      uint8_t status00 = GBS::STATUS_00::read();
-      Serial.println(status00, HEX); */
+      //Serial.print(" @SOG "); Serial.print(rto->currentLevelSOG);
+      //Serial.print(" STATUS_00: ");
+      //uint8_t status00 = GBS::STATUS_00::read();
+      //Serial.println(status00, HEX);
       if ((getStatus00IfHsVsStable() == 1)) {
         delay(20);
         if (getVideoMode() != 0) {
@@ -856,16 +850,15 @@ void optimizeSogLevel() {
           else {
             retryAttempts++;
             SerialM.print("Auto SOG: retry #"); SerialM.println(retryAttempts);
-            if (rto->thisSourceMaxLevelSOG == 31) {
-              rto->currentLevelSOG = 16;
-            }
-            else {
+            if (rto->inputIsYpBpR) rto->currentLevelSOG = 16;
+            else                   rto->currentLevelSOG = 11;
+            if (rto->thisSourceMaxLevelSOG < rto->currentLevelSOG) {
               rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
             }
             setAndUpdateSogLevel(rto->currentLevelSOG);
           }
           //resetSyncProcessor(); // too slow and not necessary
-          delay(80); // let new sog level settle
+          delay(22); // let new sog level settle
         }
       }
     }
@@ -876,10 +869,9 @@ void optimizeSogLevel() {
     else { 
       retryAttempts++;
       SerialM.print("Auto SOG: retry #"); SerialM.println(retryAttempts);
-      if (rto->thisSourceMaxLevelSOG == 31) {
-        rto->currentLevelSOG = 16;
-      }
-      else {
+      if (rto->inputIsYpBpR) rto->currentLevelSOG = 16; // test: wii white to black min 13
+      else                   rto->currentLevelSOG = 11;
+      if (rto->thisSourceMaxLevelSOG < rto->currentLevelSOG) {
         rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
       }
       setAndUpdateSogLevel(rto->currentLevelSOG);
@@ -895,11 +887,14 @@ void optimizeSogLevel() {
   rto->thisSourceMaxLevelSOG = rto->currentLevelSOG;
   SerialM.print("SOG level: "); SerialM.println(rto->currentLevelSOG);
   setAndUpdateSogLevel(rto->currentLevelSOG);
-
-  GBS::MD_HPERIOD_UNLOCK_VALUE::write(unlockH);
-  GBS::MD_VPERIOD_UNLOCK_VALUE::write(unlockV);
-  GBS::MD_HPERIOD_LOCK_VALUE::write(lockH);
-  GBS::MD_VPERIOD_LOCK_VALUE::write(lockV);
+  delay(20); 
+  if (rto->inputIsYpBpR) {
+    rto->coastPositionIsSet = false;
+    updateClampPosition(); // directly
+    delay(100);
+  }
+  togglePhaseAdjustUnits(); delay(20);
+  setAndLatchPhaseSP(); delay(2);  setAndLatchPhaseADC();
 }
 
 void switchSyncProcessingMode(uint8_t mode) {
@@ -946,19 +941,26 @@ uint8_t detectAndSwitchToActiveInput() { // if any
           handleWiFi(); // wifi stack
           delay(1);
         }
-        if (!vsyncActive) {
-          //optimizeSogLevel(); // test: placing it here okay? // will be overwritten later
+        if (!vsyncActive) { // then do RGBS check
           delay(50);
+          uint16_t testCycle = 0;
           timeOutStart = millis();
-          while ((millis() - timeOutStart) < 300) {
-            delay(8);
+          while ((millis() - timeOutStart) < 700) 
+          {
+            delay(2);
             if (getVideoMode() > 0) {
               return 1;
             }
+            // post coast fixed to general detect value can mislead occasionally (SNES 239 mode)
+            testCycle++;
+            if (testCycle == 120) { // ~310ms
+              GBS::SP_POST_COAST::write(9);
+            }
           }
+          GBS::SP_POST_COAST::write(22); // failed, back to general default
         }
 
-        // VSync is active > it's RGBHV or RGBHV with CSync on HS pin
+        // if VSync is active, it's RGBHV or RGBHV with CSync on HS pin
         //GBS::SP_SOG_MODE::write(0);
         vsyncActive = 0;
         timeOutStart = millis();
@@ -2049,17 +2051,8 @@ void doPostPresetLoadSteps() {
 
   GBS::OUT_SYNC_CNTRL::write(1); // prepare sync out to PAD
 
-  // SOG level can be too high
-  if (rto->inputIsYpBpR == false) {
-    if (rto->RGBHVsyncTypeCsync == false) { // check this 
-      // RGBS, S possibly Composite Video
-      if (rto->thisSourceMaxLevelSOG >= 7) {
-        rto->currentLevelSOG = 7;
-      }
-    }
-  }
-  else {
-    rto->currentLevelSOG = 16;
+  if (rto->thisSourceMaxLevelSOG != 31) {
+    rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
   }
   setAndUpdateSogLevel(rto->currentLevelSOG); // update to previously determined sog level
   GBS::SP_DIS_SUB_COAST::write(1);
@@ -2378,32 +2371,32 @@ void doPostPresetLoadSteps() {
     {
     case 0x1:
     case 0x2:
-      rto->presetVlineShift = 34; // for ntsc_240p, 1280x1024 ntsc
+      rto->presetVlineShift = 26; // for ntsc_240p, 1280x1024 ntsc
       break;
     case 0x3:
-      rto->presetVlineShift = 25; // for 1280x720 ntsc
+      rto->presetVlineShift = 20; // for 1280x720 ntsc
       break;
     case 0x4:
-      rto->presetVlineShift = 17; // ntsc_feedbackclock
+      rto->presetVlineShift = 14; // ntsc_feedbackclock
       break;
     case 0x5:
-      rto->presetVlineShift = 36; // 1920x1080 ntsc
+      rto->presetVlineShift = 30; // 1920x1080 ntsc
       break;
     case 0x11:
-      rto->presetVlineShift = 30; // for pal_240p
+      rto->presetVlineShift = 22; // for pal_240p
       break;
     case 0x12:
     case 0x15:
-      rto->presetVlineShift = 34; // for 1280x1024 pal, 1920x1080 pal
+      rto->presetVlineShift = 24; // for 1280x1024 pal, 1920x1080 pal
       break;
     case 0x13:
-      rto->presetVlineShift = 23; // for 1280x720 pal
+      rto->presetVlineShift = 18; // for 1280x720 pal
       break;
     case 0x14:
-      rto->presetVlineShift = 17; // pal_feedbackclock
+      rto->presetVlineShift = 12; // pal_feedbackclock
       break;
     default:
-      rto->presetVlineShift = 0; // for pal_feedbackclock
+      rto->presetVlineShift = 12; // use lowest shift 
       break;
     }
   }
@@ -2445,7 +2438,7 @@ void doPostPresetLoadSteps() {
     rto->coastPositionIsSet = false;
   }
 
-  setPhaseSP(); setPhaseADC();
+  setAndLatchPhaseSP(); delay(2);  setAndLatchPhaseADC();
   
   // this was used with ADC write enable, producing about (exactly?) 4 lock positions
   // cycling through the phase let it land favorably
@@ -2978,11 +2971,15 @@ void setOverSampleRatio(uint8_t ratio) {
 void togglePhaseAdjustUnits() {
   GBS::PA_SP_BYPSZ::write(0); // yes, 0 means bypass on here
   GBS::PA_SP_BYPSZ::write(1);
+  delay(2);
+  GBS::PA_ADC_BYPSZ::write(0);
+  GBS::PA_ADC_BYPSZ::write(1);
+  delay(2);
 }
 
 void advancePhase() {
   rto->phaseADC = (rto->phaseADC + 1) & 0x1f;
-  setPhaseADC();
+  setAndLatchPhaseADC();
 }
 
 void movePhaseThroughRange() {
@@ -2991,13 +2988,13 @@ void movePhaseThroughRange() {
   }
 }
 
-void setPhaseSP() {
+void setAndLatchPhaseSP() {
   GBS::PA_SP_LAT::write(0); // latch off
   GBS::PA_SP_S::write(rto->phaseSP);
   GBS::PA_SP_LAT::write(1); // latch on
 }
 
-void setPhaseADC() {
+void setAndLatchPhaseADC() {
   GBS::PA_ADC_LAT::write(0);
   GBS::PA_ADC_S::write(rto->phaseADC);
   GBS::PA_ADC_LAT::write(1);
@@ -3019,8 +3016,8 @@ void updateCoastPosition() {
     GBS::SP_POST_COAST::write(9);
   }
   else if (rto->videoStandardInput <= 4) {
-    GBS::SP_PRE_COAST::write(3); // these two were 7 and 6
-    GBS::SP_POST_COAST::write(3); 
+    GBS::SP_PRE_COAST::write(11); // these two were 7 and 6
+    GBS::SP_POST_COAST::write(11); 
     // why was 6 chosen? 3,3 fixes the ps2 issue but these are too low for format change detects
     // update: seems to be an SP bypass only problem (t5t57t6 to 0 also fixes it)
   }
@@ -3043,7 +3040,7 @@ void updateCoastPosition() {
   }
 
   // test
-  GBS::SP_H_CST_ST::write(0);
+  GBS::SP_H_CST_ST::write(6); // 0 ideal but there should probably be some jitter margin
   // auto coast potentially some border crossing at 0x80
   // 0x98 okay pal / ntsc
   GBS::SP_H_CST_SP::write(0x98);
@@ -3315,9 +3312,10 @@ void passThroughModeSwitch() {
   //GBS::HD_HSYNC_RST::write(GBS::PLLAD_MD::read()); // hardcoded seems to work atm
 
   rto->phaseSP = 9; // 9 or 24. 24 if jitter sync enabled
-  setPhaseSP();
+  setAndLatchPhaseSP();
+  delay(2);
   rto->phaseADC = 1; 
-  setPhaseADC();
+  setAndLatchPhaseADC();
   latchPLLAD();
   delay(30);
 
@@ -3474,7 +3472,6 @@ void bypassModeSwitch_RGBHV() {
     GBS::SP_POST_COAST::write(6);
     GBS::SP_SYNC_BYPS::write(0); // use regular sync for decimator (and sync out) path
     GBS::SP_HS_LOOP_SEL::write(0); // 5_57_6 | 0
-    rto->thisSourceMaxLevelSOG = 25;
     rto->currentLevelSOG = 24;
     rto->phaseADC = 0;
     rto->phaseSP = 4;
@@ -3530,9 +3527,9 @@ void bypassModeSwitch_RGBHV() {
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   delay(10);
 
-  setPhaseSP(); // different for CSync and pure HV modes
-  setPhaseADC();
   togglePhaseAdjustUnits();
+  setAndLatchPhaseSP(); // different for CSync and pure HV modes
+  setAndLatchPhaseADC();
   delay(100);
   GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
   rto->presetID = 0x22; // bypass flavor 2
@@ -3712,6 +3709,7 @@ uint32_t runSyncWatcher()
     freezeVideo();
     noSyncCounter++;
     rto->continousStableCounter = 0;
+    rto->coastPositionIsSet = false; // reaquire coast, enable it on next chance
     LEDOFF; // always LEDOFF on sync loss, except if RGBHV
     if (rto->printInfos == false) {
       if (noSyncCounter == 1) {
@@ -3879,7 +3877,7 @@ uint32_t runSyncWatcher()
             filteredLineCountShouldShiftDown++;
             if (filteredLineCountShouldShiftDown >= 3) // 2 or more // less = less jaring when action should be done
             {
-              SerialM.print("shift down, vlines: "); SerialM.println(rto->presetVlineShift);
+              //SerialM.print("shift down, vlines: "); SerialM.println(rto->presetVlineShift);
               GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() + rto->presetVlineShift);
               GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as adjusted
               filteredLineCountShouldShiftDown = 0;
@@ -3895,7 +3893,7 @@ uint32_t runSyncWatcher()
             filteredLineCountShouldShiftUp++;
             if (filteredLineCountShouldShiftUp >= 3) // 2 or more // less = less jaring when action should be done
             {
-              SerialM.print("shift back up, vlines: "); SerialM.println(rto->presetVlineShift);
+              //SerialM.print("shift back up, vlines: "); SerialM.println(rto->presetVlineShift);
               GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
               GBS::IF_AUTO_OFST_RESERVED_2::write(0); // mark as regular
               filteredLineCountShouldShiftUp = 0;
@@ -4139,13 +4137,14 @@ uint32_t runSyncWatcher()
       if (noSyncCounter % 40 == 0) {
         // the * check needs to be first (go before auto sog level) to support SD > HDTV detection
         SerialM.print("*");
-        if (GBS::ADC_UNUSED_66::read() == 0) {
+        if (GBS::ADC_UNUSED_67::read() == 0) {
           // first time here
           GBS::ADC_UNUSED_64::write(GBS::SP_PRE_COAST::read());
           GBS::ADC_UNUSED_65::write(GBS::SP_POST_COAST::read());
           //GBS::ADC_UNUSED_66::write(GBS::SP_H_PULSE_IGNOR::read());  // 66 now free
           GBS::ADC_UNUSED_67::write(GBS::SP_DLT_REG::read());
           GBS::SP_DIS_SUB_COAST::write(1); // 5_3e 5
+          //GBS::SP_H_PROTECT::write(0); // 5_3e 4 // first fix snes jitter stability
           if (rto->videoStandardInput < 5) { // set HD parameters
             GBS::SP_PRE_COAST::write(9); GBS::SP_POST_COAST::write(22); // pre coast: 9, post coast: 22
             GBS::SP_DLT_REG::write(0x70); // 5_35 to 0x70
@@ -4159,28 +4158,28 @@ uint32_t runSyncWatcher()
           GBS::SP_PRE_COAST::write(GBS::ADC_UNUSED_64::read());
           GBS::SP_POST_COAST::write(GBS::ADC_UNUSED_65::read());
           GBS::SP_DLT_REG::write(GBS::ADC_UNUSED_67::read());
+          rto->coastPositionIsSet = false; // will eventually toggle 5_3e 4/5 again
           // clear temp storage
           GBS::ADC_UNUSED_64::write(0); GBS::ADC_UNUSED_65::write(0);
           GBS::ADC_UNUSED_66::write(0); GBS::ADC_UNUSED_67::write(0);
-        }
-        noSyncCounter++;
-        delay(100);
-      }
-
-      if (noSyncCounter == 81 || noSyncCounter == 82) {
-        if (rto->currentLevelSOG >= 5)
-        {
-          uint8_t SpHsTest = 0;
-          for (int a = 0; a < 20; a++) {
-            SpHsTest += getStatus16SpHsStable();
-            delay(3);
-          }
-          if (SpHsTest > 1) { // source still there?
-            optimizeSogLevel();
+          delay(20);
+          // and run autoSog
+          if (rto->currentLevelSOG >= 3)
+          {
+            uint16_t hlowStart = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
+            for (int a = 0; a < 20; a++) {
+              if (GBS::STATUS_SYNC_PROC_HLOW_LEN::read() != hlowStart) {
+                // source still there
+                delay(20);  optimizeSogLevel();
+                break;
+              }
+              delay(1);
+            }
           }
         }
-        noSyncCounter += 2;
       }
+      noSyncCounter++;
+      delay(100);
     }
 
     // couldn't recover, source is lost
@@ -4854,8 +4853,8 @@ void loop() {
     case 'v':
       rto->phaseSP += 1; rto->phaseSP &= 0x1f;
       SerialM.print("SP: "); SerialM.println(rto->phaseSP);
-      setPhaseSP();
-      //setPhaseADC();
+      setAndLatchPhaseSP();
+      //setAndLatchPhaseADC();
     break;
     case 'b':
       advancePhase(); latchPLLAD();
@@ -5461,6 +5460,8 @@ void loop() {
     updateCoastPosition();
     if (rto->coastPositionIsSet) {
       GBS::SP_DIS_SUB_COAST::write(0); // enabling now
+      //GBS::SP_H_PROTECT::write(1); // MD alternate mode sync drop // MD okay, snes bad because of its jitter
+      GBS::SP_H_PROTECT::write(0);
     }
   }
   if (!rto->clampPositionIsSet && (rto->continousStableCounter > 10) &&

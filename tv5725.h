@@ -689,7 +689,8 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x64, 0,  8> ADC_UNUSED_64;
     typedef UReg<0x05, 0x65, 0,  8> ADC_UNUSED_65;
     typedef UReg<0x05, 0x66, 0,  8> ADC_UNUSED_66;
-    typedef UReg<0x05, 0x67, 0,  8> ADC_UNUSED_67;
+    typedef UReg<0x05, 0x67, 0, 16> ADC_UNUSED_67;
+                                  //ADC_UNUSED_68;
 
     typedef UReg<0x05, 0xD0, 0,  32> VERYWIDEDUMMYREG;
 
