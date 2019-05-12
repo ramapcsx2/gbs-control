@@ -580,12 +580,14 @@ void applyYuvPatches() {
   GBS::IF_AUTO_OFST_PRD::write(0); // 0 = by line, 1 = by frame
   GBS::IF_AUTO_OFST_EN::write(0); // not too reliable yet
   // colors
-  GBS::VDS_Y_GAIN::write(0x80); // 0x80 = 0
-  GBS::VDS_VCOS_GAIN::write(0x27); // red
-  GBS::VDS_UCOS_GAIN::write(0x1c); // blue
-  GBS::VDS_Y_OFST::write(0xFE); // 0 3_3a
-  GBS::VDS_U_OFST::write(0x01); // 0 3_3b
-  GBS::VDS_V_OFST::write(0x01); // 0 3_3c
+
+
+  GBS::VDS_Y_GAIN::write(0x7f); // 3_25 0x80
+  GBS::VDS_UCOS_GAIN::write(0x1c); // 3_26 blue
+  GBS::VDS_VCOS_GAIN::write(0x27); // 3_27 red
+  GBS::VDS_Y_OFST::write(0xfc); // 3_3a // fe
+  GBS::VDS_U_OFST::write(0x00); // 3_3b
+  GBS::VDS_V_OFST::write(0x00); // 3_3c
   // wii test on gbs with red offset issue:
   //GBS::VDS_Y_GAIN::write(0x7b); // 0x80 = 0 // 7b
   //GBS::VDS_VCOS_GAIN::write(0x26); // 3_37 red // wii 240p suite test: 26
@@ -615,9 +617,9 @@ void applyRGBPatches() {
   GBS::VDS_UCOS_GAIN::write(0x1c); // blue
   GBS::VDS_USIN_GAIN::write(0x00); // 3_38
   GBS::VDS_VSIN_GAIN::write(0x00); // 3_39
-  GBS::VDS_Y_OFST::write(0xFF); // 3_3a
-  GBS::VDS_U_OFST::write(0x00); // 3_3b
-  GBS::VDS_V_OFST::write(0x00); // 3_3c
+  GBS::VDS_Y_OFST::write(0xfe); // 3_3a
+  GBS::VDS_U_OFST::write(0x01); // 3_3b
+  GBS::VDS_V_OFST::write(0x01); // 3_3c
 
   if (uopt->wantOutputComponent) {
     applyComponentColorMixing();
@@ -628,9 +630,9 @@ void setAdcParametersGainAndOffset() {
   GBS::ADC_ROFCTRL::write(0x3f);
   GBS::ADC_GOFCTRL::write(0x3f);
   GBS::ADC_BOFCTRL::write(0x3f);
-  GBS::ADC_RGCTRL::write(0x7b);
-  GBS::ADC_GGCTRL::write(0x7b);
-  GBS::ADC_BGCTRL::write(0x7b);
+  GBS::ADC_RGCTRL::write(0x7f); // 7b
+  GBS::ADC_GGCTRL::write(0x7f); // 7b
+  GBS::ADC_BGCTRL::write(0x7f); // 7b
 }
 
 void updateHSyncEdge() {
@@ -705,9 +707,8 @@ void setSpParameters() {
   writeOneByte(0x34, 0x05); // SP_V_TIMER_VAL     V timer for V detect // 0_16 vsactive
   // Sync separation control
   GBS::SP_DLT_REG::write(0x90); // 5_35/36  130 too much for ps2 1080i, 0xb0 for 1080p
-  //  writeOneByte(0x37, 0x10); // SP_H_PULSE_IGNOR // SP test (snes needs 2+, MD in MS mode needs 0x0e)
-  // new for base SP_H_PULSE_IGNOR : always 0 (MD in MS mode shows the first pseudo pulse at around 0x10, video jumpy then)
-  GBS::SP_H_PULSE_IGNOR::write(0);
+  //  writeOneByte(0x37, 0x10); // SP_H_PULSE_IGNOR // counted in pixel clocks but will be short for 720p etc (720p = 0x0c)
+  GBS::SP_H_PULSE_IGNOR::write(5); // filter very short pulses, test with MS mode; 
 
   // leave out pre / post coast here
   GBS::SP_H_TOTAL_EQ_THD::write(10); // 5_3a  range from 0x03 to xxx
@@ -2051,8 +2052,12 @@ void doPostPresetLoadSteps() {
 
   GBS::OUT_SYNC_CNTRL::write(1); // prepare sync out to PAD
 
-  if (rto->thisSourceMaxLevelSOG != 31) {
+  if (rto->thisSourceMaxLevelSOG != 31) { // same source but format changed
     rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
+  }
+  else { // reset / new source
+    if (rto->inputIsYpBpR) { rto->currentLevelSOG = 16; }
+    else { rto->currentLevelSOG = 7; }
   }
   setAndUpdateSogLevel(rto->currentLevelSOG); // update to previously determined sog level
   GBS::SP_DIS_SUB_COAST::write(1);
@@ -3673,6 +3678,43 @@ void disableMotionAdaptDeinterlace() {
   rto->motionAdaptiveDeinterlaceActive = false;
 }
 
+void printInfo() {
+  static char print[110]; // 98 + 1 minimum
+  uint8_t lockCounter = 0;
+  int32_t wifi = 0;
+  uint16_t hperiod = GBS::HPERIOD_IF::read();
+  uint16_t vperiod = GBS::VPERIOD_IF::read();
+  char plllock = (GBS::STATUS_MISC_PLL648_LOCK::read() == 1) ? '.' : 'x';
+
+  for (uint8_t i = 0; i < 20; i++) {
+    lockCounter += ((GBS::STATUS_MISC_PLLAD_LOCK::read() == 1) ? 1 : 0);
+  }
+  lockCounter = getMovingAverage(lockCounter); // stores first, then updates with average
+
+#if defined(ESP8266)
+  if ((WiFi.status() == WL_CONNECTED) || (WiFi.getMode() == WIFI_AP))
+  {
+    wifi = WiFi.RSSI();
+  }
+  else
+  {
+    wifi = 0;
+  }
+#endif
+  //int charsToPrint = 
+  sprintf(print, "h:%4u v:%4u PLL%c%02u A:%02x%02x%02x S:%02x.%02x.%02x I:%02x D:%04x m:%hu ht:%4d vt:%3d hpw:%4d s:%2x W:%d",
+    hperiod, vperiod, plllock, lockCounter,
+    GBS::ADC_RGCTRL::read(), GBS::ADC_GGCTRL::read(), GBS::ADC_BGCTRL::read(),
+    GBS::STATUS_00::read(), GBS::STATUS_05::read(), GBS::STATUS_16::read(), GBS::STATUS_0F::read(),
+    GBS::TEST_BUS::read(), getVideoMode(),
+    GBS::STATUS_SYNC_PROC_HTOTAL::read(), GBS::STATUS_SYNC_PROC_VTOTAL::read() /*+ 1*/,   // emucrt: without +1 is correct line count 
+    GBS::STATUS_SYNC_PROC_HLOW_LEN::read(), rto->continousStableCounter,
+    wifi);
+
+  //SerialM.print("charsToPrint: "); SerialM.println(charsToPrint);
+  SerialM.println(print);
+}
+
 void stopWire() {
   pinMode(SCL, INPUT);
   pinMode(SDA, INPUT);
@@ -3712,8 +3754,14 @@ uint32_t runSyncWatcher()
     rto->coastPositionIsSet = false; // reaquire coast, enable it on next chance
     LEDOFF; // always LEDOFF on sync loss, except if RGBHV
     if (rto->printInfos == false) {
+      static unsigned long timeToLineBreak = millis();
       if (noSyncCounter == 1) {
-        SerialM.print(".");
+        if ((millis() - timeToLineBreak) > 3000) {
+          SerialM.print("\n.");
+          timeToLineBreak = millis();
+        }
+        else { SerialM.print("."); }
+        
       }
     }
     if (noSyncCounter % 17 == 0) {
@@ -3722,7 +3770,9 @@ uint32_t runSyncWatcher()
     if (noSyncCounter % 80 == 0) {
       rto->clampPositionIsSet = false;
       rto->coastPositionIsSet = false;
-      SerialM.print("!");
+      //SerialM.print("!");
+      SerialM.print("no signal: ");
+      printInfo();
     }
   }
   else if (rto->videoStandardInput != 15) {
@@ -5350,48 +5400,10 @@ void loop() {
     }
   }
 
-  static unsigned long lastTimeInfoLoop = millis();
-  if ((rto->printInfos == true) || 
-     ( (rto->sourceDisconnected == false) && ((millis() - lastTimeInfoLoop) > 20000)) ) {
-    // information mode
-    //static unsigned long lastTimeInfoLoop = millis();
-    static char print[110]; // 98 + 1 minimum
-    uint8_t lockCounter = 0;
-    int32_t wifi = 0;
-    uint16_t hperiod = GBS::HPERIOD_IF::read();
-    uint16_t vperiod = GBS::VPERIOD_IF::read();
-    char plllock = (GBS::STATUS_MISC_PLL648_LOCK::read() == 1) ? '.' : 'x';
-
-    for (uint8_t i = 0; i < 20; i++) {
-      lockCounter += ((GBS::STATUS_MISC_PLLAD_LOCK::read() == 1) ? 1 : 0);
-    }
-    lockCounter = getMovingAverage(lockCounter); // stores first, then updates with average
-
-#if defined(ESP8266)
-    if ((WiFi.status() == WL_CONNECTED) || (WiFi.getMode() == WIFI_AP))
-    {
-      wifi = WiFi.RSSI();
-    }
-    else
-    {
-      wifi = 0;
-    }
-#endif
-    unsigned long loopTimeNew = (millis() - lastTimeInfoLoop);
-    //int charsToPrint = 
-    sprintf(print, "h:%4u v:%4u PLL%c%02u A:%02x%02x%02x S:%02x.%02x.%02x I:%02x D:%04x m:%hu ht:%4d vt:%3d hpw:%4d s:%2x W:%d L:%lu",
-      hperiod, vperiod, plllock, lockCounter,
-      GBS::ADC_RGCTRL::read(), GBS::ADC_GGCTRL::read(), GBS::ADC_BGCTRL::read(),
-      GBS::STATUS_00::read(), GBS::STATUS_05::read(), GBS::STATUS_16::read(), GBS::STATUS_0F::read(),
-      GBS::TEST_BUS::read(), getVideoMode(),
-      GBS::STATUS_SYNC_PROC_HTOTAL::read(), GBS::STATUS_SYNC_PROC_VTOTAL::read() /*+ 1*/,   // emucrt: without +1 is correct line count 
-      GBS::STATUS_SYNC_PROC_HLOW_LEN::read(), rto->continousStableCounter,
-      wifi, loopTimeNew);
-
-    //SerialM.print("charsToPrint: "); SerialM.println(charsToPrint);
-    SerialM.println(print);
-    lastTimeInfoLoop = millis();
-  } // end information mode
+  // information mode
+  if (rto->printInfos == true) {
+    printInfo();
+  }
 
   //uint16_t testbus = GBS::TEST_BUS::read();
   //if ((testbus > 0x8900 && testbus <= 0xff00) || (testbus > 0x0900 && testbus <= 0x7f00)){
