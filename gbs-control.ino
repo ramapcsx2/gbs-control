@@ -331,7 +331,7 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
   uint8_t bank[16];
   uint8_t y = 0;
 
-  GBS::PAD_SYNC_OUT_ENZ::write(1);
+  //GBS::PAD_SYNC_OUT_ENZ::write(1); // immediate sync out
   GBS::DAC_RGBS_PWDNZ::write(0); // direct disableDAC()
 
   // should only be possible if previously was in RGBHV bypass, then hit a manual preset switch
@@ -364,10 +364,10 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
           //  // keep reset controls active
           //  bank[x] = 0;
           //}
-          else if (j == 0 && x == 9) {
-          //  // keep sync output off
-            bank[x] = pgm_read_byte(programArray + index) | (1 << 2);
-          }
+          //else if (j == 0 && x == 9) { // immediate sync out
+          ////  // keep sync output off
+          //  bank[x] = pgm_read_byte(programArray + index) | (1 << 2);
+          //}
           else {
             // use preset values
             bank[x] = pgm_read_byte(programArray + index);
@@ -1193,10 +1193,14 @@ void resetPLL() {
 }
 
 void ResetSDRAM() {
-  GBS::SDRAM_RESET_CONTROL::write(0x87); // enable "Software Control SDRAM Idle Period" and "SDRAM_START_INITIAL_CYCLE"
+  //GBS::SDRAM_RESET_CONTROL::write(0x87); // enable "Software Control SDRAM Idle Period" and "SDRAM_START_INITIAL_CYCLE"
+  //GBS::SDRAM_RESET_SIGNAL::write(1);
+  //GBS::SDRAM_RESET_SIGNAL::write(0);
+  //GBS::SDRAM_START_INITIAL_CYCLE::write(0);
+  GBS::SDRAM_RESET_CONTROL::write(0x02);
   GBS::SDRAM_RESET_SIGNAL::write(1);
   GBS::SDRAM_RESET_SIGNAL::write(0);
-  GBS::SDRAM_START_INITIAL_CYCLE::write(0);
+  GBS::SDRAM_RESET_CONTROL::write(0x82);
 }
 
 // soft reset cycle
@@ -2021,7 +2025,8 @@ void applyOverScanPatches() {
 }
 
 void doPostPresetLoadSteps() {
-  GBS::PAD_SYNC_OUT_ENZ::write(1); // sync out off
+  //GBS::PAD_SYNC_OUT_ENZ::write(1); // sync out off
+  GBS::PAD_SYNC_OUT_ENZ::write(0); // immediate sync out
   if (rto->videoStandardInput == 0) 
   {
     uint8_t videoMode = getVideoMode();
@@ -2372,6 +2377,7 @@ void doPostPresetLoadSteps() {
 
   {
     // prepare ideal vline shift for PAL / NTSC SD sources
+    // best test for upper content is snes 239 mode (use mainly for setting IF_VB_ST/SP first (1_1c/1e))
     switch (rto->presetID)
     {
     case 0x1:
@@ -2379,13 +2385,13 @@ void doPostPresetLoadSteps() {
       rto->presetVlineShift = 26; // for ntsc_240p, 1280x1024 ntsc
       break;
     case 0x3:
-      rto->presetVlineShift = 20; // for 1280x720 ntsc
+      rto->presetVlineShift = 18; // for 1280x720 ntsc
       break;
     case 0x4:
       rto->presetVlineShift = 14; // ntsc_feedbackclock
       break;
     case 0x5:
-      rto->presetVlineShift = 30; // 1920x1080 ntsc
+      rto->presetVlineShift = 24; // 1920x1080 ntsc
       break;
     case 0x11:
       rto->presetVlineShift = 22; // for pal_240p
@@ -2508,6 +2514,8 @@ void doPostPresetLoadSteps() {
 void applyPresets(uint8_t result) {
   rto->presetIsPalForce60 = 0; // the default
   rto->outModePassThroughWithIf = 0; // the default at this stage
+  // carry debug view over if possible
+  if (GBS::ADC_UNUSED_62::read() != 0x00) { globalCommand = 'D'; }
 
   if (uopt->PalForce60 == 1) {
     if (uopt->presetPreference != 2) { // != custom. custom saved as pal preset has ntsc customization
@@ -3013,11 +3021,11 @@ void updateCoastPosition() {
   }
 
   if (rto->videoStandardInput == 0) { // reset condition, allow most formats to detect
-    GBS::SP_PRE_COAST::write(9);
+    GBS::SP_PRE_COAST::write(10);
     GBS::SP_POST_COAST::write(22); // ps2 1080p
   }
   else if (rto->videoStandardInput <= 2) { // SD interlaced
-    GBS::SP_PRE_COAST::write(9); // psx: 9,9 (5,5 in 240p)
+    GBS::SP_PRE_COAST::write(10); // psx: 9,9 (5,5 in 240p)
     GBS::SP_POST_COAST::write(9);
   }
   else if (rto->videoStandardInput <= 4) {
@@ -3606,17 +3614,29 @@ void doAutoGain() {
 void enableScanlines() {
   if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 0) {
     //SerialM.println("enableScanlines())");
-    GBS::RFF_WFF_OFFSET::write(0x0); // scanline fix
+
+    //GBS::RFF_ADR_ADD_2::write(0);
+    //GBS::RFF_REQ_SEL::write(1);
+    //GBS::RFF_MASTER_FLAG::write(0x3f);
+    //GBS::RFF_WFF_OFFSET::write(0); // scanline fix
+    //GBS::RFF_FETCH_NUM::write(0);
+    //GBS::RFF_ENABLE::write(1); //GBS::WFF_ENABLE::write(1);
+    //delay(10);
+    //GBS::RFF_ENABLE::write(0); //GBS::WFF_ENABLE::write(0);
+
     GBS::MADPT_PD_RAM_BYPS::write(0);
     GBS::RFF_YUV_DEINTERLACE::write(1); // scanline fix 2
     GBS::MADPT_Y_MI_DET_BYPS::write(1); // make sure, so that mixing works
-    GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 0x30); // more luma gain
+    //GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 0x30); // more luma gain
+    GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 3);
+    GBS::VDS_WLEV_GAIN::write(0x14);
+    GBS::VDS_W_LEV_BYPS::write(0); // brightness test
     GBS::MADPT_VIIR_COEF::write(0x14); // set up VIIR filter 2_27
     GBS::MADPT_Y_MI_OFFSET::write(0x28); // 2_0b offset (mixing factor here)
     GBS::MADPT_VIIR_BYPS::write(0); // enable VIIR 
     GBS::RFF_LINE_FLIP::write(1); // clears potential garbage in rff buffer
-    GBS::MAPDT_VT_SEL_PRGV::write(0);
 
+    GBS::MAPDT_VT_SEL_PRGV::write(0);
     GBS::GBS_OPTION_SCANLINES_ENABLED::write(1);
   }
   rto->scanlinesEnabled = 1;
@@ -3625,9 +3645,10 @@ void enableScanlines() {
 void disableScanlines() {
   if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) {
     //SerialM.println("disableScanlines())");
-    //GBS::RFF_WFF_OFFSET::write(0x100); // scanline fix
     GBS::MAPDT_VT_SEL_PRGV::write(1);
-    GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 0x30);
+    //GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 0x30);
+    GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() - 3);
+    GBS::VDS_W_LEV_BYPS::write(1); // brightness test
     GBS::MADPT_Y_MI_OFFSET::write(0xff); // 2_0b offset 0xff disables mixing
     GBS::MADPT_VIIR_BYPS::write(1); // disable VIIR
     GBS::MADPT_PD_RAM_BYPS::write(1);
@@ -3647,13 +3668,18 @@ void enableMotionAdaptDeinterlace() {
   //GBS::MADPT_EN_UV_DEINT::write(0);   // 2_3a 0
   //GBS::MADPT_EN_STILL_FOR_NRD::write(1); // 2_3a 3 (new)
 
-  //tests
+  //GBS::RFF_WFF_STA_ADDR_A::write(0);
+  //GBS::RFF_WFF_STA_ADDR_B::write(1);
+  GBS::RFF_ADR_ADD_2::write(1);
+  GBS::RFF_REQ_SEL::write(3);
+  GBS::RFF_MASTER_FLAG::write(0x24);
   //GBS::WFF_SAFE_GUARD::write(0); // 4_42 3
+  GBS::RFF_FETCH_NUM::write(0x80); // part of RFF disable fix, could leave 0x80 always otherwise
   GBS::RFF_WFF_OFFSET::write(0x100); // scanline fix
   GBS::RFF_YUV_DEINTERLACE::write(0); // scanline fix 2
   GBS::WFF_FF_STA_INV::write(0); // 4_42_2 // 22.03.19 : turned off // update: only required in PAL?
-  GBS::WFF_LINE_FLIP::write(0); // 4_4a_4 // 22.03.19 : turned off // update: only required in PAL?
-  GBS::WFF_ENABLE::write(1); // 4_42 0
+  //GBS::WFF_LINE_FLIP::write(0); // 4_4a_4 // 22.03.19 : turned off // update: only required in PAL?
+  GBS::WFF_ENABLE::write(1); // 4_42 0 // enable before RFF
   GBS::RFF_ENABLE::write(1); // 4_4d 7
   delay(60); // 55 first good
   GBS::MAPDT_VT_SEL_PRGV::write(0);   // 2_16_7
@@ -3662,13 +3688,17 @@ void enableMotionAdaptDeinterlace() {
 
 void disableMotionAdaptDeinterlace() {
   GBS::MAPDT_VT_SEL_PRGV::write(1);   // 2_16_7
+  GBS::DEINT_00::write(0xff); // 2_00
+
+  GBS::RFF_FETCH_NUM::write(0x1);  // RFF disable fix
+  GBS::RFF_WFF_OFFSET::write(0x1); // RFF disable fix
   delay(2);
   GBS::WFF_ENABLE::write(0);
-  //GBS::RFF_ENABLE::write(0); // this causes the mem reset need
+  GBS::RFF_ENABLE::write(0); // can cause mem reset requirement, procedure above should fix it
+
+  //GBS::WFF_ADR_ADD_2::write(0);
   GBS::WFF_FF_STA_INV::write(1); // 22.03.19 : turned off // update: only required in PAL?
-  GBS::WFF_LINE_FLIP::write(1); // 22.03.19 : turned off // update: only required in PAL?
-  GBS::RFF_WFF_OFFSET::write(0x0); // scanline fix
-  GBS::DEINT_00::write(0xff); // 2_00
+  //GBS::WFF_LINE_FLIP::write(1); // 22.03.19 : turned off // update: only required in PAL?
   GBS::MADPT_Y_MI_OFFSET::write(0x7f);
   //GBS::MADPT_STILL_NOISE_EST_EN::write(0); // new
   GBS::MADPT_Y_MI_DET_BYPS::write(1);
@@ -3831,6 +3861,7 @@ uint32_t runSyncWatcher()
       }
       else {
         SerialM.println(" <not stable>");
+        for (int i = 0; i < 3; i++) { printInfo(); }
         if (rto->videoStandardInput == 0) {
           // if we got here from standby mode, return there soon
           // but occasionally, this is a regular new mode that needs a SP parameter change to work
@@ -3871,7 +3902,7 @@ uint32_t runSyncWatcher()
           if (!rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 0) { // ie v:524, even counts > enable
             filteredLineCountMotionAdaptiveOn++;
             filteredLineCountMotionAdaptiveOff = 0;
-            if (filteredLineCountMotionAdaptiveOn >= 4) // at least >= 3
+            if (filteredLineCountMotionAdaptiveOn >= 3) // at least >= 3
             {
               if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
                 disableScanlines();
@@ -3884,7 +3915,7 @@ uint32_t runSyncWatcher()
           else if (rto->motionAdaptiveDeinterlaceActive && VPERIOD_IF % 2 == 1) { // ie v:523, uneven counts > disable
             filteredLineCountMotionAdaptiveOff++;
             filteredLineCountMotionAdaptiveOn = 0;
-            if (filteredLineCountMotionAdaptiveOff >= 4) // at least >= 3
+            if (filteredLineCountMotionAdaptiveOff >= 3) // at least >= 3
             {
               disableMotionAdaptDeinterlace();
               filteredLineCountMotionAdaptiveOff = 0;
@@ -4945,6 +4976,27 @@ void loop() {
       }
     }
     break;
+    case 'N':
+    {
+      //if (GBS::RFF_ENABLE::read()) {
+      //  disableMotionAdaptDeinterlace();
+      //}
+      //else {
+      //  enableMotionAdaptDeinterlace();
+      //}
+
+      //GBS::RFF_ENABLE::write(!GBS::RFF_ENABLE::read());
+
+      if (rto->scanlinesEnabled) {
+        rto->scanlinesEnabled = false;
+        disableScanlines();
+      }
+      else {
+        rto->scanlinesEnabled = true;
+        enableScanlines();
+      }
+    }
+    break;
     case 'a':
       if (GBS::VDS_HSYNC_RST::read() < 4095) {
         applyBestHTotal(GBS::VDS_HSYNC_RST::read() + 1);
@@ -5472,8 +5524,10 @@ void loop() {
     updateCoastPosition();
     if (rto->coastPositionIsSet) {
       GBS::SP_DIS_SUB_COAST::write(0); // enabling now
-      //GBS::SP_H_PROTECT::write(1); // MD alternate mode sync drop // MD okay, snes bad because of its jitter
-      GBS::SP_H_PROTECT::write(0);
+      // SP_H_PROTECT: MD alternate mode sync drop, NTSC odd/even <> even/even switch 
+      // MD okay, snes was bad at pre coast 9 (fine now at 10)
+      GBS::SP_H_PROTECT::write(1);
+      //GBS::SP_H_PROTECT::write(0);
     }
   }
   if (!rto->clampPositionIsSet && (rto->continousStableCounter > 10) &&
@@ -5501,7 +5555,7 @@ void loop() {
       uint8_t currentSogLevel = GBS::ADC_SOGCTRL::read();
       SerialM.print("SOG Lvl: "); SerialM.print(currentSogLevel);
       SerialM.print(" Coast: "); SerialM.println(!GBS::SP_DIS_SUB_COAST::read());
-
+      for (int i = 0; i < 3; i++) { printInfo(); }
       rto->applyPresetDoneStage = 0;
     }
   }

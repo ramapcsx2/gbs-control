@@ -522,6 +522,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x13, 0,  1> MEM_PAD_CLK_INVERT;
     typedef UReg<0x04, 0x13, 1,  1> MEM_RD_DATA_CLK_INVERT;
     typedef UReg<0x04, 0x13, 2,  1> MEM_FBK_CLK_INVERT;
+    typedef UReg<0x04, 0x15, 0,  1> MEM_REQ_PBH_RFFH;
     typedef UReg<0x04, 0x1b, 0,  3> MEM_ADR_DLY_REG;
     typedef UReg<0x04, 0x1b, 4,  3> MEM_CLK_DLY_REG;
 
@@ -545,18 +546,25 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x42, 0,  1> WFF_ENABLE;
     typedef UReg<0x04, 0x42, 2,  1> WFF_FF_STA_INV;
     typedef UReg<0x04, 0x42, 3,  1> WFF_SAFE_GUARD;
+    typedef UReg<0x04, 0x42, 5,  1> WFF_ADR_ADD_2;
+    typedef UReg<0x04, 0x42, 7,  1> WFF_FF_STATUS_SEL;
     typedef UReg<0x04, 0x44, 0,  21> WFF_SAFE_GUARD_A;
     typedef UReg<0x04, 0x47, 0,  21> WFF_SAFE_GUARD_B;
     typedef UReg<0x04, 0x4a, 0,  1> WFF_YUV_DEINTERLACE;
     typedef UReg<0x04, 0x4a, 4,  1> WFF_LINE_FLIP;
     typedef UReg<0x04, 0x4b, 0,  3> WFF_HB_DELAY;
     typedef UReg<0x04, 0x4b, 4,  3> WFF_VB_DELAY;
+    typedef UReg<0x04, 0x4d, 4,  1> RFF_ADR_ADD_2;
     typedef UReg<0x04, 0x4d, 5,  2> RFF_REQ_SEL;
     typedef UReg<0x04, 0x4d, 7,  1> RFF_ENABLE;
+    typedef UReg<0x04, 0x4e, 0,  8> RFF_MASTER_FLAG;
     typedef UReg<0x04, 0x50, 5,  1> RFF_LINE_FLIP;
     typedef UReg<0x04, 0x50, 6,  1> RFF_YUV_DEINTERLACE;
     typedef UReg<0x04, 0x50, 7,  1> RFF_LREQ_CUT;
+    typedef UReg<0x04, 0x51, 0,  21> RFF_WFF_STA_ADDR_A;
+    typedef UReg<0x04, 0x54, 0,  21> RFF_WFF_STA_ADDR_B;
     typedef UReg<0x04, 0x57, 0,  10> RFF_WFF_OFFSET;
+    typedef UReg<0x04, 0x59, 0,  10> RFF_FETCH_NUM;
     typedef UReg<0x04, 0x5B, 7,  1> MEM_FF_TOP_FF_SEL;
 
     // OSD Registers
