@@ -1964,6 +1964,7 @@ uint32_t getPllRate() {
   uint32_t esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
   uint8_t debugRegBackup = GBS::TEST_BUS_SEL::read();
   uint8_t debugRegBackup_SP = GBS::TEST_BUS_SP_SEL::read();
+  uint8_t debugPinBackup = GBS::PAD_BOUT_EN::read();
 
   GBS::TEST_BUS_SEL::write(0xa); // SP test bus
   if (rto->RGBHVsyncTypeCsync) {
@@ -1972,7 +1973,9 @@ uint32_t getPllRate() {
   else {
     GBS::TEST_BUS_SP_SEL::write(0x09);
   }
+  GBS::PAD_BOUT_EN::write(1); // enable output to pin for test
   uint32_t ticks = FrameSync::getPulseTicks();
+  GBS::PAD_BOUT_EN::write(debugPinBackup); // restore
   GBS::TEST_BUS_SEL::write(debugRegBackup);
   GBS::TEST_BUS_SP_SEL::write(debugRegBackup_SP);
 
@@ -2669,6 +2672,8 @@ void applyPresets(uint8_t result) {
       SerialM.println("");
     }
     bypassModeSwitch_RGBHV();
+    // don't go through doPostPresetLoadSteps
+    return;
   }
   else {
     SerialM.println("Unknown timing! ");
@@ -3431,7 +3436,7 @@ void bypassModeSwitch_RGBHV() {
   rto->autoBestHtotalEnabled = false; // not necessary, since VDS is off / bypassed
 
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC
-
+   
   GBS::PLL_CKIS::write(0); // 0_40 0 //  0: PLL uses OSC clock | 1: PLL uses input clock
   GBS::PLL_DIVBY2Z::write(0); // 0_40 // 1= no divider (full clock, ie 27Mhz) 0 = halved clock
   GBS::PLL_ADS::write(0); // test:  input clock is from PCLKIN (disconnected, not ADC clock)
@@ -3468,8 +3473,8 @@ void bypassModeSwitch_RGBHV() {
     GBS::SP_HS_POL_ATO::write(1); // 5_55 4 auto polarity for retiming
     GBS::SP_VS_POL_ATO::write(1); // 5_55 6
     GBS::SP_HS_LOOP_SEL::write(0); // 5_57_6 | 0 enables retiming (required to fix short out sync pulses + any inversion)
-    rto->phaseADC = 0;
-    rto->phaseSP = 6;
+    rto->phaseADC = 16; // was 0
+    rto->phaseSP = 16; // was 6
   }
   else
   {
@@ -3502,6 +3507,7 @@ void bypassModeSwitch_RGBHV() {
   GBS::PLLAD_CKOS::write(0); // 0 - 3
   GBS::DEC1_BYPS::write(1); // 1 = bypassed
   GBS::DEC2_BYPS::write(1);
+  GBS::DEC_MATRIX_BYPS::write(1); // 5_1f with adc to dac mode
   GBS::ADC_FLTR::write(0);
 
   GBS::PLLAD_ICP::write(4);
@@ -3543,6 +3549,8 @@ void bypassModeSwitch_RGBHV() {
   togglePhaseAdjustUnits();
   setAndLatchPhaseSP(); // different for CSync and pure HV modes
   setAndLatchPhaseADC();
+  latchPLLAD();
+
   delay(100);
   GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
   rto->presetID = 0x22; // bypass flavor 2
@@ -4201,6 +4209,28 @@ uint32_t runSyncWatcher()
         SerialM.print("(H-PLL) state: "); SerialM.println(rto->HPLLState);
       }
       oldHPLLState = rto->HPLLState;
+
+      if (rto->continousStableCounter > 30) {       // only if stable
+        if (GBS::STATUS_MISC_PLLAD_LOCK::read()) {  // only if PLLAD can lock
+          // optimize SP phase by comparing "ht" and "hpw" jitter
+          uint16_t sp_htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+          uint16_t sp_hlow = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
+          uint8_t jitterSyncCounter = 0;
+          for (int a = 0; a < 16; a++) {
+            if (GBS::STATUS_SYNC_PROC_HTOTAL::read() != sp_htotal) {
+              jitterSyncCounter++;
+            }
+            if (GBS::STATUS_SYNC_PROC_HLOW_LEN::read() != sp_hlow) {
+              jitterSyncCounter++;
+            }
+          }
+          if (jitterSyncCounter >= 2) {
+            rto->phaseSP += 4; rto->phaseSP &= 0x1f;
+            //SerialM.print("SP: "); SerialM.println(rto->phaseSP);
+            setAndLatchPhaseSP();
+          }
+        }
+      }
 
       lastTimeCheck = millis();
       rto->clampPositionIsSet = false; // RGBHV should regularly check clamp position
@@ -5520,7 +5550,8 @@ void loop() {
   }
   
   // update clamp + coast positions after preset change // do it quickly
-  if (!rto->coastPositionIsSet && (rto->videoStandardInput != 0) && rto->syncWatcherEnabled) {
+  if ((rto->videoStandardInput <= 13 && rto->videoStandardInput != 0) && 
+       rto->syncWatcherEnabled && !rto->coastPositionIsSet) {
     updateCoastPosition();
     if (rto->coastPositionIsSet) {
       GBS::SP_DIS_SUB_COAST::write(0); // enabling now
