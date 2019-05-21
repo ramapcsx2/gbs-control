@@ -203,6 +203,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x01, 7,  1> IF_SEL24BIT;
     typedef UReg<0x01, 0x02, 0,  8> INPUT_FORMATTER_02; // convenience
     typedef UReg<0x01, 0x02, 0,  1> IF_SEL_WEN;
+    typedef UReg<0x01, 0x02, 1,  1> IF_HS_SEL_LPF;
     typedef UReg<0x01, 0x02, 2,  1> IF_HS_INT_LPF_BYPS;
     typedef UReg<0x01, 0x02, 3,  1> IF_HS_PSHIFT_BYPS;
     typedef UReg<0x01, 0x02, 4,  1> IF_HS_TAP11_BYPS;
@@ -616,6 +617,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x0A, 0,  8> ADC_GGCTRL;
     typedef UReg<0x05, 0x0B, 0,  8> ADC_BGCTRL;
     typedef UReg<0x05, 0x0C, 1,  4> ADC_TEST_0C;
+    typedef UReg<0x05, 0x0C, 3,  1> ADC_TEST_0C_BIT3;
     typedef UReg<0x05, 0x0C, 4,  1> ADC_TEST_0C_BIT4;
     typedef UReg<0x05, 0x0E, 0,  1> ADC_AUTO_OFST_EN;
     typedef UReg<0x05, 0x11, 0,  8> PLLAD_CONTROL_00_5x11; // fake name
@@ -690,6 +692,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x57, 0,  1> SP_NO_CLAMP_REG;
     typedef UReg<0x05, 0x57, 2,  1> SP_NO_COAST_REG;
     typedef UReg<0x05, 0x57, 6,  1> SP_HS_LOOP_SEL;
+    typedef UReg<0x05, 0x57, 7,  1> SP_HS_REG;
     typedef UReg<0x05, 0x60, 0,  8> ADC_UNUSED_60;
     typedef UReg<0x05, 0x61, 0,  8> ADC_UNUSED_61;
     typedef UReg<0x05, 0x62, 0,  8> ADC_UNUSED_62;
