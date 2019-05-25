@@ -18,13 +18,13 @@ const uint8_t presetHdBypassSection[] PROGMEM = {
 0, // s1_40
 0x50, // s1_41 // HD_HS_SP
 0, // s1_42
-0x02, // s1_43
+0x00, // s1_43 HD_VB_ST
 0, // s1_44
-0x06, // s1_45
+0x14, // s1_45
 0, // s1_46
-0x00, // s1_47 // vsync st
+0x02, // s1_47 // vsync st
 0, // s1_48
-0x05, // s1_49 // vsync sp
+0x07, // s1_49 // vsync sp
 0, // s1_4A
 0, // s1_4B
 0, // s1_4C
