@@ -457,8 +457,8 @@ void setResetParameters() {
   rto->coastPositionIsSet = 0;
   rto->continousStableCounter = 0;
   rto->isInLowPowerMode = false;
-  rto->currentLevelSOG = 8;
-  rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
+  rto->currentLevelSOG = 4;         // gbs8220 large chroma effect
+  rto->thisSourceMaxLevelSOG = 31;  // 31 = auto sog has not (yet) run
   rto->failRetryAttempts = 0;
   rto->HPLLState = 0;
   rto->motionAdaptiveDeinterlaceActive = false;
@@ -820,26 +820,20 @@ void optimizeSogLevel() {
   else {
     rto->currentLevelSOG = 14;
   }
-  freezeVideo(); delay(2);
+  //freezeVideo(); delay(2);
   setAndUpdateSogLevel(rto->currentLevelSOG);
 
   GBS::ADC_TEST_0C_BIT4::write(1);  // ignore previous filter setting
+  boolean coastWasEnabled = !!GBS::SP_DIS_SUB_COAST::read();
+  GBS::SP_DIS_SUB_COAST::write(1);
 
-  //if (rto->inputIsYpBpR) {
-  //  GBS::SP_NO_CLAMP_REG::write(1);
-  //  rto->clampPositionIsSet = false;
-  //}
-
-  //resetSyncProcessor(); 
+  //resetSyncProcessor(); //delay(400);
   resetModeDetect();
   delay(100);
-  //delay(400);
-  unfreezeVideo();
+  //unfreezeVideo();
   delay(160);
-  //rto->syncWatcherEnabled = false; // to test
-  //return; // to test
 
-  while (rto->currentLevelSOG > 3) {
+  while (rto->currentLevelSOG >= 3) {
     uint8_t syncGoodCounter = 0;
     unsigned long timeout = millis();
     while ((millis() - timeout) < 370) {
@@ -893,10 +887,13 @@ void optimizeSogLevel() {
     delay(180); // time for sog to settle
   }
 
-  if (rto->currentLevelSOG >= 6) {  // else it's a source that probably needs rechecking later
+  if (rto->currentLevelSOG >= 4) {  // else it's a source that probably needs rechecking later
     rto->thisSourceMaxLevelSOG = rto->currentLevelSOG;
   }
-  setAndUpdateSogLevel(rto->currentLevelSOG);
+
+  if (coastWasEnabled) {
+    GBS::SP_DIS_SUB_COAST::write(0);
+  }
 }
 
 void switchSyncProcessingMode(uint8_t mode) {
@@ -1023,7 +1020,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
       }
       SerialM.println(" lost..");
       rto->currentLevelSOG += 2;
-      if (rto->currentLevelSOG > 14) { rto->currentLevelSOG = 4; }
+      if (rto->currentLevelSOG > 12) { rto->currentLevelSOG = 2; }
       setAndUpdateSogLevel(rto->currentLevelSOG);
     }
     
@@ -2347,7 +2344,7 @@ void doPostPresetLoadSteps() {
       SerialM.print("s1: "); printInfo();
     }*/
   }
-  while ((getVideoMode() == 0) && (millis() - timeout < 2002)) { 
+  while ((getVideoMode() == 0) && (millis() - timeout < 1502)) { 
     delay(1); 
     /*if (millis() - timeout > 1000) {
       SerialM.print("s2: "); printInfo();
@@ -2358,7 +2355,7 @@ void doPostPresetLoadSteps() {
   if (timeout > 1000) {
     SerialM.print("to1 is: "); SerialM.println(timeout);
   }
-  if (timeout >= 2000) {
+  if (timeout >= 1500) {
     //rto->syncWatcherEnabled = false;
     //rto->printInfos = true;
     //return;
@@ -3808,7 +3805,7 @@ uint32_t runSyncWatcher()
   boolean status16SpHsStable = getStatus16SpHsStable();
 
   if ((detectedVideoMode == 0 || !status16SpHsStable) && rto->videoStandardInput != 15) {
-    freezeVideo();
+    //freezeVideo();
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
       if ((GBS::STATUS_16::read() & 0x01) == 0x01) { // sog failure indicator
         uint16_t hlowStart = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
@@ -4467,7 +4464,7 @@ void setup() {
   rto->clampPositionIsSet = 0;
   rto->coastPositionIsSet = 0;
   rto->continousStableCounter = 0;
-  rto->currentLevelSOG = 8;
+  rto->currentLevelSOG = 4; // gbs8220 large chroma effect
   rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
 
   adco->r_gain = 0;
