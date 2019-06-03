@@ -501,6 +501,7 @@ void setResetParameters() {
   GBS::ADC_INPUT_SEL::write(1); // 1 = RGBS / RGBHV adc data input
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
   GBS::ADC_TR_RSEL::write(2); // 5_04 // ADC_TR_RSEL = 2
+  GBS::ADC_TA_CTRL_05_BIT1::write(1); // 5_05 1 // minor SOG clamp effect
   GBS::ADC_TEST_0C::write(2); // 5_0c bit 2 // should work now
   GBS::SP_NO_CLAMP_REG::write(1);
   GBS::ADC_SOGEN::write(1);
@@ -516,7 +517,7 @@ void setResetParameters() {
   GBS::PLLAD_CONTROL_00_5x11::write(0x01); // reset on
   resetDebugPort();
   GBS::RESET_CONTROL_0x47::write(0x16);
-  GBS::INTERRUPT_CONTROL_01::write(0xf5); // enable interrupts (leave out source mode switch bits)
+  GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
   GBS::RESET_CONTROL_0x47::write(0x16); // decimation off
@@ -774,7 +775,7 @@ void setAndUpdateSogLevel(uint8_t level) {
   delay(8); togglePhaseAdjustUnits(); delay(8);
   setAndLatchPhaseSP(); delay(2);  setAndLatchPhaseADC();
   delay(2); latchPLLAD();
-  GBS::INTERRUPT_CONTROL_00::write(0xf5); // reset irq status, leave out 1 and 3 (mode switches)
+  GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
   Serial.print("sog: "); Serial.println(rto->currentLevelSOG);
 }
@@ -809,63 +810,34 @@ void optimizeSogLevel() {
     return;
   }
   if (rto->videoStandardInput == 15 || GBS::SP_SOG_MODE::read() != 1) {
-    rto->thisSourceMaxLevelSOG = 16;
+    rto->thisSourceMaxLevelSOG = 14;
     return;
   }
-
-  // determine whether SOG signal is weak or strong (ie: from a stripper or CSync)
-  //if (rto->thisSourceMaxLevelSOG == 31 || rto->thisSourceMaxLevelSOG == 30) {
-  //  uint8_t initialStable = 0;
-  //  for (int a = 0; a < 24; a++) {
-  //    if (getStatus16SpHsStable()) { initialStable++; }
-  //    if (getVideoMode() > 0) { initialStable++; }
-  //  }
-  //  if (initialStable == 48) { // double "a" = all stable
-  //    // set max level and see if it stays stable
-  //    freezeVideo();
-  //    setAndUpdateSogLevel(31); 
-  //    resetModeDetect();
-  //    delay(320);
-  //    initialStable = 0;
-  //    for (int a = 0; a < 24; a++) {
-  //      if (getStatus16SpHsStable()) { initialStable++; }
-  //      else { break; }
-  //      if (getVideoMode() > 0) { initialStable++; }
-  //      else { break; }
-  //      delay(1);
-  //    }
-  //  }
-  //  if (initialStable == 48) {
-  //    rto->thisSourceMaxLevelSOG = 30;
-  //    rto->currentLevelSOG = 16;
-  //    setAndUpdateSogLevel(rto->currentLevelSOG);
-  //    unfreezeVideo();
-  //    return; // strong sync
-  //  }
-  //  // else unfreezeVideo a little later
-  //}
 
   if (rto->thisSourceMaxLevelSOG != 31) {
     rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
   }
   else {
-    rto->currentLevelSOG = 15; // test: wii white to black min 13
+    rto->currentLevelSOG = 14;
   }
   freezeVideo(); delay(2);
   setAndUpdateSogLevel(rto->currentLevelSOG);
+
+  GBS::ADC_TEST_0C_BIT4::write(1);  // ignore previous filter setting
 
   //if (rto->inputIsYpBpR) {
   //  GBS::SP_NO_CLAMP_REG::write(1);
   //  rto->clampPositionIsSet = false;
   //}
 
-  resetSyncProcessor(); 
+  //resetSyncProcessor(); 
   resetModeDetect();
-  delay(400);
+  delay(100);
+  //delay(400);
   unfreezeVideo();
-  // to test
-  //rto->syncWatcherEnabled = false;
-  //return; 
+  delay(160);
+  //rto->syncWatcherEnabled = false; // to test
+  //return; // to test
 
   while (rto->currentLevelSOG > 3) {
     uint8_t syncGoodCounter = 0;
@@ -874,22 +846,23 @@ void optimizeSogLevel() {
       if ((getStatus16SpHsStable() == 1) && (GBS::STATUS_SYNC_PROC_HLOW_LEN::read() > 10))
       {
         syncGoodCounter++;
-        if (syncGoodCounter >= 20) { break; }
+        if (syncGoodCounter >= 30) { break; }
       }
     }
 
-    if (syncGoodCounter >= 20) {
+    if (syncGoodCounter >= 30) {
+      delay(180); // to recognize video mode
       if (getVideoMode() != 0) {
         syncGoodCounter = 0;
         delay(20);
-        for (int a = 0; a < 80; a++) {
+        for (int a = 0; a < 50; a++) {
           syncGoodCounter++;
           if (GBS::STATUS_SYNC_PROC_HLOW_LEN::read() < 10) {
             syncGoodCounter = 0;
             break;
           }
         }
-        if (syncGoodCounter >= 79) {
+        if (syncGoodCounter >= 49) {
           //Serial.print(" @SOG "); Serial.print(rto->currentLevelSOG);
           //Serial.print(" STATUS_00: ");
           //uint8_t status00 = GBS::STATUS_00::read();
@@ -897,29 +870,32 @@ void optimizeSogLevel() {
           break; // found, exit
         }
         else {
-          //Serial.print(" inner test failed: "); Serial.println(syncGoodCounter);
-          rto->currentLevelSOG--;
-          setAndUpdateSogLevel(rto->currentLevelSOG);
+          //Serial.print(" inner test failed syncGoodCounter: "); Serial.println(syncGoodCounter);
         }
       }
       else { // getVideoMode() == 0
-        //Serial.print("sog--: "); Serial.println(rto->currentLevelSOG);
-        rto->currentLevelSOG--;
-        setAndUpdateSogLevel(rto->currentLevelSOG);
+        //Serial.print("sog-- syncGoodCounter: "); Serial.println(syncGoodCounter);
       }
     }
     else { // syncGoodCounter < 40
-      //Serial.print("sog--: "); Serial.println(rto->currentLevelSOG);
-      rto->currentLevelSOG--;
-      setAndUpdateSogLevel(rto->currentLevelSOG);
+      //Serial.print("outer test failed syncGoodCounter: "); Serial.println(syncGoodCounter);
     }
+
+    // first attempt toggling sog filter (5_0c 4)
+    if (GBS::ADC_TEST_0C_BIT4::read() == 1) {
+      GBS::ADC_TEST_0C_BIT4::write(0);
+      //Serial.println("filt off, back to test");
+      continue; // back to test
+    }
+    GBS::ADC_TEST_0C_BIT4::write(1);
+    rto->currentLevelSOG -= 2;
+    setAndUpdateSogLevel(rto->currentLevelSOG);
+    delay(180); // time for sog to settle
   }
 
-  rto->thisSourceMaxLevelSOG = rto->currentLevelSOG;
-  //if (rto->currentLevelSOG >= 11) { // hopefully not necessary since 5_33 change
-  //  rto->currentLevelSOG -= 4;
-  //}
-
+  if (rto->currentLevelSOG >= 6) {  // else it's a source that probably needs rechecking later
+    rto->thisSourceMaxLevelSOG = rto->currentLevelSOG;
+  }
   setAndUpdateSogLevel(rto->currentLevelSOG);
 }
 
@@ -1036,7 +1012,6 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         delay(40);
       }
       else if (currentInput == 0) { // YUV
-        //optimizeSogLevel(); // test: placing it here okay? // will be overwritten later
         unsigned long timeOutStart = millis();
         while ((millis() - timeOutStart) < 800) {
           handleWiFi(); // wifi stack
@@ -1249,16 +1224,16 @@ void resetSyncProcessor() {
   GBS::SFTRST_SYNC_RSTZ::write(0);
   delayMicroseconds(10);
   GBS::SFTRST_SYNC_RSTZ::write(1);
-  rto->clampPositionIsSet = false;
-  rto->coastPositionIsSet = false;
+  //rto->clampPositionIsSet = false;  // resetSyncProcessor is part of autosog
+  //rto->coastPositionIsSet = false;
 }
 
 void resetModeDetect() {
   GBS::SFTRST_MODE_RSTZ::write(0);
   delay(1); // needed
   GBS::SFTRST_MODE_RSTZ::write(1);
-  rto->clampPositionIsSet = false;
-  rto->coastPositionIsSet = false;
+  //rto->clampPositionIsSet = false;
+  //rto->coastPositionIsSet = false;
 }
 
 void shiftHorizontal(uint16_t amountToAdd, bool subtracting) {
@@ -2066,8 +2041,8 @@ void doPostPresetLoadSteps() {
     rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
   }
   else { // reset / new source
-    if (rto->inputIsYpBpR) { rto->currentLevelSOG = 16; }
-    else { rto->currentLevelSOG = 11; }
+    if (rto->inputIsYpBpR) { rto->currentLevelSOG = 14; } // ps2 1080i vidmodetest app goes bad at ~16 (very unusual though)
+    else { rto->currentLevelSOG = 8; }
   }
   setAndUpdateSogLevel(rto->currentLevelSOG); // update to previously determined sog level
   
@@ -2237,12 +2212,12 @@ void doPostPresetLoadSteps() {
 
   setSpParameters();
   updateSpDynamic();
-  GBS::ADC_TR_RSEL::write(2); // 5_04 // ADC_TR_RSEL = 2 test // also enabled in reset parameters
-  GBS::ADC_TEST_0C::write(1); // 5_0c 1 = 1; fixes occasional ADC issue with ADC_TR_RSEL enabled 
-                              // update: at increased power draw (50mA); picture seems about the same
-  // more stable SOG!
-  GBS::ADC_TEST_0C_BIT4::write(1); // could be an SOG filter // helps a lot with bright > dark transitions
-  GBS::ADC_TA_CTRL_05_BIT1::write(1); // minor SOG clamp effect, only works if register bit 0 = 0 (ADC_TEST_ENABLE = 0)
+  GBS::ADC_TR_RSEL::write(0); // 5_04 // if enabling bits, make sure to have 5_0c bit 1 enabled
+  GBS::ADC_TA_CTRL::write(0); // 5_05
+  GBS::ADC_TA_CTRL_05_BIT1::write(1); // 5_05 1
+  GBS::ADC_TEST_0C::write(0); // 5_0c
+  // 5_0c 4 should stay on, helps a lot on white to black transitions (MD), making up for other drawbacks
+  GBS::ADC_TEST_0C_BIT4::write(1); // 5_0c
 
   resetPLLAD(); // turns on pllad
 
@@ -2416,7 +2391,7 @@ void doPostPresetLoadSteps() {
   GBS::PAD_SYNC_OUT_ENZ::write(0); // sync out on (make sure)
   GBS::DAC_RGBS_PWDNZ::write(1); // immediate dac enable
 
-  GBS::INTERRUPT_CONTROL_01::write(0xf5); // enable interrupts (leave out source mode switch bits)
+  GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
   
@@ -2878,9 +2853,20 @@ boolean getStatus16SpHsStable() {
 
   // STAT_16 bit 1 is the "hsync active" flag, which appears to be a reliable indicator
   // checking the flag replaces checking the debug bus pulse length manually
-  if ((GBS::STATUS_16::read() & 0x02) == 0x02)
+  uint8_t status16 = GBS::STATUS_16::read();
+  if ((status16 & 0x02) == 0x02)
   {
-    return true;
+    if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) 
+    {
+      if ((status16 & 0x01) != 0x01) 
+      {  // pal / ntsc should be sync active low
+        return true;
+      }
+    }
+    else 
+    {
+      return true;  // not pal / ntsc
+    }
   }
 
   return false;
@@ -2983,12 +2969,6 @@ void updateSpDynamic() {
     return;
   }
 
-  if (!rto->inputIsYpBpR) {
-    if (rto->currentLevelSOG > 11) {
-      setAndUpdateSogLevel(rto->currentLevelSOG - 1);
-    }
-  }
-
   if (rto->videoStandardInput <= 2) { // SD interlaced
     GBS::SP_PRE_COAST::write(10); // psx: 9,9 (5,5 in 240p)
     GBS::SP_POST_COAST::write(9);
@@ -3071,7 +3051,7 @@ void updateCoastPosition() {
     // 5_3e "sub coast": they mean coasting a bit of the extra HS pulses within VS.
     // The coast length measures in HLine length and forms a window over those HS pulses in VS.
     // At start = 0, all desired HS pulses get through normally, so lock shortly after 
-    GBS::SP_H_CST_ST::write((uint16_t)(accInHlength * 0.8f));
+    GBS::SP_H_CST_ST::write((uint16_t)(accInHlength * 0.08f)); // test: psx pal black license screen, then ntsc SMPTE color bars 100%
     GBS::SP_H_CST_SP::write((uint16_t)(accInHlength * 0.95f)); // 0.91f 
     //GBS::SP_HCST_AUTO_EN::write(0); // is already 0
     rto->coastPositionIsSet = true;
@@ -3823,25 +3803,37 @@ uint32_t runSyncWatcher()
   static uint8_t syncDropCounter = 0;
   static uint8_t newVideoModeCounter = 0;
   static unsigned long lastSyncDrop = millis();
+
   uint8_t detectedVideoMode = getVideoMode();
-  if ((detectedVideoMode == 0 || !getStatus16SpHsStable()) && rto->videoStandardInput != 15) {
+  boolean status16SpHsStable = getStatus16SpHsStable();
+
+  if ((detectedVideoMode == 0 || !status16SpHsStable) && rto->videoStandardInput != 15) {
     freezeVideo();
+    if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
+      if ((GBS::STATUS_16::read() & 0x01) == 0x01) { // sog failure indicator
+        uint16_t hlowStart = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
+        for (int a = 0; a < 40; a++) {
+          if (GBS::STATUS_SYNC_PROC_HLOW_LEN::read() != hlowStart) {
+            // source still there
+            Serial.print("^");
+            optimizeSogLevel(); // test: immediately run this
+            break;
+          }
+          delay(1);
+        }
+      }
+    }
     noSyncCounter++;
     rto->continousStableCounter = 0;
     LEDOFF; // always LEDOFF on sync loss, except if RGBHV
     if (rto->printInfos == false) {
       static unsigned long timeToLineBreak = millis();
       if (noSyncCounter == 1) {
-        if ((millis() - timeToLineBreak) > 3000) {
-          SerialM.print("\n.");
-          timeToLineBreak = millis();
-        }
-        else { 
-          SerialM.print(".");
-        }
+        if ((millis() - timeToLineBreak) > 3000) { SerialM.print("\n."); timeToLineBreak = millis(); }
+        else { SerialM.print("."); }
       }
     }
-    if (noSyncCounter == 1) {
+    if (noSyncCounter == 1) {                 // this usually repeats
       if ((millis() - lastSyncDrop) < 1800) { // tweak point
         syncDropCounter++;
         Serial.print(syncDropCounter);
@@ -3852,7 +3844,7 @@ uint32_t runSyncWatcher()
       if ((millis() - lastSyncDrop) > 1500) { // minimum space between runs
         updateSpDynamic();
       }
-      if (syncDropCounter > 11) {
+      if (syncDropCounter > 6) {
         optimizeSogLevel();
         syncDropCounter = 0;
         SerialM.print("SOG level: "); SerialM.println(rto->currentLevelSOG);
@@ -4192,7 +4184,7 @@ uint32_t runSyncWatcher()
       static uint8_t runsWithSOGStatus = 0;
       static uint8_t oldHPLLState = 0;
       uint8_t status0f = GBS::STATUS_0F::read();
-      GBS::INTERRUPT_CONTROL_00::write(0xf5); // reset irq status, leave out 1 and 3 (mode switches)
+      GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
       GBS::INTERRUPT_CONTROL_00::write(0x00); //
       if (rto->RGBHVsyncTypeCsync == false)
       {
@@ -4313,8 +4305,6 @@ uint32_t runSyncWatcher()
       if (noSyncCounter % 40 == 0) {
         // the * check needs to be first (go before auto sog level) to support SD > HDTV detection
         SerialM.print("*");
-        rto->coastPositionIsSet = false; // will eventually toggle 5_3e 4/5 again
-        rto->clampPositionIsSet = false;
         if (GBS::ADC_UNUSED_67::read() == 0) {
           // first time here
           GBS::ADC_UNUSED_64::write(GBS::SP_PRE_COAST::read());
@@ -4341,19 +4331,16 @@ uint32_t runSyncWatcher()
           GBS::ADC_UNUSED_66::write(0); GBS::ADC_UNUSED_67::write(0);
           delay(20);
           // and run autoSog
-          if (rto->currentLevelSOG >= 3)
-          {
-            uint16_t hlowStart = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
-            for (int a = 0; a < 20; a++) {
-              if (GBS::STATUS_SYNC_PROC_HLOW_LEN::read() != hlowStart) {
-                // source still there
-                delay(20);  
-                optimizeSogLevel();
-                SerialM.print("SOG level: "); SerialM.println(rto->currentLevelSOG);
-                break;
-              }
-              delay(1);
+          uint16_t hlowStart = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
+          for (int a = 0; a < 20; a++) {
+            if (GBS::STATUS_SYNC_PROC_HLOW_LEN::read() != hlowStart) {
+              // source still there
+              delay(20);
+              optimizeSogLevel();
+              SerialM.print("SOG level: "); SerialM.println(rto->currentLevelSOG);
+              break;
             }
+            delay(1);
           }
         }
       }
@@ -5134,6 +5121,7 @@ void loop() {
       SerialM.print("syncwatcher ");
       if (rto->syncWatcherEnabled == true) {
         rto->syncWatcherEnabled = false;
+        if (rto->videoIsFrozen) { unfreezeVideo(); }
         SerialM.println("off");
       }
       else {
@@ -5557,7 +5545,7 @@ void loop() {
 
   if (rto->syncWatcherEnabled && rto->boardHasPower) {
     if ((millis() - lastTimeInterruptClear) > 500) {
-      GBS::INTERRUPT_CONTROL_00::write(0xf5); // reset irq status, leave out 1 and 3 (mode switches)
+      GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
       GBS::INTERRUPT_CONTROL_00::write(0x00);
       lastTimeInterruptClear = millis();
     }
@@ -5720,24 +5708,6 @@ void loop() {
         inputAndSyncDetect(); // source is off; keep looking for new input
       }
       lastTimeSourceCheck = millis();
-    }
-  }
-
-  if (rto->syncWatcherEnabled) {
-    if (FrameSync::ready || rto->autoBestHtotalEnabled == false) {
-      static long stuff = millis();
-      if (((millis() - stuff) > 500) && rto->thisSourceMaxLevelSOG == 31) {
-        if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 13) {
-          if (rto->thisSourceMaxLevelSOG == 31) {
-            optimizeSogLevel();
-          }
-          if (rto->thisSourceMaxLevelSOG != 31) {
-            SerialM.print("SOG level: "); SerialM.print(rto->currentLevelSOG);
-            SerialM.print(" Coast: "); SerialM.println(!GBS::SP_DIS_SUB_COAST::read());
-          }
-        }
-        stuff = millis();
-      }
     }
   }
 
