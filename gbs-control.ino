@@ -2593,6 +2593,7 @@ void applyPresets(uint8_t result) {
     else if (result == 13) {
       SerialM.println("VGA/SVGA/XGA/SXGA");
       rto->videoStandardInput = 13;
+      rto->RGBHVsyncTypeCsync = true;
     }
 
     passThroughModeSwitch();
@@ -2966,8 +2967,7 @@ void setAndLatchPhaseADC() {
 }
 
 void updateSpDynamic() {
-  if (((rto->videoStandardInput == 0) || (rto->videoStandardInput > 13)) ||
-    !rto->boardHasPower || rto->sourceDisconnected)
+  if ((rto->videoStandardInput == 0) || !rto->boardHasPower || rto->sourceDisconnected)
   {
     return;
   }
@@ -3010,14 +3010,18 @@ void updateSpDynamic() {
     GBS::SP_H_PULSE_IGNOR::write(0x02);
     GBS::ADC_FLTR::write(2);     // 5_03 4/5 70Mhz
   }
-  else if (rto->videoStandardInput == 15) {
+  else if (rto->videoStandardInput == 15 || rto->videoStandardInput == 13) {
     if (rto->RGBHVsyncTypeCsync == false)
     {
       GBS::SP_PRE_COAST::write(0x00);
       GBS::SP_POST_COAST::write(0x00);
       GBS::SP_H_PULSE_IGNOR::write(0x02);
     }
-    // else SP_DLT_REG ? (for csync)
+    else { // csync
+      GBS::SP_PRE_COAST::write(0x03);
+      GBS::SP_POST_COAST::write(0x03);
+      GBS::SP_DLT_REG::write(0x70);
+    }
   }
 }
 
@@ -3111,6 +3115,11 @@ void updateClampPosition() {
       start = inHlength * 0.02f;
       stop = inHlength * 0.054f; // was 0.6
     }
+  }
+  else if (rto->videoStandardInput == 13) { // ps2 mode
+    //rto->RGBHVsyncTypeCsync is true ; inHlength is just 512, so hardcode
+    start = 0x0b;
+    stop =  0x30;
   }
   else if (rto->inputIsYpBpR) {
     // YUV
@@ -3301,19 +3310,26 @@ void passThroughModeSwitch() {
     }
     if (rto->videoStandardInput == 13) { // odd HD mode (PS2 "VGA" over Component)
       applyRGBPatches(); // treat mostly as RGB, clamp R/B to gnd
+      rto->RGBHVsyncTypeCsync = true; // used in loop to set clamps and SP dynamic
       GBS::DEC_MATRIX_BYPS::write(1); // overwrite for this mode 
       GBS::SP_PRE_COAST::write(3);
       GBS::SP_POST_COAST::write(3);
+      GBS::SP_DLT_REG::write(0x70);
       GBS::HD_MATRIX_BYPS::write(1); // bypass since we'll treat source as RGB
       GBS::HD_DYN_BYPS::write(1); // bypass since we'll treat source as RGB
       GBS::SP_VS_PROC_INV_REG::write(0); // don't invert
       // we won't know the exact mode, so don't do oversampling
-      GBS::PLLAD_KS::write(0); // 5_16 post divider 0 : FCKO1 > 87MHz, 3 : FCKO1<23MHz
+      // some (most) of this overwritten in check below! simply too much work for this mode atm
+      //GBS::PLLAD_KS::write(0); // 5_16 post divider 0 : FCKO1 > 87MHz, 3 : FCKO1<23MHz
       GBS::PLLAD_CKOS::write(0);    // 5_16 1x OS (with KS=CKOS=0)
       GBS::ADC_CLK_ICLK1X::write(0);// 5_00 4 (OS=1)
+      GBS::ADC_CLK_ICLK2X::write(0);// 5_00 3 (OS=1)
+      GBS::DEC1_BYPS::write(1);     // 5_1f 1 // dec1 disabled (OS=1)
       GBS::DEC2_BYPS::write(1);     // 5_1f 1 // dec2 disabled (OS=1)
-      GBS::PLLAD_ICP::write(5);
-      GBS::PLLAD_FS::write(0);
+      //GBS::PLLAD_ICP::write(5);
+      //GBS::PLLAD_FS::write(0);
+      GBS::PLLAD_MD::write(512);
+      
     }
   }
 
@@ -3329,25 +3345,20 @@ void passThroughModeSwitch() {
   delay(30);
 
   if (rto->videoStandardInput == 13) {
+    // section is missing HD_HSYNC_RST and HD_INI_ST adjusts
     uint16_t vtotal = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-    GBS::PLLAD_MD::write(512);
-    GBS::PLLAD_FS::write(1); // 5_11
-    GBS::PLLAD_ICP::write(5); // 5_17
-    GBS::SP_CS_HS_SP::write(0x08);
     if (vtotal < 532) { // 640x480 or less
       GBS::PLLAD_KS::write(3);
-      GBS::SP_CS_HS_ST::write(0); // neg h sync
-      GBS::SP_CS_HS_SP::write(0x0f);
+      GBS::PLLAD_FS::write(1);
     }
     else if (vtotal >= 532 && vtotal < 810) { // 800x600, 1024x768
       //GBS::PLLAD_KS::write(3); // just a little too much at 1024x768
       GBS::PLLAD_FS::write(0);
       GBS::PLLAD_KS::write(2);
-      GBS::SP_CS_HS_ST::write(0x22);
     }
     else { //if (vtotal > 1058 && vtotal < 1074) { // 1280x1024
       GBS::PLLAD_KS::write(2);
-      GBS::SP_CS_HS_ST::write(0x32);
+      GBS::PLLAD_FS::write(1);
     }
     latchPLLAD();
   }
@@ -3427,6 +3438,7 @@ void bypassModeSwitch_RGBHV() {
   resetDebugPort();
   rto->videoStandardInput = 15; // making sure
   rto->autoBestHtotalEnabled = false; // not necessary, since VDS is off / bypassed
+  rto->clampPositionIsSet = false;
 
   GBS::PLL_CKIS::write(0); // 0_40 0 //  0: PLL uses OSC clock | 1: PLL uses input clock
   GBS::PLL_DIVBY2Z::write(0); // 0_40 1 // 1= no divider (full clock, ie 27Mhz) 0 = halved clock
@@ -3486,7 +3498,6 @@ void bypassModeSwitch_RGBHV() {
     rto->phaseSP = 4;
   }
   GBS::SP_CLAMP_MANUAL::write(1); // needs to be 1
-  GBS::SP_CLP_SRC_SEL::write(1); // clamp source 1: pixel clock, 0: 27mhz // rgbhv bypass test: sog mode (unset before)
 
   GBS::SP_H_PROTECT::write(0); // 5_3e 4
   GBS::SP_DIS_SUB_COAST::write(1); // 5_3e 5 
@@ -5658,8 +5669,8 @@ void loop() {
     }
   }
 
-  if ((rto->videoStandardInput <= 13 && rto->videoStandardInput != 0) &&
-    (rto->continousStableCounter >= 2) &&
+  // don't exclude modes 13 / 14 / 15 (rgbhv bypass)
+  if ((rto->videoStandardInput != 0) && (rto->continousStableCounter >= 2) &&
     !rto->clampPositionIsSet && rto->syncWatcherEnabled)
   {
     updateClampPosition();
