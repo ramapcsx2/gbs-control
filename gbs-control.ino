@@ -148,6 +148,7 @@ struct runTimeOptions {
   uint8_t syncLockFailIgnore;
   uint8_t applyPresetDoneStage;
   uint8_t continousStableCounter;
+  uint8_t noSyncCounter;
   uint8_t failRetryAttempts;
   uint8_t presetID;
   uint8_t HPLLState;
@@ -447,6 +448,7 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
 
 void setResetParameters() {
   SerialM.println("<reset>");
+  rto->noSyncCounter = 0;
   rto->videoStandardInput = 0;
   rto->videoIsFrozen = false;
   rto->applyPresetDoneStage = 0;
@@ -698,7 +700,7 @@ void setSpParameters() {
   GBS::SP_SOG_P_ATO::write(0); // 5_20 disable sog auto polarity // hpw can be > ht, but auto is worse
   GBS::SP_JITTER_SYNC::write(0);
   // H active detect control
-  writeOneByte(0x21, 0x20); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20; lower than 5_33(not always); 0 to turn off (?)
+  writeOneByte(0x21, 0x18); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20; lower than 5_33(not always); 0 to turn off (?) 0x18 for 53.69 system @ 33.33
   writeOneByte(0x22, 0x0F); // SP_L_DLT_REG       Sync pulse width different threshold (little than this as equal)
   writeOneByte(0x23, 0x00); // UNDOCUMENTED       range from 0x00 to at least 0x1d
   writeOneByte(0x24, 0x40); // SP_T_DLT_REG       H total width different threshold rgbhv: b // range from 0x02 upwards
@@ -713,7 +715,7 @@ void setSpParameters() {
   writeOneByte(0x2f, 0x02); // SP_V_PRD_EQ_THD    How many continue legal v sync as valid // at 4 starts to drop 0_16 vsync events
   writeOneByte(0x31, 0x2f); // SP_VT_DLT_REG      V total different threshold
   // Timer value control
-  writeOneByte(0x33, 0x8a); // SP_H_TIMER_VAL     H timer value for h detect (was 0x28)
+  writeOneByte(0x33, 0x3a); // SP_H_TIMER_VAL     H timer value for h detect (was 0x28)
   writeOneByte(0x34, 0x05); // SP_V_TIMER_VAL     V timer for V detect // 0_16 vsactive
   // Sync separation control
   if (rto->videoStandardInput == 0) GBS::SP_DLT_REG::write(0x70); // 5_35  130 too much for ps2 1080i, 0xb0 for 1080p
@@ -1778,7 +1780,7 @@ void applyBestHTotal(uint16_t bestHTotal) {
     // source is 50Hz, preset has to stay at 60Hz: return
     return;
   }
-  boolean isLargeDiff = (diffHTotalUnsigned > (orig_htotal * 0.04f)) ? true : false; // typical diff: 1802 to 1794 (=8)
+  boolean isLargeDiff = (diffHTotalUnsigned > (orig_htotal * 0.06f)) ? true : false; // typical diff: 1802 to 1794 (=8)
   if (isLargeDiff) {
     SerialM.println("ABHT: large diff");
   }
@@ -1896,13 +1898,25 @@ void applyBestHTotal(uint16_t bestHTotal) {
     }
 
     if (diffHTotal != 0) { // apply
-      GBS::VDS_HSYNC_RST::write(bestHTotal);
-      GBS::VDS_HS_ST::write(h_sync_start_position);
-      GBS::VDS_HS_SP::write(h_sync_stop_position);
+      if (diffHTotalUnsigned < 60) {
+        // smooth out applying new htotal
+        uint16_t rst = GBS::VDS_HSYNC_RST::read();
+        while (rst != bestHTotal) {
+          if (diffHTotal < 0) GBS::VDS_HSYNC_RST::write(rst - 1);
+          else                GBS::VDS_HSYNC_RST::write(rst + 1);
+          rst = GBS::VDS_HSYNC_RST::read();
+          delay(2);
+        }
+      }
+      else {
+        GBS::VDS_HSYNC_RST::write(bestHTotal);
+      }
       GBS::VDS_DIS_HB_ST::write(h_blank_display_start_position);
       GBS::VDS_DIS_HB_SP::write(h_blank_display_stop_position);
       GBS::VDS_HB_ST::write(h_blank_memory_start_position);
       GBS::VDS_HB_SP::write(h_blank_memory_stop_position);
+      GBS::VDS_HS_ST::write(h_sync_start_position);
+      GBS::VDS_HS_SP::write(h_sync_stop_position);
     }
   }
   SerialM.print("Base: "); SerialM.print(orig_htotal);
@@ -3357,7 +3371,7 @@ void passThroughModeSwitch() {
   rto->outModePassThroughWithIf = 1;
   rto->presetID = 0x21; // bypass flavor 1
   SerialM.println("pass-through on");
-  delay(300); // 1080i/p can take some time to stabilize
+  delay(500); // 1080i/p can take some time to stabilize
 }
 
 void bypassModeSwitch_SOG() {
@@ -3754,13 +3768,13 @@ void printInfo() {
   }
 #endif
   //int charsToPrint = 
-  sprintf(print, "h:%4u v:%4u PLL%c%02u A:%02x%02x%02x S:%02x.%02x.%02x I:%02x D:%04x m:%hu ht:%4d vt:%3d hpw:%4d s:%2x W:%d",
+  sprintf(print, "h:%4u v:%4u PLL%c%02u A:%02x%02x%02x S:%02x.%02x.%02x I:%02x D:%04x m:%hu ht:%4d vt:%3d hpw:%4d s:%2x u:%2x W:%d",
     hperiod, vperiod, plllock, lockCounter,
     GBS::ADC_RGCTRL::read(), GBS::ADC_GGCTRL::read(), GBS::ADC_BGCTRL::read(),
     GBS::STATUS_00::read(), GBS::STATUS_05::read(), GBS::STATUS_16::read(), GBS::STATUS_0F::read(),
     GBS::TEST_BUS::read(), getVideoMode(),
     GBS::STATUS_SYNC_PROC_HTOTAL::read(), GBS::STATUS_SYNC_PROC_VTOTAL::read() /*+ 1*/,   // emucrt: without +1 is correct line count 
-    GBS::STATUS_SYNC_PROC_HLOW_LEN::read(), rto->continousStableCounter,
+    GBS::STATUS_SYNC_PROC_HLOW_LEN::read(), rto->continousStableCounter, rto->noSyncCounter,
     wifi);
 
   //SerialM.print("charsToPrint: "); SerialM.println(charsToPrint);
@@ -3794,10 +3808,49 @@ void startWire() {
   }
 }
 
-uint32_t runSyncWatcher()
+void fastSogAdjust()
 {
-  static uint16_t noSyncCounter = 0;
-  static uint8_t syncDropCounter = 0;
+  if (rto->noSyncCounter <= 5) {
+    uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
+    uint8_t debug_backup_SP = GBS::TEST_BUS_SP_SEL::read();
+    if (debug_backup != 0xa) {
+      GBS::TEST_BUS_SEL::write(0xa);
+    }
+    if (debug_backup_SP != 0x0f) {
+      GBS::TEST_BUS_SP_SEL::write(0x0f);
+    }
+
+    if ((GBS::TEST_BUS_2F::read() & 0x04) != 0x04) {
+      while ((GBS::TEST_BUS_2F::read() & 0x04) != 0x04) {
+        rto->currentLevelSOG -= 2;
+        if (rto->currentLevelSOG < 2) {
+          rto->currentLevelSOG = 14;
+          setAndUpdateSogLevel(rto->currentLevelSOG);
+          delay(20);
+          break; // abort / restart next round
+        }
+        setAndUpdateSogLevel(rto->currentLevelSOG);
+        delay(10); // 4
+      }
+      delay(10);
+    }
+
+    if (debug_backup != 0xa) {
+      GBS::TEST_BUS_SEL::write(debug_backup);
+    }
+    if (debug_backup_SP != 0x0f) {
+      GBS::TEST_BUS_SP_SEL::write(debug_backup_SP);
+    }
+  }
+  else if (rto->noSyncCounter == 24 || rto->noSyncCounter == 25) {
+    // reset sog to midscale
+    rto->currentLevelSOG = 8;
+    setAndUpdateSogLevel(rto->currentLevelSOG);
+  }
+}
+
+void runSyncWatcher()
+{
   static uint8_t newVideoModeCounter = 0;
   static unsigned long lastSyncDrop = millis();
 
@@ -3806,53 +3859,29 @@ uint32_t runSyncWatcher()
 
   if ((detectedVideoMode == 0 || !status16SpHsStable) && rto->videoStandardInput != 15) {
     //freezeVideo();
-    if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
-      if ((GBS::STATUS_16::read() & 0x01) == 0x01) { // sog failure indicator
-        uint16_t hlowStart = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
-        for (int a = 0; a < 40; a++) {
-          if (GBS::STATUS_SYNC_PROC_HLOW_LEN::read() != hlowStart) {
-            // source still there
-            Serial.print("^");
-            optimizeSogLevel(); // test: immediately run this
-            break;
-          }
-          delay(1);
-        }
-      }
-    }
-    noSyncCounter++;
+    rto->noSyncCounter++;
     rto->continousStableCounter = 0;
-    LEDOFF; // always LEDOFF on sync loss, except if RGBHV
+    if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
+        fastSogAdjust();
+    }
+    LEDOFF; // always LEDOFF on sync loss
+
     if (rto->printInfos == false) {
       static unsigned long timeToLineBreak = millis();
-      if (noSyncCounter == 1) {
+      if (rto->noSyncCounter == 1) {
         if ((millis() - timeToLineBreak) > 3000) { SerialM.print("\n."); timeToLineBreak = millis(); }
         else { SerialM.print("."); }
       }
     }
-    if (noSyncCounter == 1) {                 // this usually repeats
-      if ((millis() - lastSyncDrop) < 1800) { // tweak point
-        syncDropCounter++;
-        Serial.print(syncDropCounter);
-      }
-      else {
-        syncDropCounter = 0;
-      }
+
+    if (rto->noSyncCounter == 1) {                 // this usually repeats
       if ((millis() - lastSyncDrop) > 1500) { // minimum space between runs
         updateSpDynamic();
-      }
-      if (syncDropCounter > 6) {
-        optimizeSogLevel();
-        syncDropCounter = 0;
-        SerialM.print("SOG level: "); SerialM.println(rto->currentLevelSOG);
       }
       lastSyncDrop = millis(); // restart timer
     }
 
-    if (noSyncCounter % 7 == 0) {
-      if (newVideoModeCounter == 0) { unfreezeVideo(); } // show image occasionally, even if unstable
-    }
-    if (noSyncCounter % 80 == 0) {
+    if (rto->noSyncCounter % 80 == 0) {
       SerialM.print("no signal: ");
       printInfo();
       updateSpDynamic();
@@ -3911,8 +3940,7 @@ uint32_t runSyncWatcher()
           }
         }
         rto->videoStandardInput = detectedVideoMode;
-        noSyncCounter = 0;
-        syncDropCounter = 0;
+        rto->noSyncCounter = 0;
         rto->clampPositionIsSet = 0;
         rto->coastPositionIsSet = 0;
         delay(2); // post delay
@@ -3925,7 +3953,7 @@ uint32_t runSyncWatcher()
           // if we got here from standby mode, return there soon
           // but occasionally, this is a regular new mode that needs a SP parameter change to work
           // ie: 1080p needs longer post coast, which the syncwatcher loop applies at some point
-          noSyncCounter = 300; // 400 = no sync, give some time in normal loop
+          rto->noSyncCounter = 180; // 254 = no sync, give some time in normal loop
         }
       }
     }
@@ -3937,7 +3965,7 @@ uint32_t runSyncWatcher()
     if (rto->continousStableCounter < 255) {
       rto->continousStableCounter++;
     }
-    noSyncCounter = 0;
+    rto->noSyncCounter = 0;
     newVideoModeCounter = 0;
 
     if (rto->continousStableCounter == 4) {
@@ -4157,7 +4185,7 @@ uint32_t runSyncWatcher()
       setSpParameters();
       resetSyncProcessor(); // todo: fix MD being stuck in last mode when sync disappears
       //resetModeDetect();
-      noSyncCounter = 0;
+      rto->noSyncCounter = 0;
     }
 
     static unsigned long lastTimeCheck = millis();
@@ -4191,10 +4219,10 @@ uint32_t runSyncWatcher()
           if (runsWithSOGStatus >= 8) {
             SerialM.println("(SP) RGB/HV > SOG");
             rto->RGBHVsyncTypeCsync = true;
-            noSyncCounter = rto->HPLLState = runsWithSOGStatus = 
+            rto->noSyncCounter = rto->HPLLState = runsWithSOGStatus = 
             RGBHVNoSyncCounter = rto->continousStableCounter = 0;
             applyPresets(rto->videoStandardInput); // calls bypass to RGBHV and postPresetLoadSteps
-            return 0;
+            return;
           }
         }
         else { runsWithSOGStatus = 0; }
@@ -4293,13 +4321,13 @@ uint32_t runSyncWatcher()
     }
   }
 
-  if (noSyncCounter >= 40) { // attempt fixes
-    if (rto->inputIsYpBpR && noSyncCounter == 40) {
+  if (rto->noSyncCounter >= 40) { // attempt fixes
+    if (rto->inputIsYpBpR && rto->noSyncCounter == 40) {
       GBS::SP_NO_CLAMP_REG::write(1); // unlock clamp
       rto->clampPositionIsSet = false;
     }
     if (rto->videoStandardInput != 15) {
-      if (noSyncCounter % 40 == 0) {
+      if (rto->noSyncCounter % 40 == 0) {
         // the * check needs to be first (go before auto sog level) to support SD > HDTV detection
         SerialM.print("*");
         if (GBS::ADC_UNUSED_67::read() == 0) {
@@ -4341,20 +4369,18 @@ uint32_t runSyncWatcher()
           }
         }
       }
-      noSyncCounter++;
+      rto->noSyncCounter++;
       delay(100);
     }
 
     // couldn't recover, source is lost
     // restore initial conditions and move to input detect
-    if (noSyncCounter >= 300) {
+    if (rto->noSyncCounter >= 254) {
       GBS::DAC_RGBS_PWDNZ::write(0); // direct disableDAC()
-      noSyncCounter = 0;
+      rto->noSyncCounter = 0;
       goLowPowerWithInputDetection(); // does not further nest, so it can be called here // sets reset parameters
     }
   }
-
-  return noSyncCounter;
 }
 
 // checks both I2C lines for high level, returns false if either one is low
@@ -4596,6 +4622,11 @@ void setup() {
     setResetParameters();
     setSpParameters();
 
+    uint8_t productId = GBS::CHIP_ID_PRODUCT::read();
+    uint8_t revisionId = GBS::CHIP_ID_REVISION::read();
+    SerialM.print("Chip ID: "); 
+    SerialM.print(productId,HEX); SerialM.println(revisionId,HEX);
+
     //rto->syncWatcherEnabled = false; // allows passive operation by disabling syncwatcher here
     //inputAndSyncDetect();
     if (rto->syncWatcherEnabled == true) {
@@ -4769,7 +4800,6 @@ void loop() {
   static uint8_t registerCurrent = 255;
   static uint8_t inputToogleBit = 0;
   static uint8_t inputStage = 0;
-  static uint16_t noSyncCounter = 0;
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastVsyncLock = millis();
   static unsigned long lastTimeSourceCheck = millis();
@@ -5565,7 +5595,7 @@ void loop() {
   if (rto->sourceDisconnected == false && rto->syncWatcherEnabled == true 
     && (millis() - lastTimeSyncWatcher) > 20) 
   {
-    noSyncCounter = runSyncWatcher();
+    runSyncWatcher();
     lastTimeSyncWatcher = millis();
   }
 
@@ -5710,15 +5740,15 @@ void loop() {
 
   // has the GBS board lost power? // check at 2 points, in case one doesn't register
   // values around 21 chosen to not do this check for small sync issues
-  if ((noSyncCounter == 21 || noSyncCounter == 22) && rto->boardHasPower)
+  if ((rto->noSyncCounter == 21 || rto->noSyncCounter == 22) && rto->boardHasPower)
   {
     if ( !checkBoardPower() )
     {
-      noSyncCounter = 1; // some neutral value, meaning "no sync"
+      rto->noSyncCounter = 1; // some neutral value, meaning "no sync"
     }
     else
     {
-      noSyncCounter = 23; // avoid checking twice
+      rto->noSyncCounter = 23; // avoid checking twice
     }
   }
 

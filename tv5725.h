@@ -118,7 +118,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x10, 4,  1> STATUS_VDS_OUT_VSYNC;
     typedef UReg<0x00, 0x10, 5,  1> STATUS_VDS_OUT_HSYNC;
     typedef UReg<0x00, 0x11, 0,  1> STATUS_VDS_FIELD;
-    typedef UReg<0x00, 0x11, 1,  1> STATUS_VDS_OUT_CSYNC;
+    typedef UReg<0x00, 0x11, 1,  1> STATUS_VDS_OUT_BLANK;
     typedef UReg<0x00, 0x11, 4, 11> STATUS_VDS_VERT_COUNT;
 
     typedef UReg<0x00, 0x13, 0,  1> STATUS_MEM_FF_WFF_FIFO_FULL;
@@ -659,6 +659,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x20, 3,  1> SP_EXT_SYNC_SEL;
     typedef UReg<0x05, 0x20, 4,  1> SP_JITTER_SYNC;
     typedef UReg<0x05, 0x26, 0, 12> SP_SYNC_PD_THD;
+    typedef UReg<0x05, 0x33, 0,  8> SP_H_TIMER_VAL;
     typedef UReg<0x05, 0x35, 0, 12> SP_DLT_REG;
     typedef UReg<0x05, 0x37, 0,  8> SP_H_PULSE_IGNOR;
     typedef UReg<0x05, 0x38, 0,  8> SP_PRE_COAST;
