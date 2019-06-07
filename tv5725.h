@@ -162,6 +162,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x44, 2,  1> DAC_RGBS_R0ENZ;
     typedef UReg<0x00, 0x44, 5,  1> DAC_RGBS_G0ENZ;
     typedef UReg<0x00, 0x45, 0,  1> DAC_RGBS_B0ENZ;
+    typedef UReg<0x00, 0x45, 4,  1> DAC_RGBS_S1EN;
     typedef UReg<0x00, 0x46, 0,  8> RESET_CONTROL_0x46; // fake name
     typedef UReg<0x00, 0x46, 0,  1> SFTRST_IF_RSTZ;
     typedef UReg<0x00, 0x46, 1,  1> SFTRST_DEINT_RSTZ;
