@@ -3393,6 +3393,7 @@ void bypassModeSwitch_RGBHV() {
   resetSyncProcessor(); // required to initialize SOG status
   delay(2);ResetSDRAM();delay(2);
   resetPLLAD(); delay(20);
+  GBS::PLLAD_LEN::write(1); // 5_11 1
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
 
@@ -4097,7 +4098,7 @@ void runSyncWatcher()
           if (rto->HPLLState != 1) {
             GBS::PLLAD_FS::write(0); // new, check 640x200@60
             GBS::PLLAD_KS::write(2);
-            GBS::PLLAD_ICP::write(5);
+            GBS::PLLAD_ICP::write(6);
             rto->HPLLState = 1;
           }
         }
@@ -4133,7 +4134,7 @@ void runSyncWatcher()
           if (rto->HPLLState != 5) {
             GBS::PLLAD_KS::write(0);
             GBS::PLLAD_FS::write(1);
-            GBS::PLLAD_ICP::write(4);
+            GBS::PLLAD_ICP::write(5);
             rto->HPLLState = 5;
           }
         }
