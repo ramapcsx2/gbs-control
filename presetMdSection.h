@@ -1,6 +1,6 @@
 const uint8_t presetMdSection[] PROGMEM = {
-156, // s1_60 H: unlock: 4, lock: 28
-99, // s1_61
+0xB6, // s1_60 H: unlock: 5, lock: 22 // 0x9c > 4, 28
+0x64, // s1_61 V: unlock: 3, lock: 4 // 0x45 > 2, 5
 96, // s1_62
 38, // s1_63
 65, // s1_64
@@ -31,8 +31,8 @@ const uint8_t presetMdSection[] PROGMEM = {
 98, // s1_7D
 118, // s1_7E
 156, // s1_7F
-32, // s1_80
-26, // s1_81
-5, // s1_82
-16, // s1_83
+0xff, // s1_80 // custom mode h // was 32(d)
+0xff, // s1_81 // custom mode v // was 26(d)
+0x01, // s1_82 // was 0x05 // result in 0_16 // 0x31 = SP timer detect used for something
+0x0c, // s1_83 MD_UNSTABLE_LOCK_VALUE = 3 // was 0x10 (lock val 4)
 };

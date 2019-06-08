@@ -118,7 +118,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x10, 4,  1> STATUS_VDS_OUT_VSYNC;
     typedef UReg<0x00, 0x10, 5,  1> STATUS_VDS_OUT_HSYNC;
     typedef UReg<0x00, 0x11, 0,  1> STATUS_VDS_FIELD;
-    typedef UReg<0x00, 0x11, 1,  1> STATUS_VDS_OUT_CSYNC;
+    typedef UReg<0x00, 0x11, 1,  1> STATUS_VDS_OUT_BLANK;
     typedef UReg<0x00, 0x11, 4, 11> STATUS_VDS_VERT_COUNT;
 
     typedef UReg<0x00, 0x13, 0,  1> STATUS_MEM_FF_WFF_FIFO_FULL;
@@ -153,6 +153,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x40, 3,  1> PLL_ADS;
     typedef UReg<0x00, 0x40, 4,  3> PLL_MS;
     typedef UReg<0x00, 0x41, 0,  8> PLL648_CONTROL_01;
+    typedef UReg<0x00, 0x43, 0,  8> PLL648_CONTROL_03;
     typedef UReg<0x00, 0x43, 0,  2> PLL_R;
     typedef UReg<0x00, 0x43, 2,  2> PLL_S;
     typedef UReg<0x00, 0x43, 4,  1> PLL_LEN;
@@ -161,6 +162,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x44, 2,  1> DAC_RGBS_R0ENZ;
     typedef UReg<0x00, 0x44, 5,  1> DAC_RGBS_G0ENZ;
     typedef UReg<0x00, 0x45, 0,  1> DAC_RGBS_B0ENZ;
+    typedef UReg<0x00, 0x45, 4,  1> DAC_RGBS_S1EN;
     typedef UReg<0x00, 0x46, 0,  8> RESET_CONTROL_0x46; // fake name
     typedef UReg<0x00, 0x46, 0,  1> SFTRST_IF_RSTZ;
     typedef UReg<0x00, 0x46, 1,  1> SFTRST_DEINT_RSTZ;
@@ -203,6 +205,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x01, 7,  1> IF_SEL24BIT;
     typedef UReg<0x01, 0x02, 0,  8> INPUT_FORMATTER_02; // convenience
     typedef UReg<0x01, 0x02, 0,  1> IF_SEL_WEN;
+    typedef UReg<0x01, 0x02, 1,  1> IF_HS_SEL_LPF;
     typedef UReg<0x01, 0x02, 2,  1> IF_HS_INT_LPF_BYPS;
     typedef UReg<0x01, 0x02, 3,  1> IF_HS_PSHIFT_BYPS;
     typedef UReg<0x01, 0x02, 4,  1> IF_HS_TAP11_BYPS;
@@ -225,6 +228,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x22, 0, 12> IF_LINE_SP;
     typedef UReg<0x01, 0x24, 0, 12> IF_HBIN_ST;
     typedef UReg<0x01, 0x26, 0, 12> IF_HBIN_SP;
+    typedef UReg<0x01, 0x28, 1,  1> IF_LD_WRST_SEL;
     typedef UReg<0x01, 0x28, 2,  1> IF_SEL_ADC_SYNC;
     typedef UReg<0x01, 0x28, 3,  1> IF_TEST_EN;
     typedef UReg<0x01, 0x28, 4,  4> IF_TEST_SEL;
@@ -249,6 +253,8 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x3D, 0, 12> HD_HB_SP;
     typedef UReg<0x01, 0x3F, 0, 12> HD_HS_ST;
     typedef UReg<0x01, 0x41, 0, 12> HD_HS_SP;
+    typedef UReg<0x01, 0x43, 0, 12> HD_VB_ST;
+    typedef UReg<0x01, 0x45, 0, 12> HD_VB_SP;
     typedef UReg<0x01, 0x47, 0, 12> HD_VS_ST;
     typedef UReg<0x01, 0x49, 0, 12> HD_VS_SP;
 
@@ -521,6 +527,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x13, 0,  1> MEM_PAD_CLK_INVERT;
     typedef UReg<0x04, 0x13, 1,  1> MEM_RD_DATA_CLK_INVERT;
     typedef UReg<0x04, 0x13, 2,  1> MEM_FBK_CLK_INVERT;
+    typedef UReg<0x04, 0x15, 0,  1> MEM_REQ_PBH_RFFH;
     typedef UReg<0x04, 0x1b, 0,  3> MEM_ADR_DLY_REG;
     typedef UReg<0x04, 0x1b, 4,  3> MEM_CLK_DLY_REG;
 
@@ -544,18 +551,25 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x42, 0,  1> WFF_ENABLE;
     typedef UReg<0x04, 0x42, 2,  1> WFF_FF_STA_INV;
     typedef UReg<0x04, 0x42, 3,  1> WFF_SAFE_GUARD;
+    typedef UReg<0x04, 0x42, 5,  1> WFF_ADR_ADD_2;
+    typedef UReg<0x04, 0x42, 7,  1> WFF_FF_STATUS_SEL;
     typedef UReg<0x04, 0x44, 0,  21> WFF_SAFE_GUARD_A;
     typedef UReg<0x04, 0x47, 0,  21> WFF_SAFE_GUARD_B;
     typedef UReg<0x04, 0x4a, 0,  1> WFF_YUV_DEINTERLACE;
     typedef UReg<0x04, 0x4a, 4,  1> WFF_LINE_FLIP;
     typedef UReg<0x04, 0x4b, 0,  3> WFF_HB_DELAY;
     typedef UReg<0x04, 0x4b, 4,  3> WFF_VB_DELAY;
+    typedef UReg<0x04, 0x4d, 4,  1> RFF_ADR_ADD_2;
     typedef UReg<0x04, 0x4d, 5,  2> RFF_REQ_SEL;
     typedef UReg<0x04, 0x4d, 7,  1> RFF_ENABLE;
+    typedef UReg<0x04, 0x4e, 0,  8> RFF_MASTER_FLAG;
     typedef UReg<0x04, 0x50, 5,  1> RFF_LINE_FLIP;
     typedef UReg<0x04, 0x50, 6,  1> RFF_YUV_DEINTERLACE;
     typedef UReg<0x04, 0x50, 7,  1> RFF_LREQ_CUT;
+    typedef UReg<0x04, 0x51, 0,  21> RFF_WFF_STA_ADDR_A;
+    typedef UReg<0x04, 0x54, 0,  21> RFF_WFF_STA_ADDR_B;
     typedef UReg<0x04, 0x57, 0,  10> RFF_WFF_OFFSET;
+    typedef UReg<0x04, 0x59, 0,  10> RFF_FETCH_NUM;
     typedef UReg<0x04, 0x5B, 7,  1> MEM_FF_TOP_FF_SEL;
 
     // OSD Registers
@@ -599,13 +613,16 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x04, 2,  3> ADC_TR_ISEL;
     typedef UReg<0x05, 0x05, 0,  1> ADC_TA_EN;
     typedef UReg<0x05, 0x05, 1,  4> ADC_TA_CTRL;
+    typedef UReg<0x05, 0x05, 1,  1> ADC_TA_CTRL_05_BIT1;
     typedef UReg<0x05, 0x06, 0,  8> ADC_ROFCTRL;
     typedef UReg<0x05, 0x07, 0,  8> ADC_GOFCTRL;
     typedef UReg<0x05, 0x08, 0,  8> ADC_BOFCTRL;
     typedef UReg<0x05, 0x09, 0,  8> ADC_RGCTRL;
     typedef UReg<0x05, 0x0A, 0,  8> ADC_GGCTRL;
     typedef UReg<0x05, 0x0B, 0,  8> ADC_BGCTRL;
-    typedef UReg<0x05, 0x0C, 1,  4> ADC_TEST;
+    typedef UReg<0x05, 0x0C, 1,  4> ADC_TEST_0C;
+    typedef UReg<0x05, 0x0C, 3,  1> ADC_TEST_0C_BIT3;
+    typedef UReg<0x05, 0x0C, 4,  1> ADC_TEST_0C_BIT4;
     typedef UReg<0x05, 0x0E, 0,  1> ADC_AUTO_OFST_EN;
     typedef UReg<0x05, 0x11, 0,  8> PLLAD_CONTROL_00_5x11; // fake name
     typedef UReg<0x05, 0x11, 0,  1> PLLAD_VCORST;
@@ -643,6 +660,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x20, 3,  1> SP_EXT_SYNC_SEL;
     typedef UReg<0x05, 0x20, 4,  1> SP_JITTER_SYNC;
     typedef UReg<0x05, 0x26, 0, 12> SP_SYNC_PD_THD;
+    typedef UReg<0x05, 0x33, 0,  8> SP_H_TIMER_VAL;
     typedef UReg<0x05, 0x35, 0, 12> SP_DLT_REG;
     typedef UReg<0x05, 0x37, 0,  8> SP_H_PULSE_IGNOR;
     typedef UReg<0x05, 0x38, 0,  8> SP_PRE_COAST;
@@ -653,6 +671,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x3E, 0,  8> SP_CS_0x3E; // fake name
     typedef UReg<0x05, 0x3E, 0,  1> SP_CS_P_SWAP;
     typedef UReg<0x05, 0x3E, 1,  1> SP_HD_MODE;
+    typedef UReg<0x05, 0x3E, 2,  1> SP_H_COAST;
     typedef UReg<0x05, 0x3E, 4,  1> SP_H_PROTECT;
     typedef UReg<0x05, 0x3E, 5,  1> SP_DIS_SUB_COAST;
     typedef UReg<0x05, 0x3F, 0,  8> SP_SDCS_VSST_REG_L;
@@ -679,10 +698,16 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x57, 0,  1> SP_NO_CLAMP_REG;
     typedef UReg<0x05, 0x57, 2,  1> SP_NO_COAST_REG;
     typedef UReg<0x05, 0x57, 6,  1> SP_HS_LOOP_SEL;
+    typedef UReg<0x05, 0x57, 7,  1> SP_HS_REG;
     typedef UReg<0x05, 0x60, 0,  8> ADC_UNUSED_60;
     typedef UReg<0x05, 0x61, 0,  8> ADC_UNUSED_61;
     typedef UReg<0x05, 0x62, 0,  8> ADC_UNUSED_62;
     typedef UReg<0x05, 0x63, 0,  8> TEST_BUS_SP_SEL;
+    typedef UReg<0x05, 0x64, 0,  8> ADC_UNUSED_64;
+    typedef UReg<0x05, 0x65, 0,  8> ADC_UNUSED_65;
+    typedef UReg<0x05, 0x66, 0,  8> ADC_UNUSED_66;
+    typedef UReg<0x05, 0x67, 0, 16> ADC_UNUSED_67;
+                                  //ADC_UNUSED_68;
 
     typedef UReg<0x05, 0xD0, 0,  32> VERYWIDEDUMMYREG;
 
