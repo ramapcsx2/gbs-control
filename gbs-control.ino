@@ -458,7 +458,7 @@ void setResetParameters() {
   rto->continousStableCounter = 0;
   rto->noSyncCounter = 0;
   rto->isInLowPowerMode = false;
-  rto->currentLevelSOG = 4;         // R54 large chroma envelope effect
+  rto->currentLevelSOG = 2;
   rto->thisSourceMaxLevelSOG = 31;  // 31 = auto sog has not (yet) run
   rto->failRetryAttempts = 0;
   rto->HPLLState = 0;
@@ -500,15 +500,18 @@ void setResetParameters() {
   // adc for sog detection
   GBS::ADC_INPUT_SEL::write(1); // 1 = RGBS / RGBHV adc data input
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
-  GBS::ADC_TR_RSEL::write(2); // 5_04 // ADC_TR_RSEL = 2
+  //GBS::ADC_TR_RSEL::write(2); // 5_04 // ADC_TR_RSEL = 2
+  GBS::ADC_TR_RSEL::write(0);
   GBS::ADC_TA_CTRL_05_BIT1::write(1); // 5_05 1 // minor SOG clamp effect
-  GBS::ADC_TEST_0C::write(2); // 5_0c bit 2 // should work now
+  //GBS::ADC_TEST_0C::write(2); // 5_0c 2
+  GBS::ADC_TEST_0C::write(0);
+  GBS::ADC_TEST_0C_BIT4::write(1); // 5_0c 4
   GBS::SP_NO_CLAMP_REG::write(1);
   GBS::ADC_SOGEN::write(1);
   GBS::ADC_POWDZ::write(1); // ADC on
   GBS::PLLAD_ICP::write(0); // lowest charge pump current
   GBS::PLLAD_FS::write(0); // low gain (have to deal with cold and warm startups)
-  GBS::PLLAD_5_16::write(0x1f); // this maybe needs to be the sog detection default
+  GBS::PLLAD_5_16::write(0x1f);
   GBS::PLLAD_MD::write(0x700);
   resetPLL(); // cycles PLL648
   delay(2);
@@ -771,14 +774,14 @@ void setSpParameters() {
 // Sync detect resolution: 5bits; comparator voltage range 10mv~320mv.
 // -> 10mV per step; if cables and source are to standard (level 6 = 60mV)
 void setAndUpdateSogLevel(uint8_t level) {
+  rto->currentLevelSOG = level & 0x1f;
   GBS::ADC_SOGCTRL::write(level);
-  rto->currentLevelSOG = level;
   delay(8); togglePhaseAdjustUnits(); delay(8);
   setAndLatchPhaseSP(); delay(2);  setAndLatchPhaseADC();
   delay(2); latchPLLAD();
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
-  //Serial.print("sog: "); Serial.println(rto->currentLevelSOG);
+  Serial.print("sog: "); Serial.println(rto->currentLevelSOG);
 }
 
 // in operation: t5t04t1 for 10% lower power on ADC
@@ -796,10 +799,10 @@ void setAndUpdateSogLevel(uint8_t level) {
 void goLowPowerWithInputDetection() {
   GBS::OUT_SYNC_CNTRL::write(0); // no H / V sync out to PAD
   GBS::DAC_RGBS_PWDNZ::write(0); // direct disableDAC()
-  zeroAll();
+  //zeroAll();
   setResetParameters(); // includes rto->videoStandardInput = 0
   setSpParameters();
-  delay(300);
+  delay(100);
   rto->isInLowPowerMode = true;
   SerialM.println("Scanning inputs for sources ...");
   LEDOFF;
@@ -816,17 +819,19 @@ void optimizeSogLevel() {
   }
 
   if (rto->thisSourceMaxLevelSOG != 31) {
-    rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
+      if (rto->thisSourceMaxLevelSOG >= 4) {
+          rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
+      } else {
+          rto->currentLevelSOG = 14; // max level was < 4, so better restart search
+      }
+  } else {
+      rto->currentLevelSOG = 14;
   }
-  else {
-    rto->currentLevelSOG = 14;
-  }
-  //freezeVideo(); delay(2);
   setAndUpdateSogLevel(rto->currentLevelSOG);
 
   GBS::ADC_TEST_0C_BIT4::write(1);  // ignore previous filter setting
   boolean coastWasEnabled = !!GBS::SP_DIS_SUB_COAST::read();
-  GBS::SP_DIS_SUB_COAST::write(1);
+  //GBS::SP_DIS_SUB_COAST::write(1);
 
   //resetSyncProcessor(); //delay(400);
   resetModeDetect();
@@ -834,7 +839,7 @@ void optimizeSogLevel() {
   //unfreezeVideo();
   delay(160);
 
-  while (rto->currentLevelSOG >= 3) {
+  while (rto->currentLevelSOG >= 0) {
     uint8_t syncGoodCounter = 0;
     unsigned long timeout = millis();
     while ((millis() - timeout) < 370) {
@@ -883,14 +888,15 @@ void optimizeSogLevel() {
       continue; // back to test
     }
     GBS::ADC_TEST_0C_BIT4::write(1);
-    rto->currentLevelSOG -= 2;
-    setAndUpdateSogLevel(rto->currentLevelSOG);
-    delay(180); // time for sog to settle
+    if (rto->currentLevelSOG >= 2) {
+      rto->currentLevelSOG -= 2;
+      setAndUpdateSogLevel(rto->currentLevelSOG);
+      delay(180); // time for sog to settle
+    }
+    else { break; } // level = 0, break
   }
 
-  if (rto->currentLevelSOG >= 4) {  // else it's a source that probably needs rechecking later
-    rto->thisSourceMaxLevelSOG = rto->currentLevelSOG;
-  }
+  rto->thisSourceMaxLevelSOG = rto->currentLevelSOG;
 
   if (coastWasEnabled) {
     GBS::SP_DIS_SUB_COAST::write(0);
@@ -916,11 +922,9 @@ void switchSyncProcessingMode(uint8_t mode) {
 // - VGA input / 5 pin RGBS header / 8 pin VGA header (all 3 are shared electrically)
 // This routine looks for sync on the currently active input. If it finds it, the input is returned.
 // If it doesn't find sync, it switches the input and returns 0, so that an active input will be found eventually.
-// This is done this way to not block the control MCU with active searching for sync.
 uint8_t detectAndSwitchToActiveInput() { // if any
   uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
   unsigned long timeout = millis();
-
   while (millis() - timeout < 450) {
     delay(10);
     handleWiFi();
@@ -936,7 +940,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
       if (currentInput == 1) { // RGBS or RGBHV
         boolean vsyncActive = 0;
         unsigned long timeOutStart = millis();
-        while (!vsyncActive && ((millis() - timeOutStart) < 250)) { // short vsync test
+        while (!vsyncActive && ((millis() - timeOutStart) < 250)) { // vsync test
           vsyncActive = GBS::STATUS_SYNC_PROC_VSACT::read();
           handleWiFi(); // wifi stack
           delay(1);
@@ -945,30 +949,30 @@ uint8_t detectAndSwitchToActiveInput() { // if any
           delay(50);
           uint16_t testCycle = 0;
           timeOutStart = millis();
-          while ((millis() - timeOutStart) < 700) 
+          while ((millis() - timeOutStart) < 6000) 
           {
             delay(2);
             if (getVideoMode() > 0) {
               return 1;
             }
-            // post coast fixed to general detect value can mislead occasionally (SNES 239 mode)
             testCycle++;
-            if (testCycle == 120) { // ~310ms
-              GBS::SP_POST_COAST::write(9);
+            // post coast 18 can mislead occasionally (SNES 239 mode)
+            // but even then it still detects the video mode pretty well
+            if ((testCycle % 180) == 0) {
+              rto->currentLevelSOG += 2;
+              if (rto->currentLevelSOG >= 16) { rto->currentLevelSOG = 0; }
+              setAndUpdateSogLevel(rto->currentLevelSOG);
+              // if, after 160 testCycles at default sog level it didn't sync,
+              // assume thisSourceMaxLevelSOG is low
+              rto->thisSourceMaxLevelSOG = rto->currentLevelSOG;
             }
           }
-          GBS::SP_POST_COAST::write(18); // failed, back to general default
+          rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 8;
+          setAndUpdateSogLevel(rto->currentLevelSOG);
+          return 1; //anyway, let later stage deal with it
         }
 
         // if VSync is active, it's RGBHV or RGBHV with CSync on HS pin
-        //GBS::SP_SOG_MODE::write(0);
-        vsyncActive = 0;
-        timeOutStart = millis();
-        while (!vsyncActive && millis() - timeOutStart < 400) { // check again to make sure
-          vsyncActive = GBS::STATUS_SYNC_PROC_VSACT::read();
-          handleWiFi(); // wifi stack
-          delay(1);
-        }
         if (vsyncActive) {
           SerialM.println("VSync: present");
           boolean hsyncActive = 0;
@@ -992,8 +996,6 @@ uint8_t detectAndSwitchToActiveInput() { // if any
             if (decodeSuccess == 2) { rto->syncTypeCsync = true; }
             else { rto->syncTypeCsync = false; }
 
-            rto->inputIsYpBpR = 0;
-            rto->sourceDisconnected = false;
             rto->videoStandardInput = 15;
             applyPresets(rto->videoStandardInput); // exception: apply preset here, not later in syncwatcher
             delay(100);
@@ -1020,8 +1022,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         }
       }
       SerialM.println(" lost..");
-      rto->currentLevelSOG += 2;
-      if (rto->currentLevelSOG > 12) { rto->currentLevelSOG = 2; }
+      rto->currentLevelSOG = 2;
       setAndUpdateSogLevel(rto->currentLevelSOG);
     }
     
@@ -2052,14 +2053,18 @@ void doPostPresetLoadSteps() {
     GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   }
 
+  // for worst case sog, leave it at it's current low level, to give sub coast a chance later
   if (rto->thisSourceMaxLevelSOG != 31) { // same source but format changed
-    rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
+      rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
+  } else {
+      if (rto->inputIsYpBpR) {
+          rto->currentLevelSOG = 14;
+      }
+      else {
+          rto->currentLevelSOG = 8;
+      }
   }
-  else { // reset / new source
-    if (rto->inputIsYpBpR) { rto->currentLevelSOG = 14; } // ps2 1080i vidmodetest app goes bad at ~16 (very unusual though)
-    else { rto->currentLevelSOG = 8; }
-  }
-  setAndUpdateSogLevel(rto->currentLevelSOG); // update to previously determined sog level
+  setAndUpdateSogLevel(rto->currentLevelSOG);
   
   if (!isCustomPreset) {
     setAdcParametersGainAndOffset(); // 0x3f + 0x7f
@@ -2937,23 +2942,17 @@ void updateCoastPosition() {
     return;
   }
 
-  // scope sog out test: the lower SP_H_CST_ST, the less jitter. snes jitter: min 8 on some GBS boards
-  // this is with auto coast enabled. with it off, behaviour changes
-  GBS::SP_H_CST_ST::write(0x12);
-  GBS::SP_H_CST_SP::write(0x98); // 0x98 pretty much the maximum the separated h pulses change size
-
   uint8_t initialVidMode = getVideoMode();
   if (initialVidMode == 0) {
     return;
   }
 
-  // extend to about 0x615 (typically)
-  int16_t accInHlength = 0;
-  uint16_t prevInHlength = ((GBS::HPERIOD_IF::read() + 1) & 0xfffe);
+  uint32_t accInHlength = 0;
+  uint16_t prevInHlength = GBS::HPERIOD_IF::read();
   for (uint8_t i = 0; i < 8; i++) {
     // psx jitters between 427, 428
-    uint16_t thisInHlength = ((GBS::HPERIOD_IF::read() + 1) & 0xfffe);
-    if ((thisInHlength > (prevInHlength - 4)) && (thisInHlength < (prevInHlength + 4))) {
+    uint16_t thisInHlength = GBS::HPERIOD_IF::read();
+    if ((thisInHlength > (prevInHlength - 3)) && (thisInHlength < (prevInHlength + 3))) {
       accInHlength += thisInHlength;
     }
     else {
@@ -2965,22 +2964,19 @@ void updateCoastPosition() {
 
     prevInHlength = thisInHlength;
   }
-  accInHlength = accInHlength >> 1; // /8 , *4
+  accInHlength = (accInHlength / 8) * 4;
 
   if (accInHlength > 8) {
-    // 5_3e "sub coast": they mean coasting a bit of the extra HS pulses within VS.
-    // The coast length measures in HLine length and forms a window over those HS pulses in VS.
-    // At start = 0, all desired HS pulses get through normally, so lock shortly after 
-    GBS::SP_H_CST_ST::write((uint16_t)(accInHlength * 0.08f)); // test: psx pal black license screen, then ntsc SMPTE color bars 100%
-    GBS::SP_H_CST_SP::write((uint16_t)(accInHlength * 0.95f)); // 0.91f 
-    //GBS::SP_HCST_AUTO_EN::write(0); // is already 0
+    // test: psx pal black license screen, then ntsc SMPTE color bars 100%; or MS
+    GBS::SP_H_CST_ST::write((uint16_t)(accInHlength * 0.07f));
+    GBS::SP_H_CST_SP::write((uint16_t)(accInHlength * 0.95f)); // 0.91f
     rto->coastPositionIsSet = true;
 
-    /*Serial.print("coast ST: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_ST::read(), HEX);
+    Serial.print("coast ST: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_ST::read(), HEX);
     Serial.print(", ");
     Serial.print("SP: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_SP::read(), HEX);
     Serial.print("  total: "); Serial.print("0x"); Serial.print(accInHlength, HEX);
-    Serial.print(" / "); Serial.println(accInHlength);*/
+    Serial.print(" ~ "); Serial.println(accInHlength / 4);
   }
 }
 
@@ -3690,8 +3686,10 @@ void fastSogAdjust()
 
     if ((GBS::TEST_BUS_2F::read() & 0x04) != 0x04) {
       while ((GBS::TEST_BUS_2F::read() & 0x04) != 0x04) {
-        rto->currentLevelSOG -= 2;
-        if (rto->currentLevelSOG < 2) {
+        if (rto->currentLevelSOG >= 2) { // could be 1 or 0
+          rto->currentLevelSOG -= 2;
+        }
+        if (rto->currentLevelSOG < 2) { // will still be 1 or 0
           rto->currentLevelSOG = 14;
           setAndUpdateSogLevel(rto->currentLevelSOG);
           delay(20);
@@ -3750,9 +3748,26 @@ void runSyncWatcher()
     }
 
     if (rto->noSyncCounter % 80 == 0) {
-      SerialM.print("no signal: ");
+      SerialM.print("\nno signal: ");
       printInfo();
       updateSpDynamic();
+      delay(20);
+      if (rto->noSyncCounter % 160 == 0) {
+        rto->currentLevelSOG = 0; // worst case, sometimes necessary, will be unstable but at least detect
+        setAndUpdateSogLevel(rto->currentLevelSOG);
+      }
+      else {
+        uint16_t hlowStart = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
+        for (int a = 0; a < 20; a++) {
+          if (GBS::STATUS_SYNC_PROC_HLOW_LEN::read() != hlowStart) {
+            // source still there
+            delay(20);
+            optimizeSogLevel();
+            break;
+          }
+          delay(1);
+        }
+      }
     }
   }
   else if (rto->videoStandardInput != 15) {
@@ -4341,7 +4356,7 @@ void setup() {
   rto->clampPositionIsSet = 0;
   rto->coastPositionIsSet = 0;
   rto->continousStableCounter = 0;
-  rto->currentLevelSOG = 4; // gbs8220 large chroma effect
+  rto->currentLevelSOG = 2;
   rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
 
   adco->r_gain = 0;
@@ -4456,9 +4471,8 @@ void setup() {
       powerOrWireIssue = 1; // fail
       rto->boardHasPower = false;
       rto->syncWatcherEnabled = false;
-      SerialM.println("\nCheck SDA, SCL connection! Check GBS for power!");
     }
-    else { // success
+    else { // recover success
       rto->syncWatcherEnabled = true;
       rto->boardHasPower = true;
       SerialM.println("recovered");
@@ -4468,8 +4482,7 @@ void setup() {
   if (powerOrWireIssue == 0)
   {
     startWire();
-    zeroAll();
-    setAndUpdateSogLevel(rto->currentLevelSOG);
+    //zeroAll();
     setResetParameters();
     setSpParameters();
 
@@ -4480,15 +4493,18 @@ void setup() {
 
     //rto->syncWatcherEnabled = false; // allows passive operation by disabling syncwatcher here
     //inputAndSyncDetect();
-    if (rto->syncWatcherEnabled == true) {
-      rto->isInLowPowerMode = true; // just for initial detection; simplifies code later
-      for (uint8_t i = 0; i < 3; i++) {
-        if (inputAndSyncDetect()) {
-          break;
-        }
-      }
-      rto->isInLowPowerMode = false;
-    }
+    //if (rto->syncWatcherEnabled == true) {
+    //  rto->isInLowPowerMode = true; // just for initial detection; simplifies code later
+    //  for (uint8_t i = 0; i < 3; i++) {
+    //    if (inputAndSyncDetect()) {
+    //      break;
+    //    }
+    //  }
+    //  rto->isInLowPowerMode = false;
+    //}
+  }
+  else {
+    SerialM.println("Please check board power and cabling or restart!");
   }
   
   LEDOFF; // new behaviour: only light LED on active sync
@@ -4653,7 +4669,7 @@ void loop() {
   static uint8_t inputStage = 0;
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastVsyncLock = millis();
-  static unsigned long lastTimeSourceCheck = millis();
+  static unsigned long lastTimeSourceCheck = 500; // 500 to start right away (after setup it will be 2790ms when we get here)
   static unsigned long lastTimeAutoGain = millis();
   static unsigned long lastTimeInterruptClear = millis();
 #ifdef HAVE_BUTTONS
@@ -5578,11 +5594,11 @@ void loop() {
 
   if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true && rto->boardHasPower)
   {
-    if ((millis() - lastTimeSourceCheck) > 500) 
+    if ((millis() - lastTimeSourceCheck) >= 500) 
     {
       if ( checkBoardPower() )
       {
-        inputAndSyncDetect(); // source is off; keep looking for new input
+        inputAndSyncDetect(); // source is off or just started; keep looking for new input
       }
       lastTimeSourceCheck = millis();
     }
