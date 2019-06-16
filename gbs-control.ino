@@ -4237,30 +4237,44 @@ void runSyncWatcher()
   }
 }
 
-// checks both I2C lines for high level, returns false if either one is low
 boolean checkBoardPower()
 {
-  stopWire(); // sets pinmodes SDA, SCL to INPUT
-  uint8_t SCL_SDA = 0;
-  for (int i = 0; i < 3; i++) {
-    SCL_SDA += digitalRead(SCL);
-    SCL_SDA += digitalRead(SDA);
-  }
+    GBS::ADC_UNUSED_69::write(0x6a); // 0110 1010
+    if (GBS::ADC_UNUSED_69::read() == 0x6a) {
+        GBS::ADC_UNUSED_69::write(0);
+        return 1;
+    }
 
-  if (SCL_SDA != 6)
-  {
+    GBS::ADC_UNUSED_69::write(0); // attempt to clear
     if (rto->boardHasPower == true) {
-      Serial.println("! power / i2c lost !");
+        Serial.println("! power / i2c lost !");
     }
     rto->boardHasPower = false;
     rto->continousStableCounter = 0;
     rto->syncWatcherEnabled = false;
-    // I2C stays off and pins are INPUT
     return 0;
-  }
 
-  startWire();
-  return 1;
+    //stopWire(); // sets pinmodes SDA, SCL to INPUT
+    //uint8_t SCL_SDA = 0;
+    //for (int i = 0; i < 3; i++) {
+    //  SCL_SDA += digitalRead(SCL);
+    //  SCL_SDA += digitalRead(SDA);
+    //}
+
+    //if (SCL_SDA != 6)
+    //{
+    //  if (rto->boardHasPower == true) {
+    //    Serial.println("! power / i2c lost !");
+    //  }
+    //  rto->boardHasPower = false;
+    //  rto->continousStableCounter = 0;
+    //  rto->syncWatcherEnabled = false;
+    //  // I2C stays off and pins are INPUT
+    //  return 0;
+    //}
+
+    //startWire();
+    //return 1;
 }
 
 void calibrateAdcOffset()
@@ -4368,8 +4382,12 @@ void calibrateAdcOffset()
 void setup() {
   rto->webServerEnabled = true; // control gbs-control(:p) via web browser, only available on wifi boards.
   rto->webServerStarted = false; // make sure this is set
+  
   Serial.begin(115200); // set Arduino IDE Serial Monitor to the same 115200 bauds!
   Serial.setTimeout(10);
+
+  startWire();
+
 #if defined(ESP8266)
   // start web services as early in boot as possible > greater chance to get a websocket connection in time for logging startup
   WiFi.hostname(device_hostname_full);
@@ -4551,6 +4569,7 @@ void setup() {
   boolean powerOrWireIssue = 0;  
   if ( !checkBoardPower() )
   {
+    stopWire(); // sets pinmodes SDA, SCL to INPUT
     for (int i = 0; i < 40; i++) {
       // I2C SDA probably stuck, attempt recovery (max attempts in tests was around 10)
       startWire();
@@ -4559,7 +4578,11 @@ void setup() {
       if (digitalRead(SDA) == 1) { break; } // unstuck
       if ((i % 7) == 0) { delay(1); }
     }
+
+    startWire();
+
     if (!checkBoardPower()) {
+      stopWire();
       powerOrWireIssue = 1; // fail
       rto->boardHasPower = false;
       rto->syncWatcherEnabled = false;
@@ -4573,7 +4596,6 @@ void setup() {
 
   if (powerOrWireIssue == 0)
   {
-    startWire();
     zeroAll();
     setResetParameters();
     setSpParameters();
