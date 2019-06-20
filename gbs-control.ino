@@ -2286,6 +2286,9 @@ void doPostPresetLoadSteps() {
     GBS::ADC_ROFCTRL::write(adco->r_off);
     GBS::ADC_GOFCTRL::write(adco->g_off);
     GBS::ADC_BOFCTRL::write(adco->b_off);
+    SerialM.print("ADC offset: R:"); SerialM.print(GBS::ADC_ROFCTRL::read(), HEX);
+    SerialM.print(" G:"); SerialM.print(GBS::ADC_GOFCTRL::read(), HEX);
+    SerialM.print(" B:"); SerialM.println(GBS::ADC_BOFCTRL::read(), HEX);
   }
 
   if (uopt->wantVdsLineFilter) { GBS::VDS_D_RAM_BYPS::write(0); }

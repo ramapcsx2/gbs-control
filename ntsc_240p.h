@@ -267,7 +267,7 @@ const uint8_t ntsc_240p[] PROGMEM = {
 0x1F, // s4_29
 0x0, // s4_2A
 0x87, // s4_2B
-0x14, // s4_2C
+0x18, // s4_2C
 0x3A, // s4_2D
 0x0, // s4_2E
 0x0, // s4_2F
@@ -289,7 +289,7 @@ const uint8_t ntsc_240p[] PROGMEM = {
 0x0, // s4_3F
 0x0, // s4_40
 0x0, // s4_41
-0x6C, // s4_42
+0x6E, // s4_42
 0x0, // s4_43
 0x0, // s4_44
 0xD0, // s4_45
