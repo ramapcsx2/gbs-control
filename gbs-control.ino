@@ -2050,15 +2050,15 @@ void doPostPresetLoadSteps() {
     rto->videoStandardInput = 3; // 640x480 RGBHV scaling mode
     switchSyncProcessingMode(1);
   }
-  if (uopt->overscan) 
-  {
-    if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 4) 
-    {
-      if (!isCustomPreset) { // else it's already applied
-        applyOverScanPatches();
-      }
-    }
-  }
+  //if (uopt->overscan) 
+  //{
+  //  if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 4) 
+  //  {
+  //    if (!isCustomPreset) { // else it's already applied
+  //      applyOverScanPatches();
+  //    }
+  //  }
+  //}
 
   GBS::SP_HCST_AUTO_EN::write(0);
   GBS::SP_DIS_SUB_COAST::write(0); // test: enable SUB_COAST here / early for faster detection
@@ -2165,26 +2165,17 @@ void doPostPresetLoadSteps() {
       GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
       if (rto->presetID == 0x5) 
       { // out 1080p
-        GBS::IF_HB_SP2::write(0xb8);  // 1_1a
-        if (uopt->overscan) {
-          //GBS::IF_HB_SP2::write(0xc8);  // 1_1a
-        }
-        GBS::VDS_VB_SP::write(64); // change this to an offset
-        GBS::IF_VB_SP::write(4);
-        GBS::VDS_VSCALE::write(496); // increase / fill more height
+        GBS::VDS_VSCALE::write(455); // same as base preset
       }
       else if (rto->presetID == 0x3) 
       { // out 720p
-        GBS::VDS_VSCALE::write(720);
-        GBS::VDS_VB_SP::write(46); // change this to an offset
-        GBS::VDS_DIS_VB_ST::write(746);
-        GBS::VDS_DIS_VB_SP::write(50);
+        GBS::VDS_VSCALE::write(683); // same as base preset
+        GBS::IF_HB_SP2::write(0x8c);  // 1_1a
       }
       else if (rto->presetID == 0x2) 
       { // out x1024
-        GBS::VDS_VSCALE::write(482); // same as base preset
+        GBS::VDS_VSCALE::write(455); // same as base preset
         GBS::IF_HBIN_ST::write(0x20); // 1_24
-        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 28); // shrink right blank (fix tft not auto adjusting)
       }
       else if (rto->presetID == 0x1) 
       { // out x960
@@ -3440,61 +3431,83 @@ void runAutoGain() {
   uint8_t r_found = 0, g_found = 0, b_found = 0;
   uint8_t status00reg = GBS::STATUS_00::read(); // confirm no mode changes happened
 
-  GBS::DEC_TEST_SEL::write(2); // out of 7 // was 3 and TEST_BUS_2E::read()
-  for (uint8_t i = 0; i < 7; i++) {
-    uint8_t redValue = GBS::TEST_BUS_2F::read();
-    if (redValue == 0x7f) { // full on found
-      if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) { r_found++; }
+  GBS::DEC_TEST_SEL::write(3);
+  for (uint8_t i = 0; i < 14; i++) {
+    uint8_t redValue  = GBS::TEST_BUS_2E::read() & 0x7f;
+    uint8_t blueValue = GBS::TEST_BUS_2F::read() & 0x7f;
+    if (redValue >= 0x7c) { // min 7d
+      if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) { 
+        r_found++;
+      }
+      else return;
+    }
+    if (blueValue >= 0x7c) { // min 7d
+      if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
+        b_found++;
+      }
       else return;
     }
   }
-  GBS::DEC_TEST_SEL::write(1); // out of 7 // was 2 and TEST_BUS_2E::read()
-  for (uint8_t i = 0; i < 7; i++) {
-    uint8_t greenValue = GBS::TEST_BUS_2F::read();
-    if (greenValue == 0x7f) {
+  GBS::DEC_TEST_SEL::write(7);
+  for (uint8_t i = 0; i < 14; i++) {
+    uint16_t greenValue = GBS::TEST_BUS::read() & 0x3ff;
+    if (greenValue >= 0x3fb) { // min 3fc
       if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) { g_found++; }
       else return;
     }
   }
-  GBS::DEC_TEST_SEL::write(1); // out of 7
-  for (uint8_t i = 0; i < 7; i++) {
-    uint8_t blueValue = GBS::TEST_BUS_2E::read();
-    if (blueValue == 0x7f) {
-      if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) { b_found++; }
-      else return;
-    }
-  }
+  //GBS::DEC_TEST_SEL::write(1); // out of 7
+  //for (uint8_t i = 0; i < 24; i++) {
+  //  uint8_t blueValue = GBS::TEST_BUS_2E::read();
+  //  if (blueValue == 0x7f) {
+  //    if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) { b_found++; }
+  //    else return;
+  //  }
+  //}
 
   if ((r_found > 1) || (g_found > 1) || (b_found > 1)) {
     uint8_t red = GBS::ADC_RGCTRL::read();
     uint8_t green = GBS::ADC_GGCTRL::read();
     uint8_t blue = GBS::ADC_BGCTRL::read();
-    if ((red < (blue - 4)) || (red < (green - 4))) {
+    boolean printThis = 0;
+    if ((red < (blue - 7)) || (red < (green - 7))) {
       red += 1;
+      printThis = 1;
       GBS::ADC_RGCTRL::write(red);
     }
-    if ((green < (blue - 4)) || (green < (red - 4))) {
+    if ((green < (blue - 7)) || (green < (red - 7))) {
       green += 1;
+      printThis = 1;
       GBS::ADC_GGCTRL::write(green);
     }
-    if ((blue < (red - 4)) || (blue < (green - 4))) {
+    if ((blue < (red - 7)) || (blue < (green - 7))) {
       blue += 1;
+      printThis = 1;
       GBS::ADC_BGCTRL::write(blue);
     }
-    if (r_found > 1 && red < 0x90) {
+    if (r_found > 1 && red < 0xff) {
       GBS::ADC_RGCTRL::write(red + 1);
+      printThis = 1;
     }
-    if (g_found > 1 && green < 0x90) {
+    if (g_found > 1 && green < 0xff) {
       GBS::ADC_GGCTRL::write(green + 1);
+      printThis = 1;
     }
-    if (b_found > 1 && blue < 0x90) {
+    if (b_found > 1 && blue < 0xff) {
       GBS::ADC_BGCTRL::write(blue + 1);
+      printThis = 1;
     }
 
     // remember these gain settings
     adco->r_gain = GBS::ADC_RGCTRL::read();
     adco->g_gain = GBS::ADC_GGCTRL::read();
     adco->b_gain = GBS::ADC_BGCTRL::read();
+
+    if (printThis) {
+      Serial.print(" RGain: "); Serial.print(adco->r_gain, HEX);
+      Serial.print(" GGain: "); Serial.print(adco->g_gain, HEX);
+      Serial.print(" BGain: "); Serial.println(adco->b_gain, HEX);
+    }
   }
 }
 

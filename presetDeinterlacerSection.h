@@ -12,7 +12,7 @@ const uint8_t presetDeinterlacerSection[] PROGMEM = {
 0x0, // s2_A
 0x0, // s2_B
 0xF, // s2_C
-0x8, // s2_D
+0xC, // s2_D
 0x7F, // s2_E
 0x14, // s2_F
 0x18, // s2_10
@@ -56,10 +56,10 @@ const uint8_t presetDeinterlacerSection[] PROGMEM = {
 0x3, // s2_36
 0xB, // s2_37
 0x4, // s2_38
-0x55, // s2_39
+0x44, // s2_39
 0x60, // s2_3A
 0x4, // s2_3B
-0x2F, // s2_3C
+0xF, // s2_3C
 0x0, // s2_3D
 0x0, // s2_3E
 0x0, // s2_3F
