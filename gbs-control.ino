@@ -2134,6 +2134,10 @@ void doPostPresetLoadSteps() {
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
       GBS::IF_SEL_WEN::write(0); // 1_02 0; 0 for SD, 1 for EDTV
+      if (rto->inputIsYpBpR) {            // todo: check other videoStandardInput in component vs rgb
+        GBS::IF_HS_TAP11_BYPS::write(1);  // 1_02 4 Tap11 LPF bypass in YUV444to422 
+        GBS::VDS_V_DELAY::write(1);       // 3_24 2 
+      }
       GBS::VDS_TAP6_BYPS::write(0); // 3_24
       if (rto->presetID == 0x2 || rto->presetID == 0x3 || rto->presetID == 0x5) {
         GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
@@ -2150,11 +2154,12 @@ void doPostPresetLoadSteps() {
       GBS::IF_LD_RAM_BYPS::write(1);    // 1_0c no LD
       GBS::IF_PRGRSV_CNTRL::write(1);   // 1_00 6
       GBS::IF_SEL_WEN::write(1);        // 1_02 0
-      GBS::IF_HS_SEL_LPF::write(0);     // 1_02 1 use interpolator not lpf for EDTV
+      GBS::IF_HS_SEL_LPF::write(0);     // 1_02 1   0 = use interpolator not lpf for EDTV
       GBS::IF_HS_TAP11_BYPS::write(1);  // 1_02 4 filter
-      GBS::IF_HS_Y_PDELAY::write(2);    // 1_02 5+6 filter
+      GBS::IF_HS_Y_PDELAY::write(3);    // 1_02 5+6 filter
       GBS::IF_HB_SP::write(0);          // 1_12 deinterlace offset, fixes colors
-      GBS::VDS_3_24_FILTER::write(0x70);// 3_24 filter and WE delay
+      GBS::VDS_V_DELAY::write(1);       // 3_24 2 filter
+      GBS::VDS_Y_DELAY::write(3);       // 3_24 4/5 filter
     }
     if (rto->videoStandardInput == 3) 
     { // ED YUV 60
@@ -2252,14 +2257,14 @@ void doPostPresetLoadSteps() {
   GBS::PLLAD_LEN::write(1); // 5_11 1
 
   // auto ADC gain
-  if (uopt->enableAutoGain == 1 && !rto->inputIsYpBpR && adco->r_gain == 0) {
+  if (uopt->enableAutoGain == 1 && adco->r_gain == 0) {
     SerialM.println("ADC gain: reset");
-    GBS::ADC_RGCTRL::write(0x50);
-    GBS::ADC_GGCTRL::write(0x50);
-    GBS::ADC_BGCTRL::write(0x50);
+    GBS::ADC_RGCTRL::write(0x40);
+    GBS::ADC_GGCTRL::write(0x40);
+    GBS::ADC_BGCTRL::write(0x40);
     GBS::DEC_TEST_ENABLE::write(1);
   }
-  else if (uopt->enableAutoGain == 1 && !rto->inputIsYpBpR && adco->r_gain != 0) {
+  else if (uopt->enableAutoGain == 1 && adco->r_gain != 0) {
     SerialM.println("ADC gain: keep previous");
     SerialM.print(adco->r_gain, HEX); SerialM.print(" ");
     SerialM.print(adco->g_gain, HEX); SerialM.print(" ");
@@ -2921,21 +2926,21 @@ void updateSpDynamic() {
     // update: seems to be an SP bypass only problem (t5t57t6 to 0 also fixes it)
     GBS::SP_DLT_REG::write(0x130);
     GBS::SP_H_PULSE_IGNOR::write(0x0b);
-    GBS::ADC_FLTR::write(3);     // 5_03 4/5
+    GBS::ADC_FLTR::write(2);     // 5_03 4/5
   }
   else if (rto->videoStandardInput == 5) { // 720p
     GBS::SP_PRE_COAST::write(8); // down to 4 ok with ps2
     GBS::SP_POST_COAST::write(8); // down to 6 ok with ps2
     GBS::SP_DLT_REG::write(0x110);
     GBS::SP_H_PULSE_IGNOR::write(0x06);
-    GBS::ADC_FLTR::write(2);     // 5_03 4/5 70Mhz
+    GBS::ADC_FLTR::write(1);     // 5_03
   }
   else if (rto->videoStandardInput <= 7) { // 1080i,p
     GBS::SP_PRE_COAST::write(9);
     GBS::SP_POST_COAST::write(22); // of 1124 input lines
     GBS::SP_DLT_REG::write(0x70);
     GBS::SP_H_PULSE_IGNOR::write(0x02);
-    GBS::ADC_FLTR::write(2);     // 5_03 4/5 70Mhz
+    GBS::ADC_FLTR::write(1);     // 5_03
   }
   else if (rto->videoStandardInput == 15 || rto->videoStandardInput == 13) {
     if (rto->syncTypeCsync == false)
@@ -3163,7 +3168,7 @@ void setOutModeHdBypass() {
     GBS::HD_VS_SP::write(0x02);  // 1_49
   }
   else if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4) { // 480p, 576p
-    GBS::ADC_FLTR::write(3);     // 5_03 4/5 ADC filter 3=40, 2=70, 1=110, 0=150 Mhz
+    GBS::ADC_FLTR::write(2);     // 5_03 4/5 ADC filter 3=40, 2=70, 1=110, 0=150 Mhz
     GBS::PLLAD_KS::write(1);     // 5_16 post divider
     GBS::PLLAD_CKOS::write(0);   // 5_16 2x OS (with KS=1)
     GBS::HD_INI_ST::write(0x76); // 1_39
@@ -3180,7 +3185,7 @@ void setOutModeHdBypass() {
   }
   else if (rto->videoStandardInput <= 7 || rto->videoStandardInput == 13) {
     //GBS::SP_HS2PLL_INV_REG::write(0); // 5_56 1 use rising edge of tri-level sync // always 0 now
-    GBS::ADC_FLTR::write(2);            // 5_03 4/5 ADC filter 3=40, 2=70, 1=110, 0=150 Mhz
+    GBS::ADC_FLTR::write(1);            // 5_03 4/5 ADC filter 3=40, 2=70, 1=110, 0=150 Mhz
     if (rto->videoStandardInput == 5) { // 720p
       GBS::HD_HSYNC_RST::write(550); // 1_37
       GBS::HD_INI_ST::write(78);     // 1_39
@@ -3428,85 +3433,47 @@ void bypassModeSwitch_RGBHV() {
 }
 
 void runAutoGain() {
-  uint8_t r_found = 0, g_found = 0, b_found = 0;
+  uint8_t g_found = 0;
   uint8_t status00reg = GBS::STATUS_00::read(); // confirm no mode changes happened
 
-  GBS::DEC_TEST_SEL::write(3);
-  for (uint8_t i = 0; i < 14; i++) {
-    uint8_t redValue  = GBS::TEST_BUS_2E::read() & 0x7f;
-    uint8_t blueValue = GBS::TEST_BUS_2F::read() & 0x7f;
-    if (redValue >= 0x7c) { // min 7d
-      if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) { 
-        r_found++;
-      }
-      else return;
-    }
-    if (blueValue >= 0x7c) { // min 7d
-      if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
-        b_found++;
-      }
-      else return;
-    }
-  }
-  GBS::DEC_TEST_SEL::write(7);
-  for (uint8_t i = 0; i < 14; i++) {
-    uint16_t greenValue = GBS::TEST_BUS::read() & 0x3ff;
-    if (greenValue >= 0x3fb) { // min 3fc
-      if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) { g_found++; }
-      else return;
-    }
-  }
-  //GBS::DEC_TEST_SEL::write(1); // out of 7
-  //for (uint8_t i = 0; i < 24; i++) {
-  //  uint8_t blueValue = GBS::TEST_BUS_2E::read();
-  //  if (blueValue == 0x7f) {
-  //    if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) { b_found++; }
+  //GBS::DEC_TEST_SEL::write(5);
+
+  //for (uint8_t i = 0; i < 14; i++) {
+  //  uint8_t greenValue = GBS::TEST_BUS_2E::read();
+  //  if (greenValue >= 0x28 && greenValue <= 0x2f) {  // 0x2c seems to be "highest" (haven't seen 0x2b yet)
+  //    if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) { 
+  //      g_found++; 
+  //    }
   //    else return;
   //  }
   //}
 
-  if ((r_found > 1) || (g_found > 1) || (b_found > 1)) {
-    uint8_t red = GBS::ADC_RGCTRL::read();
+  GBS::DEC_TEST_SEL::write(1); // luma and G channel
+
+  for (uint8_t i = 0; i < 24; i++) {
+    uint8_t greenValue = GBS::TEST_BUS_2F::read();
+    if (greenValue >= 0x7d && greenValue <= 0x7f) { 
+      if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
+        g_found++;
+      }
+      else return;
+    }
+  }
+
+  if (g_found > 1) {
     uint8_t green = GBS::ADC_GGCTRL::read();
-    uint8_t blue = GBS::ADC_BGCTRL::read();
-    boolean printThis = 0;
-    if ((red < (blue - 7)) || (red < (green - 7))) {
-      red += 1;
-      printThis = 1;
-      GBS::ADC_RGCTRL::write(red);
-    }
-    if ((green < (blue - 7)) || (green < (red - 7))) {
-      green += 1;
-      printThis = 1;
-      GBS::ADC_GGCTRL::write(green);
-    }
-    if ((blue < (red - 7)) || (blue < (green - 7))) {
-      blue += 1;
-      printThis = 1;
-      GBS::ADC_BGCTRL::write(blue);
-    }
-    if (r_found > 1 && red < 0xff) {
-      GBS::ADC_RGCTRL::write(red + 1);
-      printThis = 1;
-    }
-    if (g_found > 1 && green < 0xff) {
+
+    if (green < 0xff) {
       GBS::ADC_GGCTRL::write(green + 1);
-      printThis = 1;
-    }
-    if (b_found > 1 && blue < 0xff) {
-      GBS::ADC_BGCTRL::write(blue + 1);
-      printThis = 1;
-    }
+      GBS::ADC_RGCTRL::write(green + 1);
+      GBS::ADC_BGCTRL::write(green + 1);
 
-    // remember these gain settings
-    adco->r_gain = GBS::ADC_RGCTRL::read();
-    adco->g_gain = GBS::ADC_GGCTRL::read();
-    adco->b_gain = GBS::ADC_BGCTRL::read();
+      // remember these gain settings
+      adco->r_gain = GBS::ADC_RGCTRL::read();
+      adco->g_gain = GBS::ADC_GGCTRL::read();
+      adco->b_gain = GBS::ADC_BGCTRL::read();
 
-    if (printThis) {
-      Serial.print(" RGain: "); Serial.print(adco->r_gain, HEX);
-      Serial.print(" GGain: "); Serial.print(adco->g_gain, HEX);
-      Serial.print(" BGain: "); Serial.println(adco->b_gain, HEX);
+      printInfo();
     }
   }
 }
@@ -4977,10 +4944,10 @@ void loop() {
       SerialM.print("auto gain ");
       if (uopt->enableAutoGain == 0) {
         uopt->enableAutoGain = 1;
-        if (!rto->outModeHdBypass && !rto->inputIsYpBpR) { // no readout possible
-          GBS::ADC_RGCTRL::write(0x50);
-          GBS::ADC_GGCTRL::write(0x50);
-          GBS::ADC_BGCTRL::write(0x50);
+        if (!rto->outModeHdBypass) { // no readout possible
+          GBS::ADC_RGCTRL::write(0x40);
+          GBS::ADC_GGCTRL::write(0x40);
+          GBS::ADC_BGCTRL::write(0x40);
           GBS::DEC_TEST_ENABLE::write(1);
         }
         SerialM.println("on");
@@ -5715,7 +5682,7 @@ void loop() {
   if (rto->syncWatcherEnabled && uopt->enableAutoGain == 1 && !rto->sourceDisconnected
     && rto->videoStandardInput > 0 && rto->clampPositionIsSet
     && rto->noSyncCounter == 0 && rto->continousStableCounter > 40
-    && !rto->inputIsYpBpR && ((millis() - lastTimeAutoGain) > 8) && rto->boardHasPower)
+    && ((millis() - lastTimeAutoGain) > 7) && rto->boardHasPower)
   {
     uint8_t debugRegBackup = 0, debugPinBackup = 0;
     debugPinBackup = GBS::PAD_BOUT_EN::read();
