@@ -3432,50 +3432,56 @@ void bypassModeSwitch_RGBHV() {
   delay(100);
 }
 
-void runAutoGain() {
-  uint8_t g_found = 0;
-  uint8_t status00reg = GBS::STATUS_00::read(); // confirm no mode changes happened
+void runAutoGain()
+{
+    uint8_t g_found = 0;
+    uint8_t status00reg = GBS::STATUS_00::read(); // confirm no mode changes happened
 
-  //GBS::DEC_TEST_SEL::write(5);
+    //GBS::DEC_TEST_SEL::write(5);
 
-  //for (uint8_t i = 0; i < 14; i++) {
-  //  uint8_t greenValue = GBS::TEST_BUS_2E::read();
-  //  if (greenValue >= 0x28 && greenValue <= 0x2f) {  // 0x2c seems to be "highest" (haven't seen 0x2b yet)
-  //    if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) { 
-  //      g_found++; 
-  //    }
-  //    else return;
-  //  }
-  //}
+    //for (uint8_t i = 0; i < 14; i++) {
+    //  uint8_t greenValue = GBS::TEST_BUS_2E::read();
+    //  if (greenValue >= 0x28 && greenValue <= 0x2f) {  // 0x2c seems to be "highest" (haven't seen 0x2b yet)
+    //    if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
+    //      g_found++;
+    //    }
+    //    else return;
+    //  }
+    //}
 
-  GBS::DEC_TEST_SEL::write(1); // luma and G channel
+    GBS::DEC_TEST_SEL::write(1); // luma and G channel
 
-  for (uint8_t i = 0; i < 24; i++) {
-    uint8_t greenValue = GBS::TEST_BUS_2F::read();
-    if (greenValue >= 0x7d && greenValue <= 0x7f) { 
-      if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
-        g_found++;
-      }
-      else return;
+    for (uint8_t i = 0; i < 20; i++) {
+        g_found = 0;
+        uint8_t greenValue = GBS::TEST_BUS_2F::read();
+        if (greenValue >= 0x7c && greenValue <= 0x7f) {
+            for (uint8_t a = 0; a < 2; a++) {
+                delayMicroseconds(22);
+                greenValue = GBS::TEST_BUS_2F::read();
+                if (greenValue >= 0x7c && greenValue <= 0x7f) {
+                    if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
+                        g_found++;
+                    } else
+                        return;
+                }
+            }
+            if (g_found == 2) {
+                GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 1);
+                GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 1);
+                GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 1);
+
+                // remember these gain settings
+                adco->r_gain = GBS::ADC_RGCTRL::read();
+                adco->g_gain = GBS::ADC_GGCTRL::read();
+                adco->b_gain = GBS::ADC_BGCTRL::read();
+
+                printInfo();
+                if (i > 16) {
+                  i -= 8; // we just had a hit, there may be more
+                }
+            }
+        }
     }
-  }
-
-  if (g_found > 1) {
-    uint8_t green = GBS::ADC_GGCTRL::read();
-
-    if (green < 0xff) {
-      GBS::ADC_GGCTRL::write(green + 1);
-      GBS::ADC_RGCTRL::write(green + 1);
-      GBS::ADC_BGCTRL::write(green + 1);
-
-      // remember these gain settings
-      adco->r_gain = GBS::ADC_RGCTRL::read();
-      adco->g_gain = GBS::ADC_GGCTRL::read();
-      adco->b_gain = GBS::ADC_BGCTRL::read();
-
-      printInfo();
-    }
-  }
 }
 
 void enableScanlines() {
@@ -5682,7 +5688,7 @@ void loop() {
   if (rto->syncWatcherEnabled && uopt->enableAutoGain == 1 && !rto->sourceDisconnected
     && rto->videoStandardInput > 0 && rto->clampPositionIsSet
     && rto->noSyncCounter == 0 && rto->continousStableCounter > 40
-    && ((millis() - lastTimeAutoGain) > 7) && rto->boardHasPower)
+    && ((millis() - lastTimeAutoGain) > 3) && rto->boardHasPower)
   {
     uint8_t debugRegBackup = 0, debugPinBackup = 0;
     debugPinBackup = GBS::PAD_BOUT_EN::read();
