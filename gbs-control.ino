@@ -2136,9 +2136,11 @@ void doPostPresetLoadSteps() {
       GBS::IF_SEL_WEN::write(0); // 1_02 0; 0 for SD, 1 for EDTV
       if (rto->inputIsYpBpR) {            // todo: check other videoStandardInput in component vs rgb
         GBS::IF_HS_TAP11_BYPS::write(1);  // 1_02 4 Tap11 LPF bypass in YUV444to422 
-        GBS::VDS_V_DELAY::write(1);       // 3_24 2 
+        GBS::IF_HS_Y_PDELAY::write(2);    // 1_02 5+6 delays
+        GBS::VDS_V_DELAY::write(0);       // 3_24 2 
+        GBS::VDS_Y_DELAY::write(2);       // 3_24 4/5 delays
       }
-      GBS::VDS_TAP6_BYPS::write(0); // 3_24
+      GBS::VDS_TAP6_BYPS::write(0); // 3_24 3
       if (rto->presetID == 0x2 || rto->presetID == 0x3 || rto->presetID == 0x5) {
         GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
       }
@@ -2156,10 +2158,10 @@ void doPostPresetLoadSteps() {
       GBS::IF_SEL_WEN::write(1);        // 1_02 0
       GBS::IF_HS_SEL_LPF::write(0);     // 1_02 1   0 = use interpolator not lpf for EDTV
       GBS::IF_HS_TAP11_BYPS::write(1);  // 1_02 4 filter
-      GBS::IF_HS_Y_PDELAY::write(3);    // 1_02 5+6 filter
+      GBS::IF_HS_Y_PDELAY::write(2);    // 1_02 5+6 delays
       GBS::IF_HB_SP::write(0);          // 1_12 deinterlace offset, fixes colors
-      GBS::VDS_V_DELAY::write(1);       // 3_24 2 filter
-      GBS::VDS_Y_DELAY::write(3);       // 3_24 4/5 filter
+      GBS::VDS_V_DELAY::write(0);       // 3_24 2
+      GBS::VDS_Y_DELAY::write(3);       // 3_24 4/5 delays
     }
     if (rto->videoStandardInput == 3) 
     { // ED YUV 60
@@ -2311,7 +2313,7 @@ void doPostPresetLoadSteps() {
     GBS::DEC_IDREG_EN::write(1); // 5_1f 7
     GBS::DEC_WEN_MODE::write(1); // 5_1e 7 // 1 keeps ADC phase consistent. around 4 lock positions vs totally random
     rto->phaseADC = 16; // fix at 16; we can't know which is right and 16 is usually the default
-    rto->phaseSP = 9; // 9 or 24. 24 if jitter sync enabled
+    rto->phaseSP = 8;
 
     // 4 segment 
     GBS::CAP_SAFE_GUARD_EN::write(0); // 4_21_5 // does more harm than good
@@ -2988,11 +2990,16 @@ void updateCoastPosition() {
   }
   accInHlength = (accInHlength * 4) / 8;
 
-  if (accInHlength > 8) {
+  if (accInHlength > 32) {
     // test: psx pal black license screen, then ntsc SMPTE color bars 100%; or MS
     GBS::SP_H_CST_ST::write((uint16_t)(accInHlength * 0.014f)); // 0.07f
     GBS::SP_H_CST_SP::write((uint16_t)(accInHlength * 0.978f)); // 0.95f
     rto->coastPositionIsSet = true;
+
+    // also set SP regenerated HS position, in case it is to be used
+    // this appears to be used in Mode Detect so mind interlace / progressive switches (halved h period)
+    GBS::SP_CS_HS_ST::write(32);
+    GBS::SP_CS_HS_SP::write(0);
 
     Serial.print("coast ST: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_ST::read(), HEX);
     Serial.print(", ");
@@ -3291,7 +3298,7 @@ void setOutModeHdBypass() {
   updateSpDynamic(); // !
   GBS::DEC_IDREG_EN::write(1); // 5_1f 7
   GBS::DEC_WEN_MODE::write(1); // 5_1e 7 // 1 keeps ADC phase consistent. around 4 lock positions vs totally random
-  rto->phaseSP = 9; // 9 or 24. 24 if jitter sync enabled
+  rto->phaseSP = 8;
   rto->phaseADC = 16; // fix at 16; we can't know which is right and 16 is usually the default
   setAndUpdateSogLevel(rto->currentLevelSOG); // also re-latch everything
 
@@ -3453,11 +3460,11 @@ void runAutoGain()
 
     for (uint8_t i = 0; i < 20; i++) {
         g_found = 0;
-        uint8_t greenValue = GBS::TEST_BUS_2F::read();
+        uint8_t greenValue = GBS::TEST_BUS_2F::read() & 0x7f;
         if (greenValue >= 0x7c && greenValue <= 0x7f) {
             for (uint8_t a = 0; a < 2; a++) {
                 delayMicroseconds(22);
-                greenValue = GBS::TEST_BUS_2F::read();
+                greenValue = GBS::TEST_BUS_2F::read() & 0x7f;
                 if (greenValue >= 0x7c && greenValue <= 0x7f) {
                     if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
                         g_found++;
@@ -3466,18 +3473,20 @@ void runAutoGain()
                 }
             }
             if (g_found == 2) {
-                GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 1);
-                GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 1);
-                GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 1);
+                if (GBS::ADC_GGCTRL::read() < 0xff) {
+                    GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 1);
+                    GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 1);
+                    GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 1);
 
-                // remember these gain settings
-                adco->r_gain = GBS::ADC_RGCTRL::read();
-                adco->g_gain = GBS::ADC_GGCTRL::read();
-                adco->b_gain = GBS::ADC_BGCTRL::read();
+                    // remember these gain settings
+                    adco->r_gain = GBS::ADC_RGCTRL::read();
+                    adco->g_gain = GBS::ADC_GGCTRL::read();
+                    adco->b_gain = GBS::ADC_BGCTRL::read();
 
-                printInfo();
-                if (i > 16) {
-                  i -= 8; // we just had a hit, there may be more
+                    printInfo();
+                    if (i > 16) {
+                        i -= 8; // we just had a hit, there may be more
+                    }
                 }
             }
         }
@@ -3701,6 +3710,7 @@ void runSyncWatcher()
   if ((detectedVideoMode == 0 || !status16SpHsStable) && rto->videoStandardInput != 15) {
     //freezeVideo();
     rto->noSyncCounter++;
+    newVideoModeCounter = 0;
     rto->continousStableCounter = 0;
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
         fastSogAdjust();
@@ -3745,9 +3755,7 @@ void runSyncWatcher()
       }
     }
   }
-  else if (rto->videoStandardInput != 15) {
-    LEDON;
-  }
+
   // if format changed to valid
   if (((detectedVideoMode != 0 && detectedVideoMode != rto->videoStandardInput) ||
     (detectedVideoMode != 0 && rto->videoStandardInput == 0 /*&& getSyncPresent()*/)) &&
@@ -3758,7 +3766,7 @@ void runSyncWatcher()
       newVideoModeCounter++;
       updateSpDynamic();
     }
-    if (newVideoModeCounter >= 5)
+    if (newVideoModeCounter >= 6)
     {
       SerialM.print("\nFormat change:");
       for (int a = 0; a < 30; a++) {
@@ -3811,6 +3819,13 @@ void runSyncWatcher()
     if (rto->continousStableCounter == 4) {
       updateSpDynamic();
     }
+
+    if (rto->continousStableCounter == 6) {
+      setAndLatchPhaseSP();   // not strictly needed but may be good in sync lost
+      setAndLatchPhaseADC();  // to recovered situations
+      LEDON;
+    }
+
     if (rto->continousStableCounter == 80) {
       GBS::ADC_UNUSED_67::write(0); // clear sync fix temp registers (67/68)
       //rto->coastPositionIsSet = 0; // leads to a flicker
@@ -4873,7 +4888,7 @@ void loop() {
         GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 0x30);
         GBS::HD_Y_OFFSET::write(GBS::HD_Y_OFFSET::read() + 0x30);
         //GBS::ADC_FLTR::write(0);     // 5_03 4/5 ADC filter 3=40, 2=70, 1=110, 0=150 Mhz
-        GBS::IF_IN_DREG_BYPS::write(1); // enhances noise from not delaying IF processing properly
+        //GBS::IF_IN_DREG_BYPS::write(1); // enhances noise from not delaying IF processing properly
       }
       else {
         //GBS::VDS_PK_VL_HL_SEL::write(1);
@@ -4886,7 +4901,7 @@ void loop() {
         GBS::VDS_Y_OFST::write(GBS::ADC_UNUSED_60::read()); // restore
         GBS::HD_Y_OFFSET::write(GBS::ADC_UNUSED_61::read());
         //GBS::ADC_FLTR::write(GBS::ADC_UNUSED_62::read() - 1); // usually 40Mhz
-        GBS::IF_IN_DREG_BYPS::write(0);
+        //GBS::IF_IN_DREG_BYPS::write(0);
         GBS::ADC_UNUSED_60::write(0); // .. and clear
         GBS::ADC_UNUSED_61::write(0);
         GBS::ADC_UNUSED_62::write(0);
