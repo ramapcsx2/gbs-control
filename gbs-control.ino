@@ -334,8 +334,8 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
   uint8_t bank[16];
   uint8_t y = 0;
 
-  //GBS::PAD_SYNC_OUT_ENZ::write(1);
-  GBS::DAC_RGBS_PWDNZ::write(0); // direct disableDAC()
+  GBS::PAD_SYNC_OUT_ENZ::write(1);
+  GBS::DAC_RGBS_PWDNZ::write(0);    // no DAC
 
   // should only be possible if previously was in RGBHV bypass, then hit a manual preset switch
   if (rto->videoStandardInput == 15) {
@@ -372,10 +372,10 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
           else if (j == 0 && x == 7) {
             bank[x] = reset47;
           }
-          //else if (j == 0 && x == 9) { // immediate sync out
-          ////  // keep sync output off
-          //  bank[x] = pgm_read_byte(programArray + index) | (1 << 2);
-          //}
+          else if (j == 0 && x == 9) {
+            // keep sync output off
+            bank[x] = pgm_read_byte(programArray + index) | (1 << 2);
+          }
           else {
             // use preset values
             bank[x] = pgm_read_byte(programArray + index);
@@ -1250,40 +1250,49 @@ void resetModeDetect() {
   //rto->coastPositionIsSet = false;
 }
 
-void shiftHorizontal(uint16_t amountToAdd, bool subtracting) {
-  typedef GBS::Tie<GBS::VDS_HB_ST, GBS::VDS_HB_SP> Regs;
+void shiftHorizontal(uint16_t amountToShift, bool subtracting) {
   uint16_t hrst = GBS::VDS_HSYNC_RST::read();
-  uint16_t hbst = 0, hbsp = 0;
-
-  Regs::read(hbst, hbsp);
+  uint16_t hbst = GBS::VDS_HB_ST::read();
+  uint16_t hbsp = GBS::VDS_HB_SP::read();
 
   // Perform the addition/subtraction
   if (subtracting) {
-    hbst -= amountToAdd;
-    hbsp -= amountToAdd;
+    if ((int16_t)hbst - amountToShift >= 0) {
+      hbst -= amountToShift;
+    }
+    else {
+      hbst = hrst - (amountToShift - hbst);
+    }
+    if ((int16_t)hbsp - amountToShift >= 0) {
+      hbsp -= amountToShift;
+    }
+    else {
+      hbsp = hrst - (amountToShift - hbsp);
+    }
   }
   else {
-    hbst += amountToAdd;
-    hbsp += amountToAdd;
+    if ((int16_t)hbst + amountToShift <= hrst) {
+      hbst += amountToShift;
+      // also extend hbst_d to maximum hrst-1
+      if (hbst > GBS::VDS_DIS_HB_ST::read()) {
+        GBS::VDS_DIS_HB_ST::write(hbst);
+      }
+    }
+    else {
+      hbst = 0 + (amountToShift - (hrst - hbst));
+    }
+    if ((int16_t)hbsp + amountToShift <= hrst) {
+      hbsp += amountToShift;
+    }
+    else {
+      hbsp = 0 + (amountToShift - (hrst - hbsp));
+    }
   }
 
-  // handle the case where hbst or hbsp have been decremented below 0
-  if (hbst & 0x8000) {
-    hbst = hrst % 2 == 1 ? (hrst + hbst) + 1 : (hrst + hbst);
-  }
-  if (hbsp & 0x8000) {
-    hbsp = hrst % 2 == 1 ? (hrst + hbsp) + 1 : (hrst + hbsp);
-  }
-
-  // handle the case where hbst or hbsp have been incremented above hrst
-  if (hbst > hrst) {
-    hbst = hrst % 2 == 1 ? (hbst - hrst) - 1 : (hbst - hrst);
-  }
-  if (hbsp > hrst) {
-    hbsp = hrst % 2 == 1 ? (hbsp - hrst) - 1 : (hbsp - hrst);
-  }
-
-  Regs::write(hbst, hbsp);
+  GBS::VDS_HB_ST::write(hbst);
+  GBS::VDS_HB_SP::write(hbsp);
+  Serial.print("hbst: "); Serial.println(hbst);
+  Serial.print("hbsp: "); Serial.println(hbsp);
 }
 
 void shiftHorizontalLeft() {
@@ -1363,23 +1372,107 @@ void shiftHorizontalRightIF(uint8_t amount) {
   //SerialM.print("IF_HB_SP2:  "); SerialM.println(GBS::IF_HB_SP2::read());
 }
 
-void scaleHorizontal(uint16_t amountToAdd, bool subtracting) {
-  uint16_t hscale = GBS::VDS_HSCALE::read();
+void scaleHorizontal(uint16_t amountToScale, bool subtracting)
+{
+    uint16_t hscale = GBS::VDS_HSCALE::read();
 
-  // least invasive "is hscaling enabled" check
-  if (hscale == 1023) {
+    if (subtracting && (((int)hscale - amountToScale) <= 255)) {
+        hscale = 0;
+        GBS::VDS_HSCALE::write(hscale);
+        SerialM.println("limit");
+        return;
+    }
+
+    if (subtracting && (hscale - amountToScale > 255)) {
+        hscale -= amountToScale;
+    } else if (hscale + amountToScale < 1023) {
+        hscale += amountToScale;
+    } else if (hscale + amountToScale == 1023) { // exact max > bypass but apply VDS fetch changes
+        hscale = 1023;
+        GBS::VDS_HSCALE::write(hscale);
+        GBS::VDS_HSCALE_BYPS::write(1);
+    } else if (hscale + amountToScale > 1023) { // max + overshoot > bypass and no VDS fetch adjust
+        hscale = 1023;
+        GBS::VDS_HSCALE::write(hscale);
+        GBS::VDS_HSCALE_BYPS::write(1);
+        SerialM.println("limit");
+        return;
+    }
+
+    // will be scaling
     GBS::VDS_HSCALE_BYPS::write(0);
-  }
 
-  if (subtracting && (hscale - amountToAdd > 0)) {
-    hscale -= amountToAdd;
-  }
-  else if (hscale + amountToAdd <= 1023) {
-    hscale += amountToAdd;
-  }
+    // move within VDS VB fetch area (within reason)
+    uint16_t htotal = GBS::VDS_HSYNC_RST::read();
+    uint16_t hbsp_old = GBS::VDS_HB_SP::read();
+    uint16_t hb_sub = 1 + (uint16_t)(htotal * 0.001f);
+    if (subtracting) {
+        if (hbsp_old > (8 + hb_sub)) { // 8 as a guard against 2 side overflow (scaling up into overlap)
+            GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - hb_sub);
+        }
 
-  SerialM.print("Scale Hor: "); SerialM.println(hscale);
-  GBS::VDS_HSCALE::write(hscale);
+        uint16_t hb_sub_halved = hb_sub / 2;
+        if (hb_sub_halved == 0) {
+          hb_sub_halved = 1;
+        }
+        if ((GBS::VDS_HB_ST::read() + hb_sub_halved) < GBS::VDS_DIS_HB_ST::read()) {
+            GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + hb_sub_halved);
+        } else if ((GBS::VDS_DIS_HB_ST::read() + hb_sub_halved) < htotal) {
+            GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + hb_sub_halved);
+            GBS::VDS_HB_ST::write(GBS::VDS_DIS_HB_ST::read()); // dis_hbst = hbst
+        }
+    }
+
+    // !subtracting check just for readability
+    if (!subtracting) {
+        if ((hbsp_old + hb_sub) < htotal) {
+            GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() + hb_sub); // need to increase hbsp
+        }
+
+        uint16_t hb_sub_halved = hb_sub / 2;
+        if (hb_sub_halved == 0) {
+          hb_sub_halved = 1;
+        }
+        if ((GBS::VDS_HB_ST::read() - hb_sub_halved) > 0) {
+            GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() - hb_sub_halved);
+        }
+    }
+
+    // fix scaling < 512 glitch: factor even, htotal even: hbst / hbsp should be even, etc
+    if (hscale < 512) {
+        if (hscale % 2 == 0) { // hscale 512 / even
+            if (GBS::VDS_HB_ST::read() % 2 == 1) {
+                GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 1);
+            }
+            if (htotal % 2 == 1) {
+                if (GBS::VDS_HB_SP::read() % 2 == 0) {
+                    GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - 1);
+                }
+            } else {
+                if (GBS::VDS_HB_SP::read() % 2 == 1) {
+                    GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - 1);
+                }
+            }
+        } else { // hscale 499 / uneven
+            if (GBS::VDS_HB_ST::read() % 2 == 1) {
+                GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 1);
+            }
+            if (htotal % 2 == 0) {
+                if (GBS::VDS_HB_SP::read() % 2 == 1) {
+                    GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - 1);
+                }
+            } else {
+                if (GBS::VDS_HB_SP::read() % 2 == 0) {
+                    GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - 1);
+                }
+            }
+        }
+    }
+
+    //SerialM.print("HB_ST: "); SerialM.println(GBS::VDS_HB_ST::read());
+    //SerialM.print("HB_SP: "); SerialM.println(GBS::VDS_HB_SP::read());
+    SerialM.print("Scale Hor: "); SerialM.println(hscale);
+    GBS::VDS_HSCALE::write(hscale);
 }
 
 void scaleHorizontalSmaller() {
@@ -2031,7 +2124,8 @@ void applyOverScanPatches() {
 }
 
 void doPostPresetLoadSteps() {
-  GBS::PAD_SYNC_OUT_ENZ::write(0); // immediate sync out
+  GBS::PAD_SYNC_OUT_ENZ::write(1);  // no sync out
+  GBS::DAC_RGBS_PWDNZ::write(0);    // no DAC
   if (rto->videoStandardInput == 0) 
   {
     uint8_t videoMode = getVideoMode();
@@ -2067,7 +2161,7 @@ void doPostPresetLoadSteps() {
 
   if (rto->outModeHdBypass) {
     GBS::OUT_SYNC_SEL::write(1); // 0_4f 1=sync from HDBypass, 2=sync from SP
-    GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
+    //GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   }
 
   // for worst case sog, leave it at it's current low level, to give sub coast a chance later
@@ -2135,10 +2229,10 @@ void doPostPresetLoadSteps() {
     {
       GBS::IF_SEL_WEN::write(0); // 1_02 0; 0 for SD, 1 for EDTV
       if (rto->inputIsYpBpR) {            // todo: check other videoStandardInput in component vs rgb
-        GBS::IF_HS_TAP11_BYPS::write(1);  // 1_02 4 Tap11 LPF bypass in YUV444to422 
+        GBS::IF_HS_TAP11_BYPS::write(0);  // 1_02 4 Tap11 LPF bypass in YUV444to422 
         GBS::IF_HS_Y_PDELAY::write(2);    // 1_02 5+6 delays
         GBS::VDS_V_DELAY::write(0);       // 3_24 2 
-        GBS::VDS_Y_DELAY::write(2);       // 3_24 4/5 delays
+        GBS::VDS_Y_DELAY::write(3);       // 3_24 4/5 delays
       }
       GBS::VDS_TAP6_BYPS::write(0); // 3_24 3
       if (rto->presetID == 0x2 || rto->presetID == 0x3 || rto->presetID == 0x5) {
@@ -2157,7 +2251,7 @@ void doPostPresetLoadSteps() {
       GBS::IF_PRGRSV_CNTRL::write(1);   // 1_00 6
       GBS::IF_SEL_WEN::write(1);        // 1_02 0
       GBS::IF_HS_SEL_LPF::write(0);     // 1_02 1   0 = use interpolator not lpf for EDTV
-      GBS::IF_HS_TAP11_BYPS::write(1);  // 1_02 4 filter
+      GBS::IF_HS_TAP11_BYPS::write(0);  // 1_02 4 filter
       GBS::IF_HS_Y_PDELAY::write(2);    // 1_02 5+6 delays
       GBS::IF_HB_SP::write(0);          // 1_12 deinterlace offset, fixes colors
       GBS::VDS_V_DELAY::write(0);       // 3_24 2
@@ -2385,7 +2479,8 @@ void doPostPresetLoadSteps() {
     GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
     GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
     GBS::INTERRUPT_CONTROL_00::write(0x00);
-    return;
+    // DAC and Sync out will be enabled later
+    return; // to setOutModeHdBypass();
   }
 
   if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 1) {
@@ -2425,8 +2520,8 @@ void doPostPresetLoadSteps() {
   //  advancePhase();
   //}
 
-  GBS::PAD_SYNC_OUT_ENZ::write(0); // sync out on (make sure)
-  GBS::DAC_RGBS_PWDNZ::write(1); // immediate dac enable
+  //GBS::PAD_SYNC_OUT_ENZ::write(0);  // early sync out on
+  //GBS::DAC_RGBS_PWDNZ::write(1);    // dac enable
 
   setAndUpdateSogLevel(rto->currentLevelSOG); // use this to cycle SP / ADPLL latches
 
@@ -3111,7 +3206,6 @@ void setOutModeHdBypass() {
   doPostPresetLoadSteps();
   rto->autoBestHtotalEnabled = false; // need to re-set this
   GBS::OUT_SYNC_SEL::write(1); // 0_4f 1=sync from HDBypass, 2=sync from SP
-  GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
 
   GBS::PLL_CKIS::write(0); // 0_40 0 //  0: PLL uses OSC clock | 1: PLL uses input clock
   GBS::PLL_DIVBY2Z::write(0); // 0_40 1 // 1= no divider (full clock, ie 27Mhz) 0 = halved
@@ -3313,6 +3407,8 @@ void setOutModeHdBypass() {
   }
   while (millis() - timeout < 600) { delay(1); } // minimum delay for pt: 600
 
+  GBS::DAC_RGBS_PWDNZ::write(1);   // enable DAC
+  GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
   SerialM.println("pass-through on");
 }
 
@@ -3483,7 +3579,7 @@ void runAutoGain()
                     adco->g_gain = GBS::ADC_GGCTRL::read();
                     adco->b_gain = GBS::ADC_BGCTRL::read();
 
-                    printInfo();
+                    //printInfo();
                     if (i > 16) {
                         i -= 8; // we just had a hit, there may be more
                     }
@@ -4234,7 +4330,7 @@ void runSyncWatcher()
     // couldn't recover, source is lost
     // restore initial conditions and move to input detect
     if (rto->noSyncCounter >= 254) {
-      GBS::DAC_RGBS_PWDNZ::write(0); // direct disableDAC()
+      GBS::DAC_RGBS_PWDNZ::write(0); // 0 = disable DAC
       rto->noSyncCounter = 0;
       goLowPowerWithInputDetection(); // does not further nest, so it can be called here // sets reset parameters
     }
@@ -4311,7 +4407,7 @@ void calibrateAdcOffset()
     GBS::DEC_TEST_SEL::write(1); // 5_1f = 0x99
 
     unsigned long startTimer = millis();
-    while ((millis() - startTimer) < 800) {
+    while ((millis() - startTimer) < 600) {
         readout = GBS::TEST_BUS_2F::read();
         readout = readout & 0x3f;
         if (readout > 0x00) {
@@ -4330,7 +4426,7 @@ void calibrateAdcOffset()
     GBS::DEC_TEST_SEL::write(3);
 
     startTimer = millis();
-    while ((millis() - startTimer) < 800) {
+    while ((millis() - startTimer) < 600) {
         readout = GBS::TEST_BUS_2E::read(); // red: 2e
         readout = readout & 0x3f;
 
@@ -4352,7 +4448,7 @@ void calibrateAdcOffset()
     // DEC_TEST_SEL stays = 3
 
     startTimer = millis();
-    while ((millis() - startTimer) < 800) {
+    while ((millis() - startTimer) < 600) {
         readout = GBS::TEST_BUS_2F::read(); // blue: 2f
         readout = readout & 0x3f;
 
@@ -4370,13 +4466,6 @@ void calibrateAdcOffset()
         }
     }
     Serial.println("");
-
-    Serial.print("R: ");
-    Serial.println(GBS::ADC_ROFCTRL::read(), HEX);
-    Serial.print("G: ");
-    Serial.println(GBS::ADC_GOFCTRL::read(), HEX);
-    Serial.print("B: ");
-    Serial.println(GBS::ADC_BOFCTRL::read(), HEX);
 
     adco->r_off = GBS::ADC_ROFCTRL::read();
     adco->g_off = GBS::ADC_GOFCTRL::read();
@@ -5591,18 +5680,25 @@ void loop() {
     lastTimeSyncWatcher = millis();
   }
 
-  // frame sync + besthtotal init routine. this only runs if !FrameSync::ready(), ie manual retiming, preset load, etc)
-  // also do this with a custom preset (applyBestHTotal will bail out, but FrameSync will be readied)
-  if (!FrameSync::ready() && rto->continousStableCounter >= 15 && rto->syncWatcherEnabled == true
+  // frame sync + besthtotal init routine. this only runs if !FrameSync::ready()
+  // continousStableCounter was >= 15
+  if (!FrameSync::ready() && rto->continousStableCounter >= 5 && rto->syncWatcherEnabled == true
     && rto->autoBestHtotalEnabled == true && getStatus16SpHsStable() 
     && rto->videoStandardInput != 0 && rto->videoStandardInput != 15)
   {
-    if (((rto->continousStableCounter % 3) == 0) || (rto->continousStableCounter > 100))
+    if ((rto->continousStableCounter % 3) == 0)
     {
       uint8_t videoModeBeforeInit = getVideoMode();
       if (videoModeBeforeInit > 0)
       {
-        boolean stableBeforeInit = getStatus16SpHsStable();
+        boolean stableBeforeInit = 1;
+        for (uint8_t i = 0; i < 40; i++) {
+          if (!getStatus16SpHsStable()) {
+            stableBeforeInit = 0;
+            Serial.println("bestHtotal init unstable");
+            break;
+          }
+        }
         if (stableBeforeInit)
         {
           GBS::VDS_TEST_EN::write(1); // make sure, also leave enabled
@@ -5614,8 +5710,9 @@ void loop() {
             if (bestHTotal > 4095) bestHTotal = 0;
             if ((videoModeBeforeInit == videoModeAfterInit) && videoModeBeforeInit != 0) {
               applyBestHTotal(bestHTotal);
-              GBS::PAD_SYNC_OUT_ENZ::write(0); // (late) Sync on // 1. chance
-              GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC // 1. chance
+              //Serial.println("1st chance");
+              GBS::PAD_SYNC_OUT_ENZ::write(0); // 0 = (late) Sync on // 1. chance
+              GBS::DAC_RGBS_PWDNZ::write(1); // 1 = enable DAC // 1. chance
               rto->syncLockFailIgnore = 8;
             }
             else {
@@ -5664,11 +5761,12 @@ void loop() {
   
   // later stage post preset adjustments 
   if ((rto->applyPresetDoneStage == 1) &&
-    ((rto->continousStableCounter > 25 && rto->continousStableCounter < 35) || // this
+    ((rto->continousStableCounter > 35 && rto->continousStableCounter < 45) || // this
       !rto->syncWatcherEnabled))                                               // or that
   {
     if (rto->applyPresetDoneStage == 1) 
     {
+      //Serial.println("2nd chance");
       GBS::DAC_RGBS_PWDNZ::write(1); // 2nd chance
       if (!uopt->wantOutputComponent) 
       {
@@ -5685,6 +5783,7 @@ void loop() {
   }
   else if (rto->applyPresetDoneStage == 1 && (rto->continousStableCounter > 35))
   {
+    //Serial.println("3rd chance");
     GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC // 3rd chance
     rto->applyPresetDoneStage = 0; // timeout
     if (!uopt->wantOutputComponent) 
