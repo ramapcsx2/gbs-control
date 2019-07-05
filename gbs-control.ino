@@ -1291,8 +1291,8 @@ void shiftHorizontal(uint16_t amountToShift, bool subtracting) {
 
   GBS::VDS_HB_ST::write(hbst);
   GBS::VDS_HB_SP::write(hbsp);
-  Serial.print("hbst: "); Serial.println(hbst);
-  Serial.print("hbsp: "); Serial.println(hbsp);
+  //Serial.print("hbst: "); Serial.println(hbst);
+  //Serial.print("hbsp: "); Serial.println(hbsp);
 }
 
 void shiftHorizontalLeft() {
@@ -2234,9 +2234,21 @@ void doPostPresetLoadSteps() {
         GBS::VDS_V_DELAY::write(0);       // 3_24 2 
         GBS::VDS_Y_DELAY::write(3);       // 3_24 4/5 delays
       }
-      GBS::VDS_TAP6_BYPS::write(0); // 3_24 3
-      if (rto->presetID == 0x2 || rto->presetID == 0x3 || rto->presetID == 0x5) {
-        GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
+
+      //if (rto->presetID == 0x2 || rto->presetID == 0x3 || rto->presetID == 0x5) {
+      //  GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
+      //}
+
+      // DAC filters
+      if (rto->presetID == 0x4 || rto->presetID == 0x14) {
+        GBS::VDS_TAP6_BYPS::write(0);     // "classic" behaviour for out 640x480
+        GBS::VDS_1ST_INT_BYPS::write(1);
+        GBS::VDS_2ND_INT_BYPS::write(1);
+      }
+      else {
+        GBS::VDS_TAP6_BYPS::write(1); // 3_24 3 bypass on to remove shadow'y DAC artefacts
+        GBS::VDS_1ST_INT_BYPS::write(0); // enable RGB stage interpolator
+        GBS::VDS_2ND_INT_BYPS::write(1); // disable YUV stage interpolator
       }
     }
     if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4)
