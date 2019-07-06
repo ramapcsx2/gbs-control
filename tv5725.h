@@ -660,6 +660,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x1F, 7,  1> DEC_IDREG_EN;
     typedef UReg<0x05, 0x20, 0,  1> SP_SOG_SRC_SEL;
     typedef UReg<0x05, 0x20, 1,  1> SP_SOG_P_ATO;
+    typedef UReg<0x05, 0x20, 2,  1> SP_SOG_P_INV;
     typedef UReg<0x05, 0x20, 3,  1> SP_EXT_SYNC_SEL;
     typedef UReg<0x05, 0x20, 4,  1> SP_JITTER_SYNC;
     typedef UReg<0x05, 0x26, 0, 12> SP_SYNC_PD_THD;
