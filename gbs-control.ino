@@ -2254,10 +2254,10 @@ void doPostPresetLoadSteps() {
       GBS::IF_SEL_WEN::write(1);        // 1_02 0
       GBS::IF_HS_SEL_LPF::write(0);     // 1_02 1   0 = use interpolator not lpf for EDTV
       GBS::IF_HS_TAP11_BYPS::write(0);  // 1_02 4 filter
-      GBS::IF_HS_Y_PDELAY::write(2);    // 1_02 5+6 delays
+      GBS::IF_HS_Y_PDELAY::write(3);    // 1_02 5+6 delays (ps2 test on one board clearly says 3, not 2)
       GBS::IF_HB_SP::write(0);          // 1_12 deinterlace offset, fixes colors
       GBS::VDS_V_DELAY::write(0);       // 3_24 2
-      GBS::VDS_Y_DELAY::write(3);       // 3_24 4/5 delays
+      GBS::VDS_Y_DELAY::write(3);       // 3_24 4/5 delays (ps2 test saying 3 for 1_02 goes with 3 here)
     }
     if (rto->videoStandardInput == 3) 
     { // ED YUV 60
@@ -2783,7 +2783,7 @@ void freezeVideo() {
 static uint8_t getVideoMode() {
   uint8_t detectedMode = 0;
 
-  if (rto->videoStandardInput >= 14) { // check RGBHV first
+  if (rto->videoStandardInput >= 14) { // check RGBHV first // not mode 13 here, else mode 13 can't reliably exit
     detectedMode = GBS::STATUS_16::read();
     if ((detectedMode & 0x0a) > 0) { // bit 1 or 3 active?
       return rto->videoStandardInput; // still RGBHV bypass, 14 or 15
@@ -2827,9 +2827,42 @@ static uint8_t getVideoMode() {
   if ((GBS::STATUS_05::read() & 0x0c) == 0x00) // 2: Horizontal unstable indicator AND 3: Vertical unstable indicator are both 0?
   {
     if (GBS::STATUS_00::read() == 0x07) { // the 3 stat0 stable indicators are on, none of the SD indicators are on
-      if ((GBS::STATUS_03::read() & 0x02) == 0x02) // Graphic mode bit on (VGA/SVGA/XGA/SXGA)
+      if ((GBS::STATUS_03::read() & 0x02) == 0x02) // Graphic mode bit on (any of VGA/SVGA/XGA/SXGA at all detected Hz)
       {
         return 13;
+      }
+      else {
+        // this mode looks like it wants to be graphic mode, but the horizontal counter target in MD is very strict
+        static uint8_t XGA_60HZ = GBS::MD_XGA_60HZ_CNTRL::read();
+        static uint8_t XGA_70HZ = GBS::MD_XGA_70HZ_CNTRL::read();
+        static uint8_t XGA_75HZ = GBS::MD_XGA_75HZ_CNTRL::read();
+        static uint8_t XGA_85HZ = GBS::MD_XGA_85HZ_CNTRL::read();
+
+        static uint8_t SXGA_60HZ = GBS::MD_SXGA_60HZ_CNTRL::read();
+        static uint8_t SXGA_75HZ = GBS::MD_SXGA_75HZ_CNTRL::read();
+        static uint8_t SXGA_85HZ = GBS::MD_SXGA_85HZ_CNTRL::read();
+
+        static uint8_t SVGA_60HZ = GBS::MD_SVGA_60HZ_CNTRL::read();
+        static uint8_t SVGA_75HZ = GBS::MD_SVGA_75HZ_CNTRL::read();
+        static uint8_t SVGA_85HZ = GBS::MD_SVGA_85HZ_CNTRL::read();
+
+        static uint8_t VGA_75HZ = GBS::MD_VGA_75HZ_CNTRL::read();
+        static uint8_t VGA_85HZ = GBS::MD_VGA_85HZ_CNTRL::read();
+
+        short hSkew = random(-2, 2);  // skew the target a little
+        //Serial.println(XGA_60HZ + hSkew, HEX);
+        GBS::MD_XGA_60HZ_CNTRL::write(XGA_60HZ + hSkew);
+        GBS::MD_XGA_70HZ_CNTRL::write(XGA_70HZ + hSkew);
+        GBS::MD_XGA_75HZ_CNTRL::write(XGA_75HZ + hSkew);
+        GBS::MD_XGA_85HZ_CNTRL::write(XGA_85HZ + hSkew);
+        GBS::MD_SXGA_60HZ_CNTRL::write(SXGA_60HZ + hSkew);
+        GBS::MD_SXGA_75HZ_CNTRL::write(SXGA_75HZ + hSkew);
+        GBS::MD_SXGA_85HZ_CNTRL::write(SXGA_85HZ + hSkew);
+        GBS::MD_SVGA_60HZ_CNTRL::write(SVGA_60HZ + hSkew);
+        GBS::MD_SVGA_75HZ_CNTRL::write(SVGA_75HZ + hSkew);
+        GBS::MD_SVGA_85HZ_CNTRL::write(SVGA_85HZ + hSkew);
+        GBS::MD_VGA_75HZ_CNTRL::write(VGA_75HZ + hSkew);
+        GBS::MD_VGA_85HZ_CNTRL::write(VGA_85HZ + hSkew);
       }
     }
   }
@@ -3732,12 +3765,11 @@ void disableMotionAdaptDeinterlace() {
 }
 
 void printInfo() {
-  static char print[110]; // 102 + 1 minimum
+  static char print[113]; // 102 + 1 minimum
   uint8_t lockCounter = 0;
   int32_t wifi = 0;
   uint16_t hperiod = GBS::HPERIOD_IF::read();
   uint16_t vperiod = GBS::VPERIOD_IF::read();
-  char plllock = (GBS::STATUS_MISC_PLL648_LOCK::read() == 1) ? '.' : 'x';
 
   for (uint8_t i = 0; i < 20; i++) {
     lockCounter += ((GBS::STATUS_MISC_PLLAD_LOCK::read() == 1) ? 1 : 0);
@@ -3755,10 +3787,10 @@ void printInfo() {
   }
 #endif
   //int charsToPrint = 
-  sprintf(print, "h:%4u v:%4u PLL%c%02u A:%02x%02x%02x S:%02x.%02x.%02x I:%02x D:%04x m:%hu ht:%4d vt:%3d hpw:%4d s:%2x u:%2x s:%2d W:%d",
-    hperiod, vperiod, plllock, lockCounter,
+  sprintf(print, "h:%4u v:%4u PLL:%02u A:%02x%02x%02x S:%02x.%02x.%02x.%02x I:%02x D:%04x m:%hu ht:%4d vt:%3d hpw:%4d s:%2x u:%2x s:%2d W:%d",
+    hperiod, vperiod, lockCounter,
     GBS::ADC_RGCTRL::read(), GBS::ADC_GGCTRL::read(), GBS::ADC_BGCTRL::read(),
-    GBS::STATUS_00::read(), GBS::STATUS_05::read(), GBS::STATUS_16::read(), GBS::STATUS_0F::read(),
+    GBS::STATUS_00::read(), GBS::STATUS_05::read(), GBS::STATUS_16::read(), GBS::STATUS_03::read(), GBS::STATUS_0F::read(),
     GBS::TEST_BUS::read(), getVideoMode(),
     GBS::STATUS_SYNC_PROC_HTOTAL::read(), GBS::STATUS_SYNC_PROC_VTOTAL::read() /*+ 1*/,   // emucrt: without +1 is correct line count 
     GBS::STATUS_SYNC_PROC_HLOW_LEN::read(), rto->continousStableCounter, rto->noSyncCounter, 
@@ -4554,7 +4586,7 @@ void setup() {
   uopt->wantOutputComponent = 0;
   uopt->deintMode = 0;
   uopt->wantVdsLineFilter = 1;
-  uopt->wantPeaking = 1;
+  uopt->wantPeaking = 0;
   uopt->preferScalingRgbhv = 0; // test: set to 1
   uopt->PalForce60 = 1;
   uopt->overscan = 0;
@@ -4635,7 +4667,7 @@ void setup() {
       uopt->wantOutputComponent = 0;
       uopt->deintMode = 0;
       uopt->wantVdsLineFilter = 1;
-      uopt->wantPeaking = 1;
+      uopt->wantPeaking = 0;
       uopt->PalForce60 = 0;
       uopt->overscan = 0;
       saveUserPrefs(); // if this fails, there must be a spiffs problem
