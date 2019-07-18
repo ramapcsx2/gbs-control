@@ -173,6 +173,7 @@ struct runTimeOptions {
   boolean boardHasPower;
   boolean presetIsPalForce60;
   boolean syncTypeCsync;
+  boolean isValidForScalingRGBHV;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -442,7 +443,7 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
   }
 
   // 640x480 RGBHV scaling mode
-  if (rto->videoStandardInput == 14) {
+  if (uopt->preferScalingRgbhv && rto->isValidForScalingRGBHV) {
     GBS::GBS_OPTION_SCALING_RGBHV::write(1);
     rto->videoStandardInput = 3;
   }
@@ -468,6 +469,7 @@ void setResetParameters() {
   rto->motionAdaptiveDeinterlaceActive = false;
   rto->scanlinesEnabled = false;
   rto->syncTypeCsync = false;
+  rto->isValidForScalingRGBHV = false;
 
   adco->r_gain = 0;
   adco->g_gain = 0;
@@ -926,20 +928,6 @@ void optimizeSogLevel() {
   //if (coastWasEnabled) {
   //  GBS::SP_DIS_SUB_COAST::write(0);
   //}
-}
-
-void switchSyncProcessingMode(uint8_t mode) {
-  if (mode) {
-    GBS::SP_PRE_COAST::write(0);
-    GBS::SP_POST_COAST::write(0);
-    GBS::ADC_SOGEN::write(0);
-    GBS::SP_SOG_MODE::write(0);
-    GBS::SP_CLAMP_MANUAL::write(1);
-    GBS::SP_NO_COAST_REG::write(1);
-  }
-  else {
-    SerialM.println("todo..");
-  }
 }
 
 // GBS boards have 2 potential sync sources:
@@ -1920,21 +1908,23 @@ void applyBestHTotal(uint16_t bestHTotal) {
   }
 
   // rto->forceRetime = true means the correction should be forced (command '.')
-  // may want to check against multi clock snes
+  // large diff abort / retry check
+  // only retry if not in scaling rgbhv mode and not forced retiming
   if (!rto->outModeHdBypass || rto->forceRetime == true) {
-    // abort?
     if (isLargeDiff && (rto->forceRetime == false)) {
-      rto->failRetryAttempts++;
-      if (rto->failRetryAttempts < 8) {
-        SerialM.println("retry");
-        FrameSync::reset();
-        delay(60);
-        return;
-      }
-      else {
-        SerialM.println("give up");
-        rto->autoBestHtotalEnabled = false;
-        return; // just return, will give up FrameSync
+      if (rto->videoStandardInput != 14) { 
+        rto->failRetryAttempts++;
+        if (rto->failRetryAttempts < 8) {
+          SerialM.println("retry");
+          FrameSync::reset();
+          delay(60);
+          return;
+        }
+        else {
+          SerialM.println("give up");
+          rto->autoBestHtotalEnabled = false;
+          return; // just return, will give up FrameSync
+        }
       }
     }
     // bestHTotal 0? could be an invald manual retime
@@ -2003,48 +1993,36 @@ void applyBestHTotal(uint16_t bestHTotal) {
 
     // finally, fix forced timings with large diff
     if (isLargeDiff) {
-      // new: try keeping presets timings, but adjust the IF and VDS (scaling, etc?)
-      uint16_t oldIF_HBIN_SP = GBS::IF_HBIN_SP::read();
-      if (diffHTotal < 0) {
-        float ratioHTotal = (float)orig_htotal / (float)bestHTotal;
-        ratioHTotal *= 1.2f; // works better?
-        GBS::IF_HBIN_SP::write((uint16_t)(oldIF_HBIN_SP * ratioHTotal) & 0xfffc); // untested // aligned, fixing color inversion eff.
-      }
-      else {
-        float ratioHTotal = (float)bestHTotal / (float)orig_htotal;
-        ratioHTotal *= 1.2f; // works better?
-        GBS::IF_HBIN_SP::write((uint16_t)(oldIF_HBIN_SP * ratioHTotal) & 0xfffc);
-      }
+      h_blank_display_start_position = bestHTotal * 0.996f;
+      h_blank_display_stop_position = bestHTotal * 0.08f;
+      h_blank_memory_start_position = h_blank_display_start_position;
+      h_blank_memory_stop_position = h_blank_display_stop_position * 0.2f;
+
       if (h_sync_start_position > h_sync_stop_position) { // is neg HSync
         h_sync_stop_position = 0;
         // stop = at least start, then a bit outwards
-        h_sync_start_position = 16 + (h_blank_display_stop_position * 0.4f); 
+        h_sync_start_position = 16 + (h_blank_display_stop_position * 0.4f);
       }
       else {
         h_sync_start_position = 0;
-        h_sync_stop_position = 16 + (h_blank_display_stop_position * 0.4f); 
+        h_sync_stop_position = 16 + (h_blank_display_stop_position * 0.4f);
       }
-
-      //h_blank_display_start_position = bestHTotal * 0.94f;
-      //h_blank_display_stop_position = bestHTotal * 0.194f;
-      //h_blank_memory_start_position = h_blank_display_start_position; // -8
-      //h_blank_memory_stop_position = h_blank_display_stop_position * 0.72f;
     }
 
     if (diffHTotal != 0) { // apply
-      if (diffHTotalUnsigned < 60) {
-        // smooth out applying new htotal
-        uint16_t rst = GBS::VDS_HSYNC_RST::read();
-        while (rst != bestHTotal) {
-          if (diffHTotal < 0) GBS::VDS_HSYNC_RST::write(rst - 1);
-          else                GBS::VDS_HSYNC_RST::write(rst + 1);
-          rst = GBS::VDS_HSYNC_RST::read();
-          delay(2);
-        }
-      }
-      else {
-        GBS::VDS_HSYNC_RST::write(bestHTotal);
-      }
+      //if (diffHTotalUnsigned < 60) {
+      //  // smooth out applying new htotal
+      //  uint16_t rst = GBS::VDS_HSYNC_RST::read();
+      //  while (rst != bestHTotal) {
+      //    if (diffHTotal < 0) GBS::VDS_HSYNC_RST::write(rst - 1);
+      //    else                GBS::VDS_HSYNC_RST::write(rst + 1);
+      //    rst = GBS::VDS_HSYNC_RST::read();
+      //    delay(2);
+      //  }
+      //}
+      //else {
+        GBS::VDS_HSYNC_RST::write(bestHTotal); // instant apply for now
+      //}
       GBS::VDS_DIS_HB_ST::write(h_blank_display_start_position);
       GBS::VDS_DIS_HB_SP::write(h_blank_display_stop_position);
       GBS::VDS_HB_ST::write(h_blank_memory_start_position);
@@ -2163,23 +2141,11 @@ void doPostPresetLoadSteps() {
   GBS::ADC_UNUSED_64::write(0); GBS::ADC_UNUSED_65::write(0); // clear temp storage
   GBS::ADC_UNUSED_66::write(0); GBS::ADC_UNUSED_67::write(0); // clear temp storage
 
-  if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 1) 
-  {
-    rto->videoStandardInput = 3; // 640x480 RGBHV scaling mode
-    switchSyncProcessingMode(1);
-  }
-  //if (uopt->overscan) 
-  //{
-  //  if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 4) 
-  //  {
-  //    if (!isCustomPreset) { // else it's already applied
-  //      applyOverScanPatches();
-  //    }
-  //  }
-  //}
-
   GBS::SP_HCST_AUTO_EN::write(0);
-  GBS::SP_DIS_SUB_COAST::write(0); // test: enable SUB_COAST here / early for faster detection
+  if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0) // maybe more conditions, but only scaling rgbhv excluded from coast now
+  {
+    GBS::SP_DIS_SUB_COAST::write(0); // test: enable SUB_COAST here / early for faster detection
+  }
   GBS::SP_NO_CLAMP_REG::write(1);  // (keep) clamp disabled, to be enabled when position determined
   GBS::OUT_SYNC_CNTRL::write(1);   // prepare sync out to PAD
 
@@ -2391,9 +2357,9 @@ void doPostPresetLoadSteps() {
   // auto ADC gain
   if (uopt->enableAutoGain == 1 && adco->r_gain == 0) {
     SerialM.println("ADC gain: reset");
-    GBS::ADC_RGCTRL::write(0x40);
-    GBS::ADC_GGCTRL::write(0x40);
-    GBS::ADC_BGCTRL::write(0x40);
+    GBS::ADC_RGCTRL::write(0x48);
+    GBS::ADC_GGCTRL::write(0x48);
+    GBS::ADC_BGCTRL::write(0x48);
     GBS::DEC_TEST_ENABLE::write(1);
   }
   else if (uopt->enableAutoGain == 1 && adco->r_gain != 0) {
@@ -3076,7 +3042,7 @@ void updateSpDynamic() {
     GBS::SP_H_PULSE_IGNOR::write(0x02);
     GBS::ADC_FLTR::write(1);     // 5_03
   }
-  else if (rto->videoStandardInput == 15 || rto->videoStandardInput == 13) {
+  else if (rto->videoStandardInput >= 13) { // 13, 14 and 15 (was just 13 and 15)
     if (rto->syncTypeCsync == false)
     {
       GBS::SP_PRE_COAST::write(0x00);
@@ -3576,9 +3542,9 @@ void bypassModeSwitch_RGBHV() {
   // auto ADC gain
   if (uopt->enableAutoGain == 1 && adco->r_gain == 0) {
     SerialM.println("ADC gain: reset");
-    GBS::ADC_RGCTRL::write(0x40);
-    GBS::ADC_GGCTRL::write(0x40);
-    GBS::ADC_BGCTRL::write(0x40);
+    GBS::ADC_RGCTRL::write(0x48);
+    GBS::ADC_GGCTRL::write(0x48);
+    GBS::ADC_BGCTRL::write(0x48);
     GBS::DEC_TEST_ENABLE::write(1);
   }
   else if (uopt->enableAutoGain == 1 && adco->r_gain != 0) {
@@ -3614,7 +3580,7 @@ void bypassModeSwitch_RGBHV() {
 
 void runAutoGain()
 {
-    uint8_t g_found = 0;
+    uint8_t limit_found = 0;
     uint8_t status00reg = GBS::STATUS_00::read(); // confirm no mode changes happened
 
     //GBS::DEC_TEST_SEL::write(5);
@@ -3623,7 +3589,7 @@ void runAutoGain()
     //  uint8_t greenValue = GBS::TEST_BUS_2E::read();
     //  if (greenValue >= 0x28 && greenValue <= 0x2f) {  // 0x2c seems to be "highest" (haven't seen 0x2b yet)
     //    if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
-    //      g_found++;
+    //      limit_found++;
     //    }
     //    else return;
     //  }
@@ -3632,20 +3598,23 @@ void runAutoGain()
     GBS::DEC_TEST_SEL::write(1); // luma and G channel
 
     for (uint8_t i = 0; i < 20; i++) {
-        g_found = 0;
+        limit_found = 0;
         uint8_t greenValue = GBS::TEST_BUS_2F::read() & 0x7f;
-        if (greenValue >= 0x7c && greenValue <= 0x7f) {
+        uint8_t blueValue = GBS::TEST_BUS_2E::read() & 0x7f;
+        if ((greenValue >= 0x7c && greenValue <= 0x7f) || (blueValue >= 0x7c && blueValue <= 0x7f)) {
             for (uint8_t a = 0; a < 2; a++) {
                 delayMicroseconds(22);
                 greenValue = GBS::TEST_BUS_2F::read() & 0x7f;
-                if (greenValue >= 0x7c && greenValue <= 0x7f) {
+                blueValue = GBS::TEST_BUS_2E::read() & 0x7f;
+                if ((greenValue >= 0x7c && greenValue <= 0x7f) || (blueValue >= 0x7c && blueValue <= 0x7f)) {
                     if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
-                        g_found++;
+                        limit_found++;
                     } else
                         return;
                 }
             }
-            if (g_found == 2) {
+            if (limit_found == 2) {
+                limit_found = 0;
                 uint8_t level = GBS::ADC_GGCTRL::read();
                 if (level < 0xff) {
                     GBS::ADC_GGCTRL::write(level + 1);
@@ -3658,10 +3627,7 @@ void runAutoGain()
                     adco->b_gain = GBS::ADC_BGCTRL::read();
 
                     //printInfo();
-                    if (i > 16) {
-                        i -= 8; // we just had a hit, there may be more
-                    }
-                    delayMicroseconds(60); // but let it settle a little
+                    delayMicroseconds(100); // let it settle a little
                 }
             }
         }
@@ -4133,6 +4099,7 @@ void runSyncWatcher()
           delay(10);
         }
         if (moveOn) {
+          rto->isValidForScalingRGBHV = true;
           GBS::ADC_SOGEN::write(0);
           GBS::SP_SOG_MODE::write(0);
           GBS::GBS_OPTION_SCALING_RGBHV::write(1);
@@ -4148,7 +4115,7 @@ void runSyncWatcher()
             GBS::IF_HB_SP2::write(0x80); // image
             GBS::IF_HBIN_SP::write(0x60);// position
           }
-          applyPresets(rto->videoStandardInput);
+          applyPresets(rto->videoStandardInput); // 1 2 or 3
           GBS::GBS_OPTION_SCALING_RGBHV::write(1);
           if (GBS::PLLAD_ICP::read() >= 6) {
             GBS::PLLAD_ICP::write(5); // reduce charge pump current for more general use
@@ -4156,7 +4123,11 @@ void runSyncWatcher()
             rto->clampPositionIsSet = 0; // test, but should be good
           }
           rto->videoStandardInput = 14;
-          switchSyncProcessingMode(1);
+          updateSpDynamic();
+          GBS::ADC_SOGEN::write(0); // may have to undo this below when returning from scaling rgbhv
+          GBS::SP_SOG_MODE::write(0);
+          GBS::SP_CLAMP_MANUAL::write(1);
+          GBS::SP_NO_COAST_REG::write(1);
           delay(100);
         }
       }
@@ -4173,6 +4144,7 @@ void runSyncWatcher()
         }
         if (moveOn) {
           rto->videoStandardInput = 15;
+          rto->isValidForScalingRGBHV = false;
           applyPresets(rto->videoStandardInput); // exception: apply preset here, not later in syncwatcher
           delay(100);
         }
@@ -4604,6 +4576,7 @@ void setup() {
   rto->boardHasPower = true;
   rto->presetIsPalForce60 = false;
   rto->syncTypeCsync = false;
+  rto->isValidForScalingRGBHV = false;
 
   // the following is just run time variables. don't change!
   rto->inputIsYpBpR = false;
@@ -5131,9 +5104,9 @@ void loop() {
       if (uopt->enableAutoGain == 0) {
         uopt->enableAutoGain = 1;
         if (!rto->outModeHdBypass) { // no readout possible
-          GBS::ADC_RGCTRL::write(0x40);
-          GBS::ADC_GGCTRL::write(0x40);
-          GBS::ADC_BGCTRL::write(0x40);
+          GBS::ADC_RGCTRL::write(0x48);
+          GBS::ADC_GGCTRL::write(0x48);
+          GBS::ADC_BGCTRL::write(0x48);
           GBS::DEC_TEST_ENABLE::write(1);
         }
         SerialM.println("on");
