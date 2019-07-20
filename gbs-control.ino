@@ -30,7 +30,7 @@ typedef TV5725<GBS_ADDR> GBS;
 #include "PersWiFiManager.h"
 #include <ESP8266mDNS.h>  // mDNS library for finding gbscontrol.local on the local network
 
-//#define HAVE_PINGER_LIBRARY // ESP8266-ping library to aid debugging WiFi issues, install via Arduino library manager
+#define HAVE_PINGER_LIBRARY // ESP8266-ping library to aid debugging WiFi issues, install via Arduino library manager
 #ifdef HAVE_PINGER_LIBRARY
 #include <Pinger.h>
 #include <PingerResponse.h>
@@ -637,7 +637,7 @@ void applyRGBPatches() {
   GBS::VDS_UCOS_GAIN::write(0x1c); // blue
   GBS::VDS_USIN_GAIN::write(0x00); // 3_38
   GBS::VDS_VSIN_GAIN::write(0x00); // 3_39
-  GBS::VDS_Y_OFST::write(0x00); // 3_3a 0xfe
+  GBS::VDS_Y_OFST::write(0xfc); // 3_3a 0xfe // 0
   GBS::VDS_U_OFST::write(0x00); // 3_3b 0x01
   GBS::VDS_V_OFST::write(0x00); // 3_3c 0x01
 
@@ -4547,6 +4547,11 @@ void calibrateAdcOffset()
     adco->b_off = GBS::ADC_BOFCTRL::read();
 }
 
+void preinit()
+{
+  system_phy_set_powerup_option(3); // 0 = default, use init byte; 3 = full calibr. each boot, extra 200ms
+}
+
 void setup() {
   rto->webServerEnabled = true;
   rto->webServerStarted = false; // make sure this is set
@@ -4850,6 +4855,7 @@ void handleButtons(void) {
 #endif
 
 void handleWiFi() {
+  static unsigned long lastTimePing = millis();
   yield();
 #if defined(ESP8266)
   if (rto->webServerEnabled && rto->webServerStarted) {
@@ -4860,7 +4866,6 @@ void handleWiFi() {
     // if there's a control command from the server, globalCommand will now hold it.
     // process it in the parser, then reset to 0 at the end of the sketch.
 
-    static unsigned long lastTimePing = millis();
     if (millis() - lastTimePing > 733) { // slightly odd value so not everything happens at once
 
       if (webSocket.connectedClients(true) > 0) { // true = with builtin ping (should help the WS lib detect issues)
@@ -5924,7 +5929,8 @@ void loop() {
     }
   }
 
-  if (!rto->boardHasPower) 
+  // power good now? // added syncWatcherEnabled check to enable passive modes
+  if (!rto->boardHasPower && rto->syncWatcherEnabled) 
   { // then check if power has come on
     if (digitalRead(SCL) && digitalRead(SDA)) 
     {
