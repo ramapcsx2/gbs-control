@@ -92,7 +92,7 @@ private:
     uint32_t inPeriod, outPeriod, diff;
     uint8_t debugRegBackup = GBS::TEST_BUS_SEL::read();
 
-    // 0x0 = IF (t1t28t3)
+    // 0x0 = IF (t1t28t3) // needs decimation + if
     GBS::TEST_BUS_SEL::write(0x0);
     if (!vsyncInputSample(&inStart, &inStop)) {
       return false;

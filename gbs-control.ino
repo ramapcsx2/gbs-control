@@ -30,7 +30,7 @@ typedef TV5725<GBS_ADDR> GBS;
 #include "PersWiFiManager.h"
 #include <ESP8266mDNS.h>  // mDNS library for finding gbscontrol.local on the local network
 
-#define HAVE_PINGER_LIBRARY // ESP8266-ping library to aid debugging WiFi issues, install via Arduino library manager
+//#define HAVE_PINGER_LIBRARY // ESP8266-ping library to aid debugging WiFi issues, install via Arduino library manager
 #ifdef HAVE_PINGER_LIBRARY
 #include <Pinger.h>
 #include <PingerResponse.h>
@@ -1184,11 +1184,9 @@ void dumpRegisters(byte segment)
 }
 
 void resetPLLAD() {
-  GBS::PLLAD_PDZ::write(1); // in case it was off
   GBS::PLLAD_VCORST::write(1);
-  delay(1);
+  GBS::PLLAD_PDZ::write(1); // in case it was off
   latchPLLAD();
-  delay(1);
   GBS::PLLAD_VCORST::write(0);
   delay(1);
   latchPLLAD();
@@ -1887,7 +1885,71 @@ void fastGetBestHtotal() {
   }
 }
 
-void applyBestHTotal(uint16_t bestHTotal) {
+boolean runAutoBestHTotal() {
+  if (!FrameSync::ready() 
+    && rto->autoBestHtotalEnabled == true 
+    && rto->videoStandardInput > 0  
+    && rto->videoStandardInput < 15)
+  {
+    uint8_t videoModeBeforeInit = getVideoMode();
+    if (videoModeBeforeInit > 0)
+    {
+      boolean stableBeforeInit = 1;
+      for (uint8_t i = 0; i < 40; i++) {
+        if (!getStatus16SpHsStable()) {
+          stableBeforeInit = 0;
+          break;
+        }
+      }
+      if (stableBeforeInit)
+      {
+        GBS::VDS_TEST_EN::write(1); // make sure, also leave enabled
+        GBS::IF_TEST_EN::write(1); // same
+        uint16_t bestHTotal = FrameSync::init();
+        uint8_t videoModeAfterInit = getVideoMode();
+        boolean stableAfterInit = getStatus16SpHsStable();
+        if (bestHTotal > 0 && stableBeforeInit == true && stableAfterInit == true) {
+          if (bestHTotal > 4095) bestHTotal = 0;
+          if ((videoModeBeforeInit == videoModeAfterInit) && videoModeBeforeInit != 0) {
+            boolean success = applyBestHTotal(bestHTotal);
+            if (success) {
+              rto->syncLockFailIgnore = 8;
+              return true; // success
+            }
+          }
+          else {
+            FrameSync::reset();
+          }
+        }
+        else if (rto->syncLockFailIgnore > 0) {
+          // frame time lock failed, likely due to missing wires or instability
+          rto->syncLockFailIgnore--;
+          if (rto->syncLockFailIgnore == 0) {
+            GBS::DAC_RGBS_PWDNZ::write(1); // xth chance
+            if (!uopt->wantOutputComponent)
+            {
+              GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out // xth chance
+            }
+            rto->autoBestHtotalEnabled = false;
+          }
+        }
+      }
+    }
+    Serial.print("bestHtotal attempts left: ");
+    Serial.println(rto->syncLockFailIgnore);
+  }
+  else if (FrameSync::ready()) {
+    return true;
+  }
+
+  return false;
+}
+
+boolean applyBestHTotal(uint16_t bestHTotal) {
+  if (rto->outModeHdBypass) {
+    return true; // false? doesn't matter atm
+  }
+  
   uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
   int diffHTotal = bestHTotal - orig_htotal;
   uint16_t diffHTotalUnsigned = abs(diffHTotal);
@@ -1896,11 +1958,11 @@ void applyBestHTotal(uint16_t bestHTotal) {
       SerialM.print("already at bestHTotal: "); SerialM.print(bestHTotal);
       SerialM.print(" Fieldrate: "); SerialM.println(getSourceFieldRate(0), 3); // prec. 3 // use IF testbus
     }
-    return; // nothing to do
+    return true; // nothing to do
   }
   if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() == 1) {
     // source is 50Hz, preset has to stay at 60Hz: return
-    return;
+    return true;
   }
   boolean isLargeDiff = (diffHTotalUnsigned > (orig_htotal * 0.06f)) ? true : false; // typical diff: 1802 to 1794 (=8)
   if (isLargeDiff) {
@@ -1908,134 +1970,131 @@ void applyBestHTotal(uint16_t bestHTotal) {
   }
 
   // rto->forceRetime = true means the correction should be forced (command '.')
-  // large diff abort / retry check
-  // only retry if not in scaling rgbhv mode and not forced retiming
-  if (!rto->outModeHdBypass || rto->forceRetime == true) {
-    if (isLargeDiff && (rto->forceRetime == false)) {
-      if (rto->videoStandardInput != 14) { 
-        rto->failRetryAttempts++;
-        if (rto->failRetryAttempts < 8) {
-          SerialM.println("retry");
-          FrameSync::reset();
-          delay(60);
-          return;
-        }
-        else {
-          SerialM.println("give up");
-          rto->autoBestHtotalEnabled = false;
-          return; // just return, will give up FrameSync
-        }
-      }
-    }
-    // bestHTotal 0? could be an invald manual retime
-    if (bestHTotal == 0)
-    {
-      return;
-    }
-
-    rto->failRetryAttempts = 0; // else all okay!, reset to 0
-    rto->forceRetime = false;
-
-    // move blanking (display)
-    uint16_t h_blank_display_start_position = GBS::VDS_DIS_HB_ST::read();
-    uint16_t h_blank_display_stop_position = GBS::VDS_DIS_HB_SP::read();
-    uint16_t h_blank_memory_start_position = GBS::VDS_HB_ST::read();
-    uint16_t h_blank_memory_stop_position = GBS::VDS_HB_SP::read();
-    // h_blank_memory_start_position usually is == h_blank_display_start_position
-    // but there is an exception when VDS h scaling is pretty large (value low, ie 512)
-    // this will be stored in the preset, so check here and adjust accordingly
-    if (h_blank_memory_start_position == h_blank_display_start_position) {
-      h_blank_display_start_position += (diffHTotal / 2);
-      h_blank_display_stop_position += (diffHTotal / 2);
-
-      h_blank_memory_start_position = h_blank_display_start_position; // normal case
-      h_blank_memory_stop_position += (diffHTotal / 2);
-    }
-    else {
-      h_blank_display_start_position += (diffHTotal / 2);
-      h_blank_display_stop_position += (diffHTotal / 2);
-
-      h_blank_memory_start_position += (diffHTotal / 2); // the exception (currently 1280x1024)
-      h_blank_memory_stop_position += (diffHTotal / 2);
-    }
-
-    if (diffHTotal < 0 ) {
-      h_blank_display_start_position &= 0xfffe;
-      h_blank_display_stop_position &= 0xfffe;
-      h_blank_memory_start_position &= 0xfffe;
-      h_blank_memory_stop_position &= 0xfffe;
-    }
-    else if (diffHTotal > 0 ) {
-      h_blank_display_start_position += 1; h_blank_display_start_position &= 0xfffe;
-      h_blank_display_stop_position += 1; h_blank_display_stop_position &= 0xfffe;
-      h_blank_memory_start_position += 1; h_blank_memory_start_position &= 0xfffe;
-      h_blank_memory_stop_position += 1; h_blank_memory_stop_position &= 0xfffe;
-    }
-
-    // don't move HSync with small diffs
-    uint16_t h_sync_start_position = GBS::VDS_HS_ST::read();
-    uint16_t h_sync_stop_position = GBS::VDS_HS_SP::read();
-
-    // fix over / underflows
-    if (h_blank_display_start_position > bestHTotal) {
-      h_blank_display_start_position = bestHTotal * 0.91f;
-      h_blank_memory_start_position = h_blank_display_start_position;
-    }
-    if (h_blank_display_stop_position > bestHTotal) {
-      h_blank_display_stop_position = bestHTotal * 0.178f;
-    }
-    if (h_blank_memory_start_position > bestHTotal) {
-      h_blank_memory_start_position = h_blank_display_start_position * 0.94f;
-    }
-    if (h_blank_memory_stop_position > bestHTotal) {
-      h_blank_memory_stop_position = h_blank_display_stop_position * 0.64f;
-    }
-
-    // finally, fix forced timings with large diff
-    if (isLargeDiff) {
-      h_blank_display_start_position = bestHTotal * 0.996f;
-      h_blank_display_stop_position = bestHTotal * 0.08f;
-      h_blank_memory_start_position = h_blank_display_start_position;
-      h_blank_memory_stop_position = h_blank_display_stop_position * 0.2f;
-
-      if (h_sync_start_position > h_sync_stop_position) { // is neg HSync
-        h_sync_stop_position = 0;
-        // stop = at least start, then a bit outwards
-        h_sync_start_position = 16 + (h_blank_display_stop_position * 0.4f);
+  if (isLargeDiff && (rto->forceRetime == false)) {
+    if (rto->videoStandardInput != 14) {
+      rto->failRetryAttempts++;
+      if (rto->failRetryAttempts < 8) {
+        SerialM.println("retry");
+        FrameSync::reset();
+        delay(60);
       }
       else {
-        h_sync_start_position = 0;
-        h_sync_stop_position = 16 + (h_blank_display_stop_position * 0.4f);
+        SerialM.println("give up");
+        rto->autoBestHtotalEnabled = false;
       }
     }
+    return false; // large diff, no forced
+  }
 
-    if (diffHTotal != 0) { // apply
-      //if (diffHTotalUnsigned < 60) {
-      //  // smooth out applying new htotal
-      //  uint16_t rst = GBS::VDS_HSYNC_RST::read();
-      //  while (rst != bestHTotal) {
-      //    if (diffHTotal < 0) GBS::VDS_HSYNC_RST::write(rst - 1);
-      //    else                GBS::VDS_HSYNC_RST::write(rst + 1);
-      //    rst = GBS::VDS_HSYNC_RST::read();
-      //    delay(2);
-      //  }
-      //}
-      //else {
-        GBS::VDS_HSYNC_RST::write(bestHTotal); // instant apply for now
-      //}
-      GBS::VDS_DIS_HB_ST::write(h_blank_display_start_position);
-      GBS::VDS_DIS_HB_SP::write(h_blank_display_stop_position);
-      GBS::VDS_HB_ST::write(h_blank_memory_start_position);
-      GBS::VDS_HB_SP::write(h_blank_memory_stop_position);
-      GBS::VDS_HS_ST::write(h_sync_start_position);
-      GBS::VDS_HS_SP::write(h_sync_stop_position);
+  // bestHTotal 0? could be an invald manual retime
+  if (bestHTotal == 0) {
+    return false;
+  }
+
+  rto->failRetryAttempts = 0; // else all okay!, reset to 0
+  rto->forceRetime = false;
+
+  // move blanking (display)
+  uint16_t h_blank_display_start_position = GBS::VDS_DIS_HB_ST::read();
+  uint16_t h_blank_display_stop_position = GBS::VDS_DIS_HB_SP::read();
+  uint16_t h_blank_memory_start_position = GBS::VDS_HB_ST::read();
+  uint16_t h_blank_memory_stop_position = GBS::VDS_HB_SP::read();
+ 
+  // h_blank_memory_start_position usually is == h_blank_display_start_position
+  if (h_blank_memory_start_position == h_blank_display_start_position) {
+    h_blank_display_start_position += (diffHTotal / 2);
+    h_blank_display_stop_position += (diffHTotal / 2);
+    h_blank_memory_start_position = h_blank_display_start_position; // normal case
+    h_blank_memory_stop_position += (diffHTotal / 2);
+  }
+  else {
+    h_blank_display_start_position += (diffHTotal / 2);
+    h_blank_display_stop_position += (diffHTotal / 2);
+    h_blank_memory_start_position += (diffHTotal / 2); // the exception (currently 1280x1024)
+    h_blank_memory_stop_position += (diffHTotal / 2);
+  }
+
+  if (diffHTotal < 0) {
+    h_blank_display_start_position &= 0xfffe;
+    h_blank_display_stop_position &= 0xfffe;
+    h_blank_memory_start_position &= 0xfffe;
+    h_blank_memory_stop_position &= 0xfffe;
+  }
+  else if (diffHTotal > 0) {
+    h_blank_display_start_position += 1; h_blank_display_start_position &= 0xfffe;
+    h_blank_display_stop_position += 1; h_blank_display_stop_position &= 0xfffe;
+    h_blank_memory_start_position += 1; h_blank_memory_start_position &= 0xfffe;
+    h_blank_memory_stop_position += 1; h_blank_memory_stop_position &= 0xfffe;
+  }
+
+  // don't move HSync with small diffs
+  uint16_t h_sync_start_position = GBS::VDS_HS_ST::read();
+  uint16_t h_sync_stop_position = GBS::VDS_HS_SP::read();
+
+  // fix over / underflows
+  if (h_blank_display_start_position > bestHTotal) {
+    h_blank_display_start_position = bestHTotal * 0.91f;
+    h_blank_memory_start_position = h_blank_display_start_position;
+  }
+  if (h_blank_display_stop_position > bestHTotal) {
+    h_blank_display_stop_position = bestHTotal * 0.178f;
+  }
+  if (h_blank_memory_start_position > bestHTotal) {
+    h_blank_memory_start_position = h_blank_display_start_position * 0.94f;
+  }
+  if (h_blank_memory_stop_position > bestHTotal) {
+    h_blank_memory_stop_position = h_blank_display_stop_position * 0.64f;
+  }
+
+  // finally, fix forced timings with large diff
+  if (isLargeDiff) {
+    h_blank_display_start_position = bestHTotal * 0.996f;
+    h_blank_display_stop_position = bestHTotal * 0.08f;
+    h_blank_memory_start_position = h_blank_display_start_position;
+    h_blank_memory_stop_position = h_blank_display_stop_position * 0.2f;
+
+    if (h_sync_start_position > h_sync_stop_position) { // is neg HSync
+      h_sync_stop_position = 0;
+      // stop = at least start, then a bit outwards
+      h_sync_start_position = 16 + (h_blank_display_stop_position * 0.4f);
+    }
+    else {
+      h_sync_start_position = 0;
+      h_sync_stop_position = 16 + (h_blank_display_stop_position * 0.4f);
     }
   }
+
+  if (diffHTotal != 0) { // apply
+    //if (diffHTotalUnsigned < 60) {
+    //  // smooth out applying new htotal
+    //  uint16_t rst = GBS::VDS_HSYNC_RST::read();
+    //  while (rst != bestHTotal) {
+    //    if (diffHTotal < 0) GBS::VDS_HSYNC_RST::write(rst - 1);
+    //    else                GBS::VDS_HSYNC_RST::write(rst + 1);
+    //    rst = GBS::VDS_HSYNC_RST::read();
+    //    delay(2);
+    //  }
+    //}
+    //else {
+    GBS::VDS_HSYNC_RST::write(bestHTotal); // instant apply for now
+  //}
+    GBS::VDS_DIS_HB_ST::write(h_blank_display_start_position);
+    GBS::VDS_DIS_HB_SP::write(h_blank_display_stop_position);
+    GBS::VDS_HB_ST::write(h_blank_memory_start_position);
+    GBS::VDS_HB_SP::write(h_blank_memory_stop_position);
+    GBS::VDS_HS_ST::write(h_sync_start_position);
+    GBS::VDS_HS_SP::write(h_sync_stop_position);
+  }
+
   SerialM.print("Base: "); SerialM.print(orig_htotal);
   SerialM.print(" Best: "); SerialM.print(bestHTotal);
   SerialM.print(" Fieldrate: ");
+  handleWiFi();
   float sfr = getSourceFieldRate(0);
   SerialM.println(sfr, 3); // prec. 3 // use IF testbus
+  handleWiFi();
+
+  return true;
 }
 
 float getSourceFieldRate(boolean useSPBus) {
@@ -2152,6 +2211,10 @@ void doPostPresetLoadSteps() {
   if (rto->outModeHdBypass) {
     GBS::OUT_SYNC_SEL::write(1); // 0_4f 1=sync from HDBypass, 2=sync from SP
     //GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
+    rto->autoBestHtotalEnabled = false;
+  }
+  else {
+    rto->autoBestHtotalEnabled = true;
   }
 
   // for worst case sog, leave it at it's current low level, to give sub coast a chance later
@@ -2184,8 +2247,8 @@ void doPostPresetLoadSteps() {
   rto->sourceDisconnected = false; // this must be true if we reached here (no syncwatcher operation)
   rto->boardHasPower = true; //same
 
-  resetDigital();
-  resetPLL();
+  //resetDigital();
+  //resetPLL();
   
   // IF initial position is 1_0e/0f IF_HSYNC_RST exactly. But IF_INI_ST needs to be a few pixels before that.
   // IF_INI_ST - 1 causes an interresting effect when the source switches to interlace.
@@ -2351,9 +2414,6 @@ void doPostPresetLoadSteps() {
   GBS::ADC_TEST_0C::write(0); // 5_0c
   GBS::ADC_TEST_0C_BIT4::write(1);
   
-  resetPLLAD(); // turns on pllad
-  GBS::PLLAD_LEN::write(1); // 5_11 1
-
   // auto ADC gain
   if (uopt->enableAutoGain == 1 && adco->r_gain == 0) {
     SerialM.println("ADC gain: reset");
@@ -2392,14 +2452,26 @@ void doPostPresetLoadSteps() {
   if (uopt->wantPeaking) { GBS::VDS_PK_Y_H_BYPS::write(0); }
   else { GBS::VDS_PK_Y_H_BYPS::write(1); }
 
-  if (!isCustomPreset) {
-    if (rto->inputIsYpBpR == true) {
-      applyYuvPatches();
-    }
-    else {
-      applyRGBPatches();
-    }
+  resetDebugPort();
+  Menu::init();
+  FrameSync::reset();
+  rto->syncLockFailIgnore = 8;
+
+  handleWiFi();
+  delay(400); // todo: minimize. currently pal min 350, ntsc lower
+  boolean autoBestHtotalSuccess = 0;
+  if (rto->autoBestHtotalEnabled) {
+    autoBestHtotalSuccess = runAutoBestHTotal();
   }
+
+  // noise starts here!
+  // todo: change resetDigital usage, optimize time to stability with power use in idle
+  resetDigital();
+  delay(2);
+  resetPLL();
+  delay(2);
+  resetPLLAD(); // turns on pllad
+  GBS::PLLAD_LEN::write(1); // 5_11 1
 
   if (!isCustomPreset) {
     GBS::VDS_IN_DREG_BYPS::write(0); // 3_40 2 // 0 = input data triggered on falling clock edge, 1 = bypass
@@ -2428,13 +2500,16 @@ void doPostPresetLoadSteps() {
 
   if (!rto->outModeHdBypass) {
     ResetSDRAM();
-    rto->autoBestHtotalEnabled = true; // will re-detect whether debug wire is present
   }
 
-  Menu::init();
-  resetDebugPort();
-  FrameSync::reset();
-  rto->syncLockFailIgnore = 8;
+  if (!isCustomPreset) {
+    if (rto->inputIsYpBpR == true) {
+      applyYuvPatches();
+    }
+    else {
+      applyRGBPatches();
+    }
+  }
 
   {
     // prepare ideal vline shift for PAL / NTSC SD sources
@@ -2503,8 +2578,8 @@ void doPostPresetLoadSteps() {
   } // at least minimum delay (bypass modes)
   timeout = millis() - timeout;
   if (timeout > 1000) {
-      SerialM.print("to1 is: ");
-      SerialM.println(timeout);
+      Serial.print("to1 is: ");
+      Serial.println(timeout);
   }
   if (timeout >= 1500) {
       optimizeSogLevel();
@@ -2559,21 +2634,30 @@ void doPostPresetLoadSteps() {
     rto->applyPresetDoneStage = 1;
   }
 
-  SerialM.print("post preset done (preset id: "); SerialM.print(rto->presetID, HEX); 
+  // todo: check component out mode
+  if (autoBestHtotalSuccess) {
+    if (!uopt->wantOutputComponent)
+    {
+      GBS::PAD_SYNC_OUT_ENZ::write(0);  // 0 = Sync on // 1. chance
+    }  
+    GBS::DAC_RGBS_PWDNZ::write(1);      // 1 = enable DAC // 1. chance
+  }
+
+  //SerialM.print("post preset done (preset id: "); SerialM.print(rto->presetID, HEX); 
   if (isCustomPreset) {
     rto->presetID = 9; // custom
   }
-  if (rto->outModeHdBypass)
-  {
-    SerialM.println(") (bypass)"); // note: this path is currently never taken (just planned)
-  }
-  else if (isCustomPreset) {
-    SerialM.println(") (custom)"); // note: this path is currently never taken (just planned)
-  }
-  else
-  {
-    SerialM.println(")");
-  }
+  //if (rto->outModeHdBypass)
+  //{
+  //  SerialM.println(") (bypass)"); // note: this path is currently never taken (just planned)
+  //}
+  //else if (isCustomPreset) {
+  //  SerialM.println(") (custom)"); // note: this path is currently never taken (just planned)
+  //}
+  //else
+  //{
+  //  SerialM.println(")");
+  //}
 }
 
 void applyPresets(uint8_t result) {
@@ -3606,7 +3690,7 @@ void bypassModeSwitch_RGBHV() {
 
   rto->presetID = 0x22; // bypass flavor 2
   delay(100);
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 2; i++) {
     printInfo(); delay(1);
   }
 }
@@ -3951,6 +4035,9 @@ void runSyncWatcher()
         boolean wantPassThroughMode = uopt->presetPreference == 10;
         if (!wantPassThroughMode)
         {
+          GBS::SFTRST_IF_RSTZ::write(1); // early init
+          GBS::SFTRST_DEC_RSTZ::write(1);
+          GBS::SFTRST_VDS_RSTZ::write(1);
           applyPresets(detectedVideoMode);
         }
         else
@@ -3968,7 +4055,7 @@ void runSyncWatcher()
       }
       else {
         SerialM.println(" <not stable>");
-        for (int i = 0; i < 3; i++) { printInfo(); }
+        for (int i = 0; i < 2; i++) { printInfo(); }
         newVideoModeCounter = 0;
         if (rto->videoStandardInput == 0) {
           // if we got here from standby mode, return there soon
@@ -4335,7 +4422,7 @@ void runSyncWatcher()
         latchPLLAD();
         SerialM.print("(H-PLL) state: "); SerialM.println(rto->HPLLState);
         delay(20);
-        for (int i = 0; i < 3; i++) { 
+        for (int i = 0; i < 2; i++) { 
           printInfo(); delay(1);
         }
       }
@@ -4431,7 +4518,7 @@ boolean checkBoardPower()
 
     //stopWire(); // sets pinmodes SDA, SCL to INPUT
     //uint8_t SCL_SDA = 0;
-    //for (int i = 0; i < 3; i++) {
+    //for (int i = 0; i < 2; i++) {
     //  SCL_SDA += digitalRead(SCL);
     //  SCL_SDA += digitalRead(SDA);
     //}
@@ -5766,56 +5853,11 @@ void loop() {
     lastTimeSyncWatcher = millis();
   }
 
-  // frame sync + besthtotal init routine. this only runs if !FrameSync::ready()
-  // continousStableCounter was >= 15
-  if (!FrameSync::ready() && rto->continousStableCounter >= 5 && rto->syncWatcherEnabled == true
-    && rto->autoBestHtotalEnabled == true && getStatus16SpHsStable() 
-    && rto->videoStandardInput != 0 && rto->videoStandardInput != 15)
-  {
-    if ((rto->continousStableCounter % 3) == 0)
-    {
-      uint8_t videoModeBeforeInit = getVideoMode();
-      if (videoModeBeforeInit > 0)
-      {
-        boolean stableBeforeInit = 1;
-        for (uint8_t i = 0; i < 40; i++) {
-          if (!getStatus16SpHsStable()) {
-            stableBeforeInit = 0;
-            Serial.println("bestHtotal init unstable");
-            break;
-          }
-        }
-        if (stableBeforeInit)
-        {
-          GBS::VDS_TEST_EN::write(1); // make sure, also leave enabled
-          GBS::IF_TEST_EN::write(1); // same
-          uint16_t bestHTotal = FrameSync::init();
-          uint8_t videoModeAfterInit = getVideoMode();
-          boolean stableAfterInit = getStatus16SpHsStable();
-          if (bestHTotal > 0 && stableBeforeInit == true && stableAfterInit == true) {
-            if (bestHTotal > 4095) bestHTotal = 0;
-            if ((videoModeBeforeInit == videoModeAfterInit) && videoModeBeforeInit != 0) {
-              applyBestHTotal(bestHTotal);
-              //Serial.println("1st chance");
-              GBS::PAD_SYNC_OUT_ENZ::write(0); // 0 = (late) Sync on // 1. chance
-              GBS::DAC_RGBS_PWDNZ::write(1); // 1 = enable DAC // 1. chance
-              rto->syncLockFailIgnore = 8;
-            }
-            else {
-              FrameSync::reset();
-            }
-          }
-          else if (rto->syncLockFailIgnore > 0) {
-            // frame time lock failed, likely due to missing wires or instability
-            rto->syncLockFailIgnore--;
-            SerialM.print("synclock unstable: "); SerialM.println(rto->syncLockFailIgnore);
-            if (rto->syncLockFailIgnore == 0) {
-              GBS::PAD_SYNC_OUT_ENZ::write(0);  // (late) Sync on
-              GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
-              rto->autoBestHtotalEnabled = false;
-            }
-          }
-        }
+  // frame sync + besthtotal init routine; run if it wasn't successful in postpresetloadsteps
+  if (rto->autoBestHtotalEnabled && !FrameSync::ready() && rto->syncWatcherEnabled) {
+    if (rto->continousStableCounter >= 5) {
+      if ((rto->continousStableCounter % 3) == 0) {
+        runAutoBestHTotal();
       }
     }
   }
@@ -5864,7 +5906,7 @@ void loop() {
         GBS::SP_NO_CLAMP_REG::write(0); // 5_57 0
       }
       rto->applyPresetDoneStage = 0;
-      for (int i = 0; i < 3; i++) {
+      for (int i = 0; i < 2; i++) {
         printInfo(); delay(1);
       }
     }
