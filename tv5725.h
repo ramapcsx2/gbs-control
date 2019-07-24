@@ -173,6 +173,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x47, 1,  1> SFTRST_MODE_RSTZ;
     typedef UReg<0x00, 0x47, 2,  1> SFTRST_SYNC_RSTZ;
     typedef UReg<0x00, 0x47, 3,  1> SFTRST_HDBYPS_RSTZ;
+    typedef UReg<0x00, 0x47, 4,  1> SFTRST_INT_RSTZ;
     typedef UReg<0x00, 0x48, 0,  8> PAD_CONTROL_00_0x48;
     typedef UReg<0x00, 0x48, 0,  1> PAD_BOUT_EN; // aka debug pin
     typedef UReg<0x00, 0x48, 6,  1> PAD_SYNC1_IN_ENZ;
@@ -612,6 +613,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x03, 3,  1> ADC_RYSEL_B;
     typedef UReg<0x05, 0x03, 4,  2> ADC_FLTR;
     typedef UReg<0x05, 0x04, 0,  2> ADC_TR_RSEL;
+    typedef UReg<0x05, 0x04, 1,  1> ADC_TR_RSEL_04_BIT1;
     typedef UReg<0x05, 0x04, 2,  3> ADC_TR_ISEL;
     typedef UReg<0x05, 0x05, 0,  1> ADC_TA_EN;
     typedef UReg<0x05, 0x05, 1,  4> ADC_TA_CTRL;

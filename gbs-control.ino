@@ -425,7 +425,7 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
             if (rto->inputIsYpBpR)bitClear(bank[x], 6);
             else bitSet(bank[x], 6);
           }
-          //if (index == 324) { // s5_04 reset for ADC REF init
+          //if (index == 324) { // s5_04 reset(0) for ADC REF init
           //  bank[x] = 0x00;
           //}
           if (index == 382) { // s5_3e
@@ -507,7 +507,7 @@ void setResetParameters() {
   GBS::ADC_CLK_PA::write(0); // 5_00 0/1 PA_ADC input clock = PLLAD CLKO2
   GBS::ADC_INPUT_SEL::write(1); // 1 = RGBS / RGBHV adc data input
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
-  //GBS::ADC_TR_RSEL::write(2); // 5_04 // ADC_TR_RSEL = 2
+  //GBS::ADC_TR_RSEL_04_BIT1::write(1);
   GBS::ADC_TR_RSEL::write(0);
   GBS::ADC_TA_CTRL_05_BIT1::write(1); // 5_05 1 // minor SOG clamp effect
   //GBS::ADC_TEST_0C::write(2); // 5_0c 2
@@ -525,12 +525,13 @@ void setResetParameters() {
   resetPLLAD(); // same for PLLAD
   GBS::PLL_VCORST::write(1); // reset on
   GBS::PLLAD_CONTROL_00_5x11::write(0x01); // reset on
-  resetDebugPort();
-  GBS::RESET_CONTROL_0x47::write(0x16);
+  resetDebugPort(); 
+  //GBS::RESET_CONTROL_0x47::write(0x16);
+  GBS::RESET_CONTROL_0x46::write(0x41); // new 23.07.19
+  GBS::RESET_CONTROL_0x47::write(0x17); // new 23.07.19 (was 0x16)
   GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
-  GBS::RESET_CONTROL_0x47::write(0x16); // decimation off
   GBS::PAD_SYNC_OUT_ENZ::write(0); // sync output enabled, will be low (HC125 fix)
   rto->clampPositionIsSet = 0; // some functions override these, so make sure
   rto->coastPositionIsSet = 0;
@@ -637,7 +638,7 @@ void applyRGBPatches() {
   GBS::VDS_UCOS_GAIN::write(0x1c); // blue
   GBS::VDS_USIN_GAIN::write(0x00); // 3_38
   GBS::VDS_VSIN_GAIN::write(0x00); // 3_39
-  GBS::VDS_Y_OFST::write(0xfc); // 3_3a 0xfe // 0
+  GBS::VDS_Y_OFST::write(0xfd); // 3_3a 0xfe // 0
   GBS::VDS_U_OFST::write(0x00); // 3_3b 0x01
   GBS::VDS_V_OFST::write(0x00); // 3_3c 0x01
 
@@ -1227,20 +1228,23 @@ void resetDigital() {
   if (GBS::SFTRST_HDBYPS_RSTZ::read() == 1) { // if HDBypass enabled
     keepBypassActive = 1;
   }
-  GBS::RESET_CONTROL_0x47::write(0x00);
+
+  //GBS::RESET_CONTROL_0x47::write(0x00);
+  GBS::RESET_CONTROL_0x47::write(0x17); // new, keep 0,1,2,4 on (DEC,MODE,SYNC,INT) //MODE okay?
+
   if (rto->outModeHdBypass) { // if currently in bypass
     GBS::RESET_CONTROL_0x46::write(0x00);
     GBS::RESET_CONTROL_0x47::write(0x1F);
     return;  // 0x46 stays all 0
   }
 
-  GBS::RESET_CONTROL_0x46::write(0x40); // keep VDS enabled, reset rest
+  GBS::RESET_CONTROL_0x46::write(0x41); // keep VDS (6) + IF (0) enabled, reset rest
   if (keepBypassActive == 1) { // if HDBypass enabled
     GBS::RESET_CONTROL_0x47::write(0x1F);
   }
-  else {
-    GBS::RESET_CONTROL_0x47::write(0x17);
-  }
+  //else {
+  //  GBS::RESET_CONTROL_0x47::write(0x17);
+  //}
   GBS::RESET_CONTROL_0x46::write(0x7f);
 }
 
@@ -2274,7 +2278,7 @@ void doPostPresetLoadSteps() {
     GBS::VDS_VB_ST::write(4); // one memory VBlank ST base for all presets
     // 1_28 1 1:hbin generated write reset 0:line generated write reset
     GBS::IF_LD_WRST_SEL::write(1); // at 1 fixes output position regardless of 1_24
-
+    GBS::MADPT_Y_DELAY_UV_DELAY::write(0); // 2_17 default: 0
     //if (rto->videoStandardInput == 1 || rto->videoStandardInput == 3) {
     //  GBS::VDS_UV_STEP_BYPS::write(0); // enable step response for 60Hz presets (PAL needs better PLLAD clock)
     //}
@@ -2319,7 +2323,8 @@ void doPostPresetLoadSteps() {
       GBS::IF_HS_TAP11_BYPS::write(0);  // 1_02 4 filter
       GBS::IF_HS_Y_PDELAY::write(3);    // 1_02 5+6 delays (ps2 test on one board clearly says 3, not 2)
       GBS::IF_HB_SP::write(0);          // 1_12 deinterlace offset, fixes colors
-      GBS::VDS_V_DELAY::write(0);       // 3_24 2
+      GBS::VDS_V_DELAY::write(1);       // 3_24 2 // new 24.07.2019 : 1, also set 2_17 to 1
+      GBS::MADPT_Y_DELAY_UV_DELAY::write(1); // 2_17 : 1
       GBS::VDS_Y_DELAY::write(3);       // 3_24 4/5 delays (ps2 test saying 3 for 1_02 goes with 3 here)
     }
     if (rto->videoStandardInput == 3) 
@@ -4553,7 +4558,6 @@ void calibrateAdcOffset()
     GBS::ADC_5_00::write(0x02);
     GBS::TEST_BUS_SEL::write(0x0b); // 0x2b
     GBS::TEST_BUS_EN::write(1);
-    delay(4);
 
     int32_t rLessTarget = 0, bLessTarget = 0; // gLessTarget not needed, always bottom clamp
     int32_t gGreaterTarget = 0;
@@ -4567,9 +4571,11 @@ void calibrateAdcOffset()
     GBS::ADC_BOFCTRL::write(0x3A);
 
     GBS::DEC_TEST_SEL::write(1); // 5_1f = 0x99
+    delay(30);
 
+    //unsigned long overallTimer = millis();
     unsigned long startTimer = millis();
-    while ((millis() - startTimer) < 600) {
+    while ((millis() - startTimer) < 300) {
         readout = GBS::TEST_BUS_2F::read();
         readout = readout & 0x3f;
         if (readout > 0x00) {
@@ -4581,14 +4587,15 @@ void calibrateAdcOffset()
             Serial.print(GBS::ADC_GOFCTRL::read(), HEX);
             delay(10);
             gGreaterTarget = 0;
+            startTimer = millis(); // extend timer
         }
     }
     Serial.println("");
-
+    
     GBS::DEC_TEST_SEL::write(3);
 
     startTimer = millis();
-    while ((millis() - startTimer) < 600) {
+    while ((millis() - startTimer) < 300) {
         readout = GBS::TEST_BUS_2E::read(); // red: 2e
         readout = readout & 0x3f;
 
@@ -4603,6 +4610,7 @@ void calibrateAdcOffset()
             Serial.print(" R: ");
             Serial.print(GBS::ADC_ROFCTRL::read(), HEX);
             rLessTarget = 0;
+            startTimer = millis(); // extend timer
         }
     }
     Serial.println("");
@@ -4610,7 +4618,7 @@ void calibrateAdcOffset()
     // DEC_TEST_SEL stays = 3
 
     startTimer = millis();
-    while ((millis() - startTimer) < 600) {
+    while ((millis() - startTimer) < 300) {
         readout = GBS::TEST_BUS_2F::read(); // blue: 2f
         readout = readout & 0x3f;
 
@@ -4625,10 +4633,11 @@ void calibrateAdcOffset()
             Serial.print(" B: ");
             Serial.print(GBS::ADC_BOFCTRL::read(), HEX);
             bLessTarget = 0;
+            startTimer = millis(); // extend timer
         }
     }
     Serial.println("");
-
+    //Serial.println(millis() - overallTimer);
     adco->r_off = GBS::ADC_ROFCTRL::read();
     adco->g_off = GBS::ADC_GOFCTRL::read();
     adco->b_off = GBS::ADC_BOFCTRL::read();
@@ -4653,7 +4662,7 @@ void setup() {
     rto->allowUpdatesOTA = false; // need to initialize for handleWiFi()
     WiFi.setSleepMode(WIFI_NONE_SLEEP); // low latency responses, less chance for missing packets
     startWebserver();
-    WiFi.setOutputPower(14.0f); // float: min 0.0f, max 20.5f // reduced from max, but still strong
+    //WiFi.setOutputPower(14.0f); // float: min 0.0f, max 20.5f // reduced from max, but still strong
     rto->webServerStarted = true;
   }
   else {
@@ -4872,7 +4881,7 @@ void setup() {
     SerialM.print(productId,HEX); 
     SerialM.print(" ");
     SerialM.println(revisionId,HEX);
-
+    delay(20);
     //if (uopt->enableAutoGain) {
       calibrateAdcOffset();
       setResetParameters();
@@ -5029,13 +5038,8 @@ void handleWiFi() {
 
         // send ping and stats
         webSocket.broadcastTXT(toSend);
-        lastTimePing = millis();
       }
-      else {
-        // no ws client connected, hasten ws recheck
-        lastTimePing = millis() + 400;
-      }
-      
+      lastTimePing = millis();
     }
     server.handleClient(); // after websocket loop!
   }
