@@ -1915,7 +1915,9 @@ boolean runAutoBestHTotal() {
         if (bestHTotal > 0 && stableBeforeInit == true && stableAfterInit == true) {
           if (bestHTotal > 4095) bestHTotal = 0;
           if ((videoModeBeforeInit == videoModeAfterInit) && videoModeBeforeInit != 0) {
+            
             boolean success = applyBestHTotal(bestHTotal);
+            
             if (success) {
               rto->syncLockFailIgnore = 8;
               return true; // success
@@ -2069,19 +2071,7 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   }
 
   if (diffHTotal != 0) { // apply
-    //if (diffHTotalUnsigned < 60) {
-    //  // smooth out applying new htotal
-    //  uint16_t rst = GBS::VDS_HSYNC_RST::read();
-    //  while (rst != bestHTotal) {
-    //    if (diffHTotal < 0) GBS::VDS_HSYNC_RST::write(rst - 1);
-    //    else                GBS::VDS_HSYNC_RST::write(rst + 1);
-    //    rst = GBS::VDS_HSYNC_RST::read();
-    //    delay(2);
-    //  }
-    //}
-    //else {
-    GBS::VDS_HSYNC_RST::write(bestHTotal); // instant apply for now
-  //}
+    GBS::VDS_HSYNC_RST::write(bestHTotal); // instant apply
     GBS::VDS_DIS_HB_ST::write(h_blank_display_start_position);
     GBS::VDS_DIS_HB_SP::write(h_blank_display_stop_position);
     GBS::VDS_HB_ST::write(h_blank_memory_start_position);
