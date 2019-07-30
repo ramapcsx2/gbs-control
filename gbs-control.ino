@@ -2100,14 +2100,6 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
     GBS::VDS_HS_SP::write(h_sync_stop_position);
   }
 
-  //SerialM.print("Base: "); SerialM.print(orig_htotal);
-  //SerialM.print(" Best: "); SerialM.print(bestHTotal);
-  //SerialM.print(" Fieldrate: ");
-  //handleWiFi();
-  //float sfr = getSourceFieldRate(0);
-  //SerialM.println(sfr, 3); // prec. 3 // use IF testbus
-  //handleWiFi();
-
   return true;
 }
 
@@ -2467,11 +2459,19 @@ void doPostPresetLoadSteps() {
   FrameSync::reset();
   rto->syncLockFailIgnore = 8;
 
-  //handleWiFi(0); // don't do this here
-  delay(400); // todo: minimize. currently pal min 350, ntsc lower
+  delay(30);
+  updateCoastPosition();
+  if (rto->coastPositionIsSet) {
+    GBS::SP_DIS_SUB_COAST::write(0); // enable SUB_COAST
+    GBS::SP_H_PROTECT::write(0);     // leave H_PROTECT off for now
+  }
+  delay(380); // todo: minimize. currently pal min 360, ntsc lower
+
   boolean autoBestHtotalSuccess = 0;
   if (rto->autoBestHtotalEnabled) {
-    autoBestHtotalSuccess = runAutoBestHTotal();
+    if (rto->coastPositionIsSet) {
+      autoBestHtotalSuccess = runAutoBestHTotal();
+    }
   }
 
   // noise starts here!
@@ -2616,7 +2616,7 @@ void doPostPresetLoadSteps() {
   
   OutputComponentOrVGA();
 
-  rto->coastPositionIsSet = false; // make sure
+  //rto->coastPositionIsSet = false; // make sure
   rto->clampPositionIsSet = false;
   
   // presetPreference 10 means the user prefers bypass mode at startup
@@ -2895,10 +2895,18 @@ static uint8_t getVideoMode() {
       if ((detectedMode & 0x10) == 0x10) return 3; // edtv 60 progressive
       if ((detectedMode & 0x40) == 0x40) return 4; // edtv 50 progressive
     }
+
+    detectedMode = GBS::STATUS_03::read();
+    if ((detectedMode & 0x10) == 0x10) { return 5; } // hdtv 720p
+
+    if (rto->videoStandardInput == 4) {
+      detectedMode = GBS::STATUS_04::read();
+      if ((detectedMode & 0xFF) == 0x80) {
+        return 4; // still edtv 50 progressive
+      }
+    }
   }
 
-  detectedMode = GBS::STATUS_03::read();
-  if ((detectedMode & 0x10) == 0x10) { return 5; } // hdtv 720p
   detectedMode = GBS::STATUS_04::read();
   if ((detectedMode & 0x20) == 0x20) { // hd mode on
     if ((detectedMode & 0x61) == 0x61) {
@@ -3188,11 +3196,6 @@ void updateCoastPosition() {
     return;
   }
 
-  uint8_t initialVidMode = getVideoMode();
-  if (initialVidMode == 0) {
-    return;
-  }
-
   uint32_t accInHlength = 0;
   uint16_t prevInHlength = GBS::HPERIOD_IF::read();
   for (uint8_t i = 0; i < 8; i++) {
@@ -3204,7 +3207,7 @@ void updateCoastPosition() {
     else {
       return;
     }
-    if ((getVideoMode() != initialVidMode) || !getStatus16SpHsStable()) {
+    if (!getStatus16SpHsStable()) {
       return;
     }
 
@@ -4064,8 +4067,6 @@ void runSyncWatcher()
         rto->videoStandardInput = detectedVideoMode;
         rto->noSyncCounter = 0;
         rto->continousStableCounter = 0; // also in postloadsteps
-        rto->clampPositionIsSet = 0;
-        rto->coastPositionIsSet = 0;
         delay(2); // post delay
       }
       else {
@@ -5882,9 +5883,18 @@ void loop() {
 
   // frame sync + besthtotal init routine; run if it wasn't successful in postpresetloadsteps
   if (rto->autoBestHtotalEnabled && !FrameSync::ready() && rto->syncWatcherEnabled) {
-    if (rto->continousStableCounter >= 5) {
+    if (rto->continousStableCounter >= 5 && rto->coastPositionIsSet) {
       if ((rto->continousStableCounter % 3) == 0) {
-        runAutoBestHTotal();
+        boolean autoBestHtotalSuccess = 0;
+        uint16_t hTotalBase = GBS::VDS_HSYNC_RST::read();
+        autoBestHtotalSuccess = runAutoBestHTotal();
+        if (autoBestHtotalSuccess) {
+          float sfr = getSourceFieldRate(0);
+          SerialM.print("Base: "); SerialM.print(hTotalBase);
+          SerialM.print(" Best: "); SerialM.print(GBS::VDS_HSYNC_RST::read());
+          SerialM.print(" Fieldrate: ");
+          SerialM.println(sfr, 3); // prec. 3
+        }
       }
     }
   }
