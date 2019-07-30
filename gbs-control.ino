@@ -214,7 +214,15 @@ char globalCommand; // Serial / Web Server commands
 class SerialMirror : public Stream {
   size_t write(const uint8_t *data, size_t size) {
 #if defined(ESP8266)
+    unsigned long start = millis();
     webSocket.broadcastTXT(data, size);
+    if (millis() - start > 750) {
+      if (rto->webServerEnabled && rto->webServerStarted) {
+        if (webSocket.connectedClients() > 0) {
+          webSocket.disconnect();
+        }
+      }
+    }
 #endif
     Serial.write(data, size);
     return size;
@@ -222,7 +230,15 @@ class SerialMirror : public Stream {
 
   size_t write(uint8_t data) {
 #if defined(ESP8266)
+    unsigned long start = millis();
     webSocket.broadcastTXT(&data);
+    if (millis() - start > 750) {
+      if (rto->webServerEnabled && rto->webServerStarted) {
+        if (webSocket.connectedClients() > 0) {
+          webSocket.disconnect();
+        }
+      }
+    }
 #endif
     Serial.write(data);
     return 1;
@@ -392,6 +408,10 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
     case 1:
       for (int j = 0; j <= 2; j++) { // 3 times
         copyBank(bank, programArray, &index);
+        //if (j == 0) {
+        //  bank[0] = bank[0] & ~(1 << 5); // clear 1_00 5
+        //  bank[1] = bank[1] | (1 << 0);  // set 1_01 0
+        //}
         writeBytes(j * 16, bank, 16);
       }
       if (!skipMDSection) {
@@ -809,7 +829,7 @@ void setAndUpdateSogLevel(uint8_t level) {
   delay(2); latchPLLAD();
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
-  Serial.print("sog: "); Serial.println(rto->currentLevelSOG);
+  //Serial.print("sog: "); Serial.println(rto->currentLevelSOG);
 }
 
 // in operation: t5t04t1 for 10% lower power on ADC
@@ -941,7 +961,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
   unsigned long timeout = millis();
   while (millis() - timeout < 450) {
     delay(10);
-    handleWiFi();
+    handleWiFi(0);
     //uint8_t videoMode = getVideoMode();
     boolean stable = getStatus16SpHsStable();
     if (/*(videoMode > 0) && */stable) 
@@ -956,7 +976,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         unsigned long timeOutStart = millis();
         while (!vsyncActive && ((millis() - timeOutStart) < 250)) { // vsync test
           vsyncActive = GBS::STATUS_SYNC_PROC_VSACT::read();
-          handleWiFi(); // wifi stack
+          handleWiFi(0); // wifi stack
           delay(1);
         }
         if (!vsyncActive) { // then do RGBS check
@@ -992,7 +1012,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
           timeOutStart = millis();
           while (!hsyncActive && millis() - timeOutStart < 400) {
             hsyncActive = GBS::STATUS_SYNC_PROC_HSACT::read();
-            handleWiFi(); // wifi stack
+            handleWiFi(0); // wifi stack
             delay(1);
           }
           if (hsyncActive) {
@@ -1960,10 +1980,10 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   int diffHTotal = bestHTotal - orig_htotal;
   uint16_t diffHTotalUnsigned = abs(diffHTotal);
   if (diffHTotalUnsigned < 1 && !rto->forceRetime) {
-    if (!uopt->enableFrameTimeLock) { // FTL can double throw this when it resets to adjust
-      SerialM.print("already at bestHTotal: "); SerialM.print(bestHTotal);
-      SerialM.print(" Fieldrate: "); SerialM.println(getSourceFieldRate(0), 3); // prec. 3 // use IF testbus
-    }
+    //if (!uopt->enableFrameTimeLock) { // FTL can double throw this when it resets to adjust
+    //  SerialM.print("already at bestHTotal: "); SerialM.print(bestHTotal);
+    //  SerialM.print(" Fieldrate: "); SerialM.println(getSourceFieldRate(0), 3); // prec. 3 // use IF testbus
+    //}
     return true; // nothing to do
   }
   if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() == 1) {
@@ -2080,13 +2100,13 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
     GBS::VDS_HS_SP::write(h_sync_stop_position);
   }
 
-  SerialM.print("Base: "); SerialM.print(orig_htotal);
-  SerialM.print(" Best: "); SerialM.print(bestHTotal);
-  SerialM.print(" Fieldrate: ");
-  handleWiFi();
-  float sfr = getSourceFieldRate(0);
-  SerialM.println(sfr, 3); // prec. 3 // use IF testbus
-  handleWiFi();
+  //SerialM.print("Base: "); SerialM.print(orig_htotal);
+  //SerialM.print(" Best: "); SerialM.print(bestHTotal);
+  //SerialM.print(" Fieldrate: ");
+  //handleWiFi();
+  //float sfr = getSourceFieldRate(0);
+  //SerialM.println(sfr, 3); // prec. 3 // use IF testbus
+  //handleWiFi();
 
   return true;
 }
@@ -2189,6 +2209,7 @@ void doPostPresetLoadSteps() {
     if (videoMode > 0) { rto->videoStandardInput = videoMode; }
   }
   rto->presetID = GBS::GBS_PRESET_ID::read();
+  uint16_t hTotalBase = GBS::VDS_HSYNC_RST::read(); // currently just for logging
   boolean isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
   
   GBS::ADC_UNUSED_64::write(0); GBS::ADC_UNUSED_65::write(0); // clear temp storage
@@ -2436,9 +2457,6 @@ void doPostPresetLoadSteps() {
     GBS::ADC_ROFCTRL::write(adco->r_off);
     GBS::ADC_GOFCTRL::write(adco->g_off);
     GBS::ADC_BOFCTRL::write(adco->b_off);
-    SerialM.print("ADC offset: R:"); SerialM.print(GBS::ADC_ROFCTRL::read(), HEX);
-    SerialM.print(" G:"); SerialM.print(GBS::ADC_GOFCTRL::read(), HEX);
-    SerialM.print(" B:"); SerialM.println(GBS::ADC_BOFCTRL::read(), HEX);
   }
 
   if (uopt->wantVdsLineFilter) { GBS::VDS_D_RAM_BYPS::write(0); }
@@ -2452,7 +2470,7 @@ void doPostPresetLoadSteps() {
   FrameSync::reset();
   rto->syncLockFailIgnore = 8;
 
-  handleWiFi();
+  //handleWiFi(0); // don't do this here
   delay(400); // todo: minimize. currently pal min 350, ntsc lower
   boolean autoBestHtotalSuccess = 0;
   if (rto->autoBestHtotalEnabled) {
@@ -2545,6 +2563,9 @@ void doPostPresetLoadSteps() {
 
   setAndUpdateSogLevel(rto->currentLevelSOG); // use this to cycle SP / ADPLL latches
 
+  //GBS::IF_VS_SEL::write(0); // new: 0 = "VCR" IF sync, requires VS_FLIP to be on, more stable?
+  //GBS::IF_VS_FLIP::write(1);
+
   GBS::SP_CLP_SRC_SEL::write(0); // 0: 27Mhz clock; 1: pixel clock
   //GBS::SP_CS_CLP_ST::write(8); GBS::SP_CS_CLP_SP::write(16);
 
@@ -2560,17 +2581,11 @@ void doPostPresetLoadSteps() {
     rto->videoStandardInput = 14;
   }
 
-  // ModeDetect etc are currently checking the signal.
   unsigned long timeout = millis();
-  while ((!getStatus16SpHsStable()) && (millis() - timeout < 2002)) {
-      delay(1);
-  }
-  while ((getVideoMode() == 0) && (millis() - timeout < 1502)) {
-      delay(1);
-  }
-  while (millis() - timeout < 250) {
-      delay(1);
-  } // at least minimum delay (bypass modes)
+  while (millis() - timeout < 30) { delay(1); }
+  while ((!getStatus16SpHsStable()) && (millis() - timeout < 2002)) { delay(1); }
+  while ((getVideoMode() == 0) && (millis() - timeout < 1502)) { delay(1); }
+  
   timeout = millis() - timeout;
   if (timeout > 1000) {
       Serial.print("to1 is: ");
@@ -2586,7 +2601,7 @@ void doPostPresetLoadSteps() {
   if (!rto->syncWatcherEnabled) {
     GBS::SP_NO_CLAMP_REG::write(0);
   }
-  
+
   // this was used with ADC write enable, producing about (exactly?) 4 lock positions
   // cycling through the phase let it land favorably
   //for (uint8_t i = 0; i < 8; i++) {
@@ -2638,10 +2653,34 @@ void doPostPresetLoadSteps() {
     GBS::DAC_RGBS_PWDNZ::write(1);      // 1 = enable DAC // 1. chance
   }
 
-  //SerialM.print("post preset done (preset id: "); SerialM.print(rto->presetID, HEX); 
-  if (isCustomPreset) {
-    rto->presetID = 9; // custom
+  if (rto->videoStandardInput == 1) SerialM.print("60Hz ");
+  if (rto->videoStandardInput == 2) SerialM.print("50Hz ");
+  if (rto->videoStandardInput == 3) SerialM.print("60Hz EDTV ");
+  if (rto->videoStandardInput == 4) SerialM.print("50Hz EDTV ");
+  if (rto->videoStandardInput == 5) SerialM.print("720p 60Hz HDTV ");
+  if (rto->videoStandardInput == 6) SerialM.print("1080i 60Hz HDTV ");
+  if (rto->videoStandardInput == 7) SerialM.print("1080p 60Hz HDTV ");
+  if (rto->videoStandardInput == 13) SerialM.print("VGA/SVGA/XGA/SXGA");
+  if (rto->videoStandardInput == 0) SerialM.print("!!should not go here!!");
+  if (uopt->presetPreference == 2) SerialM.println("(custom)");
+  else SerialM.println("");
+
+  //SerialM.print("ADC offset: R:"); SerialM.print(GBS::ADC_ROFCTRL::read(), HEX);
+  //SerialM.print(" G:"); SerialM.print(GBS::ADC_GOFCTRL::read(), HEX);
+  //SerialM.print(" B:"); SerialM.println(GBS::ADC_BOFCTRL::read(), HEX);
+
+  if (autoBestHtotalSuccess) {
+    float sfr = getSourceFieldRate(0);
+    SerialM.print("Base: "); SerialM.print(hTotalBase);
+    SerialM.print(" Best: "); SerialM.print(GBS::VDS_HSYNC_RST::read());
+    SerialM.print(" Fieldrate: ");
+    SerialM.println(sfr, 3); // prec. 3
   }
+
+  //SerialM.print("post preset done (preset id: "); SerialM.print(rto->presetID, HEX); 
+  //if (isCustomPreset) {
+  //  rto->presetID = 9; // custom
+  //}
   //if (rto->outModeHdBypass)
   //{
   //  SerialM.println(") (bypass)"); // note: this path is currently never taken (just planned)
@@ -2670,7 +2709,6 @@ void applyPresets(uint8_t result) {
   }
 
   if (result == 1) {
-    SerialM.println("60Hz ");
     if (uopt->presetPreference == 0) {
       if (uopt->wantOutputComponent) {
         writeProgramArrayNew(ntsc_1280x1024, false); // override to x1024, later to be patched to 1080p
@@ -2687,7 +2725,6 @@ void applyPresets(uint8_t result) {
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
-      SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset, false);
     }
@@ -2700,7 +2737,6 @@ void applyPresets(uint8_t result) {
     }
   }
   else if (result == 2) {
-    SerialM.println("50Hz ");
     if (uopt->presetPreference == 0) {
       if (uopt->wantOutputComponent) {
         writeProgramArrayNew(pal_1280x1024, false); // override to x1024, later to be patched to 1080p
@@ -2717,7 +2753,6 @@ void applyPresets(uint8_t result) {
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
-      SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset, false);
     }
@@ -2730,7 +2765,6 @@ void applyPresets(uint8_t result) {
     }
   }
   else if (result == 3) {
-    SerialM.println("60Hz EDTV ");
     // ntsc base
     if (uopt->presetPreference == 0) {
       writeProgramArrayNew(ntsc_240p, false);
@@ -2743,7 +2777,6 @@ void applyPresets(uint8_t result) {
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
-      SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset, false);
     }
@@ -2756,7 +2789,6 @@ void applyPresets(uint8_t result) {
     }
   }
   else if (result == 4) {
-    SerialM.println("50Hz EDTV ");
     // pal base
     if (uopt->presetPreference == 0) {
       writeProgramArrayNew(pal_240p, false);
@@ -2769,7 +2801,6 @@ void applyPresets(uint8_t result) {
     }
 #if defined(ESP8266)
     else if (uopt->presetPreference == 2) {
-      SerialM.println("(custom)");
       const uint8_t* preset = loadPresetFromSPIFFS(result);
       writeProgramArrayNew(preset, false);
     }
@@ -2783,23 +2814,7 @@ void applyPresets(uint8_t result) {
   }
   else if (result == 5 || result == 6 || result == 7 || result == 13) {
     // use bypass mode for these HD sources
-    if (result == 5) {
-      SerialM.println("720p 60Hz HDTV ");
-      rto->videoStandardInput = 5;
-    }
-    else if (result == 6) {
-      SerialM.println("1080i 60Hz HDTV ");
-      rto->videoStandardInput = 6;
-    }
-    else if (result == 7) {
-      SerialM.println("1080p 60Hz HDTV ");
-      rto->videoStandardInput = 7;
-    }
-    else if (result == 13) {
-      SerialM.println("VGA/SVGA/XGA/SXGA");
-      rto->videoStandardInput = 13;
-    }
-
+    rto->videoStandardInput = result;
     setOutModeHdBypass();
     return;
   }
@@ -3211,11 +3226,11 @@ void updateCoastPosition() {
     GBS::SP_CS_HS_ST::write(32);
     GBS::SP_CS_HS_SP::write(0);
 
-    Serial.print("coast ST: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_ST::read(), HEX);
-    Serial.print(", ");
-    Serial.print("SP: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_SP::read(), HEX);
-    Serial.print("  total: "); Serial.print("0x"); Serial.print(accInHlength, HEX);
-    Serial.print(" ~ "); Serial.println(accInHlength / 4);
+    //Serial.print("coast ST: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_ST::read(), HEX);
+    //Serial.print(", ");
+    //Serial.print("SP: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_SP::read(), HEX);
+    //Serial.print("  total: "); Serial.print("0x"); Serial.print(accInHlength, HEX);
+    //Serial.print(" ~ "); Serial.println(accInHlength / 4);
   }
 }
 
@@ -3877,6 +3892,12 @@ void printInfo() {
 
   //SerialM.print("charsToPrint: "); SerialM.println(charsToPrint);
   SerialM.println(print);
+
+  if (rto->webServerEnabled && rto->webServerStarted) {
+    if (webSocket.connectedClients() > 0) {
+      delay(2);
+    }
+  }
 }
 
 void stopWire() {
@@ -4024,9 +4045,11 @@ void runSyncWatcher()
       for (int a = 0; a < 30; a++) {
         if (getVideoMode() == 13) { newVideoModeCounter = 5; } // treat ps2 quasi rgb as stable
         if (getVideoMode() != detectedVideoMode) { newVideoModeCounter = 0; }
+        //else if (a == 3) { freezeVideo(); } // freeze video, 99% the detection is correct. (else unfreeze later)
       }
       if (newVideoModeCounter != 0) {
         SerialM.println(" <stable>");
+        rto->videoIsFrozen = false;
         boolean wantPassThroughMode = uopt->presetPreference == 10;
         if (!wantPassThroughMode)
         {
@@ -4050,6 +4073,7 @@ void runSyncWatcher()
       }
       else {
         SerialM.println(" <not stable>");
+        //unfreezeVideo();
         for (int i = 0; i < 2; i++) { printInfo(); }
         newVideoModeCounter = 0;
         if (rto->videoStandardInput == 0) {
@@ -4736,7 +4760,7 @@ void setup() {
 
   unsigned long initDelay1 = millis();
   while (millis() - initDelay1 < 500) {
-    handleWiFi();
+    handleWiFi(0);
     delay(1);
   }
 
@@ -4807,7 +4831,7 @@ void setup() {
   
   unsigned long initDelay2 = millis();
   while (millis() - initDelay2 < 1000) {
-    handleWiFi();
+    handleWiFi(0);
     delay(1);
   }
 
@@ -4940,7 +4964,7 @@ void handleButtons(void) {
 }
 #endif
 
-void handleWiFi() {
+void handleWiFi(boolean instant) {
   static unsigned long lastTimePing = millis();
   yield();
 #if defined(ESP8266)
@@ -4948,12 +4972,11 @@ void handleWiFi() {
     persWM.handleWiFi(); // if connected, returns instantly. otherwise it reconnects or opens AP
     dnsServer.processNextRequest();
     MDNS.update();
-    webSocket.loop();
+    webSocket.loop(); // checks _runnning internally, skips all work if not
     // if there's a control command from the server, globalCommand will now hold it.
     // process it in the parser, then reset to 0 at the end of the sketch.
 
-    if (millis() - lastTimePing > 733) { // slightly odd value so not everything happens at once
-
+    if ((millis() - lastTimePing > 555) || instant) { // slightly odd value so not everything happens at once
       if (webSocket.connectedClients(true) > 0) { // true = with builtin ping (should help the WS lib detect issues)
         char toSend[6] = { 0 };
         toSend[0] = '#'; // makeshift ping in slot 0
@@ -5026,8 +5049,13 @@ void handleWiFi() {
         if (uopt->enableFrameTimeLock) { toSend[4] |= (1 << 1); }
         if (uopt->deintMode) { toSend[4] |= (1 << 2); }
 
+        unsigned long start = millis();
         // send ping and stats
         webSocket.broadcastTXT(toSend);
+        if(millis() - start > 750) {
+          webSocket.disconnect();
+        }
+        delay(0);
       }
       lastTimePing = millis();
     }
@@ -5056,7 +5084,7 @@ void loop() {
   static unsigned long lastButton = micros();
 #endif
 
-  handleWiFi(); // ESP8266 check, WiFi + OTA updates, checks for server enabled + started
+  handleWiFi(0); // ESP8266 check, WiFi + OTA updates, checks for server enabled + started
 
 #ifdef HAVE_BUTTONS
   if (micros() - lastButton > buttonPollInterval) {
@@ -5245,12 +5273,20 @@ void loop() {
       doPostPresetLoadSteps();
     break;
     case '.':
+    {
       // timings recalculation with new bestHtotal
       rto->autoBestHtotalEnabled = true;
       //FrameSync::reset();
       rto->syncLockFailIgnore = 8;
       rto->forceRetime = true;
+      uint16_t hTotalBase = GBS::VDS_HSYNC_RST::read();
       applyBestHTotal(FrameSync::init());
+      float sfr = getSourceFieldRate(0);
+      SerialM.print("Base: "); SerialM.print(hTotalBase);
+      SerialM.print(" Best: "); SerialM.print(GBS::VDS_HSYNC_RST::read());
+      SerialM.print(" Fieldrate: ");
+      SerialM.println(sfr, 3); // prec. 3
+    }
     break;
     case '!':
       //fastGetBestHtotal();
@@ -6009,12 +6045,17 @@ void handleRoot() {
   //String page = FPSTR(HTML);
   //server.send(200, "text/html", page);
 
-  webSocket.loop(); // this seems to do the trick!
+  //webSocket.loop(); // this appears to fix a crashing issue but below should be more correct
+  // first close ws server, preventing connections while page gets (re)sent
+  // close() calls disconnect() internally, then stops the server
+  webSocket.close();  
   yield();
+
   //unsigned long start = millis();
   server.sendHeader("Content-Encoding", "gzip");
   server.send_P(200, "text/html", webui_html, webui_html_len); // send_P method, no String needed
   //Serial.print("sending took: "); Serial.println(millis() - start);
+  webSocket.begin(); // restart ws server
 }
 
 void handleType1Command() {
@@ -6327,15 +6368,21 @@ void handleType2Command() {
 void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length) {
   switch (type) {
   case WStype_DISCONNECTED:
-    //Serial.print(num); Serial.println(" disconnected!\n");
+    //Serial.print("WS: #"); Serial.print(num); Serial.print(" disconnected,");
+    //Serial.print(" remaining: "); Serial.println(webSocket.connectedClients());
   break;
   case WStype_CONNECTED: {
-    if (num > 0) {
-      //Serial.print("disconnecting client: "); Serial.println(num - 1);
-      webSocket.disconnect(num - 1); // test
+    for (uint8_t i = 0; i < 5; i++) {
+      if (i != num) webSocket.disconnect(i); // disconnect all except this most recent one
     }
-    //Serial.print(num); Serial.println(" connected!\n");
-    webSocket.broadcastTXT("#"); // ping
+    delay(1);
+    handleWiFi(1); // ping
+    //Serial.print("WS: #"); Serial.print(num); Serial.print(" connected, ");
+    //Serial.print(" total: "); Serial.println(webSocket.connectedClients());
+  }
+  break;
+  case WStype_PONG: {
+    handleWiFi(1);
   }
   break;
   }

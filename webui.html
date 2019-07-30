@@ -264,7 +264,6 @@
                 '<button class="button" type="button" onclick="loadUser(\'l\')">Cycle SDRAM clock speed</button>';
             }
             window.addEventListener('load', function(event) {
-                /* show first page on page load */
                 content1();
                 theTerminal = document.getElementById('outputTextArea');
                 createWebSocket();
@@ -275,7 +274,7 @@
                 clearInterval(myTimer);
                 if (ws) {
                     ws.close();
-                    ws = null;
+                    /*ws = null;*/
                 }
             });
             var eventsQueued = 0;
@@ -298,7 +297,6 @@
                     clearInterval(wsCheckTimer);
                     if (ws) {
                         ws.close();
-                        ws = null;
                     }
                     theTerminal.value += ' Restart';
                     theTerminal.value += '\n';
@@ -311,34 +309,67 @@
                     console.log('checkWs: no ws, create new');
                     createWebSocket();
                 } else if (ws.readyState == 3) {
-                    console.log('checkWs: readyState3 create new');
-                    ws = null;
+                    console.log('checkWs: readyState3');
                     createWebSocket();
                 }
             }
             function timeOutWs() {
-                clearInterval(myTimer);
-                clearInterval(wsCheckTimer);
+                /*
+                0 	CONNECTING
+                1 	OPEN
+                2 	CLOSING
+                3 	CLOSED
+                */
                 if (ws) {
-                    ws.close();
-                    ws = null;
+                    if (ws.readyState == 1) {
+                        console.log('TO rs is 1 > close and reconnect');
+                        /*return;*/
+                        ws.close();
+                    }
+                    else if (ws.readyState == 0) {
+                        console.log('TO rs is 0 > wait');
+                        return;
+                        /*ws.close();*/
+                    }
+                    else {
+                        console.log('TO rs is 2 or 3 > reconnect');
+                    }
                 }
-                console.log('timeout');
                 createWebSocket();
             }
             function createWebSocket() {
                 clearInterval(myTimer);
                 clearInterval(wsCheckTimer);
                 ws = new WebSocket('ws://' + location.hostname + ':81/',['arduino']);
-                wsCheckTimer = setInterval(checkWs, 1600);
+                wsCheckTimer = setInterval(checkWs, 2200);
+                
                 ws.onopen = function() {
                     console.log('ws onopen');
-                    myTimer = setInterval(timeOutWs, 2100);
+                    clearInterval(myTimer);
+                    clearInterval(wsCheckTimer);
+                    myTimer = setInterval(timeOutWs, 3000);
                 }
                 ;
                 ws.onerror = function(error) {
-                    console.log('ws onerror');
-                    checkWs();
+                    if (ws) {
+                        if (ws.readyState == 1) {
+                            console.log('ERR rs is 1 > close and reconnect');
+                            /*return;*/
+                            ws.close();
+                        }
+                        else if (ws.readyState == 0) {
+                            console.log('ERR rs is 0 > wait');
+                            return;
+                            /*ws.close();*/
+                        }
+                        else {
+                            console.log('ERR rs is 2 or 3 > reconnect');
+                        }
+                    }
+                    else {
+                        console.log('ERR but no ws > reconnect');
+                    }
+                    createWebSocket();
                 }
                 ;
                 ws.onmessage = function(e) {
@@ -458,7 +489,7 @@
                             }
                         }
                     }
-                    myTimer = setInterval(timeOutWs, 2100);
+                    myTimer = setInterval(timeOutWs, 3000);
                 }
                 ;
             }
