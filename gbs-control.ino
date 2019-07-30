@@ -408,10 +408,10 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
     case 1:
       for (int j = 0; j <= 2; j++) { // 3 times
         copyBank(bank, programArray, &index);
-        //if (j == 0) {
-        //  bank[0] = bank[0] & ~(1 << 5); // clear 1_00 5
-        //  bank[1] = bank[1] | (1 << 0);  // set 1_01 0
-        //}
+        if (j == 0) {
+          bank[0] = bank[0] & ~(1 << 5); // clear 1_00 5
+          bank[1] = bank[1] | (1 << 0);  // set 1_01 0
+        }
         writeBytes(j * 16, bank, 16);
       }
       if (!skipMDSection) {
@@ -2261,9 +2261,6 @@ void doPostPresetLoadSteps() {
   rto->videoIsFrozen = true; // ensures unfreeze
   rto->sourceDisconnected = false; // this must be true if we reached here (no syncwatcher operation)
   rto->boardHasPower = true; //same
-
-  //resetDigital();
-  //resetPLL();
   
   // IF initial position is 1_0e/0f IF_HSYNC_RST exactly. But IF_INI_ST needs to be a few pixels before that.
   // IF_INI_ST - 1 causes an interresting effect when the source switches to interlace.
@@ -2563,8 +2560,8 @@ void doPostPresetLoadSteps() {
 
   setAndUpdateSogLevel(rto->currentLevelSOG); // use this to cycle SP / ADPLL latches
 
-  //GBS::IF_VS_SEL::write(0); // new: 0 = "VCR" IF sync, requires VS_FLIP to be on, more stable?
-  //GBS::IF_VS_FLIP::write(1);
+  GBS::IF_VS_SEL::write(0); // new: 0 = "VCR" IF sync, requires VS_FLIP to be on, more stable?
+  GBS::IF_VS_FLIP::write(1);
 
   GBS::SP_CLP_SRC_SEL::write(0); // 0: 27Mhz clock; 1: pixel clock
   //GBS::SP_CS_CLP_ST::write(8); GBS::SP_CS_CLP_SP::write(16);
