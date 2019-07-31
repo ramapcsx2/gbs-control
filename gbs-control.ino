@@ -615,28 +615,15 @@ void applyYuvPatches() {
   GBS::ADC_RYSEL_R::write(1); // midlevel clamp red
   GBS::ADC_RYSEL_B::write(1); // midlevel clamp blue
   GBS::ADC_RYSEL_G::write(0); // gnd clamp green
-  GBS::IF_MATRIX_BYPS::write(1);
   GBS::DEC_MATRIX_BYPS::write(1); // ADC
-  GBS::IF_AUTO_OFST_U_RANGE::write(1);
-  GBS::IF_AUTO_OFST_V_RANGE::write(1);
-  GBS::IF_AUTO_OFST_PRD::write(0); // 0 = by line, 1 = by frame
-  GBS::IF_AUTO_OFST_EN::write(0); // not too reliable yet
+  GBS::IF_MATRIX_BYPS::write(1);
   // colors
-
-
   GBS::VDS_Y_GAIN::write(0x7f); // 3_25 0x80
   GBS::VDS_UCOS_GAIN::write(0x1c); // 3_26 blue
   GBS::VDS_VCOS_GAIN::write(0x27); // 3_27 red
-  GBS::VDS_Y_OFST::write(0xfc); // 3_3a // fe
+  GBS::VDS_Y_OFST::write(0xfd); // 3_3a // fe
   GBS::VDS_U_OFST::write(0x00); // 3_3b
   GBS::VDS_V_OFST::write(0x00); // 3_3c
-  // wii test on gbs with red offset issue:
-  //GBS::VDS_Y_GAIN::write(0x7b); // 0x80 = 0 // 7b
-  //GBS::VDS_VCOS_GAIN::write(0x26); // 3_37 red // wii 240p suite test: 26
-  //GBS::VDS_UCOS_GAIN::write(0x1c); // 3_36 blue
-  //GBS::VDS_Y_OFST::write(0x00); // 0 3_3a
-  //GBS::VDS_U_OFST::write(0xfd); // 0 3_3b
-  //GBS::VDS_V_OFST::write(0xfd); // 0 3_3c
 
   if (uopt->wantOutputComponent) {
     applyComponentColorMixing();
@@ -648,17 +635,11 @@ void applyRGBPatches() {
   GBS::ADC_RYSEL_B::write(0); // gnd clamp blue
   GBS::ADC_RYSEL_G::write(0); // gnd clamp green
   GBS::DEC_MATRIX_BYPS::write(0); // 5_1f 2 = 1 for YUV / 0 for RGB
-  GBS::IF_AUTO_OFST_U_RANGE::write(1);
-  GBS::IF_AUTO_OFST_V_RANGE::write(1);
-  GBS::IF_AUTO_OFST_PRD::write(0); // 0 = by line, 1 = by frame
-  GBS::IF_AUTO_OFST_EN::write(0); // not too reliable yet
   GBS::IF_MATRIX_BYPS::write(1);
   // colors
   GBS::VDS_Y_GAIN::write(0x80); // 0x80 = 0
-  GBS::VDS_VCOS_GAIN::write(0x28); // red
   GBS::VDS_UCOS_GAIN::write(0x1c); // blue
-  GBS::VDS_USIN_GAIN::write(0x00); // 3_38
-  GBS::VDS_VSIN_GAIN::write(0x00); // 3_39
+  GBS::VDS_VCOS_GAIN::write(0x28); // red
   GBS::VDS_Y_OFST::write(0xfd); // 3_3a 0xfe // 0
   GBS::VDS_U_OFST::write(0x00); // 3_3b 0x01
   GBS::VDS_V_OFST::write(0x00); // 3_3c 0x01
@@ -2440,6 +2421,11 @@ void doPostPresetLoadSteps() {
     GBS::ADC_BOFCTRL::write(adco->b_off);
   }
 
+  GBS::IF_AUTO_OFST_U_RANGE::write(1);
+  GBS::IF_AUTO_OFST_V_RANGE::write(1);
+  GBS::IF_AUTO_OFST_PRD::write(0);  // 0 = by line, 1 = by frame
+  GBS::IF_AUTO_OFST_EN::write(0);   // not reliable yet
+
   if (uopt->wantVdsLineFilter) { GBS::VDS_D_RAM_BYPS::write(0); }
   else { GBS::VDS_D_RAM_BYPS::write(1); }
 
@@ -2507,13 +2493,11 @@ void doPostPresetLoadSteps() {
     ResetSDRAM();
   }
 
-  if (!isCustomPreset) {
-    if (rto->inputIsYpBpR == true) {
-      applyYuvPatches();
-    }
-    else {
-      applyRGBPatches();
-    }
+  if (rto->inputIsYpBpR == true) {
+    applyYuvPatches();
+  }
+  else {
+    applyRGBPatches();
   }
 
   {
@@ -6225,8 +6209,15 @@ void handleType2Command() {
     break;
     case 'i':
       // toggle active frametime lock method
-      if (uopt->frameTimeLockMethod == 0) uopt->frameTimeLockMethod = 1;
-      else if (uopt->frameTimeLockMethod == 1) uopt->frameTimeLockMethod = 0;
+      SerialM.print("FTL method: ");
+      if (uopt->frameTimeLockMethod == 0) {
+        uopt->frameTimeLockMethod = 1;
+        SerialM.println("1");
+      }
+      else if (uopt->frameTimeLockMethod == 1) {
+        uopt->frameTimeLockMethod = 0;
+        SerialM.println("0");
+      }
       saveUserPrefs();
       break;
     case 'l':
