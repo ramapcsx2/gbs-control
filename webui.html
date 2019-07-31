@@ -198,9 +198,11 @@
             function content3() {
                 document.getElementById("display").innerHTML = 
                 '<p>These are image filters and enhancements. The line filter and peaking option is recommended, the rest is optional.</p>' + 
+                '<p>The 6-tap output filter should be enabled, but it can cause jailbar effects on some GBS boards.</p>' + 
                 '<button class="button option scanlines" type="button" onclick="loadUser(\'7\')">Scanlines</button>' + 
                 '<button class="button option vdsLineFilter" type="button" onclick="loadUser(\'m\')">Line Filter</button>' + 
                 '<button class="button option peaking" type="button" onclick="loadDoc(\'f\')">Peaking</button>' + 
+                '<button class="button option tap6" type="button" onclick="loadUser(\'t\')">6-Tap Filter</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'o\')">Oversampling</button>';
             }
             function content4() {
@@ -481,6 +483,13 @@
                                 /* inverse of motionAdaptive, 1=bob*/
                                 if (button.classList.contains('bob')) {
                                     if ((optionByte1 & 0x04) == 0x04) {
+                                        button.classList.add('active');
+                                    } else {
+                                        button.classList.remove('active');
+                                    }
+                                }
+                                if (button.classList.contains('tap6')) {
+                                    if ((optionByte1 & 0x08) == 0x08) {
                                         button.classList.add('active');
                                     } else {
                                         button.classList.remove('active');

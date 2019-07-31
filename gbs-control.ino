@@ -189,6 +189,7 @@ struct userOptions {
   uint8_t deintMode;
   uint8_t wantVdsLineFilter;
   uint8_t wantPeaking;
+  uint8_t wantTap6;
   uint8_t preferScalingRgbhv;
   uint8_t PalForce60;
   uint8_t overscan;
@@ -2282,6 +2283,11 @@ void doPostPresetLoadSteps() {
     //if (rto->videoStandardInput == 1 || rto->videoStandardInput == 3) {
     //  GBS::VDS_UV_STEP_BYPS::write(0); // enable step response for 60Hz presets (PAL needs better PLLAD clock)
     //}
+
+    // DAC filters / keep in presets for now
+    //GBS::VDS_1ST_INT_BYPS::write(1); // disable RGB stage interpolator
+    //GBS::VDS_2ND_INT_BYPS::write(1); // disable YUV stage interpolator
+
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
       GBS::IF_SEL_WEN::write(0); // 1_02 0; 0 for SD, 1 for EDTV
@@ -2295,18 +2301,6 @@ void doPostPresetLoadSteps() {
       //if (rto->presetID == 0x2 || rto->presetID == 0x3 || rto->presetID == 0x5) {
       //  GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
       //}
-
-      // DAC filters
-      if (rto->presetID == 0x4 || rto->presetID == 0x14) {
-        GBS::VDS_TAP6_BYPS::write(0);     // "classic" behaviour for out 640x480
-        GBS::VDS_1ST_INT_BYPS::write(1);
-        GBS::VDS_2ND_INT_BYPS::write(1);
-      }
-      else {
-        GBS::VDS_TAP6_BYPS::write(1); // 3_24 3 bypass on to remove shadow'y DAC artefacts
-        GBS::VDS_1ST_INT_BYPS::write(0); // enable RGB stage interpolator
-        GBS::VDS_2ND_INT_BYPS::write(1); // disable YUV stage interpolator
-      }
     }
     if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4)
     {
@@ -2383,7 +2377,6 @@ void doPostPresetLoadSteps() {
       GBS::IF_PRGRSV_CNTRL::write(1); // progressive
       GBS::IF_HS_DEC_FACTOR::write(0);
       GBS::INPUT_FORMATTER_02::write(0x74);
-      GBS::VDS_TAP6_BYPS::write(1);
       GBS::VDS_Y_DELAY::write(3);
     }
     else if (rto->videoStandardInput == 6 || rto->videoStandardInput == 7) 
@@ -2393,7 +2386,6 @@ void doPostPresetLoadSteps() {
       GBS::IF_PRGRSV_CNTRL::write(1);
       GBS::IF_HS_DEC_FACTOR::write(0);
       GBS::INPUT_FORMATTER_02::write(0x74);
-      GBS::VDS_TAP6_BYPS::write(1);
       GBS::VDS_Y_DELAY::write(3);
     }
   }
@@ -2453,6 +2445,9 @@ void doPostPresetLoadSteps() {
 
   if (uopt->wantPeaking) { GBS::VDS_PK_Y_H_BYPS::write(0); }
   else { GBS::VDS_PK_Y_H_BYPS::write(1); }
+
+  if (uopt->wantTap6) { GBS::VDS_TAP6_BYPS::write(0); }
+  else { GBS::VDS_TAP6_BYPS::write(1); }
 
   resetDebugPort();
   Menu::init();
@@ -4699,7 +4694,8 @@ void setup() {
   uopt->wantOutputComponent = 0;
   uopt->deintMode = 0;
   uopt->wantVdsLineFilter = 1;
-  uopt->wantPeaking = 0;
+  uopt->wantPeaking = 1;
+  uopt->wantTap6 = 1;
   uopt->preferScalingRgbhv = 0; // test: set to 1
   uopt->PalForce60 = 1;
   uopt->overscan = 0;
@@ -4780,7 +4776,8 @@ void setup() {
       uopt->wantOutputComponent = 0;
       uopt->deintMode = 0;
       uopt->wantVdsLineFilter = 1;
-      uopt->wantPeaking = 0;
+      uopt->wantPeaking = 1;
+      uopt->wantTap6 = 1;
       uopt->PalForce60 = 0;
       uopt->overscan = 0;
       saveUserPrefs(); // if this fails, there must be a spiffs problem
@@ -4815,13 +4812,16 @@ void setup() {
       if (uopt->wantVdsLineFilter > 1) uopt->wantVdsLineFilter = 1;
 
       uopt->wantPeaking = (uint8_t)(f.read() - '0');
-      if (uopt->wantPeaking > 1) uopt->wantPeaking = 0;
+      if (uopt->wantPeaking > 1) uopt->wantPeaking = 1;
 
       uopt->PalForce60 = (uint8_t)(f.read() - '0');
       if (uopt->PalForce60 > 1) uopt->PalForce60 = 0;
       
       uopt->overscan = (uint8_t)(f.read() - '0');
       if (uopt->overscan > 1) uopt->overscan = 0;
+
+      uopt->wantTap6 = (uint8_t)(f.read() - '0');
+      if (uopt->wantTap6 > 1) uopt->wantTap6 = 1;
 
       f.close();
     }
@@ -5046,6 +5046,7 @@ void handleWiFi(boolean instant) {
         if (uopt->overscan) { toSend[4] |= (1 << 0); }
         if (uopt->enableFrameTimeLock) { toSend[4] |= (1 << 1); }
         if (uopt->deintMode) { toSend[4] |= (1 << 2); }
+        if (uopt->wantTap6) { toSend[4] |= (1 << 3); }
 
         unsigned long start = millis();
         // send ping and stats
@@ -6196,6 +6197,7 @@ void handleType2Command() {
         SerialM.print("peaking = "); SerialM.println((uint8_t)(f.read() - '0'));
         SerialM.print("pal force60 = "); SerialM.println((uint8_t)(f.read() - '0'));
         SerialM.print("overscan = "); SerialM.println((uint8_t)(f.read() - '0'));
+        SerialM.print("6-tap = "); SerialM.println((uint8_t)(f.read() - '0'));
         f.close();
       }
     }
@@ -6365,6 +6367,21 @@ void handleType2Command() {
         // will enable next loop()
       }
       SerialM.println("Deinterlacer: Motion Adaptive");
+      break;
+    case 't':
+      SerialM.print("6-tap: ");
+      if (uopt->wantTap6 == 0)
+      {
+        uopt->wantTap6 = 1;
+        GBS::VDS_TAP6_BYPS::write(0);
+        SerialM.println("on");
+      }
+      else {
+        uopt->wantTap6 = 0;
+        GBS::VDS_TAP6_BYPS::write(1);
+        SerialM.println("off");
+      }
+      saveUserPrefs();
       break;
     default:
       break;
@@ -6710,6 +6727,7 @@ void saveUserPrefs() {
   f.write(uopt->wantPeaking + '0');
   f.write(uopt->PalForce60 + '0');
   f.write(uopt->overscan + '0');
+  f.write(uopt->wantTap6 + '0');
   f.close();
 }
 
