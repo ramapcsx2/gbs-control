@@ -2313,7 +2313,7 @@ void doPostPresetLoadSteps() {
       GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
       if (rto->presetID == 0x5) 
       { // out 1080p
-        GBS::VDS_VSCALE::write(455); // same as base preset
+        GBS::IF_HB_SP2::write(GBS::IF_HB_SP2::read() + 12);  // 1_1a  = 0x94
       }
       else if (rto->presetID == 0x3) 
       { // out 720p
@@ -2322,12 +2322,13 @@ void doPostPresetLoadSteps() {
       }
       else if (rto->presetID == 0x2) 
       { // out x1024
-        GBS::VDS_VSCALE::write(455); // same as base preset
+        GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - 8);
         GBS::IF_HBIN_ST::write(0x20); // 1_24
       }
       else if (rto->presetID == 0x1) 
       { // out x960
         GBS::IF_HBIN_ST::write(0x20); // 1_24
+        GBS::IF_HB_SP2::write(GBS::IF_HB_SP2::read() + 10);  // 1_1a
       }
     }
     else if (rto->videoStandardInput == 4) 
@@ -2347,7 +2348,7 @@ void doPostPresetLoadSteps() {
       }
       else if (rto->presetID == 0x12) 
       { // out x1024
-
+        GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - 12);
       }
       else if (rto->presetID == 0x11) 
       { // out x960
@@ -2656,6 +2657,10 @@ void doPostPresetLoadSteps() {
     SerialM.print(" Best: "); SerialM.print(GBS::VDS_HSYNC_RST::read());
     SerialM.print(" Fieldrate: ");
     SerialM.println(sfr, 3); // prec. 3
+  }
+
+  if (uopt->enableFrameTimeLock) {
+    SerialM.println("Frame Time Lock enabled (disable if display blanks / goes black!)");
   }
 
   //SerialM.print("post preset done (preset id: "); SerialM.print(rto->presetID, HEX); 
@@ -5563,15 +5568,25 @@ void loop() {
       scaleVertical(2, false);
     break;
     case '6':
-      if (GBS::IF_HBIN_SP::read() >= 10) { // IF_HBIN_SP: min 2
-        GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() - 8); // canvas move right
+      if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4) {
+        shiftHorizontalRight(); // use VDS mem move for EDTV presets
       }
       else {
-        SerialM.println("limit");
+        if (GBS::IF_HBIN_SP::read() >= 10) { // IF_HBIN_SP: min 2
+          GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() - 8); // canvas move right
+        }
+        else {
+          SerialM.println("limit");
+        }
       }
     break;
     case '7':
-      GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() + 8); // canvas move left
+      if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4) {
+        shiftHorizontalLeft();
+      }
+      else {
+        GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() + 8); // canvas move left
+      }
     break;
     case '8':
       //SerialM.println("invert sync");
