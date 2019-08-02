@@ -764,6 +764,8 @@ void setSpParameters() {
   GBS::SP_SDCS_VSSP_REG_H::write(0);
   GBS::SP_SDCS_VSST_REG_L::write(12); // 5_3f test with bypass mode: t0t4ft7 t0t4bt2 t5t56t4 t5t11t3
   GBS::SP_SDCS_VSSP_REG_L::write(11); // 5_40  // was 11
+  //GBS::SP_SDCS_VSST_REG_L::write(2); // S5_3F
+  //GBS::SP_SDCS_VSSP_REG_L::write(0); // S5_40
 
   GBS::SP_CS_HS_ST::write(0);    // 5_45
   GBS::SP_CS_HS_SP::write(0x40); // 5_47 720p source needs ~20 range, may be necessary to adjust at runtime, based on source res
@@ -1392,6 +1394,10 @@ void scaleHorizontal(uint16_t amountToScale, bool subtracting)
 {
     uint16_t hscale = GBS::VDS_HSCALE::read();
 
+    // smooth out areas of interest
+    if (subtracting  && (hscale == 513 || hscale == 512)) amountToScale = 1;
+    if (!subtracting && (hscale == 511 || hscale == 512)) amountToScale = 1;
+
     if (subtracting && (((int)hscale - amountToScale) <= 255)) {
         hscale = 0;
         GBS::VDS_HSCALE::write(hscale);
@@ -1421,7 +1427,7 @@ void scaleHorizontal(uint16_t amountToScale, bool subtracting)
     // move within VDS VB fetch area (within reason)
     uint16_t htotal = GBS::VDS_HSYNC_RST::read();
     uint16_t hbsp_old = GBS::VDS_HB_SP::read();
-    uint16_t hb_sub = 1 + (uint16_t)(htotal * 0.001f);
+    uint16_t hb_sub = amountToScale & 0xfffe;//1 + (uint16_t)(htotal * 0.001f);
     if (subtracting) {
         if (hbsp_old > (8 + hb_sub)) { // 8 as a guard against 2 side overflow (scaling up into overlap)
             GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - hb_sub);
@@ -1433,6 +1439,7 @@ void scaleHorizontal(uint16_t amountToScale, bool subtracting)
         }
         if ((GBS::VDS_HB_ST::read() + hb_sub_halved) < GBS::VDS_DIS_HB_ST::read()) {
             GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + hb_sub_halved);
+            GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - hb_sub_halved);  // new
         } else if ((GBS::VDS_DIS_HB_ST::read() + hb_sub_halved) < htotal) {
             GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + hb_sub_halved);
             GBS::VDS_HB_ST::write(GBS::VDS_DIS_HB_ST::read()); // dis_hbst = hbst
@@ -1451,6 +1458,7 @@ void scaleHorizontal(uint16_t amountToScale, bool subtracting)
         }
         if ((GBS::VDS_HB_ST::read() - hb_sub_halved) > 0) {
             GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() - hb_sub_halved);
+            GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() + hb_sub_halved);  // new
         }
     }
 
@@ -1487,16 +1495,8 @@ void scaleHorizontal(uint16_t amountToScale, bool subtracting)
 
     //SerialM.print("HB_ST: "); SerialM.println(GBS::VDS_HB_ST::read());
     //SerialM.print("HB_SP: "); SerialM.println(GBS::VDS_HB_SP::read());
-    SerialM.print("Scale Hor: "); SerialM.println(hscale);
+    SerialM.print("HScale: "); SerialM.println(hscale);
     GBS::VDS_HSCALE::write(hscale);
-}
-
-void scaleHorizontalSmaller() {
-  scaleHorizontal(2, false);
-}
-
-void scaleHorizontalLarger() {
-  scaleHorizontal(2, true);
 }
 
 void moveHS(uint16_t amountToAdd, bool subtracting) {
@@ -1596,7 +1596,7 @@ void invertVS() {
   writeOneByte(0x0f, (uint8_t)((newSP & 0x0ff0) >> 4));
 }
 
-void scaleVertical(uint16_t amountToAdd, bool subtracting) {
+void scaleVertical(uint16_t amountToScale, bool subtracting) {
   uint16_t vscale = GBS::VDS_VSCALE::read();
 
   // least invasive "is vscaling enabled" check
@@ -1604,14 +1604,24 @@ void scaleVertical(uint16_t amountToAdd, bool subtracting) {
     GBS::VDS_VSCALE_BYPS::write(0);
   }
 
-  if (subtracting && (vscale - amountToAdd > 0)) {
-    vscale -= amountToAdd;
+  // smooth out areas of interest
+  if (subtracting && (vscale == 513 || vscale == 512)) amountToScale = 1;
+  if (subtracting && (vscale == 684 || vscale == 683)) amountToScale = 1;
+  if (!subtracting && (vscale == 511 || vscale == 512)) amountToScale = 1;
+  if (!subtracting && (vscale == 682 || vscale == 683)) amountToScale = 1;
+
+  if (subtracting && (vscale - amountToScale > 0)) {
+    vscale -= amountToScale;
   }
-  else if (vscale + amountToAdd <= 1023) {
-    vscale += amountToAdd;
+  else if (vscale + amountToScale <= 1023) {
+    vscale += amountToScale;
+  }
+  else if (vscale + amountToScale > 1023) {
+    vscale = 1023;
+    // don't enable vscale bypass here, since that disables ie line filter
   }
 
-  SerialM.print("Scale Vert: "); SerialM.println(vscale);
+  SerialM.print("VScale: "); SerialM.println(vscale);
   GBS::VDS_VSCALE::write(vscale);
 }
 
@@ -1747,37 +1757,30 @@ void setDisplayVblankStopPosition(uint16_t value) {
   GBS::VDS_DIS_VB_SP::write(value);
 }
 
-#if defined(ESP8266) // Arduino space saving
 void getVideoTimings() {
   SerialM.println("");
-  // get HRST
-  SerialM.print("htotal: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
-  // get HS_ST
+  SerialM.print("HT / scale   : "); SerialM.print(GBS::VDS_HSYNC_RST::read());
+  SerialM.print(" "); SerialM.println(GBS::VDS_HSCALE::read());
   SerialM.print("HS ST/SP     : "); SerialM.print(GBS::VDS_HS_ST::read());
   SerialM.print(" "); SerialM.println(GBS::VDS_HS_SP::read());
-  // get HBST
-  SerialM.print("HB ST/SP(dis): "); SerialM.print(GBS::VDS_DIS_HB_ST::read());
+  SerialM.print("HB ST/SP(d)  : "); SerialM.print(GBS::VDS_DIS_HB_ST::read());
   SerialM.print(" "); SerialM.println(GBS::VDS_DIS_HB_SP::read());
-  // get HBST(memory)
   SerialM.print("HB ST/SP     : "); SerialM.print(GBS::VDS_HB_ST::read());
   SerialM.print(" "); SerialM.println(GBS::VDS_HB_SP::read());
-  SerialM.println("----");
-  // get VRST
-  SerialM.print("vtotal: "); SerialM.println(GBS::VDS_VSYNC_RST::read());
-  // get V Sync Start
+  SerialM.println("------");
+  // vertical 
+  SerialM.print("VT / scale   : "); SerialM.print(GBS::VDS_VSYNC_RST::read());
+  SerialM.print(" "); SerialM.println(GBS::VDS_VSCALE::read());
   SerialM.print("VS ST/SP     : "); SerialM.print(GBS::VDS_VS_ST::read());
   SerialM.print(" "); SerialM.println(GBS::VDS_VS_SP::read());
-  // get VBST
-  SerialM.print("VB ST/SP(dis): "); SerialM.print(GBS::VDS_DIS_VB_ST::read());
+  SerialM.print("VB ST/SP(d)  : "); SerialM.print(GBS::VDS_DIS_VB_ST::read());
   SerialM.print(" "); SerialM.println(GBS::VDS_DIS_VB_SP::read());
-  // get VBST (memory)
   SerialM.print("VB ST/SP     : "); SerialM.print(GBS::VDS_VB_ST::read());
   SerialM.print(" "); SerialM.println(GBS::VDS_VB_SP::read());
-  // also IF offsets
-  SerialM.print("IF_VB_ST/SP  : "); SerialM.print(GBS::IF_VB_ST::read());
+  // IF V offset
+  SerialM.print("IF VB ST/SP  : "); SerialM.print(GBS::IF_VB_ST::read());
   SerialM.print(" "); SerialM.println(GBS::IF_VB_SP::read());
 }
-#endif
 
 void set_htotal(uint16_t htotal) {
   // ModeLine "1280x960" 108.00 1280 1376 1488 1800 960 961 964 1000 +HSync +VSync
@@ -2152,19 +2155,14 @@ void applyOverScanPatches() {
     if (rto->presetID == 0x11) { // out x960 @ 50
       //
     }
+    if (rto->presetID == 0x12) { // out x1024 @ 50
+      //GBS::VDS_VSCALE::write(546);
+      //GBS::IF_VB_ST::write(30);
+      //GBS::IF_VB_SP::write(32);
+      //scaleHorizontal(45, false); // hscale -
+    }
     if (rto->presetID == 0x5) { // out 1080p @ 60
-      GBS::PLLAD_MD::write(2132);
-      GBS::IF_HSYNC_RST::write(GBS::PLLAD_MD::read() * 0.512f);
-      GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);
-      GBS::IF_HBIN_SP::write(168); // 1_26; instead of 256
-      GBS::IF_HB_ST::write(0);
-      GBS::IF_HB_SP1::write(10); // 1_16; magic number
-      GBS::VDS_HSCALE::write(602);
-      GBS::VDS_DIS_HB_ST::write(1840);
-      GBS::VDS_HB_ST::write(1840);
-      GBS::VDS_DIS_HB_SP::write(300);
-      GBS::VDS_HB_SP::write(192);
-      GBS::PB_FETCH_NUM::write(0xe8);
+      //
     }
     if (rto->presetID == 0x15) { // out 1080p @ 50
       //
@@ -2268,6 +2266,10 @@ void doPostPresetLoadSteps() {
     // DAC filters / keep in presets for now
     //GBS::VDS_1ST_INT_BYPS::write(1); // disable RGB stage interpolator
     //GBS::VDS_2ND_INT_BYPS::write(1); // disable YUV stage interpolator
+
+    if (uopt->overscan) {
+      applyOverScanPatches();
+    }
 
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
@@ -2538,8 +2540,9 @@ void doPostPresetLoadSteps() {
   }
 
   setAndUpdateSogLevel(rto->currentLevelSOG); // use this to cycle SP / ADPLL latches
-
-  GBS::IF_VS_SEL::write(0); // new: 0 = "VCR" IF sync, requires VS_FLIP to be on, more stable?
+  
+  // IF_VS_SEL = 1 for SD/HD SP mode in HD mode (5_3e 1)
+  GBS::IF_VS_SEL::write(0); // 0 = "VCR" IF sync, requires VS_FLIP to be on, more stable?
   GBS::IF_VS_FLIP::write(1);
 
   GBS::SP_CLP_SRC_SEL::write(0); // 0: 27Mhz clock; 1: pixel clock
@@ -2588,6 +2591,8 @@ void doPostPresetLoadSteps() {
   //GBS::DAC_RGBS_PWDNZ::write(1);    // dac enable
 
   setAndUpdateSogLevel(rto->currentLevelSOG); // use this to cycle SP / ADPLL latches
+
+  //GBS::SP_HD_MODE::write(1); // 5_3e 1
 
   GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
@@ -3017,51 +3022,79 @@ boolean getStatus16SpHsStable() {
   return false;
 }
 
-uint8_t getOverSampleRatio() {
-  boolean dec1bypass = GBS::DEC1_BYPS::read();
-  boolean dec2bypass = GBS::DEC2_BYPS::read();
-  if (dec1bypass == false && dec2bypass == false) { // is in OSR4
-    return 4;
-  }
-  else if (dec1bypass == true && dec2bypass == true) {
-    return 1;
-  }
-  else if (dec1bypass == true && dec2bypass == false) {
-    return 2;
+int8_t getOverSampleRatio() {
+  uint8_t ks = GBS::PLLAD_KS::read();
+  uint8_t ckos = GBS::PLLAD_CKOS::read();
+
+  switch (ks) {
+  case 0:
+    if (ckos == 0) return 1;
+    if (ckos == 1) return -2;
+    if (ckos == 2) return -4;
+    if (ckos == 3) return -8;
+    break;
+  case 1:
+    if (ckos == 0) return 2;
+    if (ckos == 1) return 1;
+    if (ckos == 2) return -2;
+    if (ckos == 3) return -4;
+    break;
+  case 2:
+    if (ckos == 0) return 4;
+    if (ckos == 1) return 2;
+    if (ckos == 2) return 1;
+    if (ckos == 3) return -2;
+    break;
+  case 3:
+    if (ckos == 0) return 8;
+    if (ckos == 1) return 4;
+    if (ckos == 2) return 2;
+    if (ckos == 3) return 1;
+    break;
   }
 
-  SerialM.println("?");
   return 1;
 }
 
-void setOverSampleRatio(uint8_t ratio) {
-  switch (ratio) {
+void setOverSampleRatio(uint8_t newRatio) {
+  uint8_t ks = GBS::PLLAD_KS::read();
+
+  switch (newRatio) {
   case 1:
+    if (ks == 0) GBS::PLLAD_CKOS::write(0);
+    if (ks == 1) GBS::PLLAD_CKOS::write(1);
+    if (ks == 2) GBS::PLLAD_CKOS::write(2);
+    if (ks == 3) GBS::PLLAD_CKOS::write(3);
     GBS::ADC_CLK_ICLK2X::write(0);
     GBS::ADC_CLK_ICLK1X::write(0);
-    //GBS::PLLAD_KS::write(2); // 0 - 3
-    GBS::PLLAD_CKOS::write(2); // 0 - 3
     GBS::DEC1_BYPS::write(1);
     GBS::DEC2_BYPS::write(1);
-  break;
+    SerialM.println("OSR 1x");
+    break;
   case 2:
+    if (ks == 0) { setOverSampleRatio(1); return; } // 2x impossible
+    if (ks == 1) GBS::PLLAD_CKOS::write(0);
+    if (ks == 2) GBS::PLLAD_CKOS::write(1);
+    if (ks == 3) GBS::PLLAD_CKOS::write(2);
     GBS::ADC_CLK_ICLK2X::write(0);
     GBS::ADC_CLK_ICLK1X::write(1);
-    //GBS::PLLAD_KS::write(2);
-    GBS::PLLAD_CKOS::write(1);
     GBS::DEC1_BYPS::write(1);
     GBS::DEC2_BYPS::write(0);
-  break;
+    SerialM.println("OSR 2x");
+    break;
   case 4:
+    if (ks == 0) { setOverSampleRatio(1); return; } // 4x impossible
+    if (ks == 1) { setOverSampleRatio(1); return; } // 4x impossible
+    if (ks == 2) GBS::PLLAD_CKOS::write(0);
+    if (ks == 3) GBS::PLLAD_CKOS::write(1);
     GBS::ADC_CLK_ICLK2X::write(1);
     GBS::ADC_CLK_ICLK1X::write(1);
-    //GBS::PLLAD_KS::write(2);
-    GBS::PLLAD_CKOS::write(0);
     GBS::DEC1_BYPS::write(0);
     GBS::DEC2_BYPS::write(0);
-  break;
+    SerialM.println("OSR 4x");
+    break;
   default:
-  break;
+    break;
   }
 
   latchPLLAD();
@@ -5128,11 +5161,11 @@ void loop() {
     break;
     case 'z':
       SerialM.println("scale+");
-      scaleHorizontalLarger();
+      scaleHorizontal(2, true);
     break;
     case 'h':
       SerialM.println("scale-");
-      scaleHorizontalSmaller();
+      scaleHorizontal(2, false);
     break;
     case 'q':
       resetDigital(); delay(2);
@@ -5550,18 +5583,18 @@ void loop() {
     break;
     case 'o':
     {
-      uint8_t osr = getOverSampleRatio();
-      if (osr == 4) {
-        setOverSampleRatio(1);
-        SerialM.println("OSR 1x");
-      }
-      else if (osr == 1) {
+      int8_t osr = getOverSampleRatio();
+      if (osr == 1) {
         setOverSampleRatio(2);
-        SerialM.println("OSR 2x");
       }
       else if (osr == 2) {
         setOverSampleRatio(4);
-        SerialM.println("OSR 4x");
+      }
+      else if (osr == 4) {
+        setOverSampleRatio(1);
+      }
+      else {
+        SerialM.println("invalid OSR state");
       }
     }
     break;

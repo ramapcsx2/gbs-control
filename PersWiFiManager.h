@@ -13,7 +13,7 @@
 #include <ESP8266WebServer.h>
 #include <DNSServer.h>
 
-#define WIFI_CONNECT_TIMEOUT 30
+#define WIFI_CONNECT_TIMEOUT 45
 
 class PersWiFiManager {
 
