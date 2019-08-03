@@ -29,8 +29,8 @@
                 border-radius: 500px;
                 border: none;
                 margin: 0.66vh 0.5vw;
-                -webkit-transition-duration: 0.2s;
-                transition-duration: 0.2s;
+                -webkit-transition-duration: 0.1s;
+                transition-duration: 0.1s;
                 font-family: 'Iceberg', cursive;
                 font-size: calc(13px + 0.8vw);
                 color: #333;
@@ -55,7 +55,6 @@
 
             .btn-h:hover {
                 background-color: #006064;
-                font-weight: 700;
                 color: #bbb;
             }
 
@@ -97,8 +96,8 @@
                 display: inline-block;
                 margin: 1.5vh 1vw;
                 font-family: 'Iceberg', cursive;
-                -webkit-transition-duration: 0.2s;
-                transition-duration: 0.2s;
+                -webkit-transition-duration: 0.1s;
+                transition-duration: 0.1s;
                 width: 16vw;
                 max-width: 12%;
                 min-width: max-content;
@@ -153,8 +152,10 @@
         <script>
             function content1() {
                 document.getElementById("display").innerHTML = 
-                '<p>These are the default presets. Your selection will be applied and becomes the new startup preset as well.</p>' +
-                '<button class="button preset" type="button" id="1" onclick="loadUser(\'f\')">1280x960 (default)</button>' + 
+                '<p>Choose an output resolution from these presets. Your selection will also be used for startup.</p>' +
+                '<p>1280x960 is recommended for NTSC sources, 1280x1024 for PAL.</p>' +
+                '<p>If either of these presets is selected, the best one for the source will be used. This can be changed in the Preferences tab.</p>' +
+                '<button class="button preset" type="button" id="1" onclick="loadUser(\'f\')">1280x960</button>' + 
                 '<button class="button preset" type="button" id="2" onclick="loadUser(\'p\')">1280x1024</button>' + 
                 '<button class="button preset" type="button" id="3" onclick="loadUser(\'g\')">1280x720</button>' + 
                 '<button class="button preset" type="button" id="5" onclick="loadUser(\'s\')">1920x1080</button>' + 
@@ -202,23 +203,13 @@
                 '<button class="button option scanlines" type="button" onclick="loadUser(\'7\')">Scanlines</button>' + 
                 '<button class="button option vdsLineFilter" type="button" onclick="loadUser(\'m\')">Line Filter</button>' + 
                 '<button class="button option peaking" type="button" onclick="loadDoc(\'f\')">Peaking</button>' + 
-                '<button class="button option tap6" type="button" onclick="loadUser(\'t\')">6-Tap Filter</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'o\')">Oversampling</button>';
-            }
-            function content4() {
-                document.getElementById("display").innerHTML = 
-                '<p>Gbscontrol automatically detects interlaced content. There are 2 methods to handle it: <br>' + 
-                '- Bob Deinterlacing is fast (no added lag) but slightly flickers <br>' + 
-                '- Motion Adaptive removes the flicker at the cost of some artefacts and an additional frame of lag <br>' + 
-                'It is best to configure the source for progressive output. If that\'s not possible, Motion Adaptive is recommended.</p>' + 
-                '<button class="button option motionAdaptive" type="button" onclick="loadUser(\'r\')">Use Motion Adaptive</button>' + 
-                '<button class="button option bob" type="button" onclick="loadUser(\'q\')">Use Bob</button>';
+                '<button class="button option tap6" type="button" onclick="loadUser(\'t\')">6-Tap Filter</button>';
             }
             function content5() {
                 document.getElementById("display").innerHTML = 
-                '<h2>Overscan</h2>' + 
-                '<p>Supported presets will allow for more overscan at a slightly reduced image quality.</p>' + 
-                '<button class="button option overscan" type="button" onclick="loadDoc(\'Z\')">Use Overscan</button>' + 
+                '<h2>Matched Preset for Source Format</h2>' + 
+                '<p>If enabled, default to 1280x960 for NTSC 60 and 1280x1024 for PAL 50.</p>' + 
+                '<button class="button option matched" type="button" onclick="loadDoc(\'Z\')">Matched Presets</button>' + 
                 '<h2>Output Format: VGA / YPbPr (Component Video)</h2>' + 
                 '<p>The default output mode is VGA, suitable for VGA cables or HDMI converters.</p>' + 
                 '<p>A new YPbPr mode can also be selected, but compatibility with some options is still spotty.</p>' + 
@@ -231,7 +222,14 @@
                 '<p>This option keeps the input and output timings aligned, fixing the horizontal tear line that can appear sometimes.</p>' + 
                 '<p>Two methods are available. Try switching methods if your display goes blank.</p>' + 
                 '<button class="button option frameTimeLock" type="button" onclick="loadUser(\'5\')">FrameTime Lock</button>' + 
-                '<button class="button" type="button" onclick="loadUser(\'i\')">Switch Lock Method</button>';
+                '<button class="button" type="button" onclick="loadUser(\'i\')">Switch Lock Method</button>' +
+                '<h2>Deinterlace Method</h2>' + 
+                '<p>Gbscontrol detects interlaced content and automatically toggles deinterlacing. <br>' + 
+                '- Bob Method: essentially no deinterlacing, no added lag but flickers <br>' + 
+                '- Motion Adaptive: removes flicker, adds 1 frame of lag and shows some artefacts in moving details<br>' + 
+                'If possible, configure the source for progressive output. Otherwise, using Motion Adaptive is recommended.</p>' + 
+                '<button class="button option motionAdaptive" type="button" onclick="loadUser(\'r\')">Use Motion Adaptive</button>' + 
+                '<button class="button option bob" type="button" onclick="loadUser(\'q\')">Use Bob</button>';
             }
             function content6() {
                 document.getElementById("display").innerHTML = 
@@ -245,15 +243,15 @@
                 '<button class="button" type="button" onclick="loadDoc(\'i\')">Print Infos</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\',\')">Get Video Timings</button>' + 
                 '<h2>Commands</h2>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'J\')">Latch PLL</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'o\')">Oversampling</button>' + 
+                '<button class="button" type="button" onclick="loadUser(\'l\')">Cycle SDRAM clock speed</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'q\')">Reset Chip</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'.\')">Resynchronize HTotal</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'l\')">Reset SyncProcessor</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'D\')">Debug View</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'F\')">ADC Filter</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'a\')">HTotal++</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'n\')">PLL divider++</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'b\')">Advance Phase</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'n\')">PLL divider++</button>' +  
                 '<button class="button" type="button" onclick="loadDoc(\'8\')">Invert Sync</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'c\')">Enable OTA Firmware Update</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'m\')">SyncWatcher</button>';
@@ -262,8 +260,7 @@
                 document.getElementById("display").innerHTML = 
                 '<button class="button" type="button" onclick="javascript:location.href=\'/wifi.htm\'">Connect to WiFi Network</button>' + 
                 '<button class="button" type="button" onclick="loadUser(\'a\')">Restart</button>' + 
-                '<button class="button" type="button" onclick="loadUser(\'e\')">List Files, Options</button>' + 
-                '<button class="button" type="button" onclick="loadUser(\'l\')">Cycle SDRAM clock speed</button>';
+                '<button class="button" type="button" onclick="loadUser(\'e\')">List Files, Options</button>';
             }
             window.addEventListener('load', function(event) {
                 content1();
@@ -459,7 +456,7 @@
                                     }
                                 }
                                 /* optionByte1 */
-                                if (button.classList.contains('overscan')) {
+                                if (button.classList.contains('matched')) {
                                     if ((optionByte1 & 0x01) == 0x01) {
                                         button.classList.add('active');
                                     } else {
@@ -509,7 +506,6 @@
             <button class="btn-h" onclick="content1()">Presets</button>
             <button class="btn-h" onclick="content2()">Picture Control</button>
             <button class="btn-h" onclick="content3()">Enhancements</button>
-            <button class="btn-h" onclick="content4()">Deinterlacer</button>
             <button class="btn-h" onclick="content5()">Preferences</button>
             <button class="btn-h" onclick="content6()">Development</button>
             <button class="btn-h" onclick="content7()">System</button>

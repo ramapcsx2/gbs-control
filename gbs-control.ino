@@ -192,7 +192,7 @@ struct userOptions {
   uint8_t wantTap6;
   uint8_t preferScalingRgbhv;
   uint8_t PalForce60;
-  uint8_t overscan;
+  uint8_t matchPresetSource;
 } uopts;
 struct userOptions *uopt = &uopts;
 
@@ -1398,8 +1398,8 @@ void scaleHorizontal(uint16_t amountToScale, bool subtracting)
     if (subtracting  && (hscale == 513 || hscale == 512)) amountToScale = 1;
     if (!subtracting && (hscale == 511 || hscale == 512)) amountToScale = 1;
 
-    if (subtracting && (((int)hscale - amountToScale) <= 255)) {
-        hscale = 0;
+    if (subtracting && (((int)hscale - amountToScale) <= 256)) {
+        hscale = 256;
         GBS::VDS_HSCALE::write(hscale);
         SerialM.println("limit");
         return;
@@ -2146,30 +2146,6 @@ uint32_t getPllRate() {
   return retVal;
 }
 
-void applyOverScanPatches() {
-  // no scaling RGB for now, just regular scaling presets
-  if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 4) {
-    if (rto->presetID == 0x1) { // out x960 @ 60
-      // out x960 @ 60 has overscan by default now
-    }
-    if (rto->presetID == 0x11) { // out x960 @ 50
-      //
-    }
-    if (rto->presetID == 0x12) { // out x1024 @ 50
-      //GBS::VDS_VSCALE::write(546);
-      //GBS::IF_VB_ST::write(30);
-      //GBS::IF_VB_SP::write(32);
-      //scaleHorizontal(45, false); // hscale -
-    }
-    if (rto->presetID == 0x5) { // out 1080p @ 60
-      //
-    }
-    if (rto->presetID == 0x15) { // out 1080p @ 50
-      //
-    }
-  }
-}
-
 void doPostPresetLoadSteps() {
   GBS::PAD_SYNC_OUT_ENZ::write(1);  // no sync out
   GBS::DAC_RGBS_PWDNZ::write(0);    // no DAC
@@ -2241,10 +2217,6 @@ void doPostPresetLoadSteps() {
   if (!isCustomPreset) {
     // new assumption: this should be a bit longer than a half line
     GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() * 0.68); // see update above
-    if (uopt->overscan) {
-      // requires a different length for some reason
-      GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() * 0.52);
-    }
   }
 
   if (!isCustomPreset) {
@@ -2259,17 +2231,14 @@ void doPostPresetLoadSteps() {
     // 1_28 1 1:hbin generated write reset 0:line generated write reset
     GBS::IF_LD_WRST_SEL::write(1); // at 1 fixes output position regardless of 1_24
     GBS::MADPT_Y_DELAY_UV_DELAY::write(0); // 2_17 default: 0
-    //if (rto->videoStandardInput == 1 || rto->videoStandardInput == 3) {
-    //  GBS::VDS_UV_STEP_BYPS::write(0); // enable step response for 60Hz presets (PAL needs better PLLAD clock)
-    //}
+
+    GBS::VDS_STEP_DLY_CNTRL::write(2);
+    GBS::VDS_STEP_GAIN::write(1);     // max 15
+    //GBS::VDS_UV_STEP_BYPS::write(0);  // enable step response
 
     // DAC filters / keep in presets for now
     //GBS::VDS_1ST_INT_BYPS::write(1); // disable RGB stage interpolator
     //GBS::VDS_2ND_INT_BYPS::write(1); // disable YUV stage interpolator
-
-    if (uopt->overscan) {
-      applyOverScanPatches();
-    }
 
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
@@ -2475,7 +2444,7 @@ void doPostPresetLoadSteps() {
     GBS::PLL_S::write(2);
     GBS::DEC_IDREG_EN::write(1); // 5_1f 7
     GBS::DEC_WEN_MODE::write(1); // 5_1e 7 // 1 keeps ADC phase consistent. around 4 lock positions vs totally random
-    rto->phaseADC = 16; // fix at 16; we can't know which is right and 16 is usually the default
+    rto->phaseADC = 2; // fix value; we can't know which is right and 16 is usually the default
     rto->phaseSP = 8;
 
     // 4 segment 
@@ -2694,7 +2663,7 @@ void applyPresets(uint8_t result) {
     }
   }
 
-  if (result == 1) {
+  if (result == 1 || result == 3) {
     if (uopt->presetPreference == 0) {
       if (uopt->wantOutputComponent) {
         writeProgramArrayNew(ntsc_1280x1024, false); // override to x1024, later to be patched to 1080p
@@ -2715,72 +2684,36 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(preset, false);
     }
     else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(ntsc_1280x1024, false);
+      if (uopt->matchPresetSource) {
+        SerialM.println("matched preset override > 1280x960");
+        writeProgramArrayNew(ntsc_240p, false); // pref = x1024 override to x960
+      }
+      else {
+        writeProgramArrayNew(ntsc_1280x1024, false);
+      }
     }
 #endif
     else if (uopt->presetPreference == 5) {
       writeProgramArrayNew(ntsc_1920x1080, false);
     }
   }
-  else if (result == 2) {
+  else if (result == 2 || result == 4) {
     if (uopt->presetPreference == 0) {
       if (uopt->wantOutputComponent) {
         writeProgramArrayNew(pal_1280x1024, false); // override to x1024, later to be patched to 1080p
       }
       else {
-        writeProgramArrayNew(pal_240p, false);
+        if (uopt->matchPresetSource) {
+          SerialM.println("matched preset override > 1280x1024");
+          writeProgramArrayNew(pal_1280x1024, false); // pref = x960 override to x1024
+        }
+        else {
+          writeProgramArrayNew(pal_240p, false);
+        }
       }
     }
     else if (uopt->presetPreference == 1) {
       writeProgramArrayNew(pal_feedbackclock, false);
-    }
-    else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(pal_1280x720, false);
-    }
-#if defined(ESP8266)
-    else if (uopt->presetPreference == 2) {
-      const uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset, false);
-    }
-    else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(pal_1280x1024, false);
-    }
-#endif
-    else if (uopt->presetPreference == 5) {
-      writeProgramArrayNew(pal_1920x1080, false);
-    }
-  }
-  else if (result == 3) {
-    // ntsc base
-    if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(ntsc_240p, false);
-    }
-    else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(ntsc_feedbackclock, false); // not well supported
-    }
-    else if (uopt->presetPreference == 3) {
-      writeProgramArrayNew(ntsc_1280x720, false);
-    }
-#if defined(ESP8266)
-    else if (uopt->presetPreference == 2) {
-      const uint8_t* preset = loadPresetFromSPIFFS(result);
-      writeProgramArrayNew(preset, false);
-    }
-    else if (uopt->presetPreference == 4) {
-      writeProgramArrayNew(ntsc_1280x1024, false);
-    }
-#endif
-    else if (uopt->presetPreference == 5) {
-      writeProgramArrayNew(ntsc_1920x1080, false);
-    }
-  }
-  else if (result == 4) {
-    // pal base
-    if (uopt->presetPreference == 0) {
-      writeProgramArrayNew(pal_240p, false);
-    }
-    else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(pal_feedbackclock, false); // not well supported
     }
     else if (uopt->presetPreference == 3) {
       writeProgramArrayNew(pal_1280x720, false);
@@ -3540,7 +3473,7 @@ void setOutModeHdBypass() {
   GBS::DEC_IDREG_EN::write(1); // 5_1f 7
   GBS::DEC_WEN_MODE::write(1); // 5_1e 7 // 1 keeps ADC phase consistent. around 4 lock positions vs totally random
   rto->phaseSP = 8;
-  rto->phaseADC = 16; // fix at 16; we can't know which is right and 16 is usually the default
+  rto->phaseADC = 2; // fix value
   setAndUpdateSogLevel(rto->currentLevelSOG); // also re-latch everything
 
   //resetSyncProcessor(); // needed?
@@ -3611,7 +3544,7 @@ void bypassModeSwitch_RGBHV() {
     GBS::SP_HS_POL_ATO::write(1); // 5_55 4 auto polarity for retiming
     GBS::SP_VS_POL_ATO::write(1); // 5_55 6
     GBS::SP_HS_LOOP_SEL::write(1); // 5_57_6 | 0 enables retiming on SP | 1 to bypass input to HDBYPASS
-    rto->phaseADC = 16; // was 0
+    rto->phaseADC = 2; // was 0
     rto->phaseSP = 16; // was 6
   }
   else
@@ -3629,7 +3562,7 @@ void bypassModeSwitch_RGBHV() {
     GBS::SP_SYNC_BYPS::write(0); // use regular sync for decimator (and sync out) path
     GBS::SP_HS_LOOP_SEL::write(1); // 5_57_6 | 0 enables retiming on SP | 1 to bypass input to HDBYPASS
     rto->currentLevelSOG = 24;
-    rto->phaseADC = 0;
+    rto->phaseADC = 2;
     rto->phaseSP = 4;
   }
   GBS::SP_CLAMP_MANUAL::write(1); // needs to be 1
@@ -4720,7 +4653,7 @@ void setup() {
   uopt->wantTap6 = 1;
   uopt->preferScalingRgbhv = 0; // test: set to 1
   uopt->PalForce60 = 1;
-  uopt->overscan = 0;
+  uopt->matchPresetSource = 0;
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->enableDebugPings = false;
@@ -4728,7 +4661,7 @@ void setup() {
   rto->syncLockFailIgnore = 8; // allow syncLock to fail x-1 times in a row before giving up (sync glitch immunity)
   rto->forceRetime = false;
   rto->syncWatcherEnabled = true;  // continously checks the current sync status. required for normal operation
-  rto->phaseADC = 16;
+  rto->phaseADC = 2;
   rto->phaseSP = 24;
   rto->failRetryAttempts = 0;
   rto->presetID = 0;
@@ -4801,7 +4734,7 @@ void setup() {
       uopt->wantPeaking = 1;
       uopt->wantTap6 = 1;
       uopt->PalForce60 = 0;
-      uopt->overscan = 0;
+      uopt->matchPresetSource = 0;
       saveUserPrefs(); // if this fails, there must be a spiffs problem
     }
     else {
@@ -4839,8 +4772,8 @@ void setup() {
       uopt->PalForce60 = (uint8_t)(f.read() - '0');
       if (uopt->PalForce60 > 1) uopt->PalForce60 = 0;
       
-      uopt->overscan = (uint8_t)(f.read() - '0');
-      if (uopt->overscan > 1) uopt->overscan = 0;
+      uopt->matchPresetSource = (uint8_t)(f.read() - '0');
+      if (uopt->matchPresetSource > 1) uopt->matchPresetSource = 0;
 
       uopt->wantTap6 = (uint8_t)(f.read() - '0');
       if (uopt->wantTap6 > 1) uopt->wantTap6 = 1;
@@ -4869,7 +4802,7 @@ void setup() {
   SerialM.print("preset preference = "); SerialM.println(uopt->presetPreference);
   SerialM.print("component output = "); SerialM.println(uopt->wantOutputComponent);
   SerialM.print("pal force 60 = "); SerialM.println(uopt->PalForce60);
-  SerialM.print("overscan = "); SerialM.println(uopt->overscan);
+  SerialM.print("matched = "); SerialM.println(uopt->matchPresetSource);
 #else
   delay(2000); // give the entire system some time to start up.
 #endif
@@ -5065,7 +4998,7 @@ void handleWiFi(boolean instant) {
         if (uopt->PalForce60) { toSend[3] |= (1 << 4); } 
         if (uopt->wantOutputComponent) { toSend[3] |= (1 << 5); }
 
-        if (uopt->overscan) { toSend[4] |= (1 << 0); }
+        if (uopt->matchPresetSource) { toSend[4] |= (1 << 0); }
         if (uopt->enableFrameTimeLock) { toSend[4] |= (1 << 1); }
         if (uopt->deintMode) { toSend[4] |= (1 << 2); }
         if (uopt->wantTap6) { toSend[4] |= (1 << 3); }
@@ -5532,8 +5465,7 @@ void loop() {
     break;
     case 'Z':
     {
-      // Overscan option
-      uopt->overscan = !uopt->overscan;
+      uopt->matchPresetSource = !uopt->matchPresetSource;
       saveUserPrefs();
     }
     break;
@@ -6149,6 +6081,8 @@ void handleType2Command() {
       saveUserPrefs();
       if (uopt->enableFrameTimeLock) { SerialM.println("FTL on"); }
       else { SerialM.println("FTL off"); }
+      FrameSync::reset();
+      //runAutoBestHTotal(); // includes needed checks
       break;
     case '6':
       //
@@ -6228,7 +6162,7 @@ void handleType2Command() {
         SerialM.print("line filter = "); SerialM.println((uint8_t)(f.read() - '0'));
         SerialM.print("peaking = "); SerialM.println((uint8_t)(f.read() - '0'));
         SerialM.print("pal force60 = "); SerialM.println((uint8_t)(f.read() - '0'));
-        SerialM.print("overscan = "); SerialM.println((uint8_t)(f.read() - '0'));
+        SerialM.print("matched = "); SerialM.println((uint8_t)(f.read() - '0'));
         SerialM.print("6-tap = "); SerialM.println((uint8_t)(f.read() - '0'));
         f.close();
       }
@@ -6291,7 +6225,7 @@ void handleType2Command() {
         SerialM.print("SDRAM clock: "); SerialM.print(memClock); SerialM.println("Mhz");
       }
       else {
-        SerialM.print("SDRAM clock: "); SerialM.println("Feedback clock (default)");
+        SerialM.print("SDRAM clock: "); SerialM.println("Feedback clock");
       }
     }
     break;
@@ -6765,7 +6699,7 @@ void saveUserPrefs() {
   f.write(uopt->wantVdsLineFilter + '0');
   f.write(uopt->wantPeaking + '0');
   f.write(uopt->PalForce60 + '0');
-  f.write(uopt->overscan + '0');
+  f.write(uopt->matchPresetSource + '0');
   f.write(uopt->wantTap6 + '0');
   f.close();
 }
