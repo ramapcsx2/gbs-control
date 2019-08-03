@@ -65,7 +65,7 @@ void PersWiFiManager::startApMode(){
   IPAddress apIP(192, 168, 4, 1);
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-  _apPass.length() ? WiFi.softAP(getApSsid().c_str(), _apPass.c_str(), 6) : WiFi.softAP(getApSsid().c_str());
+  _apPass.length() ? WiFi.softAP(getApSsid().c_str(), _apPass.c_str(), 11) : WiFi.softAP(getApSsid().c_str());
 
   _dnsServer->stop();
   // set which return code will be used for all other domains (e.g. sending

@@ -2240,7 +2240,7 @@ void doPostPresetLoadSteps() {
     GBS::VDS_PK_VL_HH_SEL::write(0);  // 3_43 1
 
     GBS::VDS_STEP_DLY_CNTRL::write(1);
-    GBS::VDS_STEP_GAIN::write(4);     // max 15
+    GBS::VDS_STEP_GAIN::write(1);     // max 15
     //GBS::VDS_UV_STEP_BYPS::write(0);  // enable step response
 
     // DAC filters / keep in presets for now
@@ -4612,8 +4612,24 @@ void calibrateAdcOffset()
     adco->b_off = GBS::ADC_BOFCTRL::read();
 }
 
-void preinit()
-{
+void loadDefaultUserOptions() {
+  uopt->presetPreference = 0; // #1
+  uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
+  uopt->presetSlot = 1; //
+  uopt->frameTimeLockMethod = 0; // compatibility with more displays
+  uopt->enableAutoGain = 0;
+  uopt->wantScanlines = 0;
+  uopt->wantOutputComponent = 0;
+  uopt->deintMode = 0;
+  uopt->wantVdsLineFilter = 1;
+  uopt->wantPeaking = 1;
+  uopt->preferScalingRgbhv = 0; // test: set to 1
+  uopt->wantTap6 = 1;
+  uopt->PalForce60 = 0;
+  uopt->matchPresetSource = 1;  // #14
+}
+
+void preinit() {
   system_phy_set_powerup_option(3); // 0 = default, use init byte; 3 = full calibr. each boot, extra 200ms
 }
 
@@ -4647,20 +4663,7 @@ void setup() {
   SerialM.println("\nstarting");
   //globalDelay = 0;
   // user options
-  uopt->presetPreference = 0;
-  uopt->presetSlot = 1; //
-  uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
-  uopt->frameTimeLockMethod = 0; // compatibility with more displays
-  uopt->enableAutoGain = 0;
-  uopt->wantScanlines = 0;
-  uopt->wantOutputComponent = 0;
-  uopt->deintMode = 0;
-  uopt->wantVdsLineFilter = 1;
-  uopt->wantPeaking = 1;
-  uopt->wantTap6 = 1;
-  uopt->preferScalingRgbhv = 0; // test: set to 1
-  uopt->PalForce60 = 1;
-  uopt->matchPresetSource = 0;
+  loadDefaultUserOptions();
   // run time options
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->enableDebugPings = false;
@@ -4725,28 +4728,16 @@ void setup() {
     SerialM.println("SPIFFS mount failed! ((1M SPIFFS) selected?)");
   }
   else {
-    // load userprefs.txt
-    File f = SPIFFS.open("/userprefs.txt", "r");
+    // load user preferences file
+    File f = SPIFFS.open("/preferencesv1.txt", "r");
     if (!f) {
-      SerialM.println("no userprefs yet");
-      uopt->presetPreference = 0;
-      uopt->enableFrameTimeLock = 0;
-      uopt->presetSlot = 1;
-      uopt->frameTimeLockMethod = 0;
-      uopt->enableAutoGain = 0;
-      uopt->wantScanlines = 0;
-      uopt->wantOutputComponent = 0;
-      uopt->deintMode = 0;
-      uopt->wantVdsLineFilter = 1;
-      uopt->wantPeaking = 1;
-      uopt->wantTap6 = 1;
-      uopt->PalForce60 = 0;
-      uopt->matchPresetSource = 0;
+      SerialM.println("no preferences file yet, create new");
+      loadDefaultUserOptions();
       saveUserPrefs(); // if this fails, there must be a spiffs problem
     }
     else {
       //on a fresh / spiffs not formatted yet MCU:  userprefs.txt open ok //result = 207
-      uopt->presetPreference = (uint8_t)(f.read() - '0');
+      uopt->presetPreference = (uint8_t)(f.read() - '0'); // #1
       if (uopt->presetPreference > 10) uopt->presetPreference = 0; // fresh spiffs ?
 
       uopt->enableFrameTimeLock = (uint8_t)(f.read() - '0');
@@ -4776,14 +4767,17 @@ void setup() {
       uopt->wantPeaking = (uint8_t)(f.read() - '0');
       if (uopt->wantPeaking > 1) uopt->wantPeaking = 1;
 
-      uopt->PalForce60 = (uint8_t)(f.read() - '0');
-      if (uopt->PalForce60 > 1) uopt->PalForce60 = 0;
-      
-      uopt->matchPresetSource = (uint8_t)(f.read() - '0');
-      if (uopt->matchPresetSource > 1) uopt->matchPresetSource = 0;
+      uopt->preferScalingRgbhv = (uint8_t)(f.read() - '0');
+      if (uopt->preferScalingRgbhv > 1) uopt->preferScalingRgbhv = 0;
 
       uopt->wantTap6 = (uint8_t)(f.read() - '0');
       if (uopt->wantTap6 > 1) uopt->wantTap6 = 1;
+
+      uopt->PalForce60 = (uint8_t)(f.read() - '0');
+      if (uopt->PalForce60 > 1) uopt->PalForce60 = 0;
+      
+      uopt->matchPresetSource = (uint8_t)(f.read() - '0'); // #14
+      if (uopt->matchPresetSource > 1) uopt->matchPresetSource = 1;
 
       f.close();
     }
@@ -6052,6 +6046,12 @@ void handleType2Command() {
       saveUserPrefs();
       break;
     case '1':
+      // reset to defaults button
+      loadDefaultUserOptions();
+      saveUserPrefs();
+      SerialM.println("options set to defaults, restarting");
+      delay(300);
+      ESP.reset(); // don't use restart(), messes up websocket reconnects
       //
       break;
     case '2':
@@ -6143,9 +6143,9 @@ void handleType2Command() {
         delay(1); // wifi stack
       }
       ////
-      File f = SPIFFS.open("/userprefs.txt", "r");
+      File f = SPIFFS.open("/preferencesv1.txt", "r");
       if (!f) {
-        SerialM.println("userprefs open failed");
+        SerialM.println("failed opening preferences file");
       }
       else {
         SerialM.print("preset preference = "); SerialM.println((uint8_t)(f.read() - '0'));
@@ -6499,9 +6499,9 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
   char slot = '0';
   File f;
 
-  f = SPIFFS.open("/userprefs.txt", "r");
+  f = SPIFFS.open("/preferencesv1.txt", "r");
   if (f) {
-    SerialM.println("userprefs.txt opened");
+    SerialM.println("preferencesv1.txt opened");
     char result[3];
     result[0] = f.read(); // todo: move file cursor manually
     result[1] = f.read();
@@ -6571,7 +6571,7 @@ void savePresetToSPIFFS() {
   char slot = '1';
 
   // first figure out if the user has set a preferenced slot
-  f = SPIFFS.open("/userprefs.txt", "r");
+  f = SPIFFS.open("/preferencesv1.txt", "r");
   if (f) {
     char result[3];
     result[0] = f.read(); // todo: move file cursor manually
@@ -6579,7 +6579,7 @@ void savePresetToSPIFFS() {
     result[2] = f.read();
 
     f.close();
-    slot = result[2];
+    slot = result[2];     // got the slot to save to now
   }
   else {
     // file not found, we don't know where to save this preset
@@ -6680,12 +6680,12 @@ void savePresetToSPIFFS() {
 }
 
 void saveUserPrefs() {
-  File f = SPIFFS.open("/userprefs.txt", "w");
+  File f = SPIFFS.open("/preferencesv1.txt", "w");
   if (!f) {
     SerialM.println("saveUserPrefs: open file failed");
     return;
   }
-  f.write(uopt->presetPreference + '0');
+  f.write(uopt->presetPreference + '0');  // #1
   f.write(uopt->enableFrameTimeLock + '0');
   f.write(uopt->presetSlot + '0');
   f.write(uopt->frameTimeLockMethod + '0');
@@ -6695,9 +6695,11 @@ void saveUserPrefs() {
   f.write(uopt->deintMode + '0');
   f.write(uopt->wantVdsLineFilter + '0');
   f.write(uopt->wantPeaking + '0');
-  f.write(uopt->PalForce60 + '0');
-  f.write(uopt->matchPresetSource + '0');
+  f.write(uopt->preferScalingRgbhv + '0');
   f.write(uopt->wantTap6 + '0');
+  f.write(uopt->PalForce60 + '0');
+  f.write(uopt->matchPresetSource + '0'); // #14
+
   f.close();
 }
 
