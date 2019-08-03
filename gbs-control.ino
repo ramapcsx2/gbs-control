@@ -2232,8 +2232,15 @@ void doPostPresetLoadSteps() {
     GBS::IF_LD_WRST_SEL::write(1); // at 1 fixes output position regardless of 1_24
     GBS::MADPT_Y_DELAY_UV_DELAY::write(0); // 2_17 default: 0
 
-    GBS::VDS_STEP_DLY_CNTRL::write(2);
-    GBS::VDS_STEP_GAIN::write(1);     // max 15
+    GBS::VDS_PK_LB_CORE::write(0);    // 3_44 0-3 // 1 for anti source jailbars
+    GBS::VDS_PK_LH_CORE::write(0);    // 3_46 0-3 // 1 for anti source jailbars
+    GBS::VDS_PK_LB_GAIN::write(0x1c); // 3_45 // peaking HF
+    GBS::VDS_PK_LH_GAIN::write(0x1a); // 3_47
+    GBS::VDS_PK_VL_HL_SEL::write(1);  // 3_43 0 if 1 then 3_45 HF almost no effect (coring 0xf9)
+    GBS::VDS_PK_VL_HH_SEL::write(0);  // 3_43 1
+
+    GBS::VDS_STEP_DLY_CNTRL::write(1);
+    GBS::VDS_STEP_GAIN::write(4);     // max 15
     //GBS::VDS_UV_STEP_BYPS::write(0);  // enable step response
 
     // DAC filters / keep in presets for now
@@ -5113,32 +5120,22 @@ void loop() {
     break;
     case 'D':
       if (GBS::ADC_UNUSED_62::read() == 0x00) { // "remembers" debug view 
-        //GBS::VDS_PK_VL_HL_SEL::write(0);
-        //GBS::VDS_PK_VL_HH_SEL::write(0);
-        //GBS::VDS_PK_VH_HL_SEL::write(0);
-        //GBS::VDS_PK_VH_HH_SEL::write(0);
-        if (uopt->wantPeaking == 0) { GBS::VDS_PK_Y_H_BYPS::write(0); } // 3_4e 0 // enable peaking but don't store
+        //if (uopt->wantPeaking == 0) { GBS::VDS_PK_Y_H_BYPS::write(0); } // 3_4e 0 // enable peaking but don't store
         GBS::VDS_PK_LB_GAIN::write(0x3f); // 3_45
         GBS::VDS_PK_LH_GAIN::write(0x3f); // 3_47
         GBS::ADC_UNUSED_60::write(GBS::VDS_Y_OFST::read()); // backup
         GBS::ADC_UNUSED_61::write(GBS::HD_Y_OFFSET::read());
-        GBS::ADC_UNUSED_62::write(GBS::ADC_FLTR::read() + 1); // remember to remove the 1 on restore
-        GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 0x30);
-        GBS::HD_Y_OFFSET::write(GBS::HD_Y_OFFSET::read() + 0x30);
-        //GBS::ADC_FLTR::write(0);     // 5_03 4/5 ADC filter 3=40, 2=70, 1=110, 0=150 Mhz
+        GBS::ADC_UNUSED_62::write(1); // remember to remove on restore
+        GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 0x24);
+        GBS::HD_Y_OFFSET::write(GBS::HD_Y_OFFSET::read() + 0x24);
         //GBS::IF_IN_DREG_BYPS::write(1); // enhances noise from not delaying IF processing properly
       }
       else {
-        //GBS::VDS_PK_VL_HL_SEL::write(1);
-        //GBS::VDS_PK_VL_HH_SEL::write(1);
-        //GBS::VDS_PK_VH_HL_SEL::write(1);
-        //GBS::VDS_PK_VH_HH_SEL::write(1);
-        if (uopt->wantPeaking == 0) { GBS::VDS_PK_Y_H_BYPS::write(1); } // 3_4e 0
-        GBS::VDS_PK_LB_GAIN::write(0x1b); // 3_45
-        GBS::VDS_PK_LH_GAIN::write(0x10); // 3_47
+        //if (uopt->wantPeaking == 0) { GBS::VDS_PK_Y_H_BYPS::write(1); } // 3_4e 0
+        GBS::VDS_PK_LB_GAIN::write(0x1c); // 3_45
+        GBS::VDS_PK_LH_GAIN::write(0x1a); // 3_47
         GBS::VDS_Y_OFST::write(GBS::ADC_UNUSED_60::read()); // restore
         GBS::HD_Y_OFFSET::write(GBS::ADC_UNUSED_61::read());
-        //GBS::ADC_FLTR::write(GBS::ADC_UNUSED_62::read() - 1); // usually 40Mhz
         //GBS::IF_IN_DREG_BYPS::write(0);
         GBS::ADC_UNUSED_60::write(0); // .. and clear
         GBS::ADC_UNUSED_61::write(0);
