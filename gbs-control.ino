@@ -22,13 +22,19 @@ typedef TV5725<GBS_ADDR> GBS;
 
 #if defined(ESP8266)  // select WeMos D1 R2 & mini in IDE for NodeMCU! (otherwise LED_BUILTIN is mapped to D0 / does not work)
 #include <ESP8266WiFi.h>
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 #include "FS.h"
 #include <DNSServer.h>
-#include <ESP8266WebServer.h>
 #include <WiFiUdp.h>
-#include <ArduinoOTA.h>
-#include "PersWiFiManager.h"
 #include <ESP8266mDNS.h>  // mDNS library for finding gbscontrol.local on the local network
+#include <ArduinoOTA.h>
+
+// PersWiFiManager library by Ryan Downing
+// https://github.com/r-downing/PersWiFiManager
+// included in project root folder to allow modifications within limitations of the Arduino framework
+// See 3rdparty/PersWiFiManager for unmodified source and license
+#include "PersWiFiManager.h"
 
 //#define HAVE_PINGER_LIBRARY // ESP8266-ping library to aid debugging WiFi issues, install via Arduino library manager
 #ifdef HAVE_PINGER_LIBRARY
@@ -36,9 +42,13 @@ typedef TV5725<GBS_ADDR> GBS;
 #include <PingerResponse.h>
 unsigned long pingLastTime;
 #endif
+
 // WebSockets library by Markus Sattler
-// to install: "Sketch" > "Include Library" > "Manage Libraries ..." > search for "websockets" and install "WebSockets for Arduino (Server + Client)"
-#include <WebSocketsServer.h>
+// https://github.com/Links2004/arduinoWebSockets
+// included in src folder to allow header modifications within limitations of the Arduino framework
+// See 3rdparty/WebSockets for unmodified source and license
+#include "src/WebSockets.h"
+#include "src/WebSocketsServer.h"
 
 const char* ap_ssid = "gbscontrol";
 const char* ap_password = "qqqqqqqq";
@@ -48,10 +58,12 @@ const char* device_hostname_full = "gbscontrol.local";
 const char* device_hostname_partial = "gbscontrol"; // for MDNS
 //
 const char* ap_info_string = "(WiFi) AP mode (SSID: gbscontrol, pass 'qqqqqqqq'): Access 'gbscontrol.local' in your browser";
-ESP8266WebServer server(80);
+AsyncWebServer server(80);
 DNSServer dnsServer;
 WebSocketsServer webSocket(81);
+//AsyncWebSocket webSocket("/ws");
 PersWiFiManager persWM(server, dnsServer);
+
 #ifdef HAVE_PINGER_LIBRARY
 Pinger pinger; // pinger global object to aid debugging WiFi issues
 #endif
@@ -207,7 +219,8 @@ struct adcOptions {
 } adcopts;
 struct adcOptions *adco = &adcopts;
 
-char globalCommand; // Serial / Web Server commands
+char typeOneCommand; // Serial / Web Server commands
+char typeTwoCommand; // Serial / Web Server commands
 //uint8_t globalDelay; // used for dev / debug
 
 #if defined(ESP8266)
@@ -215,15 +228,12 @@ char globalCommand; // Serial / Web Server commands
 class SerialMirror : public Stream {
   size_t write(const uint8_t *data, size_t size) {
 #if defined(ESP8266)
-    unsigned long start = millis();
-    webSocket.broadcastTXT(data, size);
-    if (millis() - start > 750) {
-      if (rto->webServerEnabled && rto->webServerStarted) {
-        if (webSocket.connectedClients() > 0) {
-          webSocket.disconnect();
-        }
-      }
+    if (ESP.getFreeHeap() > 22000) {
+      webSocket.broadcastTXT(data, size);
     }
+    //else {
+    //  webSocket.disconnect();
+    //}
 #endif
     Serial.write(data, size);
     return size;
@@ -231,15 +241,12 @@ class SerialMirror : public Stream {
 
   size_t write(uint8_t data) {
 #if defined(ESP8266)
-    unsigned long start = millis();
-    webSocket.broadcastTXT(&data);
-    if (millis() - start > 750) {
-      if (rto->webServerEnabled && rto->webServerStarted) {
-        if (webSocket.connectedClients() > 0) {
-          webSocket.disconnect();
-        }
-      }
+    if (ESP.getFreeHeap() > 22000) {
+      webSocket.broadcastTXT(&data);
     }
+    //else {
+    //  webSocket.disconnect();
+    //}
 #endif
     Serial.write(data);
     return 1;
@@ -557,6 +564,8 @@ void setResetParameters() {
   rto->clampPositionIsSet = 0; // some functions override these, so make sure
   rto->coastPositionIsSet = 0;
   rto->continousStableCounter = 0;
+  typeOneCommand = '@';
+  typeTwoCommand = '@';
 }
 
 void OutputComponentOrVGA() {
@@ -871,7 +880,7 @@ void optimizeSogLevel() {
   //unfreezeVideo();
   delay(160);
 
-  while (rto->currentLevelSOG >= 0) {
+  while (1) {
     uint8_t syncGoodCounter = 0;
     unsigned long timeout = millis();
     while ((millis() - timeout) < 370) {
@@ -917,6 +926,7 @@ void optimizeSogLevel() {
     if (GBS::ADC_TEST_0C_BIT4::read() == 1) {
       GBS::ADC_TEST_0C_BIT4::write(0);
       //Serial.println("filt off, back to test");
+      // todo: this is all dodgy, better rethink the whole function
       continue; // back to test
     }
     GBS::ADC_TEST_0C_BIT4::write(1);
@@ -2660,7 +2670,7 @@ void applyPresets(uint8_t result) {
   rto->presetIsPalForce60 = 0; // the default
   rto->outModeHdBypass = 0; // the default at this stage
   // carry debug view over if possible
-  if (GBS::ADC_UNUSED_62::read() != 0x00) { globalCommand = 'D'; }
+  if (GBS::ADC_UNUSED_62::read() != 0x00) { typeOneCommand = 'D'; }
 
   if (uopt->PalForce60 == 1) {
     if (uopt->presetPreference != 2) { // != custom. custom saved as pal preset has ntsc customization
@@ -4708,7 +4718,8 @@ void setup() {
   adco->g_off = 0;
   adco->b_off = 0;
 
-  globalCommand = 0; // web server uses this to issue commands
+  typeOneCommand = '@'; // ASCII @ = 0
+  typeTwoCommand = '@';
 
   pinMode(DEBUG_IN_PIN, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
@@ -4871,6 +4882,15 @@ void setup() {
   }
   
   LEDOFF; // new behaviour: only light LED on active sync
+
+  // some debug tools leave garbage in the serial rx buffer 
+  if (Serial.available()) {
+    uint8_t maxThrowAway = 50;
+    while (Serial.available() && maxThrowAway > 0) {
+      Serial.read();
+      maxThrowAway--;
+    }
+  }
 }
 
 #ifdef HAVE_BUTTONS
@@ -4918,6 +4938,88 @@ void handleButtons(void) {
 }
 #endif
 
+void updateWebSocketData() {
+  char toSend[6] = { 0 };
+  toSend[0] = '#'; // makeshift ping in slot 0
+
+  switch (rto->presetID) {
+  case 0x01:
+  case 0x11:
+    toSend[1] = '1';
+    break;
+  case 0x02:
+  case 0x12:
+    toSend[1] = '2';
+    break;
+  case 0x03:
+  case 0x13:
+    toSend[1] = '3';
+    break;
+  case 0x04:
+  case 0x14:
+    toSend[1] = '4';
+    break;
+  case 0x05:
+  case 0x15:
+    toSend[1] = '5';
+    break;
+  case 0x09: // custom
+    toSend[1] = '9';
+    break;
+  case 0x21: // bypass 1
+  case 0x22: // bypass 2
+    toSend[1] = '8';
+    break;
+  default:
+    toSend[1] = '0';
+    break;
+  }
+
+  switch (uopt->presetSlot) {
+  case 1:
+    toSend[2] = '1';
+    break;
+  case 2:
+    toSend[2] = '2';
+    break;
+  case 3:
+    toSend[2] = '3';
+    break;
+  case 4:
+    toSend[2] = '4';
+    break;
+  case 5:
+    toSend[2] = '5';
+    break;
+  default:
+    toSend[2] = '1';
+    break;
+  }
+
+  toSend[3] = '@'; // 0x40
+  toSend[4] = '@'; // 0x40
+
+  if (uopt->enableAutoGain) { toSend[3] |= (1 << 0); }
+  if (uopt->wantScanlines) { toSend[3] |= (1 << 1); }
+  if (uopt->wantVdsLineFilter) { toSend[3] |= (1 << 2); }
+  if (uopt->wantPeaking) { toSend[3] |= (1 << 3); }
+  if (uopt->PalForce60) { toSend[3] |= (1 << 4); }
+  if (uopt->wantOutputComponent) { toSend[3] |= (1 << 5); }
+
+  if (uopt->matchPresetSource) { toSend[4] |= (1 << 0); }
+  if (uopt->enableFrameTimeLock) { toSend[4] |= (1 << 1); }
+  if (uopt->deintMode) { toSend[4] |= (1 << 2); }
+  if (uopt->wantTap6) { toSend[4] |= (1 << 3); }
+
+  // send ping and stats
+  if (ESP.getFreeHeap() > 14000) {
+    webSocket.broadcastTXT(toSend);
+  }
+  else {
+    webSocket.disconnect();
+  }
+}
+
 void handleWiFi(boolean instant) {
   static unsigned long lastTimePing = millis();
   yield();
@@ -4926,95 +5028,15 @@ void handleWiFi(boolean instant) {
     persWM.handleWiFi(); // if connected, returns instantly. otherwise it reconnects or opens AP
     dnsServer.processNextRequest();
     MDNS.update();
-    webSocket.loop(); // checks _runnning internally, skips all work if not
-    // if there's a control command from the server, globalCommand will now hold it.
-    // process it in the parser, then reset to 0 at the end of the sketch.
+    //webSocket.loop(); // checks _runnning internally, skips all work if not
 
-    if ((millis() - lastTimePing > 555) || instant) { // slightly odd value so not everything happens at once
-      if (webSocket.connectedClients(true) > 0) { // true = with builtin ping (should help the WS lib detect issues)
-        char toSend[6] = { 0 };
-        toSend[0] = '#'; // makeshift ping in slot 0
-
-        switch (rto->presetID) {
-        case 0x01:
-        case 0x11:
-          toSend[1] = '1';
-          break;
-        case 0x02:
-        case 0x12:
-          toSend[1] = '2';
-          break;
-        case 0x03:
-        case 0x13:
-          toSend[1] = '3';
-          break;
-        case 0x04:
-        case 0x14:
-          toSend[1] = '4';
-          break;
-        case 0x05:
-        case 0x15:
-          toSend[1] = '5';
-          break;
-        case 0x09: // custom
-          toSend[1] = '9';
-          break;
-        case 0x21: // bypass 1
-        case 0x22: // bypass 2
-          toSend[1] = '8';
-          break;
-        default:
-          toSend[1] = '0';
-          break;
-        }
-
-        switch (uopt->presetSlot) {
-        case 1:
-          toSend[2] = '1';
-          break;
-        case 2:
-          toSend[2] = '2';
-          break;
-        case 3:
-          toSend[2] = '3';
-          break;
-        case 4:
-          toSend[2] = '4';
-          break;
-        case 5:
-          toSend[2] = '5';
-          break;
-        default:
-          toSend[2] = '1';
-          break;
-        }
-
-        toSend[3] = '@'; // 0x40
-        toSend[4] = '@'; // 0x40
-
-        if (uopt->enableAutoGain) { toSend[3] |= (1 << 0); }
-        if (uopt->wantScanlines) { toSend[3] |= (1 << 1); }
-        if (uopt->wantVdsLineFilter) { toSend[3] |= (1 << 2); }
-        if (uopt->wantPeaking) { toSend[3] |= (1 << 3); }
-        if (uopt->PalForce60) { toSend[3] |= (1 << 4); } 
-        if (uopt->wantOutputComponent) { toSend[3] |= (1 << 5); }
-
-        if (uopt->matchPresetSource) { toSend[4] |= (1 << 0); }
-        if (uopt->enableFrameTimeLock) { toSend[4] |= (1 << 1); }
-        if (uopt->deintMode) { toSend[4] |= (1 << 2); }
-        if (uopt->wantTap6) { toSend[4] |= (1 << 3); }
-
-        unsigned long start = millis();
-        // send ping and stats
-        webSocket.broadcastTXT(toSend);
-        if(millis() - start > 750) {
-          webSocket.disconnect();
-        }
-        delay(0);
+    if ((millis() - lastTimePing > 973) || instant) { // slightly odd value so not everything happens at once
+      if (webSocket.connectedClients(true) > 0) { // true = with compliant ping
+        updateWebSocketData();
+        delay(1);
       }
       lastTimePing = millis();
     }
-    server.handleClient(); // after websocket loop!
   }
 
   if (rto->allowUpdatesOTA) {
@@ -5051,11 +5073,11 @@ void loop() {
   // is there a command from Terminal or web ui?
   // Serial takes precedence
   if (Serial.available()) {
-    globalCommand = Serial.read();
+    typeOneCommand = Serial.read();
   }
-  if (globalCommand != 0) 
+  if (typeOneCommand != '@') 
   {
-    switch (globalCommand) {
+    switch (typeOneCommand) {
     case ' ':
       // skip spaces
       inputStage = 0; // reset this as well
@@ -5776,14 +5798,24 @@ void loop() {
     }
     break;
     default:
-      SerialM.println("unknown command");
+      Serial.print("unknown command ");
+      Serial.println(typeOneCommand, HEX);
       break;
     }
     // a web ui or terminal command has finished. good idea to reset sync lock timer
     // important if the command was to change presets, possibly others
     lastVsyncLock = millis();
+
+    if (!Serial.available()) {
+      // in case we handled a Serial or web server command and there's no more extra commands
+      typeOneCommand = '@';
+    }
   }
-  globalCommand = 0; // in case we handled a Serial or web server command
+
+  if (typeTwoCommand != '@') {
+    handleType2Command(typeTwoCommand);
+    typeTwoCommand = '@'; // in case we handled web server command
+  }
 
   // run FrameTimeLock if enabled
   if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false && rto->autoBestHtotalEnabled && 
@@ -6001,361 +6033,332 @@ void loop() {
 
 #if defined(ESP8266)
 #include "webui_html.h"
-// gzip -c9 webui.html > webui_html && xxd -i webui_html > webui_html.h && rm webui_html && sed -i -e 's/unsigned char webui_html\[]/const char webui_html[] PROGMEM/' webui_html.h && sed -i -e 's/unsigned int webui_html_len/const unsigned int webui_html_len/' webui_html.h
-void handleRoot() {
-  // server.send_P allows directly sending from PROGMEM, using less RAM. (sometimes stalls)
-  // server.send uses a String held in RAM.
-  //String page = FPSTR(HTML);
-  //server.send(200, "text/html", page);
+// gzip -c9 webui.html > webui_html && xxd -i webui_html > webui_html.h && rm webui_html && sed -i -e 's/unsigned char webui_html\[]/const uint8_t webui_html[] PROGMEM/' webui_html.h && sed -i -e 's/unsigned int webui_html_len/const unsigned int webui_html_len/' webui_html.h
 
-  //webSocket.loop(); // this appears to fix a crashing issue but below should be more correct
-  // first close ws server, preventing connections while page gets (re)sent
-  // close() calls disconnect() internally, then stops the server
-  webSocket.close();  
-  yield();
-
-  //unsigned long start = millis();
-  server.sendHeader("Content-Encoding", "gzip");
-  server.send_P(200, "text/html", webui_html, webui_html_len); // send_P method, no String needed
-  //Serial.print("sending took: "); Serial.println(millis() - start);
-  webSocket.begin(); // restart ws server
-}
-
-void handleType1Command() {
-  server.send(200);
-  if (server.hasArg("plain")) {
-    globalCommand = server.arg("plain").charAt(0);
+void handleType2Command(char argument) {
+  switch (argument) {
+  case '0':
+    SerialM.print("pal force 60hz ");
+    if (uopt->PalForce60 == 0) {
+      uopt->PalForce60 = 1;
+      Serial.println("on");
+    }
+    else {
+      uopt->PalForce60 = 0;
+      Serial.println("off");
+    }
+    saveUserPrefs();
+    break;
+  case '1':
+    // reset to defaults button
+    loadDefaultUserOptions();
+    saveUserPrefs();
+    SerialM.println("options set to defaults, restarting");
+    delay(300);
+    ESP.reset(); // don't use restart(), messes up websocket reconnects
+    //
+    break;
+  case '2':
+    //
+    break;
+  case '3':  // load custom preset
+  {
+    const uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
+    uopt->presetPreference = 2; // custom
+    writeProgramArrayNew(preset, false);
+    doPostPresetLoadSteps();
+    //uopt->presetPreference = 2; // custom
+    saveUserPrefs();
   }
-}
-
-void handleType2Command() {
-  server.send(200);
-  if (server.hasArg("plain")) {
-    char argument = server.arg("plain").charAt(0);
-    switch (argument) {
-    case '0':
-      SerialM.print("pal force 60hz ");
-      if (uopt->PalForce60 == 0) {
-        uopt->PalForce60 = 1;
-        Serial.println("on");
-      }
-      else {
-        uopt->PalForce60 = 0;
-        Serial.println("off");
-      }
-      saveUserPrefs();
-      break;
-    case '1':
-      // reset to defaults button
-      loadDefaultUserOptions();
-      saveUserPrefs();
-      SerialM.println("options set to defaults, restarting");
-      delay(300);
-      ESP.reset(); // don't use restart(), messes up websocket reconnects
-      //
-      break;
-    case '2':
-      //
-      break;
-    case '3':  // load custom preset
-    {
-      const uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
-      uopt->presetPreference = 2; // custom
-      writeProgramArrayNew(preset, false);
-      doPostPresetLoadSteps();
-      //uopt->presetPreference = 2; // custom
-      saveUserPrefs();
-    }
+  break;
+  case '4': // save custom preset
+    savePresetToSPIFFS();
+    uopt->presetPreference = 2; // custom
+    saveUserPrefs();
     break;
-    case '4': // save custom preset
-      savePresetToSPIFFS();
-      uopt->presetPreference = 2; // custom
-      saveUserPrefs();
-      break;
-    case '5':
-      //Frame Time Lock toggle
-      uopt->enableFrameTimeLock = !uopt->enableFrameTimeLock;
-      saveUserPrefs();
-      if (uopt->enableFrameTimeLock) { SerialM.println("FTL on"); }
-      else { SerialM.println("FTL off"); }
-      FrameSync::reset();
-      //runAutoBestHTotal(); // includes needed checks
-      break;
-    case '6':
-      //
-      break;
-    case '7':
-      uopt->wantScanlines = !uopt->wantScanlines;
-      SerialM.print("scanlines ");
-      if (uopt->wantScanlines) {
-        SerialM.print("on ");
-        if (rto->motionAdaptiveDeinterlaceActive) {
-          SerialM.println("(but requires progressive source or bob deinterlacing)");
-        }
-        else {
-          SerialM.println("");
-        }
-      }
-      else {
-        SerialM.println("off");
-        disableScanlines();
-      }
-      saveUserPrefs();
+  case '5':
+    //Frame Time Lock toggle
+    uopt->enableFrameTimeLock = !uopt->enableFrameTimeLock;
+    saveUserPrefs();
+    if (uopt->enableFrameTimeLock) { SerialM.println("FTL on"); }
+    else { SerialM.println("FTL off"); }
+    FrameSync::reset();
+    //runAutoBestHTotal(); // includes needed checks
     break;
-    case '9':
-      //
-      break;
-    case 'a':
-      Serial.println("restart");
-      delay(300);
-      ESP.reset(); // don't use restart(), messes up websocket reconnects
-      break;
-    case 'b':
-      uopt->presetSlot = 1;
-      uopt->presetPreference = 2; // custom
-      saveUserPrefs();
-      break;
-    case 'c':
-      uopt->presetSlot = 2;
-      uopt->presetPreference = 2;
-      saveUserPrefs();
-      break;
-    case 'd':
-      uopt->presetSlot = 3;
-      uopt->presetPreference = 2;
-      saveUserPrefs();
-      break;
-    case 'j':
-      uopt->presetSlot = 4;
-      uopt->presetPreference = 2;
-      saveUserPrefs();
-      break;
-    case 'k':
-      uopt->presetSlot = 5;
-      uopt->presetPreference = 2;
-      saveUserPrefs();
-      break;
-    case 'e': // print files on spiffs
-    {
-      Dir dir = SPIFFS.openDir("/");
-      while (dir.next()) {
-        SerialM.print(dir.fileName()); SerialM.print(" "); SerialM.println(dir.fileSize());
-        delay(1); // wifi stack
-      }
-      ////
-      File f = SPIFFS.open("/preferencesv1.txt", "r");
-      if (!f) {
-        SerialM.println("failed opening preferences file");
-      }
-      else {
-        SerialM.print("preset preference = "); SerialM.println((uint8_t)(f.read() - '0'));
-        SerialM.print("frame time lock = "); SerialM.println((uint8_t)(f.read() - '0'));
-        SerialM.print("preset slot = "); SerialM.println((uint8_t)(f.read() - '0'));
-        SerialM.print("frame lock method = "); SerialM.println((uint8_t)(f.read() - '0'));
-        SerialM.print("auto gain = "); SerialM.println((uint8_t)(f.read() - '0'));
-        SerialM.print("scanlines = "); SerialM.println((uint8_t)(f.read() - '0'));
-        SerialM.print("component output = "); SerialM.println((uint8_t)(f.read() - '0'));
-        SerialM.print("deinterlacer mode = "); SerialM.println((uint8_t)(f.read() - '0'));
-        SerialM.print("line filter = "); SerialM.println((uint8_t)(f.read() - '0'));
-        SerialM.print("peaking = "); SerialM.println((uint8_t)(f.read() - '0'));
-        SerialM.print("pal force60 = "); SerialM.println((uint8_t)(f.read() - '0'));
-        SerialM.print("matched = "); SerialM.println((uint8_t)(f.read() - '0'));
-        SerialM.print("6-tap = "); SerialM.println((uint8_t)(f.read() - '0'));
-        f.close();
-      }
-    }
+  case '6':
+    //
     break;
-    case 'f':
-    case 'g':
-    case 'h':
-    case 'p':
-    case 's':
-    {
-      // load preset via webui
-      uint8_t videoMode = getVideoMode();
-      if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
-      //uint8_t backup = uopt->presetPreference;
-      if (argument == 'f') uopt->presetPreference = 0; // 1280x960
-      if (argument == 'g') uopt->presetPreference = 3; // 1280x720
-      if (argument == 'h') uopt->presetPreference = 1; // 640x480
-      if (argument == 'p') uopt->presetPreference = 4; // 1280x1024
-      if (argument == 's') uopt->presetPreference = 5; // 1920x1080
-      rto->videoStandardInput = 0; // force hard reset
-      applyPresets(videoMode);
-      saveUserPrefs();
-      //uopt->presetPreference = backup;
+  case '7':
+    uopt->wantScanlines = !uopt->wantScanlines;
+    SerialM.print("scanlines ");
+    if (uopt->wantScanlines) {
+      SerialM.print("on ");
+      if (rto->motionAdaptiveDeinterlaceActive) {
+        SerialM.println("(but requires progressive source or bob deinterlacing)");
+      }
+      else {
+        SerialM.println("");
+      }
     }
+    else {
+      SerialM.println("off");
+      disableScanlines();
+    }
+    saveUserPrefs();
     break;
-    case 'i':
-      // toggle active frametime lock method
-      SerialM.print("FTL method: ");
-      if (uopt->frameTimeLockMethod == 0) {
-        uopt->frameTimeLockMethod = 1;
-        SerialM.println("1");
-      }
-      else if (uopt->frameTimeLockMethod == 1) {
-        uopt->frameTimeLockMethod = 0;
-        SerialM.println("0");
-      }
-      saveUserPrefs();
-      break;
-    case 'l':
-      // cycle through available SDRAM clocks
-    {
-      uint8_t PLL_MS = GBS::PLL_MS::read();
-      uint8_t memClock = 0;
-      PLL_MS++; PLL_MS &= 0x7;
-      switch (PLL_MS) {
-      case 0: memClock = 108; break;
-      case 1: memClock = 81; break; // goes well with 4_2C = 0x14, 4_2D = 0x27
-      case 2: memClock = 10; break; //feedback clock
-      case 3: memClock = 162; break;
-      case 4: memClock = 144; break;
-      case 5: memClock = 185; break;
-      case 6: memClock = 216; break;
-      case 7: memClock = 129; break;
-      default: break;
-      }
-      GBS::PLL_MS::write(PLL_MS);
-      ResetSDRAM();
-      if (memClock != 10) {
-        SerialM.print("SDRAM clock: "); SerialM.print(memClock); SerialM.println("Mhz");
-      }
-      else {
-        SerialM.print("SDRAM clock: "); SerialM.println("Feedback clock");
-      }
-    }
+  case '9':
+    //
     break;
-    case 'm':
-      SerialM.print("line filter ");
-      if (uopt->wantVdsLineFilter) {
-        uopt->wantVdsLineFilter = 0;
-        GBS::VDS_D_RAM_BYPS::write(1);
-        SerialM.println("off");
-      }
-      else {
-        uopt->wantVdsLineFilter = 1;
-        GBS::VDS_D_RAM_BYPS::write(0);
-        SerialM.println("on");
-      }
+  case 'a':
+    Serial.println("restart");
+    delay(300);
+    ESP.reset(); // don't use restart(), messes up websocket reconnects
+    break;
+  case 'b':
+    uopt->presetSlot = 1;
+    uopt->presetPreference = 2; // custom
+    saveUserPrefs();
+    break;
+  case 'c':
+    uopt->presetSlot = 2;
+    uopt->presetPreference = 2;
+    saveUserPrefs();
+    break;
+  case 'd':
+    uopt->presetSlot = 3;
+    uopt->presetPreference = 2;
+    saveUserPrefs();
+    break;
+  case 'j':
+    uopt->presetSlot = 4;
+    uopt->presetPreference = 2;
+    saveUserPrefs();
+    break;
+  case 'k':
+    uopt->presetSlot = 5;
+    uopt->presetPreference = 2;
+    saveUserPrefs();
+    break;
+  case 'e': // print files on spiffs
+  {
+    Dir dir = SPIFFS.openDir("/");
+    while (dir.next()) {
+      SerialM.print(dir.fileName()); SerialM.print(" "); SerialM.println(dir.fileSize());
+      delay(1); // wifi stack
+    }
+    ////
+    File f = SPIFFS.open("/preferencesv1.txt", "r");
+    if (!f) {
+      SerialM.println("failed opening preferences file");
+    }
+    else {
+      SerialM.print("preset preference = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("frame time lock = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("preset slot = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("frame lock method = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("auto gain = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("scanlines = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("component output = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("deinterlacer mode = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("line filter = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("peaking = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("pal force60 = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("matched = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("6-tap = "); SerialM.println((uint8_t)(f.read() - '0'));
+      f.close();
+    }
+  }
+  break;
+  case 'f':
+  case 'g':
+  case 'h':
+  case 'p':
+  case 's':
+  {
+    // load preset via webui
+    uint8_t videoMode = getVideoMode();
+    if (videoMode == 0) videoMode = rto->videoStandardInput; // last known good as fallback
+    //uint8_t backup = uopt->presetPreference;
+    if (argument == 'f') uopt->presetPreference = 0; // 1280x960
+    if (argument == 'g') uopt->presetPreference = 3; // 1280x720
+    if (argument == 'h') uopt->presetPreference = 1; // 640x480
+    if (argument == 'p') uopt->presetPreference = 4; // 1280x1024
+    if (argument == 's') uopt->presetPreference = 5; // 1920x1080
+    rto->videoStandardInput = 0; // force hard reset
+    applyPresets(videoMode);
+    saveUserPrefs();
+    //uopt->presetPreference = backup;
+  }
+  break;
+  case 'i':
+    // toggle active frametime lock method
+    SerialM.print("FTL method: ");
+    if (uopt->frameTimeLockMethod == 0) {
+      uopt->frameTimeLockMethod = 1;
+      SerialM.println("1");
+    }
+    else if (uopt->frameTimeLockMethod == 1) {
+      uopt->frameTimeLockMethod = 0;
+      SerialM.println("0");
+    }
+    saveUserPrefs();
+    break;
+  case 'l':
+    // cycle through available SDRAM clocks
+  {
+    uint8_t PLL_MS = GBS::PLL_MS::read();
+    uint8_t memClock = 0;
+    PLL_MS++; PLL_MS &= 0x7;
+    switch (PLL_MS) {
+    case 0: memClock = 108; break;
+    case 1: memClock = 81; break; // goes well with 4_2C = 0x14, 4_2D = 0x27
+    case 2: memClock = 10; break; //feedback clock
+    case 3: memClock = 162; break;
+    case 4: memClock = 144; break;
+    case 5: memClock = 185; break;
+    case 6: memClock = 216; break;
+    case 7: memClock = 129; break;
+    default: break;
+    }
+    GBS::PLL_MS::write(PLL_MS);
+    ResetSDRAM();
+    if (memClock != 10) {
+      SerialM.print("SDRAM clock: "); SerialM.print(memClock); SerialM.println("Mhz");
+    }
+    else {
+      SerialM.print("SDRAM clock: "); SerialM.println("Feedback clock");
+    }
+  }
+  break;
+  case 'm':
+    SerialM.print("line filter ");
+    if (uopt->wantVdsLineFilter) {
+      uopt->wantVdsLineFilter = 0;
+      GBS::VDS_D_RAM_BYPS::write(1);
+      SerialM.println("off");
+    }
+    else {
+      uopt->wantVdsLineFilter = 1;
+      GBS::VDS_D_RAM_BYPS::write(0);
+      SerialM.println("on");
+    }
+    saveUserPrefs();
+    break;
+  case 'n':
+    SerialM.print("ADC gain++ : ");
+    uopt->enableAutoGain = 0;
+    GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() - 1);
+    GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() - 1);
+    GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() - 1);
+    SerialM.println(GBS::ADC_RGCTRL::read(), HEX);
+    break;
+  case 'o':
+    SerialM.print("ADC gain-- : ");
+    uopt->enableAutoGain = 0;
+    GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 1);
+    GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 1);
+    GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 1);
+    SerialM.println(GBS::ADC_RGCTRL::read(), HEX);
+    break;
+  case 'A':
+  {
+    uint16_t htotal = GBS::VDS_HSYNC_RST::read();
+    uint16_t hbstd = GBS::VDS_DIS_HB_ST::read();
+    uint16_t hbspd = GBS::VDS_DIS_HB_SP::read();
+    if ((hbstd > 4) && (hbspd < (htotal - 4)))
+    {
+      GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 4);
+      GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() + 4);
+    }
+    else
+    {
+      SerialM.println("limit");
+    }
+  }
+  break;
+  case 'B':
+  {
+    uint16_t htotal = GBS::VDS_HSYNC_RST::read();
+    uint16_t hbstd = GBS::VDS_DIS_HB_ST::read();
+    uint16_t hbspd = GBS::VDS_DIS_HB_SP::read();
+    if ((hbstd < (htotal - 4)) && (hbspd > 4))
+    {
+      GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 4);
+      GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 4);
+    }
+    else
+    {
+      SerialM.println("limit");
+    }
+  }
+  break;
+  case 'C':
+  {
+    uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
+    uint16_t vbstd = GBS::VDS_DIS_VB_ST::read();
+    uint16_t vbspd = GBS::VDS_DIS_VB_SP::read();
+    if ((vbstd > 6) && (vbspd < (vtotal - 4)))
+    {
+      GBS::VDS_DIS_VB_ST::write(vbstd - 2);
+      GBS::VDS_DIS_VB_SP::write(vbspd + 2);
+    }
+    else
+    {
+      SerialM.println("limit");
+    }
+  }
+  break;
+  case 'D':
+  {
+    uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
+    uint16_t vbstd = GBS::VDS_DIS_VB_ST::read();
+    uint16_t vbspd = GBS::VDS_DIS_VB_SP::read();
+    if ((vbstd < (vtotal - 4)) && (vbspd > 6))
+    {
+      GBS::VDS_DIS_VB_ST::write(vbstd + 2);
+      GBS::VDS_DIS_VB_SP::write(vbspd - 2);
+    }
+    else
+    {
+      SerialM.println("limit");
+    }
+  }
+  break;
+  case 'q':
+    if (uopt->deintMode != 1)
+    {
+      uopt->deintMode = 1;
+      disableMotionAdaptDeinterlace();
       saveUserPrefs();
-      break;
-    case 'n':
-      SerialM.print("ADC gain++ : ");
-      uopt->enableAutoGain = 0;
-      GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() - 1);
-      GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() - 1);
-      GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() - 1);
-      SerialM.println(GBS::ADC_RGCTRL::read(), HEX);
-      break;
-    case 'o':
-      SerialM.print("ADC gain-- : ");
-      uopt->enableAutoGain = 0;
-      GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 1);
-      GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 1);
-      GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 1);
-      SerialM.println(GBS::ADC_RGCTRL::read(), HEX);
-      break;
-    case 'A':
-    {
-      uint16_t htotal = GBS::VDS_HSYNC_RST::read();
-      uint16_t hbstd = GBS::VDS_DIS_HB_ST::read();
-      uint16_t hbspd = GBS::VDS_DIS_HB_SP::read();
-      if ((hbstd > 4) && (hbspd < (htotal - 4)))
-      {
-        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 4);
-        GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() + 4);
-      }
-      else
-      {
-        SerialM.println("limit");
-      }
     }
-      break;
-    case 'B':
+    SerialM.println("Deinterlacer: Bob");
+    break;
+  case 'r':
+    if (uopt->deintMode != 0)
     {
-      uint16_t htotal = GBS::VDS_HSYNC_RST::read();
-      uint16_t hbstd = GBS::VDS_DIS_HB_ST::read();
-      uint16_t hbspd = GBS::VDS_DIS_HB_SP::read();
-      if ((hbstd < (htotal - 4)) && (hbspd > 4))
-      {
-        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 4);
-        GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 4);
-      }
-      else
-      {
-        SerialM.println("limit");
-      }
-    }
-      break;
-    case 'C':
-    {
-      uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
-      uint16_t vbstd = GBS::VDS_DIS_VB_ST::read();
-      uint16_t vbspd = GBS::VDS_DIS_VB_SP::read();
-      if ((vbstd > 6) && (vbspd < (vtotal - 4)))
-      {
-        GBS::VDS_DIS_VB_ST::write(vbstd - 2);
-        GBS::VDS_DIS_VB_SP::write(vbspd + 2);
-      }
-      else
-      {
-        SerialM.println("limit");
-      }
-    }
-      break;
-    case 'D':
-    {
-      uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
-      uint16_t vbstd = GBS::VDS_DIS_VB_ST::read();
-      uint16_t vbspd = GBS::VDS_DIS_VB_SP::read();
-      if ((vbstd < (vtotal - 4)) && (vbspd > 6))
-      {
-        GBS::VDS_DIS_VB_ST::write(vbstd + 2);
-        GBS::VDS_DIS_VB_SP::write(vbspd - 2);
-      }
-      else
-      {
-        SerialM.println("limit");
-      }
-    }
-      break;
-    case 'q':
-      if (uopt->deintMode != 1) 
-      {
-        uopt->deintMode = 1;
-        disableMotionAdaptDeinterlace();
-        saveUserPrefs();
-      }
-      SerialM.println("Deinterlacer: Bob");
-      break;
-    case 'r':
-      if (uopt->deintMode != 0)
-      {
-        uopt->deintMode = 0;
-        saveUserPrefs();
-        // will enable next loop()
-      }
-      SerialM.println("Deinterlacer: Motion Adaptive");
-      break;
-    case 't':
-      SerialM.print("6-tap: ");
-      if (uopt->wantTap6 == 0)
-      {
-        uopt->wantTap6 = 1;
-        GBS::VDS_TAP6_BYPS::write(0);
-        SerialM.println("on");
-      }
-      else {
-        uopt->wantTap6 = 0;
-        GBS::VDS_TAP6_BYPS::write(1);
-        SerialM.println("off");
-      }
+      uopt->deintMode = 0;
       saveUserPrefs();
-      break;
-    default:
-      break;
+      // will enable next loop()
     }
+    SerialM.println("Deinterlacer: Motion Adaptive");
+    break;
+  case 't':
+    SerialM.print("6-tap: ");
+    if (uopt->wantTap6 == 0)
+    {
+      uopt->wantTap6 = 1;
+      GBS::VDS_TAP6_BYPS::write(0);
+      SerialM.println("on");
+    }
+    else {
+      uopt->wantTap6 = 0;
+      GBS::VDS_TAP6_BYPS::write(1);
+      SerialM.println("off");
+    }
+    saveUserPrefs();
+    break;
+  default:
+    break;
   }
 }
 
@@ -6365,19 +6368,14 @@ void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length)
     //Serial.print("WS: #"); Serial.print(num); Serial.print(" disconnected,");
     //Serial.print(" remaining: "); Serial.println(webSocket.connectedClients());
   break;
-  case WStype_CONNECTED: {
-    for (uint8_t i = 0; i < 5; i++) {
-      if (i != num) webSocket.disconnect(i); // disconnect all except this most recent one
-    }
-    delay(1);
-    handleWiFi(1); // ping
+  case WStype_CONNECTED:
     //Serial.print("WS: #"); Serial.print(num); Serial.print(" connected, ");
     //Serial.print(" total: "); Serial.println(webSocket.connectedClients());
-  }
+    updateWebSocketData();
   break;
-  case WStype_PONG: {
-    handleWiFi(1);
-  }
+  case WStype_PONG:
+    //Serial.print("p");
+    updateWebSocketData();
   break;
   }
 }
@@ -6392,11 +6390,39 @@ void startWebserver()
     SerialM.println(ap_info_string);
   });
 
-  server.on("/", handleRoot);
-  server.on("/serial_", handleType1Command);
-  server.on("/user_", handleType2Command);
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
+    //Serial.println("sending web page");
+    AsyncWebServerResponse* response = request->beginResponse_P(200, "text/html", webui_html, webui_html_len);
+    response->addHeader("Content-Encoding", "gzip");
+    request->send(response);
+  });
+
+  server.on("/serial_", HTTP_POST, [](AsyncWebServerRequest* request) {
+    int params = request->params();
+    //Serial.println("got serial request");
+    if (params > 0) {
+      AsyncWebParameter* p = request->getParam(0);
+      if (p->isPost()) {
+        typeOneCommand = p->value().charAt(0);
+      }
+    }
+    request->send(200); // reply
+  });
+
+  server.on("/user_", HTTP_POST, [](AsyncWebServerRequest* request) {
+    int params = request->params();
+    //Serial.println("got user request");
+    if (params > 0) {
+      AsyncWebParameter* p = request->getParam(0);
+      if (p->isPost()) {
+        typeTwoCommand = p->value().charAt(0);
+      }
+    }
+    request->send(200); // reply
+  });
 
   webSocket.onEvent(webSocketEvent);
+
   persWM.setConnectNonBlock(true);
   if (WiFi.SSID().length() == 0) {
     // no stored network to connect to > start AP mode right away

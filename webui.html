@@ -273,8 +273,9 @@
                 clearInterval(wsCheckTimer);
                 clearInterval(myTimer);
                 if (ws) {
-                    ws.close();
-                    /*ws = null;*/
+                    if (ws.readyState < 2) {
+                        ws.close();
+                    }
                 }
             });
             var eventsQueued = 0;
@@ -284,32 +285,37 @@
             var wsCheckTimer;
             var queuedText = '';
             function loadDoc(link) {
-                var xhttp = new XMLHttpRequest();
+                var xhttp = new XMLHttpRequest(); 
                 xhttp.open('POST', 'serial_', true);
+                xhttp.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+                /* xhttp.onreadystatechange = function() {
+                    if(xhttp.readyState == 4 && xhttp.status == 200) { could do smth } 
+                } */
                 xhttp.send(link);
             }
             function loadUser(link) {
                 var xhttp = new XMLHttpRequest();
                 xhttp.open('POST', 'user_', true);
+                xhttp.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
                 xhttp.send(link);
-                if (link == 'a') {
-                    clearInterval(myTimer);
-                    clearInterval(wsCheckTimer);
+                if (link == 'a' || link == '1') {
                     if (ws) {
-                        ws.close();
+                        if (ws.readyState < 2) {
+                            ws.close();
+                        }
                     }
                     theTerminal.value += ' Restart';
                     theTerminal.value += '\n';
                     theTerminal.scrollTop = theTerminal.scrollHeight;
-                    myTimer = setInterval(checkWs, 2100);
+                    createWebSocket();
                 }
             }
             function checkWs() {
                 if (!ws) {
                     console.log('checkWs: no ws, create new');
                     createWebSocket();
-                } else if (ws.readyState == 3) {
-                    console.log('checkWs: readyState3');
+                } else if (ws.readyState >= 2) {
+                    console.log('checkWs: readyState2/3');
                     createWebSocket();
                 }
             }
@@ -322,20 +328,18 @@
                 */
                 if (ws) {
                     if (ws.readyState == 1) {
-                        console.log('TO rs is 1 > close and reconnect');
-                        /*return;*/
+                        console.log('TO rs is 1'); // > close and reconnect
                         ws.close();
+                        createWebSocket();
                     }
                     else if (ws.readyState == 0) {
-                        console.log('TO rs is 0 > wait');
-                        return;
-                        /*ws.close();*/
+                        console.log('TO rs is 0'); // > wait
                     }
                     else {
                         console.log('TO rs is 2 or 3 > reconnect');
+                        createWebSocket();
                     }
                 }
-                createWebSocket();
             }
             function createWebSocket() {
                 clearInterval(myTimer);
@@ -347,7 +351,7 @@
                     console.log('ws onopen');
                     clearInterval(myTimer);
                     clearInterval(wsCheckTimer);
-                    myTimer = setInterval(timeOutWs, 3000);
+                    myTimer = setInterval(timeOutWs, 7000);
                 }
                 ;
                 ws.onerror = function(error) {
@@ -496,7 +500,7 @@
                             }
                         }
                     }
-                    myTimer = setInterval(timeOutWs, 3000);
+                    myTimer = setInterval(timeOutWs, 7000);
                 }
                 ;
             }
