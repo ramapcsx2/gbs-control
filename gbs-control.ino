@@ -2237,7 +2237,6 @@ void doPostPresetLoadSteps() {
     GBS::IF_HS_PSHIFT_BYPS::write(1); // 1_02 3 nonlinear scale phase shift bypass
     GBS::SP_RT_HS_ST::write(0); // 5_49 // retiming hs ST, SP
     GBS::SP_RT_HS_SP::write(GBS::PLLAD_MD::read() * 0.93f);
-    GBS::VDS_VB_ST::write(4); // one memory VBlank ST base for all presets
     // 1_28 1 1:hbin generated write reset 0:line generated write reset
     GBS::IF_LD_WRST_SEL::write(1); // at 1 fixes output position regardless of 1_24
     GBS::MADPT_Y_DELAY_UV_DELAY::write(0); // 2_17 default: 0
