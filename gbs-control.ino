@@ -205,6 +205,7 @@ struct userOptions {
   uint8_t preferScalingRgbhv;
   uint8_t PalForce60;
   uint8_t matchPresetSource;
+  uint8_t wantStepResponse;
 } uopts;
 struct userOptions *uopt = &uopts;
 
@@ -2423,6 +2424,9 @@ void doPostPresetLoadSteps() {
   if (uopt->wantTap6) { GBS::VDS_TAP6_BYPS::write(0); }
   else { GBS::VDS_TAP6_BYPS::write(1); }
 
+  if (uopt->wantStepResponse) { GBS::VDS_UV_STEP_BYPS::write(0); }
+  else { GBS::VDS_UV_STEP_BYPS::write(1); }
+
   resetDebugPort();
   Menu::init();
   FrameSync::reset();
@@ -4636,6 +4640,7 @@ void loadDefaultUserOptions() {
   uopt->wantTap6 = 1;
   uopt->PalForce60 = 0;
   uopt->matchPresetSource = 1;  // #14
+  uopt->wantStepResponse = 0;   // #15
 }
 
 void preinit() {
@@ -4788,6 +4793,9 @@ void setup() {
       
       uopt->matchPresetSource = (uint8_t)(f.read() - '0'); // #14
       if (uopt->matchPresetSource > 1) uopt->matchPresetSource = 1;
+
+      uopt->wantStepResponse = (uint8_t)(f.read() - '0'); // #15
+      if (uopt->wantStepResponse > 1) uopt->wantStepResponse = 0;
 
       f.close();
     }
@@ -5009,6 +5017,7 @@ void updateWebSocketData() {
   if (uopt->enableFrameTimeLock) { toSend[4] |= (1 << 1); }
   if (uopt->deintMode) { toSend[4] |= (1 << 2); }
   if (uopt->wantTap6) { toSend[4] |= (1 << 3); }
+  if (uopt->wantStepResponse) { toSend[4] |= (1 << 4); }
 
   // send ping and stats
   if (ESP.getFreeHeap() > 14000) {
@@ -5796,6 +5805,18 @@ void loop() {
       doPostPresetLoadSteps();
     }
     break;
+    case 'V':
+    {
+      uopt->wantStepResponse = !uopt->wantStepResponse;
+      if (uopt->wantStepResponse) {
+        GBS::VDS_UV_STEP_BYPS::write(0);
+      }
+      else {
+        GBS::VDS_UV_STEP_BYPS::write(1);
+      }
+      saveUserPrefs();
+    }
+    break;
     default:
       Serial.print("unknown command ");
       Serial.println(typeOneCommand, HEX);
@@ -6161,9 +6182,12 @@ void handleType2Command(char argument) {
       SerialM.print("deinterlacer mode = "); SerialM.println((uint8_t)(f.read() - '0'));
       SerialM.print("line filter = "); SerialM.println((uint8_t)(f.read() - '0'));
       SerialM.print("peaking = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("preferScalingRgbhv = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("6-tap = "); SerialM.println((uint8_t)(f.read() - '0'));
       SerialM.print("pal force60 = "); SerialM.println((uint8_t)(f.read() - '0'));
       SerialM.print("matched = "); SerialM.println((uint8_t)(f.read() - '0'));
-      SerialM.print("6-tap = "); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print("step response = "); SerialM.println((uint8_t)(f.read() - '0'));
+
       f.close();
     }
   }
@@ -6724,6 +6748,7 @@ void saveUserPrefs() {
   f.write(uopt->wantTap6 + '0');
   f.write(uopt->PalForce60 + '0');
   f.write(uopt->matchPresetSource + '0'); // #14
+  f.write(uopt->wantStepResponse + '0');  // #15
 
   f.close();
 }

@@ -198,12 +198,14 @@
             }
             function content3() {
                 document.getElementById("display").innerHTML = 
-                '<p>These are image filters and enhancements. The line filter and peaking option is recommended, the rest is optional.</p>' + 
-                '<p>The 6-tap output filter should be enabled, but it can cause jailbar effects on some GBS boards.</p>' + 
+                '<p>The Line Filter and Peaking options are recommended, the others are more optional.</p>' + 
+                '<p>The 6-Tap LPF output filter should be enabled, unless you notice jailbar effects.</p>' + 
+                '<p>The Step Response filter sharpens color edges. It works best with 256px and 320px wide sources.</p>' + 
                 '<button class="button option scanlines" type="button" onclick="loadUser(\'7\')">Scanlines</button>' + 
                 '<button class="button option vdsLineFilter" type="button" onclick="loadUser(\'m\')">Line Filter</button>' + 
                 '<button class="button option peaking" type="button" onclick="loadDoc(\'f\')">Peaking</button>' + 
-                '<button class="button option tap6" type="button" onclick="loadUser(\'t\')">6-Tap Filter</button>';
+                '<button class="button option step" type="button" onclick="loadDoc(\'V\')">Step Response</button>' + 
+                '<button class="button option tap6" type="button" onclick="loadUser(\'t\')">6-Tap LPF</button>';
             }
             function content5() {
                 document.getElementById("display").innerHTML = 
@@ -283,6 +285,7 @@
             var ws = null;
             var myTimer;
             var wsCheckTimer;
+            var wsConnectCounter = 0;
             var queuedText = '';
             function loadDoc(link) {
                 var xhttp = new XMLHttpRequest(); 
@@ -339,6 +342,8 @@
                         console.log('TO rs is 2 or 3 > reconnect');
                         createWebSocket();
                     }
+                    theTerminal.value += 'ws' + wsConnectCounter + ' timeout\n';
+                    theTerminal.scrollTop = theTerminal.scrollHeight;
                 }
             }
             function createWebSocket() {
@@ -348,7 +353,11 @@
                 wsCheckTimer = setInterval(checkWs, 2200);
                 
                 ws.onopen = function() {
+                    wsConnectCounter++;
                     console.log('ws onopen');
+                    
+                    theTerminal.value += 'ws' + wsConnectCounter + ' connected\n';
+                    theTerminal.scrollTop = theTerminal.scrollHeight;
                     clearInterval(myTimer);
                     clearInterval(wsCheckTimer);
                     myTimer = setInterval(timeOutWs, 7000);
@@ -492,6 +501,13 @@
                                 }
                                 if (button.classList.contains('tap6')) {
                                     if ((optionByte1 & 0x08) == 0x08) {
+                                        button.classList.add('active');
+                                    } else {
+                                        button.classList.remove('active');
+                                    }
+                                }
+                                if (button.classList.contains('step')) {
+                                    if ((optionByte1 & 0x10) == 0x10) {
                                         button.classList.add('active');
                                     } else {
                                         button.classList.remove('active');
