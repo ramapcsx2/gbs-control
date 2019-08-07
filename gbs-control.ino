@@ -5829,12 +5829,14 @@ void loop() {
     if (!Serial.available()) {
       // in case we handled a Serial or web server command and there's no more extra commands
       typeOneCommand = '@';
+      handleWiFi(1);
     }
   }
 
   if (typeTwoCommand != '@') {
     handleType2Command(typeTwoCommand);
     typeTwoCommand = '@'; // in case we handled web server command
+    handleWiFi(1);
   }
 
   // run FrameTimeLock if enabled
@@ -6420,26 +6422,31 @@ void startWebserver()
     request->send(response);
   });
 
-  server.on("/serial_", HTTP_POST, [](AsyncWebServerRequest* request) {
+  server.on("/sc", HTTP_GET, [](AsyncWebServerRequest* request) {
     int params = request->params();
-    //Serial.println("got serial request");
+    //Serial.print("got serial request params: ");
+    //Serial.println(params);
     if (params > 0) {
       AsyncWebParameter* p = request->getParam(0);
-      if (p->isPost()) {
-        typeOneCommand = p->value().charAt(0);
+      //Serial.println(p->name());
+      typeOneCommand = p->name().charAt(0);
+
+      // hack, problem with '+' command received via url param
+      if (typeOneCommand == ' ') {
+        typeOneCommand = '+';
       }
     }
     request->send(200); // reply
   });
 
-  server.on("/user_", HTTP_POST, [](AsyncWebServerRequest* request) {
+  server.on("/uc", HTTP_GET, [](AsyncWebServerRequest* request) {
     int params = request->params();
-    //Serial.println("got user request");
+    //Serial.print("got user request params: ");
+    //Serial.println(params);
     if (params > 0) {
       AsyncWebParameter* p = request->getParam(0);
-      if (p->isPost()) {
-        typeTwoCommand = p->value().charAt(0);
-      }
+      //Serial.println(p->name());
+      typeTwoCommand = p->name().charAt(0);
     }
     request->send(200); // reply
   });

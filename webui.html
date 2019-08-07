@@ -289,18 +289,13 @@
             var queuedText = '';
             function loadDoc(link) {
                 var xhttp = new XMLHttpRequest(); 
-                xhttp.open('POST', 'serial_', true);
-                xhttp.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
-                /* xhttp.onreadystatechange = function() {
-                    if(xhttp.readyState == 4 && xhttp.status == 200) { could do smth } 
-                } */
-                xhttp.send(link);
+                xhttp.open('GET', 'sc?' + link, true);
+                xhttp.send();
             }
             function loadUser(link) {
                 var xhttp = new XMLHttpRequest();
-                xhttp.open('POST', 'user_', true);
-                xhttp.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
-                xhttp.send(link);
+                xhttp.open('GET', 'uc?' + link, true);
+                xhttp.send();
                 if (link == 'a' || link == '1') {
                     if (ws) {
                         if (ws.readyState < 2) {
