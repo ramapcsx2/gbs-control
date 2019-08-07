@@ -1513,14 +1513,32 @@ void scaleHorizontal(uint16_t amountToScale, bool subtracting)
 void moveHS(uint16_t amountToAdd, bool subtracting) {
   uint16_t VDS_HS_ST = GBS::VDS_HS_ST::read();
   uint16_t VDS_HS_SP = GBS::VDS_HS_SP::read();
+  uint16_t VDS_DIS_HB_SP = GBS::VDS_DIS_HB_SP::read();
   uint16_t htotal = GBS::VDS_HSYNC_RST::read();
+  
   if (htotal == 0) return; // safety
   int16_t amount = subtracting ? (0 - amountToAdd) : amountToAdd;
 
   if ((VDS_HS_ST + amount) >= 0 && (VDS_HS_SP + amount) >= 0)
   {
-    GBS::VDS_HS_ST::write((VDS_HS_ST + amount) % htotal);
-    GBS::VDS_HS_SP::write((VDS_HS_SP + amount) % htotal);
+    if (amount > 0) { // is HS_SP going to be to the left of display blank?
+      if ((VDS_HS_SP + amount) < (VDS_DIS_HB_SP - 8)) {
+        GBS::VDS_HS_ST::write((VDS_HS_ST + amount) % htotal);
+        GBS::VDS_HS_SP::write((VDS_HS_SP + amount) % htotal);
+      }
+      else {
+        SerialM.println("limit");
+      }
+    }
+    else { // amount <= 0
+      if ((VDS_HS_ST + amount) > 4) { // is HS_ST going to be to the right of 0?
+        GBS::VDS_HS_ST::write((VDS_HS_ST + amount) % htotal);
+        GBS::VDS_HS_SP::write((VDS_HS_SP + amount) % htotal);
+      }
+      else {
+        SerialM.println("limit");
+      }
+    }
   }
   else if ((VDS_HS_ST + amount) < 0)
   {
@@ -2054,15 +2072,14 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   uint16_t h_sync_stop_position = GBS::VDS_HS_SP::read();
 
   // fix over / underflows
-  if (h_blank_display_start_position > bestHTotal) {
-    h_blank_display_start_position = bestHTotal * 0.91f;
-    h_blank_memory_start_position = h_blank_display_start_position;
+  if (h_blank_display_start_position > (bestHTotal - 8)) {
+    h_blank_display_start_position = bestHTotal - 8;
   }
   if (h_blank_display_stop_position > bestHTotal) {
     h_blank_display_stop_position = bestHTotal * 0.178f;
   }
-  if (h_blank_memory_start_position > bestHTotal) {
-    h_blank_memory_start_position = h_blank_display_start_position * 0.94f;
+  if ((h_blank_memory_start_position > bestHTotal) || (h_blank_memory_start_position > h_blank_display_start_position)) {
+    h_blank_memory_start_position = h_blank_display_start_position;
   }
   if (h_blank_memory_stop_position > bestHTotal) {
     h_blank_memory_stop_position = h_blank_display_stop_position * 0.64f;
