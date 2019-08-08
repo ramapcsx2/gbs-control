@@ -5892,9 +5892,9 @@ void loop() {
     printInfo();
   }
 
-  //uint16_t testbus = GBS::TEST_BUS::read();
-  //if ((testbus > 0x8900 && testbus <= 0xff00) || (testbus > 0x0900 && testbus <= 0x7f00)){
-  //  SerialM.println(testbus,HEX);
+  //uint16_t testbus = GBS::TEST_BUS::read() & 0x0fff;
+  //if (testbus >= 0x0FFD){
+  //  Serial.println(testbus,HEX);
   //}
   //if (rto->videoIsFrozen && (rto->continousStableCounter >= 2)) {
   //    unfreezeVideo();
