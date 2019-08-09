@@ -1,4 +1,3 @@
-#include <Wire.h>
 #include "ntsc_240p.h"
 #include "pal_240p.h"
 #include "ntsc_feedbackclock.h"
@@ -14,14 +13,17 @@
 #include "presetHdBypassSection.h"
 #include "ofw_RGBS.h"
 
+#include <Wire.h>
 #include "tv5725.h"
 #include "framesync.h"
 #include "osd.h"
 
-typedef TV5725<GBS_ADDR> GBS;
-
-#if defined(ESP8266)  // select WeMos D1 R2 & mini in IDE for NodeMCU! (otherwise LED_BUILTIN is mapped to D0 / does not work)
 #include <ESP8266WiFi.h>
+// ESPAsyncTCP and ESPAsyncWebServer libraries by me-no-dev
+// download (green "Clone or download" button) and extract to Arduino libraries folder
+// Windows: "Documents\Arduino\libraries" or full path: "C:\Users\rama\Documents\Arduino\libraries"
+// https://github.com/me-no-dev/ESPAsyncTCP
+// https://github.com/me-no-dev/ESPAsyncWebServer
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include "FS.h"
@@ -36,13 +38,6 @@ typedef TV5725<GBS_ADDR> GBS;
 // See 3rdparty/PersWiFiManager for unmodified source and license
 #include "PersWiFiManager.h"
 
-//#define HAVE_PINGER_LIBRARY // ESP8266-ping library to aid debugging WiFi issues, install via Arduino library manager
-#ifdef HAVE_PINGER_LIBRARY
-#include <Pinger.h>
-#include <PingerResponse.h>
-unsigned long pingLastTime;
-#endif
-
 // WebSockets library by Markus Sattler
 // https://github.com/Links2004/arduinoWebSockets
 // included in src folder to allow header modifications within limitations of the Arduino framework
@@ -50,6 +45,17 @@ unsigned long pingLastTime;
 #include "src/WebSockets.h"
 #include "src/WebSocketsServer.h"
 
+// Optional:
+// ESP8266-ping library to aid debugging WiFi issues, install via Arduino library manager
+//#define HAVE_PINGER_LIBRARY
+#ifdef HAVE_PINGER_LIBRARY
+#include <Pinger.h>
+#include <PingerResponse.h>
+unsigned long pingLastTime;
+Pinger pinger; // pinger global object to aid debugging WiFi issues
+#endif
+
+typedef TV5725<GBS_ADDR> GBS;
 const char* ap_ssid = "gbscontrol";
 const char* ap_password = "qqqqqqqq";
 // change device_hostname_full and device_hostname_partial to rename the device 
@@ -57,16 +63,13 @@ const char* ap_password = "qqqqqqqq";
 const char* device_hostname_full = "gbscontrol.local";
 const char* device_hostname_partial = "gbscontrol"; // for MDNS
 //
-const char* ap_info_string = "(WiFi) AP mode (SSID: gbscontrol, pass 'qqqqqqqq'): Access 'gbscontrol.local' in your browser";
+static const char ap_info_string[] PROGMEM =
+"(WiFi) AP mode (SSID: gbscontrol, pass 'qqqqqqqq'): Access 'gbscontrol.local' in your browser";
 AsyncWebServer server(80);
 DNSServer dnsServer;
 WebSocketsServer webSocket(81);
 //AsyncWebSocket webSocket("/ws");
 PersWiFiManager persWM(server, dnsServer);
-
-#ifdef HAVE_PINGER_LIBRARY
-Pinger pinger; // pinger global object to aid debugging WiFi issues
-#endif
 
 #define DEBUG_IN_PIN D6 // marked "D12/MISO/D6" (Wemos D1) or D6 (Lolin NodeMCU)
 // SCL = D1 (Lolin), D15 (Wemos D1) // ESP8266 Arduino default map: SCL
@@ -81,29 +84,6 @@ Pinger pinger; // pinger global object to aid debugging WiFi issues
 // fast ESP8266 digitalRead (21 cycles vs 77), *should* work with all possible input pins
 // but only "D7" and "D6" have been tested so far
 #define digitalRead(x) ((GPIO_REG_READ(GPIO_IN_ADDRESS) >> x) & 1)
-
-#else // Arduino
-#define LEDON \
-  pinMode(LED_BUILTIN, OUTPUT); \
-  digitalWrite(LED_BUILTIN, HIGH)
-#define LEDOFF \
-  digitalWrite(LED_BUILTIN, LOW); \
-  pinMode(LED_BUILTIN, INPUT)
-
-#define DEBUG_IN_PIN 11
-
-// fastest, but non portable (Uno pin 11 = PB3, Mega2560 pin 11 = PB5)
-//#define digitalRead(x) bitRead(PINB, 3)
-#include "fastpin.h"
-#define digitalRead(x) fastRead<x>()
-
-//#define HAVE_BUTTONS
-#define INPUT_PIN 9
-#define DOWN_PIN 8
-#define UP_PIN 7
-#define MENU_PIN 6
-
-#endif
 
 // feed the current measurement, get back the moving average
 uint8_t getMovingAverage(uint8_t item)
@@ -4829,16 +4809,12 @@ void setup() {
     SerialM.print(" Hostname: "); SerialM.println(WiFi.hostname());
   }
   else if (WiFi.SSID().length() == 0) {
-    SerialM.println(ap_info_string);
+    SerialM.println(FPSTR(ap_info_string));
   }
   else {
     SerialM.println("(WiFi): still connecting..");
   }
 
-  SerialM.print("preset preference = "); SerialM.println(uopt->presetPreference);
-  SerialM.print("component output = "); SerialM.println(uopt->wantOutputComponent);
-  SerialM.print("pal force 60 = "); SerialM.println(uopt->PalForce60);
-  SerialM.print("matched = "); SerialM.println(uopt->matchPresetSource);
 #else
   delay(2000); // give the entire system some time to start up.
 #endif
@@ -6429,7 +6405,7 @@ void startWebserver()
     SerialM.println("(WiFi): STA mode connected");
   });
   persWM.onAp([]() {
-    SerialM.println(ap_info_string);
+    SerialM.println(FPSTR(ap_info_string));
   });
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
