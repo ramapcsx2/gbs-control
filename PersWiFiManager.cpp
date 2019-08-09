@@ -119,25 +119,6 @@ void PersWiFiManager::setupWiFiHandlers() {
     request->send(200, "text/plain", s);
   }); //_server->on /wifi/list
 
-  _server->on("/wifi/connect", HTTP_POST, [](AsyncWebServerRequest* request) {
-    AsyncWebServerResponse* response = 
-      request->beginResponse(200, "text/plain", "connecting...\nplease restart ESP8266");
-    request->send(response);
-    //delay(100); // can't use
-    //Serial.println(request->arg("n"));
-    //Serial.println(request->arg("p"));
-
-    WiFi.mode(WIFI_STA);
-    WiFi.hostname(device_hostname_full); // before WiFi.begin();
-    if (request->arg("n").length()) {
-      if (request->arg("p").length()) WiFi.begin(request->arg("n").c_str(), request->arg("p").c_str());
-      else WiFi.begin(request->arg("n").c_str());
-    }
-    else {
-      WiFi.begin();
-    }
-  });
-
 #ifdef WIFI_HTM_PROGMEM
   _server->on("/wifi.htm", HTTP_GET, [](AsyncWebServerRequest* request) {
     request->send(200, "text/html", FPSTR(wifi_htm));

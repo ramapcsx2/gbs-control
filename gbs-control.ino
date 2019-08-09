@@ -6350,7 +6350,7 @@ void handleType2Command(char argument) {
       saveUserPrefs();
     }
     SerialM.println("Deinterlacer: Bob");
-    break;
+  break;
   case 'r':
     if (uopt->deintMode != 0)
     {
@@ -6359,7 +6359,7 @@ void handleType2Command(char argument) {
       // will enable next loop()
     }
     SerialM.println("Deinterlacer: Motion Adaptive");
-    break;
+  break;
   case 't':
     SerialM.print("6-tap: ");
     if (uopt->wantTap6 == 0)
@@ -6374,7 +6374,15 @@ void handleType2Command(char argument) {
       SerialM.println("off");
     }
     saveUserPrefs();
-    break;
+  break;
+  case 'u':
+    // restart to attempt wifi station mode connect
+    delay(30);
+    WiFi.mode(WIFI_STA);
+    WiFi.hostname(device_hostname_full);
+    delay(300);
+    ESP.reset();
+  break;
   default:
     break;
   }
@@ -6442,6 +6450,27 @@ void startWebserver()
       typeTwoCommand = p->name().charAt(0);
     }
     request->send(200); // reply
+  });
+
+  server.on("/wifi/connect", HTTP_POST, [](AsyncWebServerRequest* request) {
+    AsyncWebServerResponse* response =
+      request->beginResponse(200, "text/plain", "connecting...");
+    request->send(response);
+
+    if (request->arg("n").length()) { // n holds ssid
+      if (request->arg("p").length()) { // p holds password
+        // false = only save credentials, don't connect
+        WiFi.begin(request->arg("n").c_str(), request->arg("p").c_str(), 0, 0, false);
+      }
+      else {
+        WiFi.begin(request->arg("n").c_str(), emptyString, 0, 0, false);
+      }
+    }
+    else {
+      WiFi.begin();
+    }
+
+    typeTwoCommand = 'u'; // next loop, set wifi station mode and restart device
   });
 
   webSocket.onEvent(webSocketEvent);
