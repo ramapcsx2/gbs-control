@@ -60,11 +60,15 @@ const char* ap_ssid = "gbscontrol";
 const char* ap_password = "qqqqqqqq";
 // change device_hostname_full and device_hostname_partial to rename the device 
 // (allows 2 or more on the same network)
+// new: only use _partial throughout, comply to standards
 const char* device_hostname_full = "gbscontrol.local";
 const char* device_hostname_partial = "gbscontrol"; // for MDNS
 //
 static const char ap_info_string[] PROGMEM =
-"(WiFi) AP mode (SSID: gbscontrol, pass 'qqqqqqqq'): Access 'gbscontrol.local' in your browser";
+"(WiFi): AP mode (SSID: gbscontrol, pass 'qqqqqqqq'): Access 'gbscontrol.local' in your browser";
+static const char st_info_string[] PROGMEM =
+"(WiFi): Access 'http://gbscontrol:80' or 'http://gbscontrol.local' (or device IP) in your browser";
+
 AsyncWebServer server(80);
 DNSServer dnsServer;
 WebSocketsServer webSocket(81);
@@ -4651,9 +4655,8 @@ void setup() {
   Serial.begin(115200); // Arduino IDE Serial Monitor requires the same 115200 bauds!
   Serial.setTimeout(10);
 
-#if defined(ESP8266)
-  // start web services as early in boot as possible > greater chance to get a websocket connection in time for logging startup
-  WiFi.hostname(device_hostname_full);
+  // start web services as early in boot as possible
+  WiFi.hostname(device_hostname_partial); // was _full
   if (rto->webServerEnabled) {
     rto->allowUpdatesOTA = false; // need to initialize for handleWiFi()
     WiFi.setSleepMode(WIFI_NONE_SLEEP); // low latency responses, less chance for missing packets
@@ -4668,7 +4671,6 @@ void setup() {
   }
 #ifdef HAVE_PINGER_LIBRARY
   pingLastTime = millis();
-#endif 
 #endif
 
   SerialM.println("\nstarting");
@@ -4805,8 +4807,7 @@ void setup() {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    SerialM.print("(WiFi): IP: "); SerialM.print(WiFi.localIP().toString());
-    SerialM.print(" Hostname: "); SerialM.println(WiFi.hostname());
+    // nothing
   }
   else if (WiFi.SSID().length() == 0) {
     SerialM.println(FPSTR(ap_info_string));
@@ -5026,9 +5027,10 @@ void handleWiFi(boolean instant) {
   yield();
 #if defined(ESP8266)
   if (rto->webServerEnabled && rto->webServerStarted) {
+    MDNS.update();
     persWM.handleWiFi(); // if connected, returns instantly. otherwise it reconnects or opens AP
     dnsServer.processNextRequest();
-    MDNS.update();
+
     //webSocket.loop(); // checks _runnning internally, skips all work if not
 
     if ((millis() - lastTimePing > 973) || instant) { // slightly odd value so not everything happens at once
@@ -6379,7 +6381,7 @@ void handleType2Command(char argument) {
     // restart to attempt wifi station mode connect
     delay(30);
     WiFi.mode(WIFI_STA);
-    WiFi.hostname(device_hostname_full);
+    WiFi.hostname(device_hostname_partial); // _full
     delay(300);
     ESP.reset();
   break;
@@ -6410,7 +6412,14 @@ void startWebserver()
 {
   persWM.setApCredentials(ap_ssid, ap_password);
   persWM.onConnect([]() {
-    SerialM.println("(WiFi): STA mode connected");
+    SerialM.print("(WiFi): STA mode connected; IP: ");
+    SerialM.println(WiFi.localIP().toString());
+    if (MDNS.begin(device_hostname_partial)) { // MDNS request for gbscontrol.local
+      //Serial.println("MDNS started");
+      MDNS.addService("http", "tcp", 80); // Add service to MDNS-SD
+      MDNS.announce();
+    }
+    SerialM.println(FPSTR(st_info_string));
   });
   persWM.onAp([]() {
     SerialM.println(FPSTR(ap_info_string));
@@ -6485,10 +6494,8 @@ void startWebserver()
     persWM.begin(); // first try connecting to stored network, go AP mode after timeout
   }
 
-  MDNS.begin(device_hostname_partial); // respond to MDNS request for gbscontrol.local
   server.begin(); // Webserver for the site
   webSocket.begin();  // Websocket for interaction
-  MDNS.addService("http", "tcp", 80); // Add service to MDNS-SD
   yield();
 
 #ifdef HAVE_PINGER_LIBRARY

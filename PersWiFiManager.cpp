@@ -14,6 +14,7 @@ static const char wifi_htm[] PROGMEM = R"=====(<!DOCTYPE html><html><head><meta 
 #endif
 
 extern const char* device_hostname_full;
+extern const char* device_hostname_partial;
 
 PersWiFiManager::PersWiFiManager(AsyncWebServer& s, DNSServer& d) {
   _server = &s;
@@ -24,7 +25,7 @@ PersWiFiManager::PersWiFiManager(AsyncWebServer& s, DNSServer& d) {
 bool PersWiFiManager::attemptConnection(const String& ssid, const String& pass) {
   //attempt to connect to wifi
   WiFi.mode(WIFI_STA);
-  WiFi.hostname(device_hostname_full); // before WiFi.begin();
+  WiFi.hostname(device_hostname_partial); // _full // before WiFi.begin();
   if (ssid.length()) {
     if (pass.length()) WiFi.begin(ssid.c_str(), pass.c_str());
     else WiFi.begin(ssid.c_str());
