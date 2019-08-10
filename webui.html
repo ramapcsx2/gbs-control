@@ -198,7 +198,8 @@
             }
             function content3() {
                 document.getElementById("display").innerHTML = 
-                '<p>The Line Filter and Peaking options are recommended, the others are more optional.</p>' + 
+                '<p>The Line Filter and Peaking options are recommended, the others are optional.</p>' + 
+                '<p>Scanlines only work with 240p sources at this time.</p>' + 
                 '<p>The 6-Tap LPF output filter should be enabled, unless you notice jailbar effects.</p>' + 
                 '<p>The Step Response filter sharpens color edges. It works best with 256px and 320px wide sources.</p>' + 
                 '<button class="button option scanlines" type="button" onclick="loadUser(\'7\')">Scanlines</button>' + 
@@ -210,15 +211,21 @@
             function content5() {
                 document.getElementById("display").innerHTML = 
                 '<h2>Matched Preset for Source Format</h2>' + 
-                '<p>If enabled, default to 1280x960 for NTSC 60 and 1280x1024 for PAL 50.</p>' + 
+                '<p>If enabled, default to 1280x960 for NTSC 60 and 1280x1024 for PAL 50 (does not apply for 720p / 1080p presets).</p>' + 
+                '<p>Reboot required.</p>' + 
                 '<button class="button option matched" type="button" onclick="loadDoc(\'Z\')">Matched Presets</button>' + 
-                '<h2>Output Format: VGA / YPbPr (Component Video)</h2>' + 
-                '<p>The default output mode is VGA, suitable for VGA cables or HDMI converters.</p>' + 
-                '<p>A new YPbPr mode can also be selected, but compatibility with some options is still spotty.</p>' + 
-                '<button class="button option wantOutputComponent" type="button" onclick="loadDoc(\'L\')">Component/VGA Output Toggle</button>' + 
+                '<h2>Prefer Full Height</h2>' + 
+                '<p>Some presets default to not using the entire vertical output resolution, avoiding some scaling issues.</p>' + 
+                '<p>With Full Height enabled, these presets will instead scale to fill more of the screen height. Reboot required.</p>' + 
+                '<p>(This currently only affects 1920 x 1080 @ 60)</p>' + 
+                '<button class="button option fullHeight" type="button" onclick="loadUser(\'v\')">Full Height</button>' + 
+                '<h2>Output Format: RGBHV (regular) / YPbPr (Component Video)</h2>' + 
+                '<p>The default output mode is RGBHV, suitable for use with VGA cables or HDMI converters.</p>' + 
+                '<p>An experimental YPbPr mode can also be selected. Compatibility is still spotty.</p>' + 
+                '<button class="button option wantOutputComponent" type="button" onclick="loadDoc(\'L\')">RGBHV/Component Toggle</button>' + 
                 '<h2>Output Frame Rate: Force PAL 50Hz to 60Hz</h2>' + 
                 '<p>If your TV does not support 50Hz sources (displaying unknown format, no matter the preset), try this option.</p>' + 
-                '<p>The frame rate will be more jerky. Please restart to apply.</p>' + 
+                '<p>The frame rate will not be as smooth. Reboot required.</p>' + 
                 '<button class="button option palForce60" type="button" onclick="loadUser(\'0\')">Force PAL 60Hz</button>' + 
                 '<h2>Active FrameTime Lock (not compatible with all displays)</h2>' + 
                 '<p>This option keeps the input and output timings aligned, fixing the horizontal tear line that can appear sometimes.</p>' + 
@@ -305,7 +312,8 @@
                     theTerminal.value += ' Restart';
                     theTerminal.value += '\n';
                     theTerminal.scrollTop = theTerminal.scrollHeight;
-                    createWebSocket();
+                    clearInterval(wsCheckTimer);
+                    wsCheckTimer = setInterval(checkWs, 1800);
                 }
             }
             function checkWs() {
@@ -503,6 +511,13 @@
                                 }
                                 if (button.classList.contains('step')) {
                                     if ((optionByte1 & 0x10) == 0x10) {
+                                        button.classList.add('active');
+                                    } else {
+                                        button.classList.remove('active');
+                                    }
+                                }
+                                if (button.classList.contains('fullHeight')) {
+                                    if ((optionByte1 & 0x20) == 0x20) {
                                         button.classList.add('active');
                                     } else {
                                         button.classList.remove('active');

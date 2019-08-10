@@ -190,6 +190,7 @@ struct userOptions {
   uint8_t PalForce60;
   uint8_t matchPresetSource;
   uint8_t wantStepResponse;
+  uint8_t wantFullHeight;
 } uopts;
 struct userOptions *uopt = &uopts;
 
@@ -2271,6 +2272,18 @@ void doPostPresetLoadSteps() {
       //if (rto->presetID == 0x2 || rto->presetID == 0x3 || rto->presetID == 0x5) {
       //  GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
       //}
+
+      if (rto->videoStandardInput == 1) {
+        if (rto->presetID == 0x5)
+        { // out 1080p
+          if (uopt->wantFullHeight) {
+            GBS::VDS_VSCALE::write(455);
+            GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 3);
+            GBS::VDS_DIS_VB_SP::write(42);
+            GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - 62);
+          }
+        }
+      }
     }
     if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4)
     {
@@ -2293,14 +2306,20 @@ void doPostPresetLoadSteps() {
     }
     if (rto->videoStandardInput == 3) 
     { // ED YUV 60
-      GBS::VDS_VSCALE::write(512);
-      GBS::IF_HB_ST::write(30); // 1_10; magic number
+      //GBS::VDS_VSCALE::write(512); // remove
+      GBS::IF_HB_ST::write(30);     // 1_10; magic number
       GBS::IF_HB_ST2::write(0x60);  // 1_18
       GBS::IF_HB_SP2::write(0x88);  // 1_1a
       GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
       if (rto->presetID == 0x5) 
       { // out 1080p
         GBS::IF_HB_SP2::write(GBS::IF_HB_SP2::read() + 12);  // 1_1a  = 0x94
+        if (uopt->wantFullHeight) {
+          GBS::VDS_VSCALE::write(455);
+          GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 3);
+          GBS::VDS_DIS_VB_SP::write(42);
+          GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - 62);
+        }
       }
       else if (rto->presetID == 0x3) 
       { // out 720p
@@ -4642,6 +4661,7 @@ void loadDefaultUserOptions() {
   uopt->PalForce60 = 0;
   uopt->matchPresetSource = 1;  // #14
   uopt->wantStepResponse = 0;   // #15
+  uopt->wantFullHeight = 0;     // #16
 }
 
 void preinit() {
@@ -4795,6 +4815,9 @@ void setup() {
 
       uopt->wantStepResponse = (uint8_t)(f.read() - '0'); // #15
       if (uopt->wantStepResponse > 1) uopt->wantStepResponse = 0;
+
+      uopt->wantFullHeight = (uint8_t)(f.read() - '0'); // #16
+      if (uopt->wantFullHeight > 1) uopt->wantFullHeight = 0;
 
       f.close();
     }
@@ -5012,6 +5035,7 @@ void updateWebSocketData() {
   if (uopt->deintMode) { toSend[4] |= (1 << 2); }
   if (uopt->wantTap6) { toSend[4] |= (1 << 3); }
   if (uopt->wantStepResponse) { toSend[4] |= (1 << 4); }
+  if (uopt->wantFullHeight) { toSend[4] |= (1 << 5); }
 
   // send ping and stats
   if (ESP.getFreeHeap() > 14000) {
@@ -6068,10 +6092,11 @@ void handleType2Command(char argument) {
     break;
   case '1':
     // reset to defaults button
+    webSocket.close();
     loadDefaultUserOptions();
     saveUserPrefs();
-    SerialM.println("options set to defaults, restarting");
-    delay(300);
+    Serial.println("options set to defaults, restarting");
+    delay(60);
     ESP.reset(); // don't use restart(), messes up websocket reconnects
     //
     break;
@@ -6109,17 +6134,11 @@ void handleType2Command(char argument) {
     uopt->wantScanlines = !uopt->wantScanlines;
     SerialM.print("scanlines ");
     if (uopt->wantScanlines) {
-      SerialM.print("on ");
-      if (rto->motionAdaptiveDeinterlaceActive) {
-        SerialM.println("(but requires progressive source or bob deinterlacing)");
-      }
-      else {
-        SerialM.println("");
-      }
+      SerialM.println("on");
     }
     else {
-      SerialM.println("off");
       disableScanlines();
+      SerialM.println("off");
     }
     saveUserPrefs();
     break;
@@ -6127,8 +6146,9 @@ void handleType2Command(char argument) {
     //
     break;
   case 'a':
+    webSocket.close();
     Serial.println("restart");
-    delay(300);
+    delay(60);
     ESP.reset(); // don't use restart(), messes up websocket reconnects
     break;
   case 'b':
@@ -6382,8 +6402,19 @@ void handleType2Command(char argument) {
     delay(30);
     WiFi.mode(WIFI_STA);
     WiFi.hostname(device_hostname_partial); // _full
-    delay(300);
+    delay(30);
     ESP.reset();
+  break;
+  case 'v':
+    uopt->wantFullHeight = !uopt->wantFullHeight;
+    if (uopt->wantFullHeight) {
+      //GBS::VDS_UV_STEP_BYPS::write(0);
+    }
+    else {
+      //GBS::VDS_UV_STEP_BYPS::write(1);
+    }
+    saveUserPrefs();
+    SerialM.println("full height");
   break;
   default:
     break;
@@ -6785,6 +6816,7 @@ void saveUserPrefs() {
   f.write(uopt->PalForce60 + '0');
   f.write(uopt->matchPresetSource + '0'); // #14
   f.write(uopt->wantStepResponse + '0');  // #15
+  f.write(uopt->wantFullHeight + '0');    // #16
 
   f.close();
 }
