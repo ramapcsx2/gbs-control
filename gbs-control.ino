@@ -1422,40 +1422,35 @@ void scaleHorizontal(uint16_t amountToScale, bool subtracting)
 
     // move within VDS VB fetch area (within reason)
     uint16_t htotal = GBS::VDS_HSYNC_RST::read();
-    uint16_t hbsp_old = GBS::VDS_HB_SP::read();
-    uint16_t hb_sub = amountToScale & 0xfffe;//1 + (uint16_t)(htotal * 0.001f);
-    if (subtracting) {
-        if (hbsp_old > (8 + hb_sub)) { // 8 as a guard against 2 side overflow (scaling up into overlap)
-            GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - hb_sub);
-        }
+    uint16_t toShift = 0;
+    if (hscale < 540) toShift = 4;
+    else if (hscale < 640) toShift = 3;
+    else toShift = 2;
 
-        uint16_t hb_sub_halved = hb_sub / 2;
-        if (hb_sub_halved == 0) {
-          hb_sub_halved = 1;
+    if (subtracting) {
+      shiftHorizontal(toShift, true);
+      if ((GBS::VDS_HB_ST::read() + 5) < GBS::VDS_DIS_HB_ST::read()) {
+        GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 5);
+      }
+      else if ((GBS::VDS_DIS_HB_ST::read() + 5) < htotal) {
+        GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 5);
+        GBS::VDS_HB_ST::write(GBS::VDS_DIS_HB_ST::read()); // dis_hbst = hbst
+      }
+
+      // fix HB_ST > HB_SP conditions
+      if (GBS::VDS_HB_SP::read() < (GBS::VDS_HB_ST::read() + 16)) { // HB_SP < HB_ST
+        if ((GBS::VDS_HB_SP::read()) > (htotal / 2)) {              // but HB_SP > some small value
+          GBS::VDS_HB_ST::write(GBS::VDS_HB_SP::read() - 16);
         }
-        if ((GBS::VDS_HB_ST::read() + hb_sub_halved) < GBS::VDS_DIS_HB_ST::read()) {
-            GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + hb_sub_halved);
-            GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - hb_sub_halved);  // new
-        } else if ((GBS::VDS_DIS_HB_ST::read() + hb_sub_halved) < htotal) {
-            GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + hb_sub_halved);
-            GBS::VDS_HB_ST::write(GBS::VDS_DIS_HB_ST::read()); // dis_hbst = hbst
-        }
+      }
     }
 
     // !subtracting check just for readability
     if (!subtracting) {
-        if ((hbsp_old + hb_sub) < htotal) {
-            GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() + hb_sub); // need to increase hbsp
-        }
-
-        uint16_t hb_sub_halved = hb_sub / 2;
-        if (hb_sub_halved == 0) {
-          hb_sub_halved = 1;
-        }
-        if ((GBS::VDS_HB_ST::read() - hb_sub_halved) > 0) {
-            GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() - hb_sub_halved);
-            GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() + hb_sub_halved);  // new
-        }
+      shiftHorizontal(toShift, false);
+      if ((GBS::VDS_HB_ST::read() - 5) > 0) {
+        GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() - 5);
+      }
     }
 
     // fix scaling < 512 glitch: factor even, htotal even: hbst / hbsp should be even, etc
@@ -1486,6 +1481,10 @@ void scaleHorizontal(uint16_t amountToScale, bool subtracting)
                     GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - 1);
                 }
             }
+        }
+        // if scaling was < 512 and HB_ST moved, align with VDS_DIS_HB_ST
+        if (GBS::VDS_DIS_HB_ST::read() < GBS::VDS_HB_ST::read()) {
+          GBS::VDS_DIS_HB_ST::write(GBS::VDS_HB_ST::read());
         }
     }
 
@@ -2259,6 +2258,33 @@ void doPostPresetLoadSteps() {
     //GBS::VDS_1ST_INT_BYPS::write(1); // disable RGB stage interpolator
     //GBS::VDS_2ND_INT_BYPS::write(1); // disable YUV stage interpolator
 
+    // full height option
+    if (rto->videoStandardInput == 1 || rto->videoStandardInput == 3) {
+      if (rto->presetID == 0x5)
+      { // out 1080p 60
+        if (uopt->wantFullHeight) {
+          GBS::VDS_VSCALE::write(455);
+          GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 2);
+          GBS::VDS_DIS_VB_SP::write(40);
+          GBS::VDS_VB_SP::write(GBS::VDS_DIS_VB_SP::read() - 2); // 38
+          GBS::IF_VB_SP::write(0x10);
+          GBS::IF_VB_ST::write(0xE);
+        }
+      }
+    }
+    else if (rto->videoStandardInput == 2 || rto->videoStandardInput == 4) {
+      if (rto->presetID == 0x15)
+      { // out 1080p 50
+        if (uopt->wantFullHeight) {
+          GBS::VDS_VSCALE::write(455);
+          GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 2);
+          GBS::VDS_DIS_VB_SP::write(38);
+          GBS::IF_VB_SP::write(0x3C);
+          GBS::IF_VB_ST::write(0x3A);
+        }
+      }
+    }
+
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
       GBS::IF_SEL_WEN::write(0); // 1_02 0; 0 for SD, 1 for EDTV
@@ -2272,18 +2298,6 @@ void doPostPresetLoadSteps() {
       //if (rto->presetID == 0x2 || rto->presetID == 0x3 || rto->presetID == 0x5) {
       //  GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
       //}
-
-      if (rto->videoStandardInput == 1) {
-        if (rto->presetID == 0x5)
-        { // out 1080p
-          if (uopt->wantFullHeight) {
-            GBS::VDS_VSCALE::write(455);
-            GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 3);
-            GBS::VDS_DIS_VB_SP::write(42);
-            GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - 62);
-          }
-        }
-      }
     }
     if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4)
     {
@@ -2314,12 +2328,6 @@ void doPostPresetLoadSteps() {
       if (rto->presetID == 0x5) 
       { // out 1080p
         GBS::IF_HB_SP2::write(GBS::IF_HB_SP2::read() + 12);  // 1_1a  = 0x94
-        if (uopt->wantFullHeight) {
-          GBS::VDS_VSCALE::write(455);
-          GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 3);
-          GBS::VDS_DIS_VB_SP::write(42);
-          GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - 62);
-        }
       }
       else if (rto->presetID == 0x3) 
       { // out 720p
@@ -4661,7 +4669,7 @@ void loadDefaultUserOptions() {
   uopt->PalForce60 = 0;
   uopt->matchPresetSource = 1;  // #14
   uopt->wantStepResponse = 0;   // #15
-  uopt->wantFullHeight = 0;     // #16
+  uopt->wantFullHeight = 1;     // #16
 }
 
 void preinit() {
@@ -4817,7 +4825,7 @@ void setup() {
       if (uopt->wantStepResponse > 1) uopt->wantStepResponse = 0;
 
       uopt->wantFullHeight = (uint8_t)(f.read() - '0'); // #16
-      if (uopt->wantFullHeight > 1) uopt->wantFullHeight = 0;
+      if (uopt->wantFullHeight > 1) uopt->wantFullHeight = 1;
 
       f.close();
     }
@@ -6407,14 +6415,7 @@ void handleType2Command(char argument) {
   break;
   case 'v':
     uopt->wantFullHeight = !uopt->wantFullHeight;
-    if (uopt->wantFullHeight) {
-      //GBS::VDS_UV_STEP_BYPS::write(0);
-    }
-    else {
-      //GBS::VDS_UV_STEP_BYPS::write(1);
-    }
     saveUserPrefs();
-    SerialM.println("full height");
   break;
   default:
     break;
