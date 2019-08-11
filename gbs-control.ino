@@ -3250,8 +3250,8 @@ void updateClampPosition() {
 
   uint16_t oldClampST = GBS::SP_CS_CLP_ST::read();
   uint16_t oldClampSP = GBS::SP_CS_CLP_SP::read();
-  uint16_t start = inHlength * 0.0067f; // clamp ST: 0x0f, SP: 0x30 on MD
-  uint16_t stop = inHlength * 0.0206f;  // within the colorburst area, which is flat typically (MD)
+  uint16_t start = inHlength * 0.0067f; // clamp ST: 0x0f, SP: 0x4B on PS2 (good up to ~62)
+  uint16_t stop = inHlength * 0.032f;  // within the colorburst area, which is flat typically (MD)
 
   if (rto->videoStandardInput == 15) { //RGBHV bypass
     if (rto->syncTypeCsync == false)
@@ -3996,7 +3996,7 @@ void runSyncWatcher()
     }
 
     if (rto->noSyncCounter % 80 == 0) {
-      SerialM.print("\nno signal: ");
+      SerialM.print("\nno signal\n");
       printInfo();
       updateSpDynamic();
       delay(20);
