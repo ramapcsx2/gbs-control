@@ -494,6 +494,8 @@ void setResetParameters() {
   GBS::ADC_UNUSED_66::write(0); GBS::ADC_UNUSED_67::write(0);
   GBS::GBS_PRESET_CUSTOM::write(0);
   GBS::GBS_PRESET_ID::write(0);
+  GBS::GBS_OPTION_SCALING_RGBHV::write(0);
+  GBS::GBS_OPTION_PALFORCED60_ENABLED::write(0);
 
   GBS::OUT_SYNC_CNTRL::write(0); // no H / V sync out to PAD
   GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC
@@ -1009,8 +1011,18 @@ uint8_t detectAndSwitchToActiveInput() { // if any
             if (decodeSuccess == 2) { rto->syncTypeCsync = true; }
             else { rto->syncTypeCsync = false; }
 
+            // new: check for 25khz, use regular scaling route for those
+            delay(120);
+            if (getVideoMode() == 8) {
+              rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 8;
+              setAndUpdateSogLevel(rto->currentLevelSOG);
+              SerialM.println("using 25khz path");
+              return 1;
+            }
+
             rto->videoStandardInput = 15;
-            applyPresets(rto->videoStandardInput); // exception: apply preset here, not later in syncwatcher
+            // exception: apply preset here, not later in syncwatcher
+            applyPresets(rto->videoStandardInput);
             delay(100);
             return 3;
           }
@@ -2299,7 +2311,7 @@ void doPostPresetLoadSteps() {
       //  GBS::VDS_VB_ST::write(5); // 4 > 5 against top screen garbage
       //}
     }
-    if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4)
+    if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 || rto->videoStandardInput == 8)
     {
       // EDTV p-scan, need to either double adc data rate and halve vds scaling
       // or disable line doubler (better) (50 / 60Hz shared)
@@ -2385,6 +2397,25 @@ void doPostPresetLoadSteps() {
       GBS::IF_HS_DEC_FACTOR::write(0);
       GBS::INPUT_FORMATTER_02::write(0x74);
       GBS::VDS_Y_DELAY::write(3);
+    }
+    else if (rto->videoStandardInput == 8)
+    { // 25khz
+      GBS::IF_HB_ST::write(30);     // 1_10; magic number
+      GBS::IF_HB_ST2::write(0x60);  // 1_18
+      GBS::IF_HB_SP2::write(0x88);  // 1_1a
+      GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
+      if (rto->presetID == 0x2)
+      { // out x1024
+        GBS::VDS_VSCALE::write(402);
+      }
+      else if (rto->presetID == 0x1)
+      { // out x960
+        GBS::VDS_VSCALE::write(410);
+      }
+      else if (rto->presetID == 0x5)
+      { // out 1080p
+        GBS::VDS_VSCALE::write(400);
+      }
     }
   }
 
@@ -2714,7 +2745,7 @@ void applyPresets(uint8_t result) {
     }
   }
 
-  if (result == 1 || result == 3) {
+  if (result == 1 || result == 3 || result == 8) {
     if (uopt->presetPreference == 0) {
       if (uopt->wantOutputComponent) {
         writeProgramArrayNew(ntsc_1280x1024, false); // override to x1024, later to be patched to 1080p
@@ -2735,7 +2766,7 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(preset, false);
     }
     else if (uopt->presetPreference == 4) {
-      if (uopt->matchPresetSource) {
+      if (uopt->matchPresetSource && result != 8) {
         SerialM.println("matched preset override > 1280x960");
         writeProgramArrayNew(ntsc_240p, false); // pref = x1024 override to x960
       }
@@ -2891,6 +2922,9 @@ static uint8_t getVideoMode() {
       }
     }
     if ((detectedMode & 0x10) == 0x10) {
+      if ((detectedMode & 0x04) == 0x04) { // normally HD2376_1250P (PAL FHD?), but using this for 24k
+        return 8;
+      }
       return 7; // hdtv 1080p
     }
   }
@@ -3262,7 +3296,7 @@ void updateClampPosition() {
   uint16_t oldClampST = GBS::SP_CS_CLP_ST::read();
   uint16_t oldClampSP = GBS::SP_CS_CLP_SP::read();
   uint16_t start = inHlength * 0.0067f; // clamp ST: 0x0f, SP: 0x4B on PS2 (good up to ~62)
-  uint16_t stop = inHlength * 0.032f;  // within the colorburst area, which is flat typically (MD)
+  uint16_t stop = inHlength * 0.029f;  // within the colorburst area, which is flat typically (MD)
 
   if (rto->videoStandardInput == 15) { //RGBHV bypass
     if (rto->syncTypeCsync == false)
@@ -4374,7 +4408,8 @@ void runSyncWatcher()
       //lockCounter = getMovingAverage(lockCounter);
       //short activeChargePumpLevel = GBS::PLLAD_ICP::read();
       //short activeGainBoost = GBS::PLLAD_FS::read();
-      //SerialM.print(" currentPllRate: "); SerialM.print(currentPllRate);
+      //SerialM.print(" currentPllRate: "); SerialM.println(currentPllRate);
+      //SerialM.print(" rto->HPLLState: "); SerialM.println(rto->HPLLState);
       //SerialM.print(" CPL: "); SerialM.print(activeChargePumpLevel);
       //SerialM.print(" Gain: "); SerialM.print(activeGainBoost);
       //SerialM.print(" KS: "); SerialM.print(GBS::PLLAD_KS::read());
