@@ -2463,8 +2463,11 @@ void doPostPresetLoadSteps() {
   delay(30);
   updateCoastPosition();
   if (rto->coastPositionIsSet) {
-    GBS::SP_DIS_SUB_COAST::write(0); // enable SUB_COAST
-    GBS::SP_H_PROTECT::write(0);     // leave H_PROTECT off for now
+    if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0) // maybe more conditions, but only scaling rgbhv excluded from coast now
+    {
+      GBS::SP_DIS_SUB_COAST::write(0); // enable SUB_COAST
+      GBS::SP_H_PROTECT::write(0);     // leave H_PROTECT off for now
+    }
   }
   delay(380); // todo: minimize. currently pal min 360, ntsc lower
 
@@ -4258,10 +4261,13 @@ void runSyncWatcher()
           }
           rto->videoStandardInput = 14;
           updateSpDynamic();
-          GBS::ADC_SOGEN::write(0); // may have to undo this below when returning from scaling rgbhv
-          GBS::SP_SOG_MODE::write(0);
-          GBS::SP_CLAMP_MANUAL::write(1);
-          GBS::SP_NO_COAST_REG::write(1);
+          if (rto->syncTypeCsync == false)
+          { // only set this for != csync
+            GBS::ADC_SOGEN::write(0); // may have to undo this below when returning from scaling rgbhv
+            GBS::SP_SOG_MODE::write(0);
+            GBS::SP_CLAMP_MANUAL::write(1);
+            GBS::SP_NO_COAST_REG::write(1);
+          }
           delay(100);
         }
       }
@@ -5943,8 +5949,11 @@ void loop() {
     if (rto->continousStableCounter >= 7) {
       updateCoastPosition();
       if (rto->coastPositionIsSet) {
-        GBS::SP_DIS_SUB_COAST::write(0); // enable SUB_COAST
-        GBS::SP_H_PROTECT::write(0);     // leave H_PROTECT off for now
+        if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
+        {
+          GBS::SP_DIS_SUB_COAST::write(0); // enable SUB_COAST
+          GBS::SP_H_PROTECT::write(0);     // leave H_PROTECT off for now
+        }
       }
     }
   }
