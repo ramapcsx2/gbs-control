@@ -518,8 +518,8 @@ void setResetParameters() {
   setAdcParametersGainAndOffset();
   GBS::SP_PRE_COAST::write(9); // was 0x07 // need pre / poast to allow all sources to detect
   GBS::SP_POST_COAST::write(18); // was 0x10 // ps2 1080p 18
-  GBS::SP_CS_CLP_ST::write(8); // define it to something at start
-  GBS::SP_CS_CLP_SP::write(16);
+  GBS::SP_CS_CLP_ST::write(32); // define it to something at start
+  GBS::SP_CS_CLP_SP::write(48);
   GBS::ADC_CLK_PA::write(0); // 5_00 0/1 PA_ADC input clock = PLLAD CLKO2
   GBS::ADC_INPUT_SEL::write(1); // 1 = RGBS / RGBHV adc data input
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
@@ -2233,27 +2233,22 @@ void doPostPresetLoadSteps() {
   rto->videoIsFrozen = true; // ensures unfreeze
   rto->sourceDisconnected = false; // this must be true if we reached here (no syncwatcher operation)
   rto->boardHasPower = true; //same
-  
-  // IF initial position is 1_0e/0f IF_HSYNC_RST exactly. But IF_INI_ST needs to be a few pixels before that.
-  // IF_INI_ST - 1 causes an interresting effect when the source switches to interlace.
-  // IF_INI_ST - 2 is the first safe setting
-  // update: this can missfire when IF_HSYNC_RST is set larger for some other reason
-  if (!isCustomPreset) {
-    // new assumption: this should be a bit longer than a half line
-    GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() * 0.68); // see update above
-  }
 
   if (!isCustomPreset) {
+    GBS::IF_INI_ST::write(0); // 16.08.19: don't calculate, use fixed to 0
+    //GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() * 0.68); // see update above
+
     GBS::IF_HS_INT_LPF_BYPS::write(0); // // 1_02 2
     // 0 allows int/lpf for smoother scrolling with non-ideal scaling, also reduces jailbars and even noise
     // interpolation or lpf available, lpf looks better
     GBS::IF_HS_SEL_LPF::write(1); // 1_02 1
     GBS::IF_HS_PSHIFT_BYPS::write(1); // 1_02 3 nonlinear scale phase shift bypass
-    GBS::SP_RT_HS_ST::write(0); // 5_49 // retiming hs ST, SP
-    GBS::SP_RT_HS_SP::write(GBS::PLLAD_MD::read() * 0.93f);
     // 1_28 1 1:hbin generated write reset 0:line generated write reset
     GBS::IF_LD_WRST_SEL::write(1); // at 1 fixes output position regardless of 1_24
-    GBS::MADPT_Y_DELAY_UV_DELAY::write(0); // 2_17 default: 0
+    //GBS::MADPT_Y_DELAY_UV_DELAY::write(0); // 2_17 default: 0 // don't overwrite
+
+    GBS::SP_RT_HS_ST::write(0); // 5_49 // retiming hs ST, SP
+    GBS::SP_RT_HS_SP::write(GBS::PLLAD_MD::read() * 0.93f);
 
     GBS::VDS_PK_LB_CORE::write(0);    // 3_44 0-3 // 1 for anti source jailbars
     GBS::VDS_PK_LH_CORE::write(0);    // 3_46 0-3 // 1 for anti source jailbars
@@ -2598,7 +2593,7 @@ void doPostPresetLoadSteps() {
   GBS::IF_VS_FLIP::write(1);
 
   GBS::SP_CLP_SRC_SEL::write(0); // 0: 27Mhz clock; 1: pixel clock
-  //GBS::SP_CS_CLP_ST::write(8); GBS::SP_CS_CLP_SP::write(16);
+  GBS::SP_CS_CLP_ST::write(32); GBS::SP_CS_CLP_SP::write(48); // same as reset parameters
 
   if (rto->outModeHdBypass) {
     GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
@@ -3217,8 +3212,8 @@ void updateSpDynamic() {
       GBS::SP_H_PULSE_IGNOR::write(0x02);
     }
     else { // csync
-      GBS::SP_PRE_COAST::write(0x03);
-      GBS::SP_POST_COAST::write(0x03);
+      GBS::SP_PRE_COAST::write(0x03);   // as in bypass mode set function
+      GBS::SP_POST_COAST::write(0x07);  // as in bypass mode set function
       GBS::SP_DLT_REG::write(0x70);
     }
   }
@@ -3277,7 +3272,7 @@ void updateClampPosition() {
   // this is required especially on mode changes with ypbpr
   if (getVideoMode() == 0) { return; }
 
-  GBS::SP_CLP_SRC_SEL::write(0); // 0: 27Mhz clock 1: pixel clock
+  //GBS::SP_CLP_SRC_SEL::write(0); // 0: 27Mhz clock 1: pixel clock // old
   if (rto->inputIsYpBpR) {
     GBS::SP_CLAMP_MANUAL::write(0);
   }
@@ -3285,72 +3280,52 @@ void updateClampPosition() {
     GBS::SP_CLAMP_MANUAL::write(1); // no auto clamp for RGB
   }
 
-  uint16_t inHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
-  // STATUS_SYNC_PROC_HTOTAL is "ht: " value, it will be off if the pllad is unstable 
-  // should also check for pllad stability, but use something more reliable than STATUS_MISC_PLL648_LOCK
+  // STATUS_SYNC_PROC_HTOTAL is "ht: " value, it will be off if the pllad is unstable
+  uint32_t accInHlength = 0;
+  uint16_t prevInHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+  for (uint8_t i = 0; i < 8; i++) {
+    uint16_t thisInHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+    if ((thisInHlength > (prevInHlength - 2)) && (thisInHlength < (prevInHlength + 2))) {
+      accInHlength += thisInHlength;
+    }
+    else {
+      //Serial.println("updateClampPosition() pllad unstable");
+      return;
+    }
+    if (!getStatus16SpHsStable()) {
+      return;
+    }
 
-  if (inHlength < 400 || inHlength > 4095) { 
+    prevInHlength = thisInHlength;
+  }
+  accInHlength = accInHlength / 8;  // 8 for the 8x loop
+
+  if (accInHlength < 400 || accInHlength > 4095) {
       return;
   }
 
   uint16_t oldClampST = GBS::SP_CS_CLP_ST::read();
   uint16_t oldClampSP = GBS::SP_CS_CLP_SP::read();
-  uint16_t start = inHlength * 0.0067f; // clamp ST: 0x0f, SP: 0x4B on PS2 (good up to ~62)
-  uint16_t stop = inHlength * 0.029f;  // within the colorburst area, which is flat typically (MD)
+  uint16_t start = accInHlength * 0.01f;   // clamp ST: set for RGB with no Sync on the Green line / standard
+  uint16_t stop = accInHlength * 0.058f;   // clamp SP: ~ 0.063 starts to creep into ps2 worst mode, all else is good long after 
 
-  if (rto->videoStandardInput == 15) { //RGBHV bypass
-    if (rto->syncTypeCsync == false)
-    {
-      // override
-      start = inHlength * 0.02f;
-      stop = inHlength * 0.054f; // was 0.6
-    }
-  }
-  else if (rto->videoStandardInput == 13) { // ps2 mode
-    //rto->syncTypeCsync is true ; inHlength is just 512, so hardcode
-    start = 0x0b;
-    stop =  0x2a;
-  }
-  else if (rto->inputIsYpBpR) {
+  if (rto->inputIsYpBpR) {
     // YUV
     // sources via composite > rca have a colorburst, but we don't care and optimize for on-spec
-    if (rto->videoStandardInput <= 2) {      // SD
-      start = inHlength * 0.005;
-      stop = inHlength * 0.039f;
-    }
-    else if (rto->videoStandardInput == 3) { // EDTV 60
-      start = inHlength * 0.009f; // could be tri level sync
-      stop = inHlength * 0.019f;
-    }
-    else if (rto->videoStandardInput == 4) { // EDTV 50
-      start = inHlength * 0.011f; // can be tri level sync (seen on ps2)
-      stop = inHlength * 0.0227f;
-
-    }
-    else if (rto->videoStandardInput == 5) { // 720p tri level sync
-      start = inHlength * 0.013f;
-      stop = inHlength * 0.03f; 
-    }
-    else if (rto->videoStandardInput == 6) { // 1080i tri level sync
-      start = inHlength * 0.01f;
-      stop = inHlength * 0.0252f; 
-    }
-    else if (rto->videoStandardInput == 7) { // 1080p tri level sync
-      start = inHlength * 0.0037f; // tricky: ps2 can do bi/tri level sync here. it should be tri
-      stop = inHlength * 0.0088f;
-    }
+    start = accInHlength * 0.032f;   // clamp ST: shifted right to pass blacker than black HSync
   }
 
   if ((start < (oldClampST - 1) || start > (oldClampST + 1)) ||
       (stop < (oldClampSP - 1) || stop > (oldClampSP + 1)))
   {
+    GBS::SP_CLP_SRC_SEL::write(1); // 0: 27Mhz clock 1: pixel clock // changed to 1
     GBS::SP_CS_CLP_ST::write(start);
     GBS::SP_CS_CLP_SP::write(stop);
-    /*Serial.print("clamp ST: "); Serial.print("0x"); Serial.print(start, HEX);
+    Serial.print("clamp ST: "); Serial.print("0x"); Serial.print(start, HEX);
     Serial.print(", ");
     Serial.print("SP: "); Serial.print("0x"); Serial.print(stop, HEX);
-    Serial.print("  total: "); Serial.print("0x"); Serial.print(inHlength, HEX);
-    Serial.print(" / "); Serial.println(inHlength);*/
+    Serial.print("  total: "); Serial.print("0x"); Serial.print(accInHlength, HEX);
+    Serial.print(" / "); Serial.println(accInHlength);
   }
 
   rto->clampPositionIsSet = true;
@@ -3583,10 +3558,12 @@ void bypassModeSwitch_RGBHV() {
   GBS::PAD_SYNC_OUT_ENZ::write(1); // disable sync out
   
   loadHdBypassSection();
+  applyRGBPatches();
   resetDebugPort();
   rto->videoStandardInput = 15; // making sure
   rto->autoBestHtotalEnabled = false; // not necessary, since VDS is off / bypassed
   rto->clampPositionIsSet = false;
+  rto->HPLLState = 0;
 
   GBS::PLL_CKIS::write(0); // 0_40 0 //  0: PLL uses OSC clock | 1: PLL uses input clock
   GBS::PLL_DIVBY2Z::write(0); // 0_40 1 // 1= no divider (full clock, ie 27Mhz) 0 = halved clock
@@ -3642,7 +3619,7 @@ void bypassModeSwitch_RGBHV() {
     GBS::ADC_SOGEN::write(1); // 5_02 0 ADC SOG
     GBS::SP_SOG_MODE::write(1); // apparently needs to be off for HS input (on for ADC)
     GBS::SP_NO_COAST_REG::write(0); // coasting on
-    GBS::SP_PRE_COAST::write(7);
+    GBS::SP_PRE_COAST::write(3);  // 5_38, > 4 can be seen with clamp invert on the lower lines
     GBS::SP_POST_COAST::write(7);
     GBS::SP_SYNC_BYPS::write(0); // use regular sync for decimator (and sync out) path
     GBS::SP_HS_LOOP_SEL::write(1); // 5_57_6 | 0 enables retiming on SP | 1 to bypass input to HDBYPASS
@@ -3735,9 +3712,10 @@ void bypassModeSwitch_RGBHV() {
 
   rto->presetID = 0x22; // bypass flavor 2
   delay(100);
-  for (int i = 0; i < 2; i++) {
-    printInfo(); delay(1);
-  }
+  SerialM.println("RGB/HV bypass on");
+  //for (int i = 0; i < 2; i++) {
+  //  printInfo(); delay(1);
+  //}
 }
 
 void runAutoGain()
@@ -4138,10 +4116,10 @@ void runSyncWatcher()
       LEDON;
     }
 
-    if (rto->continousStableCounter == 80) {
+    if (rto->continousStableCounter == 60) {
       GBS::ADC_UNUSED_67::write(0); // clear sync fix temp registers (67/68)
       //rto->coastPositionIsSet = 0; // leads to a flicker
-      rto->clampPositionIsSet = 0;
+      rto->clampPositionIsSet = 0;  // run updateClampPosition occasionally
     }
 
     if (rto->continousStableCounter >= 3) {
@@ -4415,6 +4393,7 @@ void runSyncWatcher()
       //SerialM.print(" KS: "); SerialM.print(GBS::PLLAD_KS::read());
       //SerialM.print(" lock: "); SerialM.println(lockCounter);
 
+      oldHPLLState = rto->HPLLState; // do this first, else it can miss events
       if (currentPllRate != 0)
       {
         updateHSyncEdge();
@@ -4478,12 +4457,10 @@ void runSyncWatcher()
         latchPLLAD();
         SerialM.print("(H-PLL) state: "); SerialM.println(rto->HPLLState);
         delay(20);
-        for (int i = 0; i < 2; i++) { 
-          printInfo(); delay(1);
-        }
+        //for (int i = 0; i < 2; i++) { 
+        //  printInfo(); delay(1);
+        //}
       }
-      oldHPLLState = rto->HPLLState;
-
 
       lastTimeCheck = millis();
       rto->clampPositionIsSet = false; // RGBHV should regularly check clamp position
@@ -5394,13 +5371,11 @@ void loop() {
         pll_divider += 1;
         GBS::PLLAD_MD::write(pll_divider);
         if (!rto->outModeHdBypass) {
-          //float divider = (float)GBS::STATUS_SYNC_PROC_HTOTAL::read() / 4096.0f; // old
-          //uint16_t newHT = (GBS::HPERIOD_IF::read() * 4) * (divider + 0.14f);    // old
           uint16_t newHT = (GBS::PLLAD_MD::read() >> 1) + 1;
-          //newHT += newHT * 0.03f;
           GBS::IF_HSYNC_RST::write(newHT); // 1_0e
           GBS::IF_LINE_SP::write(newHT + 1); // 1_22
-          GBS::IF_INI_ST::write(newHT * 0.68f);
+          
+          //GBS::IF_INI_ST::write(newHT * 0.68f); // fixed to 0 now
 
           // s1s03sff s1s04sff s1s05sff s1s06sff s1s07sff s1s08sff s1s09sff s1s0asff s1s0bs4f
           // s1s03s00 s1s04s00 s1s05s00 s1s06s00 s1s07s00 s1s08s00 s1s09s00 s1s0as00 s1s0bs50
@@ -5890,6 +5865,9 @@ void loop() {
       Serial.println(typeOneCommand, HEX);
       break;
     }
+
+    delay(1); // give some time to read in eventual next chars
+
     // a web ui or terminal command has finished. good idea to reset sync lock timer
     // important if the command was to change presets, possibly others
     lastVsyncLock = millis();
@@ -5904,6 +5882,7 @@ void loop() {
   if (typeTwoCommand != '@') {
     handleType2Command(typeTwoCommand);
     typeTwoCommand = '@'; // in case we handled web server command
+    lastVsyncLock = millis();
     handleWiFi(1);
   }
 
