@@ -148,6 +148,7 @@ struct runTimeOptions {
   uint8_t failRetryAttempts;
   uint8_t presetID;
   uint8_t HPLLState;
+  uint8_t medResLineCount;
   boolean isInLowPowerMode;
   boolean clampPositionIsSet;
   boolean coastPositionIsSet;
@@ -412,6 +413,7 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
       }
       if (!skipMDSection) {
         loadPresetMdSection();
+        GBS::MD_HD1250P_CNTRL::write(rto->medResLineCount); // patch med res support
       }
       break;
     case 2:
@@ -486,6 +488,7 @@ void setResetParameters() {
   rto->scanlinesEnabled = false;
   rto->syncTypeCsync = false;
   rto->isValidForScalingRGBHV = false;
+  rto->medResLineCount = 0x33; // 51*8=408
 
   adco->r_gain = 0;
   adco->g_gain = 0;
@@ -970,7 +973,9 @@ uint8_t detectAndSwitchToActiveInput() { // if any
           {
             delay(2);
             if (getVideoMode() > 0) {
-              return 1;
+              if (getVideoMode() != 8) {  // if it's mode 8, need to set stuff first
+                return 1;
+              }
             }
             testCycle++;
             // post coast 18 can mislead occasionally (SNES 239 mode)
@@ -983,6 +988,24 @@ uint8_t detectAndSwitchToActiveInput() { // if any
               // assume thisSourceMaxLevelSOG is low
               rto->thisSourceMaxLevelSOG = rto->currentLevelSOG;
             }
+
+            // new: check for 25khz, use regular scaling route for those
+            if (getVideoMode() == 8) {
+              rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 8;
+              setAndUpdateSogLevel(rto->currentLevelSOG);
+              rto->medResLineCount = GBS::MD_HD1250P_CNTRL::read();
+              SerialM.println("25khz pure rgbs");
+              return 1;
+            }
+            //printInfo();
+            uint8_t currentMedResLineCount = GBS::MD_HD1250P_CNTRL::read();
+            if (currentMedResLineCount < 0x3c) {
+              GBS::MD_HD1250P_CNTRL::write(currentMedResLineCount + 1);
+            }
+            else {
+              GBS::MD_HD1250P_CNTRL::write(0x33);
+            }
+            //Serial.println(GBS::MD_HD1250P_CNTRL::read(), HEX);
           }
           rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 8;
           setAndUpdateSogLevel(rto->currentLevelSOG);
@@ -1015,11 +1038,21 @@ uint8_t detectAndSwitchToActiveInput() { // if any
 
             // new: check for 25khz, use regular scaling route for those
             delay(120);
-            if (getVideoMode() == 8) {
-              rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 8;
-              setAndUpdateSogLevel(rto->currentLevelSOG);
-              SerialM.println("using 25khz path");
-              return 1;
+            for (uint8_t i = 0; i < 8; i++) {
+              //printInfo();
+              if (getVideoMode() == 8) {
+                rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 8;
+                setAndUpdateSogLevel(rto->currentLevelSOG);
+                rto->medResLineCount = GBS::MD_HD1250P_CNTRL::read();
+                SerialM.println("25khz mixed rgbs");
+                return 1;
+              }
+              else {
+                //printInfo();
+                GBS::MD_HD1250P_CNTRL::write(GBS::MD_HD1250P_CNTRL::read() + 1);
+                //Serial.println(GBS::MD_HD1250P_CNTRL::read(), HEX);
+                delay(10);
+              }
             }
 
             rto->videoStandardInput = 15;
@@ -2006,6 +2039,12 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
     return true;
   }
   boolean isLargeDiff = (diffHTotalUnsigned > (orig_htotal * 0.06f)) ? true : false; // typical diff: 1802 to 1794 (=8)
+
+  if (isLargeDiff && (getVideoMode() == 8)) {
+    // arcade stuff syncs down from 60 to 52 Hz..
+    isLargeDiff = (diffHTotalUnsigned > (orig_htotal * 0.16f)) ? true : false;
+  }
+
   if (isLargeDiff) {
     SerialM.println("ABHT: large diff");
   }
@@ -2404,13 +2443,17 @@ void doPostPresetLoadSteps() {
       GBS::IF_HB_ST2::write(0x60);  // 1_18
       GBS::IF_HB_SP2::write(0x88);  // 1_1a
       GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
-      if (rto->presetID == 0x2)
+      if (rto->presetID == 0x1)
+      { // out x960
+        GBS::VDS_VSCALE::write(410);
+      }
+      else if (rto->presetID == 0x2)
       { // out x1024
         GBS::VDS_VSCALE::write(402);
       }
-      else if (rto->presetID == 0x1)
-      { // out x960
-        GBS::VDS_VSCALE::write(410);
+      else if (rto->presetID == 0x3)
+      { // out 720p
+        GBS::VDS_VSCALE::write(546);
       }
       else if (rto->presetID == 0x5)
       { // out 1080p
@@ -4510,11 +4553,18 @@ void runSyncWatcher()
 
     // couldn't recover, source is lost
     // restore initial conditions and move to input detect
-    if (rto->noSyncCounter >= 254) {
+    uint8_t giveUpCount = 254;
+    // some modes can return earlier
+    if (rto->videoStandardInput == 8) {
+      giveUpCount = 127;
+    }
+
+    if (rto->noSyncCounter >= giveUpCount) {
       GBS::DAC_RGBS_PWDNZ::write(0); // 0 = disable DAC
       rto->noSyncCounter = 0;
       goLowPowerWithInputDetection(); // does not further nest, so it can be called here // sets reset parameters
     }
+    
   }
 }
 
@@ -4730,6 +4780,7 @@ void setup() {
   rto->presetIsPalForce60 = false;
   rto->syncTypeCsync = false;
   rto->isValidForScalingRGBHV = false;
+  rto->medResLineCount = 0x33; // 51*8=408
 
   // the following is just run time variables. don't change!
   rto->inputIsYpBpR = false;

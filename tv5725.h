@@ -283,6 +283,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x73, 0,  7> MD_SXGA_60HZ_CNTRL;
     typedef UReg<0x01, 0x74, 0,  7> MD_SXGA_75HZ_CNTRL;
     typedef UReg<0x01, 0x75, 0,  7> MD_SXGA_85HZ_CNTRL;
+    typedef UReg<0x01, 0x7F, 0,  7> MD_HD1250P_CNTRL; // changed to meaning 24khz
     
     // Deinterlacer / Scaledown registers
     typedef UReg<0x02, 0x00, 0,  8> DEINT_00;
