@@ -405,6 +405,8 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
         if (j == 0) {
           bank[0] = bank[0] & ~(1 << 5); // clear 1_00 5
           bank[1] = bank[1] | (1 << 0);  // set 1_01 0
+          bank[12] = bank[12] & 0x0f;    // clear 1_0c upper bits
+          bank[13] = 0;                  // clear 1_0d
         }
         writeBytes(j * 16, bank, 16);
       }
@@ -1635,8 +1637,11 @@ void scaleVertical(uint16_t amountToScale, bool subtracting) {
   if (!subtracting && (vscale == 511 || vscale == 512)) amountToScale = 1;
   if (!subtracting && (vscale == 682 || vscale == 683)) amountToScale = 1;
 
-  if (subtracting && (vscale - amountToScale > 0)) {
+  if (subtracting && (vscale - amountToScale > 128)) {
     vscale -= amountToScale;
+  }
+  else if (subtracting) {
+    vscale = 128;
   }
   else if (vscale + amountToScale <= 1023) {
     vscale += amountToScale;
@@ -2552,38 +2557,9 @@ void doPostPresetLoadSteps() {
   {
     // prepare ideal vline shift for PAL / NTSC SD sources
     // best test for upper content is snes 239 mode (use mainly for setting IF_VB_ST/SP first (1_1c/1e))
-    switch (rto->presetID)
-    {
-    case 0x1:
-    case 0x2:
-      rto->presetVlineShift = 26; // for ntsc_240p, 1280x1024 ntsc
-      break;
-    case 0x3:
-      rto->presetVlineShift = 18; // for 1280x720 ntsc
-      break;
-    case 0x4:
-      rto->presetVlineShift = 14; // ntsc_feedbackclock
-      break;
-    case 0x5:
-      rto->presetVlineShift = 24; // 1920x1080 ntsc
-      break;
-    case 0x11:
-      rto->presetVlineShift = 22; // for pal_240p
-      break;
-    case 0x12:
-    case 0x15:
-      rto->presetVlineShift = 24; // for 1280x1024 pal, 1920x1080 pal
-      break;
-    case 0x13:
-      rto->presetVlineShift = 18; // for 1280x720 pal
-      break;
-    case 0x14:
-      rto->presetVlineShift = 12; // pal_feedbackclock
-      break;
-    default:
-      rto->presetVlineShift = 12; // use lowest shift 
-      break;
-    }
+    // rto->presetVlineShift = 26; // for ntsc_240p, 1280x1024 ntsc
+
+    // gonsky
   }
 
   setAndUpdateSogLevel(rto->currentLevelSOG); // use this to cycle SP / ADPLL latches
@@ -3212,7 +3188,7 @@ void updateSpDynamic() {
       GBS::SP_H_PULSE_IGNOR::write(0x02);
     }
     else { // csync
-      GBS::SP_PRE_COAST::write(0x03);   // as in bypass mode set function
+      GBS::SP_PRE_COAST::write(0x04);   // as in bypass mode set function
       GBS::SP_POST_COAST::write(0x07);  // as in bypass mode set function
       GBS::SP_DLT_REG::write(0x70);
     }
@@ -3379,12 +3355,15 @@ void setOutModeHdBypass() {
   
   if (rto->inputIsYpBpR) {
     GBS::DEC_MATRIX_BYPS::write(1); // 5_1f 2 = 1 for YUV / 0 for RGB
+    GBS::HD_MATRIX_BYPS::write(0);  // 1_30 1 / input to jacks is yuv, adc leaves it as yuv > convert to rgb for output here
+    GBS::HD_DYN_BYPS::write(0);     // don't bypass color expansion (eventhough it's not doing anything, values are neutral)
   }
   else {
-    GBS::DEC_MATRIX_BYPS::write(0);
+    GBS::DEC_MATRIX_BYPS::write(1); // assuming RGB to the jack, then adc should still leave it as yuv
+    GBS::HD_MATRIX_BYPS::write(1);  // 1_30 1 / input to jacks is rgb, adc leaves it as rgb > bypass yuv to rgb here
+    GBS::HD_DYN_BYPS::write(1);     // bypass as well
   }
-  GBS::HD_MATRIX_BYPS::write(0);  // 1_30 1
-  GBS::HD_DYN_BYPS::write(0);
+  
   GBS::HD_SEL_BLK_IN::write(0);   // 0 enables HDB blank timing (1 would be DVI, not working atm)
 
   GBS::SP_SDCS_VSST_REG_H::write(0); // S5_3B
@@ -3393,12 +3372,12 @@ void setOutModeHdBypass() {
   GBS::SP_SDCS_VSSP_REG_L::write(2); // S5_40 // 10 for SP sync // check with interlaced sources
 
   GBS::HD_HSYNC_RST::write(0x3ff); // max 0x7ff
-  GBS::HD_INI_ST::write(0x298);
+  GBS::HD_INI_ST::write(0);    // todo: test this at 0 / was 0x298
   // timing into HDB is PLLAD_MD with PLLAD_KS divider: KS = 0 > full PLLAD_MD
   if (rto->videoStandardInput <= 2) {
     //GBS::SP_HS2PLL_INV_REG::write(1); //5_56 1 lock to falling sync edge // seems wrong, sync issues with MD
     GBS::ADC_FLTR::write(3);     // 5_03 4/5 ADC filter 3=40, 2=70, 1=110, 0=150 Mhz
-    GBS::HD_INI_ST::write(0x76); // 1_39
+    //GBS::HD_INI_ST::write(0x76); // 1_39
     GBS::HD_HB_ST::write(0x878); // 1_3B
     GBS::HD_HB_SP::write(0x90);  // 1_3D
     GBS::HD_HS_ST::write(0x08);  // 1_3F
@@ -3412,7 +3391,7 @@ void setOutModeHdBypass() {
     GBS::ADC_FLTR::write(2);     // 5_03 4/5 ADC filter 3=40, 2=70, 1=110, 0=150 Mhz
     GBS::PLLAD_KS::write(1);     // 5_16 post divider
     GBS::PLLAD_CKOS::write(0);   // 5_16 2x OS (with KS=1)
-    GBS::HD_INI_ST::write(0x76); // 1_39
+    //GBS::HD_INI_ST::write(0x76); // 1_39
     GBS::HD_HB_ST::write(0x878); // 1_3B
     GBS::HD_HB_SP::write(0xa0);  // 1_3D
     GBS::HD_HS_ST::write(0x10);  // 1_3F
@@ -3429,7 +3408,7 @@ void setOutModeHdBypass() {
     GBS::ADC_FLTR::write(1);            // 5_03 4/5 ADC filter 3=40, 2=70, 1=110, 0=150 Mhz
     if (rto->videoStandardInput == 5) { // 720p
       GBS::HD_HSYNC_RST::write(550); // 1_37
-      GBS::HD_INI_ST::write(78);     // 1_39
+      //GBS::HD_INI_ST::write(78);     // 1_39
       // 720p has high pllad vco output clock, so don't do oversampling
       GBS::PLLAD_KS::write(0); // 5_16 post divider 0 : FCKO1 > 87MHz, 3 : FCKO1<23MHz
       GBS::PLLAD_CKOS::write(0);    // 5_16 1x OS (with KS=CKOS=0)
@@ -3451,7 +3430,7 @@ void setOutModeHdBypass() {
     if (rto->videoStandardInput == 6) { // 1080i
       // interl. source
       GBS::HD_HSYNC_RST::write(0x710); // 1_37
-      GBS::HD_INI_ST::write(2);    // 1_39
+      //GBS::HD_INI_ST::write(2);    // 1_39
       GBS::PLLAD_KS::write(1);     // 5_16 post divider
       GBS::PLLAD_CKOS::write(0);   // 5_16 2x OS (with KS=1)
       GBS::HD_HB_ST::write(0);     // 1_3B
@@ -3467,7 +3446,7 @@ void setOutModeHdBypass() {
     }
     if (rto->videoStandardInput == 7) { // 1080p
       GBS::HD_HSYNC_RST::write(0x710); // 1_37
-      GBS::HD_INI_ST::write(0xf0);     // 1_39
+      //GBS::HD_INI_ST::write(0xf0);     // 1_39
       // 1080p has highest pllad vco output clock, so don't do oversampling
       GBS::PLLAD_KS::write(0); // 5_16 post divider 0 : FCKO1 > 87MHz, 3 : FCKO1<23MHz
       GBS::PLLAD_CKOS::write(0);    // 5_16 1x OS (with KS=CKOS=0)
@@ -3488,23 +3467,20 @@ void setOutModeHdBypass() {
       applyRGBPatches(); // treat mostly as RGB, clamp R/B to gnd
       rto->syncTypeCsync = true; // used in loop to set clamps and SP dynamic
       GBS::DEC_MATRIX_BYPS::write(1); // overwrite for this mode 
-      GBS::SP_PRE_COAST::write(3);
-      GBS::SP_POST_COAST::write(3);
+      GBS::SP_PRE_COAST::write(4);
+      GBS::SP_POST_COAST::write(4);
       GBS::SP_DLT_REG::write(0x70);
       GBS::HD_MATRIX_BYPS::write(1); // bypass since we'll treat source as RGB
       GBS::HD_DYN_BYPS::write(1); // bypass since we'll treat source as RGB
       GBS::SP_VS_PROC_INV_REG::write(0); // don't invert
-      // we won't know the exact mode, so don't do oversampling
-      // some (most) of this overwritten in check below! simply too much work for this mode atm
-      //GBS::PLLAD_KS::write(0); // 5_16 post divider 0 : FCKO1 > 87MHz, 3 : FCKO1<23MHz
+      // same as with RGBHV, the ps2 resolution can vary widely
+      GBS::PLLAD_KS::write(0); // 5_16 post divider 0 : FCKO1 > 87MHz, 3 : FCKO1<23MHz
       GBS::PLLAD_CKOS::write(0);    // 5_16 1x OS (with KS=CKOS=0)
       GBS::ADC_CLK_ICLK1X::write(0);// 5_00 4 (OS=1)
       GBS::ADC_CLK_ICLK2X::write(0);// 5_00 3 (OS=1)
       GBS::DEC1_BYPS::write(1);     // 5_1f 1 // dec1 disabled (OS=1)
       GBS::DEC2_BYPS::write(1);     // 5_1f 1 // dec2 disabled (OS=1)
-      //GBS::PLLAD_ICP::write(5);
-      //GBS::PLLAD_FS::write(0);
-      GBS::PLLAD_MD::write(512);
+      GBS::PLLAD_MD::write(512);    // could try 856
     }
   }
 
@@ -3527,13 +3503,13 @@ void setOutModeHdBypass() {
   }
 
   rto->outModeHdBypass = 1;
-  rto->presetID = 0x21; // bypass flavor 1
+  rto->presetID = 0x21; // bypass flavor 1, used to signal buttons in web ui
 
   updateSpDynamic(); // !
   GBS::DEC_IDREG_EN::write(1); // 5_1f 7
   GBS::DEC_WEN_MODE::write(1); // 5_1e 7 // 1 keeps ADC phase consistent. around 4 lock positions vs totally random
   rto->phaseSP = 8;
-  rto->phaseADC = 2; // fix value
+  rto->phaseADC = 24; // fix value // works best with yuv input in tests
   setAndUpdateSogLevel(rto->currentLevelSOG); // also re-latch everything
 
   //resetSyncProcessor(); // needed?
@@ -3585,8 +3561,8 @@ void bypassModeSwitch_RGBHV() {
     //GBS::OUT_SYNC_SEL::write(2); // 0_4f sync from SP
     //GBS::SFTRST_HDBYPS_RSTZ::write(1); // need HDBypass
     //GBS::SP_HS_LOOP_SEL::write(1); // (5_57_6) // can bypass since HDBypass does sync
-    //GBS::HD_MATRIX_BYPS::write(1); // bypass since we'll treat source as RGB
-    //GBS::HD_DYN_BYPS::write(1); // bypass since we'll treat source as RGB
+  GBS::HD_MATRIX_BYPS::write(1);  // bypass since we'll treat source as RGB
+  GBS::HD_DYN_BYPS::write(1);     // bypass since we'll treat source as RGB
     //GBS::HD_SEL_BLK_IN::write(1); // "DVI", not regular
 
   GBS::PAD_SYNC1_IN_ENZ::write(0); // filter H/V sync input1 (0 = on)
@@ -3619,7 +3595,7 @@ void bypassModeSwitch_RGBHV() {
     GBS::ADC_SOGEN::write(1); // 5_02 0 ADC SOG
     GBS::SP_SOG_MODE::write(1); // apparently needs to be off for HS input (on for ADC)
     GBS::SP_NO_COAST_REG::write(0); // coasting on
-    GBS::SP_PRE_COAST::write(3);  // 5_38, > 4 can be seen with clamp invert on the lower lines
+    GBS::SP_PRE_COAST::write(4);  // 5_38, > 4 can be seen with clamp invert on the lower lines
     GBS::SP_POST_COAST::write(7);
     GBS::SP_SYNC_BYPS::write(0); // use regular sync for decimator (and sync out) path
     GBS::SP_HS_LOOP_SEL::write(1); // 5_57_6 | 0 enables retiming on SP | 1 to bypass input to HDBYPASS
@@ -3710,7 +3686,7 @@ void bypassModeSwitch_RGBHV() {
     SerialM.print(" B:"); SerialM.println(GBS::ADC_BOFCTRL::read(), HEX);
   }
 
-  rto->presetID = 0x22; // bypass flavor 2
+  rto->presetID = 0x22; // bypass flavor 2, used to signal buttons in web ui
   delay(100);
   SerialM.println("RGB/HV bypass on");
   //for (int i = 0; i < 2; i++) {
@@ -4199,9 +4175,14 @@ void runSyncWatcher()
             filteredLineCountShouldShiftDown++;
             if (filteredLineCountShouldShiftDown >= 3) // 2 or more // less = less jaring when action should be done
             {
-              //SerialM.print("shift down, vlines: "); SerialM.println(rto->presetVlineShift);
-              GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() + rto->presetVlineShift);
-              GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() + rto->presetVlineShift);
+              //Serial.println("down");
+              for (uint8_t a = 0; a <= 5; a++) {
+                shiftVerticalDownIF();
+              }
+
+              //GBS::SP_SDCS_VSSP_REG_L::write(3);  // 5_4f first
+              //GBS::SP_SDCS_VSST_REG_L::write(5);  // 5_3f
+
               GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as adjusted
               filteredLineCountShouldShiftDown = 0;
             }
@@ -4216,9 +4197,14 @@ void runSyncWatcher()
             filteredLineCountShouldShiftUp++;
             if (filteredLineCountShouldShiftUp >= 3) // 2 or more // less = less jaring when action should be done
             {
-              //SerialM.print("shift back up, vlines: "); SerialM.println(rto->presetVlineShift);
-              GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
-              GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
+              //Serial.println("up");
+              for (uint8_t a = 0; a <= 5; a++) {
+                shiftVerticalUpIF();
+              }
+
+              //GBS::SP_SDCS_VSSP_REG_L::write(3);  // 5_4f first
+              //GBS::SP_SDCS_VSST_REG_L::write(12); // 5_3f
+
               GBS::IF_AUTO_OFST_RESERVED_2::write(0); // mark as regular
               filteredLineCountShouldShiftUp = 0;
             }
@@ -4621,6 +4607,7 @@ void calibrateAdcOffset()
     Serial.println("");
     
     GBS::DEC_TEST_SEL::write(3);
+    delay(1); // help wifi
 
     startTimer = millis();
     while ((millis() - startTimer) < 300) {
@@ -4644,6 +4631,7 @@ void calibrateAdcOffset()
     Serial.println("");
 
     // DEC_TEST_SEL stays = 3
+    delay(1); // help wifi
 
     startTimer = millis();
     while ((millis() - startTimer) < 300) {
@@ -4910,11 +4898,14 @@ void setup() {
     SerialM.print(productId,HEX); 
     SerialM.print(" ");
     SerialM.println(revisionId,HEX);
+
     delay(20);
-    //if (uopt->enableAutoGain) {
-      calibrateAdcOffset();
-      setResetParameters();
-    //}
+    calibrateAdcOffset();
+    setResetParameters();
+
+    delay(4); // help wifi (presets are unloaded now)
+    handleWiFi(1);
+    delay(4);
     //rto->syncWatcherEnabled = false; // allows passive operation by disabling syncwatcher here
     //inputAndSyncDetect();
     //if (rto->syncWatcherEnabled == true) {
@@ -5084,10 +5075,11 @@ void handleWiFi(boolean instant) {
     //webSocket.loop(); // checks _runnning internally, skips all work if not
 
     if ((millis() - lastTimePing > 973) || instant) { // slightly odd value so not everything happens at once
-      if (webSocket.connectedClients(true) > 0) { // true = with compliant ping
+      //if (webSocket.connectedClients(true) > 0) { // true = with compliant ping
+        webSocket.broadcastPing();
         updateWebSocketData();
         delay(1);
-      }
+      //}
       lastTimePing = millis();
     }
   }
@@ -5140,8 +5132,11 @@ void loop() {
       // check for vertical adjust and undo if necessary
       if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
       {
-        GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
-        GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
+        //GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
+        //GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
+        for (uint8_t a = 0; a <= 5; a++) {
+          shiftVerticalUpIF();
+        }
         GBS::IF_AUTO_OFST_RESERVED_2::write(0);
       }
       // don't store scanlines
@@ -5833,7 +5828,14 @@ void loop() {
     {
       uint16_t if_hblank_scale_stop = GBS::IF_HBIN_SP::read();
       GBS::IF_HBIN_SP::write(if_hblank_scale_stop + 1);
-      SerialM.print("1_26: "); SerialM.println(if_hblank_scale_stop + 1);
+      SerialM.print("1_26: "); SerialM.println((if_hblank_scale_stop + 1), HEX);
+    }
+    break;
+    case 'X':
+    {
+      uint16_t if_hblank_scale_stop = GBS::IF_HBIN_SP::read();
+      GBS::IF_HBIN_SP::write(if_hblank_scale_stop - 1);
+      SerialM.print("1_26: "); SerialM.println((if_hblank_scale_stop - 1), HEX);
     }
     break;
     case '(':
@@ -6765,8 +6767,11 @@ void savePresetToSPIFFS() {
     // next: check for vertical adjust and undo if necessary
     if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
     {
-      GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
-      GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
+      //GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
+      //GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
+      for (uint8_t a = 0; a <= 5; a++) {
+        shiftVerticalUpIF();
+      }
       GBS::IF_AUTO_OFST_RESERVED_2::write(0);
     }
 

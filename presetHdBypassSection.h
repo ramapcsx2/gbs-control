@@ -1,11 +1,11 @@
 const uint8_t presetHdBypassSection[] PROGMEM = {
 0x00, // s1_30
-0x84, // s1_31 // Y 80
+0x80, // s1_31 // Y 84
 0x00, // s1_32 // Y offset
-0x78, // s1_33 // B/U instead of 0x1c? 72
-0x01, // s1_34 // B offset
-0x80, // s1_35 // R/V instead of 0x29? 7d
-0xff, // s1_36 // R offset
+0x80, // s1_33 // B/U instead of 0x1c? 78
+0x00, // s1_34 // B offset 1
+0x80, // s1_35 // R/V instead of 0x29? 80
+0x00, // s1_36 // R offset ff
 0xff, // s1_37 // HD_HSYNC_RST
 0x03, // s1_38
 0x16, // s1_39 // HD_INI_ST
