@@ -6650,7 +6650,9 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
     result[2] = f.read();
 
     f.close();
-    if ((uint8_t)(result[2] - '0') < 10) slot = result[2]; // otherwise not stored on spiffs
+    if ((uint8_t)(result[2] - '0') < 10) {
+      slot = result[2]; // otherwise not stored on spiffs
+    }
   }
   else {
     // file not found, we don't know what preset to load
@@ -6679,6 +6681,9 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
   }
   else if (forVideoMode == 6) {
     f = SPIFFS.open("/preset_ntsc_1080p." + String(slot), "r");
+  }
+  else if (forVideoMode == 8) {
+    f = SPIFFS.open("/preset_medium_res." + String(slot), "r");
   }
   else if (forVideoMode == 0) {
     f = SPIFFS.open("/preset_unknown." + String(slot), "r");
@@ -6748,6 +6753,9 @@ void savePresetToSPIFFS() {
   }
   else if (rto->videoStandardInput == 6) {
     f = SPIFFS.open("/preset_ntsc_1080p." + String(slot), "w");
+  }
+  else if (rto->videoStandardInput == 8) {
+    f = SPIFFS.open("/preset_medium_res." + String(slot), "w");
   }
   else if (rto->videoStandardInput == 0) {
     f = SPIFFS.open("/preset_unknown." + String(slot), "w");
