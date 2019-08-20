@@ -142,6 +142,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x19, 0, 12> STATUS_SYNC_PROC_HLOW_LEN;
     typedef UReg<0x00, 0x1B, 0, 11> STATUS_SYNC_PROC_VTOTAL;
     typedef UReg<0x00, 0x1F, 0,  8> TEST_BUS_1F;
+    typedef UReg<0x00, 0x20, 0, 16> TEST_FF_STATUS;
     typedef UReg<0x00, 0x23, 0,  8> TEST_BUS_23;
     typedef UReg<0x00, 0x2E, 0, 16> TEST_BUS;
     typedef UReg<0x00, 0x2E, 0,  8> TEST_BUS_2E;
@@ -193,6 +194,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x52, 0,  8> GPIO_CONTROL_00;
     typedef UReg<0x00, 0x53, 0,  8> GPIO_CONTROL_01;
     typedef UReg<0x00, 0x58, 0,  8> INTERRUPT_CONTROL_00;
+    typedef UReg<0x00, 0x58, 0,  1> INT_CONTROL_RST_SOGBAD;
     typedef UReg<0x00, 0x59, 0,  8> INTERRUPT_CONTROL_01;
 
     // IF Registers
