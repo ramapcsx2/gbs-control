@@ -2016,8 +2016,20 @@ boolean runAutoBestHTotal() {
       resetInterruptSogBadBit();
 
       if ((getVideoMode() == initialVideoMode) && stableNow) {
-        // critical task
-        uint16_t bestHTotal = FrameSync::init();
+        
+        uint8_t testBusSelBackup  = GBS::TEST_BUS_SEL::read();
+        uint8_t vdsBusSelBackup   = GBS::VDS_TEST_BUS_SEL::read();
+        uint8_t ifBusSelBackup    = GBS::IF_TEST_SEL::read();
+
+        if (testBusSelBackup != 0)  GBS::TEST_BUS_SEL::write(0);     // needs decimation + if
+        if (vdsBusSelBackup != 0)   GBS::VDS_TEST_BUS_SEL::write(0); // VDS test # 0 = VBlank
+        if (ifBusSelBackup != 3)    GBS::IF_TEST_SEL::write(3);      // IF averaged frame time
+
+        uint16_t bestHTotal = FrameSync::init();  // critical task
+
+        GBS::TEST_BUS_SEL::write(testBusSelBackup); // always restore from backup (TB has changed)
+        if (vdsBusSelBackup != 0)   GBS::VDS_TEST_BUS_SEL::write(vdsBusSelBackup);
+        if (ifBusSelBackup != 3)    GBS::IF_TEST_SEL::write(ifBusSelBackup);
 
         if (GBS::STATUS_INT_SOG_BAD::read() || getVideoMode() != initialVideoMode) {
           stableNow = false;
@@ -2025,7 +2037,13 @@ boolean runAutoBestHTotal() {
         resetInterruptSogBadBit();
 
         if (bestHTotal > 4095) {
-          stableNow = false;
+          if (!rto->forceRetime) {
+            stableNow = false;
+          }
+          else {
+            // roll with it
+            bestHTotal = 4095;
+          }
         }
 
         if (stableNow) {
@@ -2133,6 +2151,7 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
 
   // bestHTotal 0? could be an invald manual retime
   if (bestHTotal == 0) {
+    Serial.println("bestHTotal 0");
     return false;
   }
 
@@ -2237,31 +2256,32 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
 
 float getSourceFieldRate(boolean useSPBus) {
   double esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
-  uint8_t debugRegBackup = GBS::TEST_BUS_SEL::read();
-  uint8_t debugRegBackup_SP = GBS::TEST_BUS_SP_SEL::read();
+  uint8_t testBusSelBackup = GBS::TEST_BUS_SEL::read();
+  uint8_t spBusSelBackup = GBS::TEST_BUS_SP_SEL::read();
+  uint8_t ifBusSelBackup = GBS::IF_TEST_SEL::read();
+
+  if (ifBusSelBackup != 3) GBS::IF_TEST_SEL::write(3);  // IF averaged frame time
 
   if (useSPBus)
   {
-    GBS::TEST_BUS_SEL::write(0xa); // 0x0 for IF vs, 0xa for SP vs | IF vs is averaged for interlaced frames
-    GBS::TEST_BUS_SP_SEL::write(0x0f);
+    if (testBusSelBackup != 0xa)  GBS::TEST_BUS_SEL::write(0xa);
+    if (spBusSelBackup != 0x0f)   GBS::TEST_BUS_SP_SEL::write(0x0f);
   }
   else
   {
-    GBS::TEST_BUS_SEL::write(0x0);
+    if (testBusSelBackup != 0) GBS::TEST_BUS_SEL::write(0); // needs decimation + if
   }
   uint32_t fieldTimeTicks = FrameSync::getPulseTicks();
-  GBS::TEST_BUS_SEL::write(debugRegBackup);
-  GBS::TEST_BUS_SP_SEL::write(debugRegBackup_SP);
 
   float retVal = 0;
   if (fieldTimeTicks > 0) {
     retVal = esp8266_clock_freq / (double)fieldTimeTicks;
-    //if (retVal > 1.0f) {
-    //  // account for measurment delays (referenced to modern PC GPU clock)
-    //  retVal -= 0.00646f;
-    //}
   }
   
+  GBS::TEST_BUS_SEL::write(testBusSelBackup);
+  if (spBusSelBackup != 0x0f) GBS::TEST_BUS_SP_SEL::write(spBusSelBackup);
+  if (ifBusSelBackup != 3)    GBS::IF_TEST_SEL::write(ifBusSelBackup);
+
   return retVal;
 }
 
@@ -3373,7 +3393,7 @@ void updateClampPosition() {
   // STATUS_SYNC_PROC_HTOTAL is "ht: " value, it will be off if the pllad is unstable
   uint32_t accInHlength = 0;
   uint16_t prevInHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
-  for (uint8_t i = 0; i < 8; i++) {
+  for (uint8_t i = 0; i < 32; i++) {
     uint16_t thisInHlength = GBS::STATUS_SYNC_PROC_HTOTAL::read();
     if ((thisInHlength > (prevInHlength - 2)) && (thisInHlength < (prevInHlength + 2))) {
       accInHlength += thisInHlength;
@@ -3388,7 +3408,7 @@ void updateClampPosition() {
 
     prevInHlength = thisInHlength;
   }
-  accInHlength = accInHlength / 8;  // 8 for the 8x loop
+  accInHlength = accInHlength / 32;  // for the 32x loop
 
   if (accInHlength < 400 || accInHlength > 4095) {
       return;

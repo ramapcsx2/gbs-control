@@ -90,24 +90,20 @@ private:
   static bool vsyncPeriodAndPhase(int32_t *periodInput, int32_t *periodOutput, int32_t *phase) {
     uint32_t inStart, inStop, outStart, outStop;
     uint32_t inPeriod, outPeriod, diff;
-    uint8_t debugRegBackup = GBS::TEST_BUS_SEL::read();
 
-    // 0x0 = IF (t1t28t3) // needs decimation + if
-    GBS::TEST_BUS_SEL::write(0x0);
+    // calling code needs to ensure debug bus is ready to sample vperiod
+
     if (!vsyncInputSample(&inStart, &inStop)) {
       return false;
     }
 
-    // 0x2 = VDS (t3t50t4) // selected test measures VDS vblank (VB ST/SP)
-    GBS::TEST_BUS_SEL::write(0x2);
+    GBS::TEST_BUS_SEL::write(0x2);  // 0x2 = VDS (t3t50t4) // measure VDS vblank (VB ST/SP)
     inPeriod = (inStop - inStart); //>> 1;
     if (!vsyncOutputSample(&outStart, &outStop)) {
       return false;
     }
     outPeriod = (outStop - outStart); //>> 1;
 
-    // to decide: where to leave test bus sel ?
-    GBS::TEST_BUS_SEL::write(debugRegBackup);
 
     diff = (outStart - inStart) % inPeriod;
     if (periodInput)
