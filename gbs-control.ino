@@ -1993,9 +1993,10 @@ boolean runAutoBestHTotal() {
   {
     
     //Serial.println("running");
+    //unsigned long startTime = millis();
+
     boolean stableNow = 1;
     uint8_t initialVideoMode = getVideoMode();
-    unsigned long startTime = millis();
 
     for (uint8_t i = 0; i < 64; i++) {
       if (!getStatus16SpHsStable() || getVideoMode() == 0) {
@@ -2346,6 +2347,9 @@ void doPostPresetLoadSteps() {
     rto->autoBestHtotalEnabled = true;
   }
 
+  rto->phaseADC = GBS::PA_ADC_S::read();  // we can't know which is right, get from preset
+  rto->phaseSP = 8;                       // get phase into global variables early: before latching
+
   // for worst case sog, leave it at it's current low level, to give sub coast a chance later
   if (rto->thisSourceMaxLevelSOG != 31) { // same source but format changed
       rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
@@ -2394,12 +2398,12 @@ void doPostPresetLoadSteps() {
 
     GBS::VDS_PK_LB_CORE::write(0);    // 3_44 0-3 // 1 for anti source jailbars
     GBS::VDS_PK_LH_CORE::write(0);    // 3_46 0-3 // 1 for anti source jailbars
-    GBS::VDS_PK_LB_GAIN::write(0x1c); // 3_45 // peaking HF
-    GBS::VDS_PK_LH_GAIN::write(0x1a); // 3_47
-    GBS::VDS_PK_VL_HL_SEL::write(1);  // 3_43 0 if 1 then 3_45 HF almost no effect (coring 0xf9)
+    GBS::VDS_PK_LB_GAIN::write(0x16); // 3_45 // peaking HF
+    GBS::VDS_PK_LH_GAIN::write(0x18); // 3_47
+    GBS::VDS_PK_VL_HL_SEL::write(0);  // 3_43 0 if 1 then 3_45 HF almost no effect (coring 0xf9)
     GBS::VDS_PK_VL_HH_SEL::write(0);  // 3_43 1
 
-    GBS::VDS_STEP_DLY_CNTRL::write(1);
+    //GBS::VDS_STEP_DLY_CNTRL::write(1);  // leave up to preset
     GBS::VDS_STEP_GAIN::write(1);     // max 15
     //GBS::VDS_UV_STEP_BYPS::write(0);  // enable step response
 
@@ -2624,8 +2628,15 @@ void doPostPresetLoadSteps() {
   if (uopt->wantTap6) { GBS::VDS_TAP6_BYPS::write(0); }
   else { GBS::VDS_TAP6_BYPS::write(1); }
 
-  if (uopt->wantStepResponse) { GBS::VDS_UV_STEP_BYPS::write(0); }
-  else { GBS::VDS_UV_STEP_BYPS::write(1); }
+  if (uopt->wantStepResponse) {
+    // step response requested, but only apply if not feedback clock presets
+    if (rto->presetID != 0x04 && rto->presetID != 0x14) {
+      GBS::VDS_UV_STEP_BYPS::write(0);
+    }
+  }
+  else { 
+    GBS::VDS_UV_STEP_BYPS::write(1); 
+  }
 
   resetDebugPort();
   Menu::init();
@@ -2667,8 +2678,6 @@ void doPostPresetLoadSteps() {
     GBS::PLL_S::write(2);
     GBS::DEC_IDREG_EN::write(1); // 5_1f 7
     GBS::DEC_WEN_MODE::write(1); // 5_1e 7 // 1 keeps ADC phase consistent. around 4 lock positions vs totally random
-    rto->phaseADC = 2; // fix value; we can't know which is right and 16 is usually the default
-    rto->phaseSP = 8;
 
     // 4 segment 
     GBS::CAP_SAFE_GUARD_EN::write(0); // 4_21_5 // does more harm than good
@@ -3947,7 +3956,7 @@ void enableMotionAdaptDeinterlace() {
   //GBS::RFF_WFF_STA_ADDR_B::write(1);
   GBS::RFF_ADR_ADD_2::write(1);
   GBS::RFF_REQ_SEL::write(3);
-  GBS::RFF_MASTER_FLAG::write(0x24);
+  //GBS::RFF_MASTER_FLAG::write(0x24);  // use preset's value
   //GBS::WFF_SAFE_GUARD::write(0); // 4_42 3
   GBS::RFF_FETCH_NUM::write(0x80); // part of RFF disable fix, could leave 0x80 always otherwise
   GBS::RFF_WFF_OFFSET::write(0x100); // scanline fix
