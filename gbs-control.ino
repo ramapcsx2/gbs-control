@@ -536,12 +536,9 @@ void setResetParameters() {
   GBS::ADC_CLK_PA::write(0); // 5_00 0/1 PA_ADC input clock = PLLAD CLKO2
   GBS::ADC_INPUT_SEL::write(1); // 1 = RGBS / RGBHV adc data input
   GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
-  //GBS::ADC_TR_RSEL_04_BIT1::write(1);
-  GBS::ADC_TR_RSEL::write(0);
-  GBS::ADC_TA_CTRL_05_BIT1::write(1); // 5_05 1 // minor SOG clamp effect
-  //GBS::ADC_TEST_0C::write(2); // 5_0c 2
-  GBS::ADC_TEST_0C::write(0);
-  GBS::ADC_TEST_0C_BIT4::write(1); // 5_0c 4
+  GBS::ADC_TA_05_CTRL::write(0x02); // 5_05 1 // minor SOG clamp effect
+  GBS::ADC_TEST_04::write(0x02);    // 5_04
+  GBS::ADC_TEST_0C::write(0x12);    // 5_0c 1 4
   GBS::SP_NO_CLAMP_REG::write(1);
   GBS::ADC_SOGEN::write(1);
   GBS::ADC_POWDZ::write(1); // ADC on
@@ -2579,12 +2576,10 @@ void doPostPresetLoadSteps() {
 
   setSpParameters();
   updateSpDynamic();
-  GBS::ADC_TR_RSEL::write(0); // 5_04
-  GBS::ADC_TA_CTRL::write(0); // 5_05
-  GBS::ADC_TA_CTRL_05_BIT1::write(1);
-  GBS::ADC_TEST_0C::write(0); // 5_0c
-  GBS::ADC_TEST_0C_BIT4::write(1);
-  
+  GBS::ADC_TEST_04::write(0x02);    // 5_04
+  GBS::ADC_TEST_0C::write(0x12);    // 5_0c 1 4
+  GBS::ADC_TA_05_CTRL::write(0x02);   // 5_05
+
   // auto ADC gain
   if (uopt->enableAutoGain == 1 && adco->r_gain == 0) {
     SerialM.println(F("ADC gain: reset"));
@@ -3775,9 +3770,9 @@ void bypassModeSwitch_RGBHV() {
   //0x25, // s0_44
   //0x11, // s0_45
   // new: do without running default preset first
-  GBS::ADC_TR_RSEL::write(0);
-  GBS::ADC_TR_ISEL::write(0);
-  GBS::ADC_TEST_0C::write(0);
+  GBS::ADC_TA_05_CTRL::write(0x02); // 5_05 1 // minor SOG clamp effect
+  GBS::ADC_TEST_04::write(0x02);    // 5_04
+  GBS::ADC_TEST_0C::write(0x12);    // 5_0c 1 4
   GBS::DAC_RGBS_R0ENZ::write(1);
   GBS::DAC_RGBS_G0ENZ::write(1);
   GBS::DAC_RGBS_B0ENZ::write(1);
@@ -4773,8 +4768,13 @@ void calibrateAdcOffset()
         }
         if (gGreaterTarget > 15) {
             GBS::ADC_GOFCTRL::write(GBS::ADC_GOFCTRL::read() + 1); // incr. offset
+            uint8_t readout = GBS::ADC_GOFCTRL::read();
             Serial.print(" G: ");
-            Serial.print(GBS::ADC_GOFCTRL::read(), HEX);
+            Serial.print(readout, HEX);
+            if (readout == 0xFF) {
+              // some kind of failure
+              break;
+            }
             delay(10);
             gGreaterTarget = 0;
             startTimer = millis(); // extend timer
@@ -4798,8 +4798,13 @@ void calibrateAdcOffset()
         if (rLessTarget > 8) {
             GBS::ADC_ROFCTRL::write(GBS::ADC_ROFCTRL::read() + 1);
             delay(10);
+            uint8_t readout = GBS::ADC_ROFCTRL::read();
             Serial.print(" R: ");
-            Serial.print(GBS::ADC_ROFCTRL::read(), HEX);
+            Serial.print(readout, HEX);
+            if (readout == 0xFF) {
+              // some kind of failure
+              break;
+            }
             rLessTarget = 0;
             startTimer = millis(); // extend timer
         }
@@ -4822,8 +4827,13 @@ void calibrateAdcOffset()
         if (bLessTarget > 8) {
             GBS::ADC_BOFCTRL::write(GBS::ADC_BOFCTRL::read() + 1); // incr. offset
             delay(10);
+            uint8_t readout = GBS::ADC_BOFCTRL::read();
             Serial.print(" B: ");
-            Serial.print(GBS::ADC_BOFCTRL::read(), HEX);
+            Serial.print(readout, HEX);
+            if (readout == 0xFF) {
+              // some kind of failure
+              break;
+            }
             bLessTarget = 0;
             startTimer = millis(); // extend timer
         }
@@ -4855,7 +4865,8 @@ void loadDefaultUserOptions() {
 }
 
 void preinit() {
-  system_phy_set_powerup_option(3); // 0 = default, use init byte; 3 = full calibr. each boot, extra 200ms
+  //system_phy_set_powerup_option(3); // 0 = default, use init byte; 3 = full calibr. each boot, extra 200ms
+  system_phy_set_powerup_option(0);
 }
 
 void setup() {

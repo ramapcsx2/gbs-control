@@ -323,7 +323,7 @@ const uint8_t pal_240p[] PROGMEM = {
 0x0, // s5_1
 0x51, // s5_2
 0x31, // s5_3
-0x0, // s5_4
+0x2, // s5_4
 0x2, // s5_5
 0x3F, // s5_6
 0x3F, // s5_7
@@ -331,7 +331,7 @@ const uint8_t pal_240p[] PROGMEM = {
 0x7F, // s5_9
 0x7F, // s5_A
 0x7F, // s5_B
-0x10, // s5_C
+0x12, // s5_C
 0x0, // s5_D
 0x0, // s5_E
 0x0, // s5_F
