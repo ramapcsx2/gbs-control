@@ -215,12 +215,12 @@ char typeTwoCommand; // Serial / Web Server commands
 class SerialMirror : public Stream {
   size_t write(const uint8_t *data, size_t size) {
 #if defined(ESP8266)
-    if (ESP.getFreeHeap() > 22000) {
+    if (ESP.getFreeHeap() > 20000) {
       webSocket.broadcastTXT(data, size);
     }
-    //else {
-    //  webSocket.disconnect();
-    //}
+    else {
+      webSocket.disconnect();
+    }
 #endif
     Serial.write(data, size);
     return size;
@@ -228,12 +228,12 @@ class SerialMirror : public Stream {
 
   size_t write(uint8_t data) {
 #if defined(ESP8266)
-    if (ESP.getFreeHeap() > 22000) {
+    if (ESP.getFreeHeap() > 20000) {
       webSocket.broadcastTXT(&data);
     }
-    //else {
-    //  webSocket.disconnect();
-    //}
+    else {
+      webSocket.disconnect();
+    }
 #endif
     Serial.write(data);
     return 1;
@@ -815,7 +815,7 @@ void setSpParameters() {
 void setAndUpdateSogLevel(uint8_t level) {
   rto->currentLevelSOG = level & 0x1f;
   GBS::ADC_SOGCTRL::write(level);
-  delay(8); togglePhaseAdjustUnits(); delay(8);
+  delay(8); togglePhaseAdjustUnits_disableUnneeded(); delay(8);
   setAndLatchPhaseSP(); delay(2);  setAndLatchPhaseADC();
   delay(2); latchPLLAD();
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
@@ -869,8 +869,6 @@ void optimizeSogLevel() {
   setAndUpdateSogLevel(rto->currentLevelSOG);
 
   GBS::ADC_TEST_0C_BIT4::write(1);  // ignore previous filter setting
-  //boolean coastWasEnabled = !!GBS::SP_DIS_SUB_COAST::read();
-  //GBS::SP_DIS_SUB_COAST::write(1);
 
   //resetSyncProcessor(); //delay(400);
   resetModeDetect();
@@ -937,10 +935,6 @@ void optimizeSogLevel() {
   }
 
   rto->thisSourceMaxLevelSOG = rto->currentLevelSOG;
-
-  //if (coastWasEnabled) {
-  //  GBS::SP_DIS_SUB_COAST::write(0);
-  //}
 }
 
 // GBS boards have 2 potential sync sources:
@@ -3232,9 +3226,13 @@ void setOverSampleRatio(uint8_t newRatio) {
   latchPLLAD();
 }
 
-void togglePhaseAdjustUnits() {
+void togglePhaseAdjustUnits_disableUnneeded() {
   GBS::PA_SP_BYPSZ::write(0); // yes, 0 means bypass on here
-  GBS::PA_SP_BYPSZ::write(1);
+  // leave SP phase unit off?
+  if (GBS::SP_HS_LOOP_SEL::read() == 0) {
+    // SP in use: re-enable phase unit
+    GBS::PA_SP_BYPSZ::write(1);
+  }
   delay(2);
   GBS::PA_ADC_BYPSZ::write(0);
   GBS::PA_ADC_BYPSZ::write(1);
@@ -3370,11 +3368,11 @@ void updateCoastPosition() {
     GBS::SP_CS_HS_ST::write(32);
     GBS::SP_CS_HS_SP::write(0);
 
-    //Serial.print("coast ST: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_ST::read(), HEX);
-    //Serial.print(", ");
-    //Serial.print("SP: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_SP::read(), HEX);
-    //Serial.print("  total: "); Serial.print("0x"); Serial.print(accInHlength, HEX);
-    //Serial.print(" ~ "); Serial.println(accInHlength / 4);
+    Serial.print("coast ST: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_ST::read(), HEX);
+    Serial.print(", ");
+    Serial.print("SP: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_SP::read(), HEX);
+    Serial.print("  total: "); Serial.print("0x"); Serial.print(accInHlength, HEX);
+    Serial.print(" ~ "); Serial.println(accInHlength / 4);
   }
 }
 
@@ -3789,7 +3787,7 @@ void bypassModeSwitch_RGBHV() {
   // todo: detect if H-PLL parameters fit the source before aligning clocks (5_11 etc)
 
   delay(10);
-  togglePhaseAdjustUnits();
+  togglePhaseAdjustUnits_disableUnneeded();
   setAndLatchPhaseSP(); // different for CSync and pure HV modes
   setAndLatchPhaseADC();
   latchPLLAD();
@@ -3988,7 +3986,7 @@ void disableMotionAdaptDeinterlace() {
 }
 
 void printInfo() {
-  static char print[113]; // 102 + 1 minimum
+  static char print[118]; // 110 + 1 minimum // currently 110
   uint8_t lockCounter = 0;
   int32_t wifi = 0;
   uint16_t hperiod = GBS::HPERIOD_IF::read();
@@ -4070,13 +4068,13 @@ void fastSogAdjust()
       GBS::TEST_BUS_SP_SEL::write(0x0f);
     }
 
-    if ((GBS::TEST_BUS_2F::read() & 0x04) != 0x04) {
-      while ((GBS::TEST_BUS_2F::read() & 0x04) != 0x04) {
+    if ((GBS::TEST_BUS_2F::read() & 0x05) != 0x05) {
+      while ((GBS::TEST_BUS_2F::read() & 0x05) != 0x05) {
         if (rto->currentLevelSOG >= 2) { // could be 1 or 0
           rto->currentLevelSOG -= 2;
         }
         if (rto->currentLevelSOG < 2) { // will still be 1 or 0
-          rto->currentLevelSOG = 14;
+          rto->currentLevelSOG = 12;
           setAndUpdateSogLevel(rto->currentLevelSOG);
           delay(20);
           break; // abort / restart next round
@@ -4094,7 +4092,7 @@ void fastSogAdjust()
       GBS::TEST_BUS_SP_SEL::write(debug_backup_SP);
     }
   }
-  else if (rto->noSyncCounter == 24 || rto->noSyncCounter == 25) {
+  else if (rto->noSyncCounter >= 24 && rto->noSyncCounter <= 27) {
     // reset sog to midscale
     rto->currentLevelSOG = 8;
     setAndUpdateSogLevel(rto->currentLevelSOG);
@@ -4123,7 +4121,9 @@ void runSyncWatcher()
     newVideoModeCounter = 0;
     rto->continousStableCounter = 0;
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
+      if (rto->syncTypeCsync) {
         fastSogAdjust();
+      }
     }
     LEDOFF; // always LEDOFF on sync loss
 
@@ -4175,6 +4175,15 @@ void runSyncWatcher()
     if (newVideoModeCounter < 255) { 
       newVideoModeCounter++;
       updateSpDynamic();
+      if (newVideoModeCounter >= 3) {
+        if (rto->coastPositionIsSet) {
+          GBS::SP_DIS_SUB_COAST::write(1); // turn SUB_COAST off to see if the format change is good
+          GBS::SP_H_PROTECT::write(0);     // leave H_PROTECT off
+          rto->continousStableCounter = 0;  // usually already 0, but occasionally not
+          rto->coastPositionIsSet = false;
+          delay(40);
+        }
+      }
     }
     if (newVideoModeCounter >= 6)
     {
@@ -4186,6 +4195,8 @@ void runSyncWatcher()
       }
       if (newVideoModeCounter != 0) {
         SerialM.println(" <stable>");
+        Serial.print("Old: "); Serial.print(rto->videoStandardInput);
+        Serial.print(" New: "); Serial.println(detectedVideoMode);
         rto->videoIsFrozen = false;
         boolean wantPassThroughMode = uopt->presetPreference == 10;
         if (!wantPassThroughMode)
@@ -4194,6 +4205,11 @@ void runSyncWatcher()
           GBS::SFTRST_DEC_RSTZ::write(1);
           GBS::SFTRST_VDS_RSTZ::write(1);
           applyPresets(detectedVideoMode);
+          // this is a good oportunity to set rto->syncTypeCsync
+          if (GBS::SP_SOG_MODE::read() == 1) {
+            rto->syncTypeCsync = true;
+          }
+          // no else to set rto->syncTypeCsync to false: untested flow and it defaults to false anyway
         }
         else
         {
@@ -5367,7 +5383,7 @@ void loop() {
     case 'q':
       resetDigital(); delay(2);
       ResetSDRAM(); delay(2);
-      togglePhaseAdjustUnits();
+      togglePhaseAdjustUnits_disableUnneeded();
       //enableVDS();
     break;
     case 'D':
@@ -6156,6 +6172,7 @@ void loop() {
     rto->syncWatcherEnabled && !rto->coastPositionIsSet)
   {
     if (rto->continousStableCounter >= 7) {
+      // todo: add stability check here?
       updateCoastPosition();
       if (rto->coastPositionIsSet) {
         if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
