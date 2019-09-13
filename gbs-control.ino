@@ -815,7 +815,7 @@ void setSpParameters() {
 void setAndUpdateSogLevel(uint8_t level) {
   rto->currentLevelSOG = level & 0x1f;
   GBS::ADC_SOGCTRL::write(level);
-  delay(8); togglePhaseAdjustUnits(); delay(8);
+  /*delay(8); togglePhaseAdjustUnits(); delay(8);*/   // disabled the phase toggle here
   setAndLatchPhaseSP(); delay(2);  setAndLatchPhaseADC();
   delay(2); latchPLLAD();
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
@@ -896,17 +896,23 @@ void optimizePhaseSP() {
     return;
   }
 
-  rto->phaseSP = (worstPhaseSP + 16) & 0x1f;
-  // assume color signals arrive at same time
-  rto->phaseADC = (rto->phaseSP) & 0x1f;
+  // adjust global phase values according to test results
+  if (worstBadHt != 0) {
+    rto->phaseSP = (worstPhaseSP + 16) & 0x1f;
+    // assume color signals arrive at same time
+    rto->phaseADC = (rto->phaseSP) & 0x1f;
+  }
+  else {
+    // test was always good, so choose any reasonable value
+    rto->phaseSP = 0;
+    rto->phaseADC = 0;
+  }
 
   //Serial.println(millis() - startTime);
   //Serial.print("worstPhaseSP: "); Serial.println(worstPhaseSP);
-  //Serial.print("best PhaseSP: "); Serial.println(rto->phaseSP);
-  //Serial.print("best PhaseAD: "); Serial.println(rto->phaseADC);
-  Serial.print("best Phase: "); Serial.println(rto->phaseADC);
+  Serial.print("Phase: "); Serial.println(rto->phaseADC);
   setAndLatchPhaseSP();
-  delay(4);
+  delay(1);
   setAndLatchPhaseADC();
 }
 
@@ -992,7 +998,7 @@ void optimizeSogLevel() {
     if (rto->currentLevelSOG >= 2) {
       rto->currentLevelSOG -= 2;
       setAndUpdateSogLevel(rto->currentLevelSOG);
-      delay(180); // time for sog to settle
+      delay(200); // time for sog to settle
     }
     else { break; } // level = 0, break
   }
@@ -2816,6 +2822,7 @@ void doPostPresetLoadSteps() {
   //GBS::DAC_RGBS_PWDNZ::write(1);    // dac enable
 
   setAndUpdateSogLevel(rto->currentLevelSOG); // use this to cycle SP / ADPLL latches
+  optimizePhaseSP();
 
   //GBS::SP_HD_MODE::write(1); // 5_3e 1
 
@@ -3508,12 +3515,13 @@ void updateClampPosition() {
 void setOutModeHdBypass() {
   rto->autoBestHtotalEnabled = false; // disable while in this mode
   rto->outModeHdBypass = 1; // skips waiting at end of doPostPresetLoadSteps
-  // first load base preset
-  //writeProgramArrayNew(ntsc_240p, true);
+
   loadHdBypassSection(); // this would be ignored otherwise
   GBS::RESET_CONTROL_0x46::write(0x00); // 0_46 all off, nothing needs to be enabled for bp mode
   GBS::RESET_CONTROL_0x47::write(0x00);
-  
+  GBS::PA_ADC_BYPSZ::write(1);          // enable phase unit ADC
+  GBS::PA_SP_BYPSZ::write(1);           // enable phase unit SP
+
   doPostPresetLoadSteps();
   resetDebugPort();
 
@@ -3731,17 +3739,19 @@ void bypassModeSwitch_RGBHV() {
   GBS::PAD_SYNC_OUT_ENZ::write(1); // disable sync out
   
   loadHdBypassSection();
+  GBS::PA_ADC_BYPSZ::write(1);          // enable phase unit ADC
+  GBS::PA_SP_BYPSZ::write(1);           // enable phase unit SP
   applyRGBPatches();
   resetDebugPort();
-  rto->videoStandardInput = 15; // making sure
+  rto->videoStandardInput = 15;       // making sure
   rto->autoBestHtotalEnabled = false; // not necessary, since VDS is off / bypassed
   rto->clampPositionIsSet = false;
   rto->HPLLState = 0;
 
-  GBS::PLL_CKIS::write(0); // 0_40 0 //  0: PLL uses OSC clock | 1: PLL uses input clock
+  GBS::PLL_CKIS::write(0);    // 0_40 0 //  0: PLL uses OSC clock | 1: PLL uses input clock
   GBS::PLL_DIVBY2Z::write(0); // 0_40 1 // 1= no divider (full clock, ie 27Mhz) 0 = halved clock
-  GBS::PLL_ADS::write(0); // 0_40 3 test:  input clock is from PCLKIN (disconnected, not ADC clock)
-  GBS::PLL_MS::write(2); // 0_40 4-6 select feedback clock (but need to enable tri state!)
+  GBS::PLL_ADS::write(0);     // 0_40 3 test:  input clock is from PCLKIN (disconnected, not ADC clock)
+  GBS::PLL_MS::write(2);      // 0_40 4-6 select feedback clock (but need to enable tri state!)
   GBS::PAD_TRI_ENZ::write(1); // enable some pad's tri state (they become high-z / inputs), helps noise
   GBS::MEM_PAD_CLK_INVERT::write(0); // helps also
   GBS::PLL648_CONTROL_01::write(0x35);
@@ -4309,10 +4319,12 @@ void runSyncWatcher()
       updateSpDynamic();
     }
 
-    if (rto->continousStableCounter == 6) {
-      setAndLatchPhaseSP();   // not strictly needed but may be good in sync lost
-      setAndLatchPhaseADC();  // to recovered situations
+    if (rto->continousStableCounter == 5) {
       LEDON;
+    }
+
+    if (rto->continousStableCounter == 8) {
+      optimizePhaseSP();  // not strictly needed but may be good in sync recovered situations
     }
 
     if (rto->continousStableCounter == 160) {
@@ -4329,7 +4341,7 @@ void runSyncWatcher()
       if (rto->videoIsFrozen) { unfreezeVideo(); }
 
       if ((rto->videoStandardInput == 1 || rto->videoStandardInput == 2) &&
-        !rto->outModeHdBypass)
+        !rto->outModeHdBypass && rto->noSyncCounter == 0)
       {
         // deinterlacer and scanline code
         boolean preventScanlines = 0;
@@ -6169,7 +6181,7 @@ void loop() {
   // run FrameTimeLock if enabled
   if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false && rto->autoBestHtotalEnabled && 
     rto->syncWatcherEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval
-    && rto->continousStableCounter > 20) {
+    && rto->continousStableCounter > 20 && rto->noSyncCounter == 0) {
     
     uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
     if (debug_backup != 0x0) {
@@ -6219,9 +6231,10 @@ void loop() {
   }
 
   // frame sync + besthtotal init routine; run if it wasn't successful in postpresetloadsteps
+  // continousStableCounter check was >= 5; raised to 10 so optimizePhaseSP runs before it
   if (rto->autoBestHtotalEnabled && !FrameSync::ready() && rto->syncWatcherEnabled) {
-    if (rto->continousStableCounter >= 5 && rto->coastPositionIsSet) {
-      if ((rto->continousStableCounter % 5) == 0) { // 3, 5, 15
+    if (rto->continousStableCounter >= 10 && rto->coastPositionIsSet) {
+      if ((rto->continousStableCounter % 5) == 0) { // 5, 10, 15, .., 255
         runAutoBestHTotal();
       }
     }
@@ -6232,15 +6245,21 @@ void loop() {
     rto->syncWatcherEnabled && !rto->coastPositionIsSet)
   {
     if (rto->continousStableCounter >= 7) {
-      // todo: add stability check here?
-      updateCoastPosition();
-      if (rto->coastPositionIsSet) {
-        if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
-        {
-          GBS::SP_DIS_SUB_COAST::write(0); // enable SUB_COAST
-          GBS::SP_H_PROTECT::write(0);     // leave H_PROTECT off for now
+      // add stability check here? // yep; done
+      if ((getStatus16SpHsStable() == 1) && (getVideoMode() == rto->videoStandardInput))
+      {
+        updateCoastPosition();
+        if (rto->coastPositionIsSet) {
+          if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
+          {
+            GBS::SP_DIS_SUB_COAST::write(0); // enable SUB_COAST
+            GBS::SP_H_PROTECT::write(0);     // leave H_PROTECT off for now
+          }
         }
       }
+      //else {
+      //  Serial.println("prevent coast");
+      //}
     }
   }
 
