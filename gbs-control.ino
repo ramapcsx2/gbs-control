@@ -815,7 +815,7 @@ void setSpParameters() {
 void setAndUpdateSogLevel(uint8_t level) {
   rto->currentLevelSOG = level & 0x1f;
   GBS::ADC_SOGCTRL::write(level);
-  delay(8); togglePhaseAdjustUnits_disableUnneeded(); delay(8);
+  delay(8); togglePhaseAdjustUnits(); delay(8);
   setAndLatchPhaseSP(); delay(2);  setAndLatchPhaseADC();
   delay(2); latchPLLAD();
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
@@ -845,6 +845,69 @@ void goLowPowerWithInputDetection() {
   rto->isInLowPowerMode = true;
   SerialM.println(F("Scanning inputs for sources ..."));
   LEDOFF;
+}
+
+void optimizePhaseSP() {
+  uint16_t pixelClock = GBS::PLLAD_MD::read();
+  uint8_t badHt = 0, prevBadHt = 0, worstBadHt = 0, worstPhaseSP = 0, prevPrevBadHt = 0, goodHt = 0;
+
+  if (GBS::STATUS_SYNC_PROC_HTOTAL::read() < (pixelClock - 8)) {
+    return;
+  }
+  if (GBS::STATUS_SYNC_PROC_HTOTAL::read() > (pixelClock + 8)) {
+    return;
+  }
+
+  //unsigned long startTime = millis();
+
+  // 32 distinct phase settings, 3 average samples (missing 2 phase steps) > 34
+  for (uint8_t u = 0; u < 34; u++) {
+    rto->phaseSP++;
+    rto->phaseSP &= 0x1f;
+    setAndLatchPhaseSP();
+    badHt = 0;
+    delayMicroseconds(256);
+    for (uint8_t i = 0; i < 20; i++) {
+      if (GBS::STATUS_SYNC_PROC_HTOTAL::read() != pixelClock) {
+        badHt++;
+        delayMicroseconds(384);
+      }
+    }
+    // if average 3 samples has more badHt than seen yet, this phase step is worse
+    if ((badHt + prevBadHt + prevPrevBadHt) > worstBadHt) {
+      worstBadHt = (badHt + prevBadHt + prevPrevBadHt);
+      worstPhaseSP = (rto->phaseSP - 1) & 0x1f; // medium of 3 samples
+    }
+
+    if (badHt == 0) {
+      // count good readings as well, to know whether the entire run is valid
+      goodHt++;
+    }
+
+    prevPrevBadHt = prevBadHt;
+    prevBadHt = badHt;
+    //Serial.print(rto->phaseSP); Serial.print(" badHt: "); Serial.println(badHt);
+  }
+
+  //Serial.println(goodHt);
+
+  if (goodHt < 15) {
+    Serial.println("pxClk unstable");
+    return;
+  }
+
+  rto->phaseSP = (worstPhaseSP + 16) & 0x1f;
+  // assume color signals arrive at same time
+  rto->phaseADC = (rto->phaseSP) & 0x1f;
+
+  //Serial.println(millis() - startTime);
+  //Serial.print("worstPhaseSP: "); Serial.println(worstPhaseSP);
+  //Serial.print("best PhaseSP: "); Serial.println(rto->phaseSP);
+  //Serial.print("best PhaseAD: "); Serial.println(rto->phaseADC);
+  Serial.print("best Phase: "); Serial.println(rto->phaseADC);
+  setAndLatchPhaseSP();
+  delay(4);
+  setAndLatchPhaseADC();
 }
 
 void optimizeSogLevel() {
@@ -3226,13 +3289,9 @@ void setOverSampleRatio(uint8_t newRatio) {
   latchPLLAD();
 }
 
-void togglePhaseAdjustUnits_disableUnneeded() {
+void togglePhaseAdjustUnits() {
   GBS::PA_SP_BYPSZ::write(0); // yes, 0 means bypass on here
-  // leave SP phase unit off?
-  if (GBS::SP_HS_LOOP_SEL::read() == 0) {
-    // SP in use: re-enable phase unit
-    GBS::PA_SP_BYPSZ::write(1);
-  }
+  GBS::PA_SP_BYPSZ::write(1);
   delay(2);
   GBS::PA_ADC_BYPSZ::write(0);
   GBS::PA_ADC_BYPSZ::write(1);
@@ -3360,7 +3419,7 @@ void updateCoastPosition() {
   if (accInHlength > 32) {
     // test: psx pal black license screen, then ntsc SMPTE color bars 100%; or MS
     GBS::SP_H_CST_ST::write((uint16_t)(accInHlength * 0.014f)); // 0.07f
-    GBS::SP_H_CST_SP::write((uint16_t)(accInHlength * 0.978f)); // 0.95f
+    GBS::SP_H_CST_SP::write((uint16_t)(accInHlength * 0.95)); // 0.978f // also test with t5t57t2
     rto->coastPositionIsSet = true;
 
     // also set SP regenerated HS position, in case it is to be used
@@ -3787,7 +3846,7 @@ void bypassModeSwitch_RGBHV() {
   // todo: detect if H-PLL parameters fit the source before aligning clocks (5_11 etc)
 
   delay(10);
-  togglePhaseAdjustUnits_disableUnneeded();
+  togglePhaseAdjustUnits();
   setAndLatchPhaseSP(); // different for CSync and pure HV modes
   setAndLatchPhaseADC();
   latchPLLAD();
@@ -4898,7 +4957,7 @@ void setup() {
     rto->allowUpdatesOTA = false; // need to initialize for handleWiFi()
     WiFi.setSleepMode(WIFI_NONE_SLEEP); // low latency responses, less chance for missing packets
     startWebserver();
-    //WiFi.setOutputPower(14.0f); // float: min 0.0f, max 20.5f // reduced from max, but still strong
+    WiFi.setOutputPower(20.0f); // float: min 0.0f, max 20.5f // reduced from max, but still strong
     rto->webServerStarted = true;
   }
   else {
@@ -5383,7 +5442,7 @@ void loop() {
     case 'q':
       resetDigital(); delay(2);
       ResetSDRAM(); delay(2);
-      togglePhaseAdjustUnits_disableUnneeded();
+      togglePhaseAdjustUnits();
       //enableVDS();
     break;
     case 'D':
@@ -5788,6 +5847,7 @@ void loop() {
     case '8':
       //SerialM.println("invert sync");
       invertHS(); invertVS();
+      //optimizePhaseSP();
     break;
     case '9':
       writeProgramArrayNew(ntsc_feedbackclock, false);
