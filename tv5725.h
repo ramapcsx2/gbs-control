@@ -195,6 +195,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x53, 0,  8> GPIO_CONTROL_01;
     typedef UReg<0x00, 0x58, 0,  8> INTERRUPT_CONTROL_00;
     typedef UReg<0x00, 0x58, 0,  1> INT_CONTROL_RST_SOGBAD;
+    typedef UReg<0x00, 0x58, 4,  1> INT_CONTROL_RST_NOHSYNC;
     typedef UReg<0x00, 0x59, 0,  8> INTERRUPT_CONTROL_01;
 
     // IF Registers
