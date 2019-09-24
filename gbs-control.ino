@@ -770,7 +770,7 @@ void updateHVSyncEdge() {
   }
 }
 
-void setSpParameters() {
+void prepareSyncProcessor() {
   writeOneByte(0xF0, 5);
   GBS::SP_SOG_P_ATO::write(0); // 5_20 disable sog auto polarity // hpw can be > ht, but auto is worse
   GBS::SP_JITTER_SYNC::write(0);
@@ -798,10 +798,10 @@ void setSpParameters() {
   else if (rto->videoStandardInput <= 6) GBS::SP_DLT_REG::write(0x110);
   else if (rto->videoStandardInput == 7) GBS::SP_DLT_REG::write(0x70);
   else GBS::SP_DLT_REG::write(0x70);
-  GBS::SP_H_PULSE_IGNOR::write(0x02); // filter very short pulses, test with MS mode vs ps2 1080p (0x13 vs 0x05)
+  GBS::SP_H_PULSE_IGNOR::write(0x02); // test with MS / Genesis mode (wsog 2) vs ps2 1080p (0x13 vs 0x05)
 
   // leave out pre / post coast here
-  GBS::SP_H_TOTAL_EQ_THD::write(10); // 5_3a  range from 0x03 to xxx
+  GBS::SP_H_TOTAL_EQ_THD::write(2); // 5_3a  attempting 2 here for 1chip snes 239 mode intermittency
   //  test NTSC: s5s3bs11 s5s3fs09 s5s40s0b
   //  test PAL: s5s3bs11 s5s3fs38 s5s40s3c
   GBS::SP_SDCS_VSST_REG_H::write(0);
@@ -877,7 +877,7 @@ void goLowPowerWithInputDetection() {
   GBS::DAC_RGBS_PWDNZ::write(0); // direct disableDAC()
   //zeroAll();
   setResetParameters(); // includes rto->videoStandardInput = 0
-  setSpParameters();
+  prepareSyncProcessor();
   delay(100);
   rto->isInLowPowerMode = true;
   SerialM.println(F("Scanning inputs for sources ..."));
@@ -962,7 +962,8 @@ boolean optimizePhaseSP() {
 
   //Serial.println(millis() - startTime);
   //Serial.print("worstPhaseSP: "); Serial.println(worstPhaseSP);
-  Serial.print("Phase: "); Serial.println(rto->phaseSP);
+  Serial.print("Phase: "); Serial.print(rto->phaseSP);
+  Serial.print(" SOG: "); Serial.println(rto->currentLevelSOG);
   setAndLatchPhaseSP();
   delay(1);
   setAndLatchPhaseADC();
@@ -2600,7 +2601,7 @@ void doPostPresetLoadSteps() {
     {
       // EDTV p-scan, need to either double adc data rate and halve vds scaling
       // or disable line doubler (better) (50 / 60Hz shared)
-      GBS::ADC_FLTR::write(2);          // 5_03 4/5
+      GBS::ADC_FLTR::write(3);          // 5_03 4/5
       GBS::PLLAD_KS::write(1);          // 5_16
       setOverSampleRatio(2, true);      // with KS = 1 for modes 3, 4, 8
       GBS::IF_HS_DEC_FACTOR::write(0);  // 1_0b 4+5
@@ -2647,12 +2648,12 @@ void doPostPresetLoadSteps() {
     { // ED YUV 50
       GBS::IF_HB_ST2::write(0x60);  // 1_18
       GBS::IF_HB_SP2::write(0x88);  // 1_1a for hshift (now only left for out 640x480)
-      GBS::IF_HBIN_SP::write(0x80); // 1_26
+      GBS::IF_HBIN_SP::write(0x40); // 1_26 was 0x80 test: ps2 videomodetester 576p mode
       GBS::IF_HBIN_ST::write(0x20); // 1_24, odd but need to set this here (blue bar)
       GBS::IF_HB_ST::write(0x30); // 1_10
       if (rto->presetID == 0x15) 
       { // out 1080p
-
+        GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 10); // extend left blank
       }
       else if (rto->presetID == 0x13) 
       { // out 720p
@@ -2733,7 +2734,7 @@ void doPostPresetLoadSteps() {
     }
   }
 
-  setSpParameters();
+  prepareSyncProcessor();
   updateSpDynamic();
   GBS::ADC_TEST_04::write(0x02);    // 5_04
   GBS::ADC_TEST_0C::write(0x12);    // 5_0c 1 4
@@ -4686,7 +4687,7 @@ void runSyncWatcher()
     if (RGBHVNoSyncCounter > limitNoSync) {
       RGBHVNoSyncCounter = 0;
       setResetParameters();
-      setSpParameters();
+      prepareSyncProcessor();
       resetSyncProcessor(); // todo: fix MD being stuck in last mode when sync disappears
       //resetModeDetect();
       rto->noSyncCounter = 0;
@@ -5236,7 +5237,7 @@ void setup() {
   {
     zeroAll();
     setResetParameters();
-    setSpParameters();
+    prepareSyncProcessor();
 
     uint8_t productId = GBS::CHIP_ID_PRODUCT::read();
     uint8_t revisionId = GBS::CHIP_ID_REVISION::read();
