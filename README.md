@@ -1,8 +1,6 @@
 # gbs-control
 
-This project provides an alternative control software for Tvia Trueview5725 based upscalers / video converter boards.
-These boards are a cost efficient and offer powerful hardware, if used correctly.
-
+This project provides an alternative control software for Tvia Trueview5725 based upscalers / video converter boards.  
 Gbscontrol provides a complete replacement of the original solution, offering many improvements:
 - very low lag
 - sharp and defined upscaling, comparing well to other -expensive- units
@@ -13,6 +11,7 @@ Gbscontrol provides a complete replacement of the original solution, offering ma
 - lots of useful features and image enhancements
 - optional control interface via web browser, utilizing the ESP8266 WiFi capabilities
 - good color reproduction with auto gain and auto offset for the tripple 8 bit @ 160MHz ADC
+- optional bypass capability to, for example, transcode Component to RGB/HV in high quality
  
 Supported standards are NTSC / PAL, the EDTV and HD formats, as well as VGA from 192p to 1600x1200 (earliest DOS, home computers, PC).
 Sources can be connected via RGB/HV (VGA), RGBS (game consoles, SCART) or Component Video (YUV).
@@ -22,7 +21,7 @@ Gbscontrol is a continuation of previous work by dooklink, mybook4, Ian Stedman 
 It uses the Arduino development platform, targeting the popular Espressif ESP8266 microcontroller.  
 https://github.com/esp8266/Arduino
 
-Head over to the wiki for the setup guide to learn how to build and use it.
+Head over to the wiki for the setup guide to learn how to build and use it!  
 https://github.com/ramapcsx2/gbs-control/wiki/Build-the-Hardware
 
 Development threads:  
