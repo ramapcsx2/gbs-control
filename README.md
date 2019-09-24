@@ -4,7 +4,7 @@ This project provides an alternative control software for Tvia Trueview5725 base
 Gbscontrol provides a complete replacement of the original solution, offering many improvements:
 - very low lag
 - sharp and defined upscaling, comparing well to other -expensive- units
-- no synchronization loss switching 240p/480i
+- no synchronization loss switching 240p/480i (output runs independent from input, sync to display never drops)
 - on demand motion adaptive deinterlacer that engages automatically and only when needed
 - works with almost anything: 8 bit consoles, 16/32 bit consoles, 2000s consoles, home computers, etc
 - little compromise, eventhough the hardware is very affordable (less than $30 typically)
