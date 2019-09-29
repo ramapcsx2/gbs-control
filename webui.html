@@ -130,7 +130,7 @@
 
             textarea {
                 width: 80vw;
-                max-width: 880px;
+                max-width: 920px;
                 height: 50vh;
                 max-height: 400px;
                 margin: 20px;
@@ -227,6 +227,10 @@
                 '<p>If your TV does not support 50Hz sources (displaying unknown format, no matter the preset), try this option.</p>' + 
                 '<p>The frame rate will not be as smooth. Reboot required.</p>' + 
                 '<button class="button option palForce60" type="button" onclick="loadUser(\'0\')">Force PAL 60Hz</button>' + 
+                '<h2>ADC auto offset calibration</h2>' + 
+                '<p>Gbscontrol calibrates the ADC offsets on startup.</p>' + 
+                '<p>In case of color shift problems, try disabling this function.</p>' + 
+                '<button class="button option enableCalibrationADC" type="button" onclick="loadUser(\'w\')">ADC calibration</button>' + 
                 '<h2>Active FrameTime Lock (not compatible with all displays)</h2>' + 
                 '<p>This option keeps the input and output timings aligned, fixing the horizontal tear line that can appear sometimes.</p>' + 
                 '<p>Two methods are available. Try switching methods if your display goes blank.</p>' + 
@@ -429,9 +433,10 @@
                             }
                         }
 
-                        if (e.data[3] && e.data[4]) {
+                        if (e.data[3] && e.data[4] && e.data[5]) {
                             var optionByte0 = e.data[3].charCodeAt(0);
                             var optionByte1 = e.data[4].charCodeAt(0);
+                            var optionByte2 = e.data[5].charCodeAt(0);
                             var optionButtonList = document.getElementsByClassName('button option');
                             for (let button of optionButtonList) {
                                 /* optionByte0 */
@@ -518,6 +523,14 @@
                                 }
                                 if (button.classList.contains('fullHeight')) {
                                     if ((optionByte1 & 0x20) == 0x20) {
+                                        button.classList.add('active');
+                                    } else {
+                                        button.classList.remove('active');
+                                    }
+                                }
+                                /* optionByte2 */
+                                if (button.classList.contains('enableCalibrationADC')) {
+                                    if ((optionByte2 & 0x01) == 0x01) {
                                         button.classList.add('active');
                                     } else {
                                         button.classList.remove('active');

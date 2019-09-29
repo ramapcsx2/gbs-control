@@ -194,6 +194,7 @@ struct userOptions {
   uint8_t matchPresetSource;
   uint8_t wantStepResponse;
   uint8_t wantFullHeight;
+  uint8_t enableCalibrationADC;
 } uopts;
 struct userOptions *uopt = &uopts;
 
@@ -562,6 +563,7 @@ void setResetParameters() {
   GBS::PLL_VCORST::write(1); // reset on
   GBS::PLLAD_CONTROL_00_5x11::write(0x01); // reset on
   resetDebugPort(); 
+
   //GBS::RESET_CONTROL_0x47::write(0x16);
   GBS::RESET_CONTROL_0x46::write(0x41); // new 23.07.19
   GBS::RESET_CONTROL_0x47::write(0x17); // new 23.07.19 (was 0x16)
@@ -638,10 +640,10 @@ void applyYuvPatches() {
 
   if (GBS::GBS_PRESET_CUSTOM::read() == 0) {
     // colors
-    GBS::VDS_Y_GAIN::write(0x7f); // 3_25 0x80
+    GBS::VDS_Y_GAIN::write(0x80); // 3_25 0x7f
     GBS::VDS_UCOS_GAIN::write(0x1c); // 3_26 blue
     GBS::VDS_VCOS_GAIN::write(0x27); // 3_27 red
-    GBS::VDS_Y_OFST::write(0xfd); // 3_3a // fe
+    GBS::VDS_Y_OFST::write(0x00); // 3_3a // fe
     GBS::VDS_U_OFST::write(0x00); // 3_3b
     GBS::VDS_V_OFST::write(0x00); // 3_3c
   }
@@ -663,7 +665,7 @@ void applyRGBPatches() {
     GBS::VDS_Y_GAIN::write(0x80); // 0x80 = 0
     GBS::VDS_UCOS_GAIN::write(0x1c); // blue
     GBS::VDS_VCOS_GAIN::write(0x28); // red
-    GBS::VDS_Y_OFST::write(0xfd); // 3_3a 0xfe // 0
+    GBS::VDS_Y_OFST::write(0x00); // 3_3a 0xfe // 0xfd
     GBS::VDS_U_OFST::write(0x00); // 3_3b 0x01
     GBS::VDS_V_OFST::write(0x00); // 3_3c 0x01
   }
@@ -936,7 +938,8 @@ boolean optimizePhaseSP() {
   // adjust global phase values according to test results
   if (worstBadHt != 0) {
     rto->phaseSP = (worstPhaseSP + 16) & 0x1f;
-    // assume color signals arrive at same time
+    // assume color signals arrive at same time: phase adc = phase sp
+    // test in hdbypass mode shows this is more related to sog.. the assumptions seem fine at sog = 8
     rto->phaseADC = (rto->phaseSP) & 0x1f;
 
     // different OSR require different phase angles, also depending on bypass, etc
@@ -2442,9 +2445,11 @@ uint32_t getPllRate() {
   GBS::PAD_BOUT_EN::write(1); // enable output to pin for test
   delay(1);
   uint32_t ticks = FrameSync::getPulseTicks();
-  GBS::PAD_BOUT_EN::write(debugPinBackup); // restore
+
+  // restore
+  GBS::PAD_BOUT_EN::write(debugPinBackup);
   if (testBusSelBackup != 0xa) {
-    GBS::TEST_BUS_SEL::write(0xa);
+    GBS::TEST_BUS_SEL::write(testBusSelBackup);
   }
   GBS::TEST_BUS_SP_SEL::write(spBusSelBackup);
 
@@ -2479,6 +2484,13 @@ void doPostPresetLoadSteps() {
   }
   GBS::SP_NO_CLAMP_REG::write(1);  // (keep) clamp disabled, to be enabled when position determined
   GBS::OUT_SYNC_CNTRL::write(1);   // prepare sync out to PAD
+
+  // auto offset adc prep
+  GBS::ADC_AUTO_OFST_PRD::write(1);   // by line (0 = by frame)
+  GBS::ADC_AUTO_OFST_DELAY::write(2); // sample delay 2 (max 4)
+  GBS::ADC_AUTO_OFST_STEP::write(2);  // 0 = abs diff, then 1 to 3 steps
+  GBS::ADC_AUTO_OFST_TEST::write(1);
+  GBS::ADC_AUTO_OFST_RANGE_REG::write(0xff); // 5_0f U/V ranges = 15 (0 to 15)
 
   if (rto->outModeHdBypass) {
     GBS::OUT_SYNC_SEL::write(1); // 0_4f 1=sync from HDBypass, 2=sync from SP
@@ -2586,6 +2598,7 @@ void doPostPresetLoadSteps() {
 
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
+      GBS::PLLAD_ICP::write(6);           // 5 looks worse
       GBS::ADC_FLTR::write(3);            // 5_03 4/5 ADC filter 3=40, 2=70, 1=110, 0=150 Mhz
       GBS::PLLAD_KS::write(2);            // 5_16
       setOverSampleRatio(2, true);        // prepare only = true
@@ -2742,17 +2755,17 @@ void doPostPresetLoadSteps() {
 
   // auto ADC gain
   if (uopt->enableAutoGain == 1 && adco->r_gain == 0) {
-    SerialM.println(F("ADC gain: reset"));
+    //SerialM.println(F("ADC gain: reset"));
     GBS::ADC_RGCTRL::write(0x48);
     GBS::ADC_GGCTRL::write(0x48);
     GBS::ADC_BGCTRL::write(0x48);
     GBS::DEC_TEST_ENABLE::write(1);
   }
   else if (uopt->enableAutoGain == 1 && adco->r_gain != 0) {
-    SerialM.println(F("ADC gain: keep previous"));
-    SerialM.print(adco->r_gain, HEX); SerialM.print(" ");
-    SerialM.print(adco->g_gain, HEX); SerialM.print(" ");
-    SerialM.print(adco->b_gain, HEX); SerialM.println(" ");
+    //SerialM.println(F("ADC gain: keep previous"));
+    //SerialM.print(adco->r_gain, HEX); SerialM.print(" ");
+    //SerialM.print(adco->g_gain, HEX); SerialM.print(" ");
+    //SerialM.print(adco->b_gain, HEX); SerialM.println(" ");
     GBS::ADC_RGCTRL::write(adco->r_gain);
     GBS::ADC_GGCTRL::write(adco->g_gain);
     GBS::ADC_BGCTRL::write(adco->b_gain);
@@ -4163,11 +4176,16 @@ void disableMotionAdaptDeinterlace() {
 }
 
 void printInfo() {
-  static char print[118]; // 110 + 1 minimum // currently 110
+  static char print[112]; // 105 + 1 minimum
   uint8_t lockCounter = 0;
 
   for (uint8_t i = 0; i < 20; i++) {
-    lockCounter += ((GBS::STATUS_MISC_PLLAD_LOCK::read() == 1) ? 1 : 0);
+    if (GBS::STATUS_MISC_PLLAD_LOCK::read() == 1) {
+      lockCounter++;
+    }
+    else {
+      delayMicroseconds(192 * 3); // ~ 3 * 3 NTSC lines
+    }
   }
   lockCounter = getMovingAverage(lockCounter); // stores first, then updates with average
 
@@ -4183,13 +4201,13 @@ void printInfo() {
   uint16_t vperiod = GBS::VPERIOD_IF::read();
 
   //int charsToPrint = 
-  sprintf(print, "h:%4u v:%4u PLL:%02u A:%02x%02x%02x S:%02x.%02x.%02x.%02x I:%02x D:%04x m:%hu ht:%4d vt:%3d hpw:%4d s:%2x u:%2x s:%2d TFF:%x W:%d",
+  sprintf(print, "h:%4u v:%4u PLL:%02u A:%02x%02x%02x S:%02x.%02x.%02x I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%2x s:%2d TF:%04x W:%2d",
     hperiod, vperiod, lockCounter,
     GBS::ADC_RGCTRL::read(), GBS::ADC_GGCTRL::read(), GBS::ADC_BGCTRL::read(),
-    GBS::STATUS_00::read(), GBS::STATUS_05::read(), GBS::STATUS_16::read(), GBS::STATUS_03::read(), GBS::STATUS_0F::read(),
-    GBS::TEST_BUS::read(), getVideoMode(),
+    GBS::STATUS_00::read(), GBS::STATUS_05::read(), GBS::STATUS_16::read(), 
+    GBS::STATUS_0F::read(), GBS::TEST_BUS::read(), getVideoMode(),
     GBS::STATUS_SYNC_PROC_HTOTAL::read(), GBS::STATUS_SYNC_PROC_VTOTAL::read() /*+ 1*/,   // emucrt: without +1 is correct line count 
-    GBS::STATUS_SYNC_PROC_HLOW_LEN::read(), rto->continousStableCounter, rto->noSyncCounter,
+    GBS::STATUS_SYNC_PROC_HLOW_LEN::read(), rto->noSyncCounter,
     rto->currentLevelSOG, GBS::TEST_FF_STATUS::read(), wifi);
 
   //SerialM.print("charsToPrint: "); SerialM.println(charsToPrint);
@@ -4889,118 +4907,119 @@ boolean checkBoardPower()
 
 void calibrateAdcOffset()
 {
-    GBS::PAD_BOUT_EN::write(0); // disable output to pin for test
-    GBS::PLL648_CONTROL_01::write(0x95);
-    GBS::ADC_INPUT_SEL::write(2); // 10 > R2/G2/B2 as input (not connected, so to isolate ADC)
-    GBS::DEC_MATRIX_BYPS::write(1);
-    GBS::DEC_TEST_ENABLE::write(1);
-    GBS::ADC_5_03::write(0x01); // bottom clamps
-    GBS::ADC_TEST_0C_BIT3::write(1);
-    GBS::SP_5_56::write(0x05);
-    GBS::SP_5_57::write(0x80);
-    GBS::ADC_5_00::write(0x02);
-    GBS::TEST_BUS_SEL::write(0x0b); // 0x2b
-    GBS::TEST_BUS_EN::write(1);
+  GBS::PAD_BOUT_EN::write(0);           // disable output to pin for test
+  GBS::PLL648_CONTROL_01::write(0xA5);  // display clock to adc = 162mhz
+  GBS::ADC_INPUT_SEL::write(2);         // 10 > R2/G2/B2 as input (not connected, so to isolate ADC)
+  GBS::DEC_MATRIX_BYPS::write(1);
+  GBS::DEC_TEST_ENABLE::write(1);
+  GBS::ADC_5_03::write(0x31);           // bottom clamps, filter max (40mhz)
+  GBS::ADC_TEST_04::write(0x00);        // disable bit 1
+  //GBS::SP_CLAMP_INV_REG::write(1);  // 5_56 7
+  GBS::SP_CS_CLP_ST::write(0x00);
+  GBS::SP_CS_CLP_SP::write(0x00);
+  //GBS::ADC_TEST_0C_BIT3::write(1);
+  GBS::SP_5_56::write(0x05);
+  GBS::SP_5_57::write(0x80);
+  GBS::ADC_5_00::write(0x02);
+  GBS::TEST_BUS_SEL::write(0x0b);   // 0x2b
+  GBS::TEST_BUS_EN::write(1);
 
-    int32_t rLessTarget = 0, bLessTarget = 0; // gLessTarget not needed, always bottom clamp
-    int32_t gGreaterTarget = 0;
-    int8_t readout = 0;
+  resetDigital();
 
-    GBS::ADC_RGCTRL::write(0x7f);
-    GBS::ADC_GGCTRL::write(0x7f);
-    GBS::ADC_BGCTRL::write(0x7f);
-    GBS::ADC_ROFCTRL::write(0x3A);
-    GBS::ADC_GOFCTRL::write(0x3A);
-    GBS::ADC_BOFCTRL::write(0x3A);
+  uint16_t hitTargetCounter = 0;
+  uint16_t readout16 = 0;
+  uint8_t missTargetCounter = 0;
+  uint8_t readout = 0;
 
-    GBS::DEC_TEST_SEL::write(1); // 5_1f = 0x99
-    delay(30);
+  GBS::ADC_RGCTRL::write(0x7f);
+  GBS::ADC_GGCTRL::write(0x7f);
+  GBS::ADC_BGCTRL::write(0x7f);
+  GBS::ADC_ROFCTRL::write(0x7f);
+  GBS::ADC_GOFCTRL::write(0x3d);  // start
+  GBS::ADC_BOFCTRL::write(0x7f);
+  GBS::DEC_TEST_SEL::write(1);    // 5_1f = 0x1c
 
-    //unsigned long overallTimer = millis();
-    unsigned long startTimer = millis();
-    while ((millis() - startTimer) < 300) {
-        readout = GBS::TEST_BUS_2F::read();
-        readout = readout & 0x3f;
-        if (readout > 0x00) {
-            gGreaterTarget++;
-        }
-        if (gGreaterTarget > 15) {
-            GBS::ADC_GOFCTRL::write(GBS::ADC_GOFCTRL::read() + 1); // incr. offset
-            uint8_t readout = GBS::ADC_GOFCTRL::read();
-            Serial.print(" G: ");
-            Serial.print(readout, HEX);
-            if (readout == 0xFF) {
-              // some kind of failure
-              break;
-            }
-            delay(10);
-            gGreaterTarget = 0;
-            startTimer = millis(); // extend timer
-        }
-    }
-    Serial.println("");
-    
-    GBS::DEC_TEST_SEL::write(3);
-    delay(1); // help wifi
-
+  //unsigned long overallTimer = millis();
+  unsigned long startTimer = 0;
+  for (uint8_t i = 0; i < 3; i++) {
+    missTargetCounter = 0; hitTargetCounter = 0;
+    delay(20);
     startTimer = millis();
-    while ((millis() - startTimer) < 300) {
-        readout = GBS::TEST_BUS_2E::read(); // red: 2e
-        readout = readout & 0x3f;
 
-        if ((readout & 0x0f) > 0x00) {
-            if ((readout & 0x10) != 0x10) { // sign
-                rLessTarget++;
-            }
+    while ((millis() - startTimer) < 400) {
+      readout16 = GBS::TEST_BUS::read() & 0x7fff;
+      //Serial.println(readout16, HEX);
+
+      if (readout16 >= 0 && readout16 < 7) {
+        hitTargetCounter++;
+        missTargetCounter = 0;
+      }
+      else if (missTargetCounter++ > 8) {
+        if (i == 0) {
+          GBS::ADC_GOFCTRL::write(GBS::ADC_GOFCTRL::read() + 1); // incr. offset
+          readout = GBS::ADC_GOFCTRL::read();
+          Serial.print(" G: ");
+          if (readout >= 0x5F) {
+            // some kind of failure
+            break;
+          }
         }
-        if (rLessTarget > 8) {
-            GBS::ADC_ROFCTRL::write(GBS::ADC_ROFCTRL::read() + 1);
-            delay(10);
-            uint8_t readout = GBS::ADC_ROFCTRL::read();
-            Serial.print(" R: ");
-            Serial.print(readout, HEX);
-            if (readout == 0xFF) {
-              // some kind of failure
-              break;
-            }
-            rLessTarget = 0;
-            startTimer = millis(); // extend timer
+        else if (i == 1) {
+          GBS::ADC_ROFCTRL::write(GBS::ADC_ROFCTRL::read() + 1);
+          readout = GBS::ADC_ROFCTRL::read();
+          Serial.print(" R: ");
+          if (readout >= 0x5F) {
+            break;
+          }
         }
+        else if (i == 2) {
+          GBS::ADC_BOFCTRL::write(GBS::ADC_BOFCTRL::read() + 1);
+          readout = GBS::ADC_BOFCTRL::read();
+          Serial.print(" B: ");
+          if (readout >= 0x5F) {
+            break;
+          }
+        }
+        Serial.print(readout, HEX);
+
+        delay(10);
+        hitTargetCounter = 0;
+        missTargetCounter = 0;
+        startTimer = millis(); // extend timer
+      }
+      if (hitTargetCounter > 200) {
+        break;
+      }
+
+    }
+    if (i == 0) {
+      adco->g_off = GBS::ADC_GOFCTRL::read();
+      GBS::ADC_GOFCTRL::write(0x7F);
+      GBS::ADC_ROFCTRL::write(0x3D);
+      GBS::DEC_TEST_SEL::write(2);    // 5_1f = 0x2c
+    }
+    if (i == 1) {
+      adco->r_off = GBS::ADC_ROFCTRL::read();
+      GBS::ADC_ROFCTRL::write(0x7F);
+      GBS::ADC_BOFCTRL::write(0x3D);
+      GBS::DEC_TEST_SEL::write(3);    // 5_1f = 0x3c
+    }
+    if (i == 2) {
+      adco->b_off = GBS::ADC_BOFCTRL::read();
     }
     Serial.println("");
+  }
 
-    // DEC_TEST_SEL stays = 3
-    delay(1); // help wifi
+  if (readout >= 0x5F) {
+    // there was a problem; revert
+    adco->r_off = adco->g_off = adco->b_off = 0x40;
+  }
 
-    startTimer = millis();
-    while ((millis() - startTimer) < 300) {
-        readout = GBS::TEST_BUS_2F::read(); // blue: 2f
-        readout = readout & 0x3f;
+  GBS::ADC_GOFCTRL::write(adco->g_off);
+  GBS::ADC_ROFCTRL::write(adco->r_off);
+  GBS::ADC_BOFCTRL::write(adco->b_off);
 
-        if ((readout & 0x0f) > 0x00) {
-            if ((readout & 0x10) != 0x10) { // sign
-                bLessTarget++;
-            }
-        }
-        if (bLessTarget > 8) {
-            GBS::ADC_BOFCTRL::write(GBS::ADC_BOFCTRL::read() + 1); // incr. offset
-            delay(10);
-            uint8_t readout = GBS::ADC_BOFCTRL::read();
-            Serial.print(" B: ");
-            Serial.print(readout, HEX);
-            if (readout == 0xFF) {
-              // some kind of failure
-              break;
-            }
-            bLessTarget = 0;
-            startTimer = millis(); // extend timer
-        }
-    }
-    Serial.println("");
-    //Serial.println(millis() - overallTimer);
-    adco->r_off = GBS::ADC_ROFCTRL::read();
-    adco->g_off = GBS::ADC_GOFCTRL::read();
-    adco->b_off = GBS::ADC_BOFCTRL::read();
+  //Serial.println(millis() - overallTimer);
 }
 
 void loadDefaultUserOptions() {
@@ -5020,12 +5039,13 @@ void loadDefaultUserOptions() {
   uopt->matchPresetSource = 1;  // #14
   uopt->wantStepResponse = 0;   // #15
   uopt->wantFullHeight = 1;     // #16
+  uopt->enableCalibrationADC = 1;  // #17
 }
 
-void preinit() {
-  //system_phy_set_powerup_option(3); // 0 = default, use init byte; 3 = full calibr. each boot, extra 200ms
-  system_phy_set_powerup_option(0);
-}
+//void preinit() {
+//  //system_phy_set_powerup_option(3); // 0 = default, use init byte; 3 = full calibr. each boot, extra 200ms
+//  system_phy_set_powerup_option(0);
+//}
 
 void setup() {
   rto->webServerEnabled = true;
@@ -5052,11 +5072,11 @@ void setup() {
   pingLastTime = millis();
 #endif
 
-  SerialM.println("\nstarting");
-  //globalDelay = 0;
-  // user options
+  SerialM.println("\nstartup");
+
   loadDefaultUserOptions();
-  // run time options
+  //globalDelay = 0;
+
   rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
   rto->enableDebugPings = false;
   rto->autoBestHtotalEnabled = true;  // automatically find the best horizontal total pixel value for a given input timing
@@ -5108,8 +5128,7 @@ void setup() {
   pinMode(DEBUG_IN_PIN, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   LEDON; // enable the LED, lets users know the board is starting up
-  
-#if defined(ESP8266)
+
   //Serial.setDebugOutput(true); // if you want simple wifi debug info
 
   unsigned long initDelay1 = millis();
@@ -5120,13 +5139,13 @@ void setup() {
 
   // file system (web page, custom presets, ect)
   if (!SPIFFS.begin()) {
-    SerialM.println("SPIFFS mount failed! ((1M SPIFFS) selected?)");
+    SerialM.println(F("SPIFFS mount failed! ((1M SPIFFS) selected?)"));
   }
   else {
     // load user preferences file
     File f = SPIFFS.open("/preferencesv1.txt", "r");
     if (!f) {
-      SerialM.println("no preferences file yet, create new");
+      SerialM.println(F("no preferences file yet, create new"));
       loadDefaultUserOptions();
       saveUserPrefs(); // if this fails, there must be a spiffs problem
     }
@@ -5180,6 +5199,9 @@ void setup() {
       uopt->wantFullHeight = (uint8_t)(f.read() - '0'); // #16
       if (uopt->wantFullHeight > 1) uopt->wantFullHeight = 1;
 
+      uopt->enableCalibrationADC = (uint8_t)(f.read() - '0'); // #17
+      if (uopt->enableCalibrationADC > 1) uopt->enableCalibrationADC = 1;
+
       f.close();
     }
   }
@@ -5197,12 +5219,8 @@ void setup() {
     SerialM.println(FPSTR(ap_info_string));
   }
   else {
-    SerialM.println("(WiFi): still connecting..");
+    SerialM.println(F("(WiFi): still connecting.."));
   }
-
-#else
-  delay(2000); // give the entire system some time to start up.
-#endif
 
   startWire();
   boolean powerOrWireIssue = 0;  
@@ -5246,8 +5264,10 @@ void setup() {
     SerialM.print(" ");
     SerialM.println(revisionId,HEX);
 
-    delay(20);
-    calibrateAdcOffset();
+    if (uopt->enableCalibrationADC) {
+      // enabled by default
+      calibrateAdcOffset();
+    }
     setResetParameters();
 
     delay(4); // help wifi (presets are unloaded now)
@@ -5266,10 +5286,10 @@ void setup() {
     //}
   }
   else {
-    SerialM.println("Please check board power and cabling or restart!");
+    SerialM.println(F("Please check board power and cabling or restart!"));
   }
   
-  LEDOFF; // new behaviour: only light LED on active sync
+  LEDOFF; // LED behaviour: only light LED on active sync
 
   // some debug tools leave garbage in the serial rx buffer 
   if (Serial.available()) {
@@ -5327,86 +5347,96 @@ void handleButtons(void) {
 #endif
 
 void updateWebSocketData() {
-  char toSend[6] = { 0 };
-  toSend[0] = '#'; // makeshift ping in slot 0
+  if (rto->webServerEnabled && rto->webServerStarted) {
+    if (webSocket.connectedClients() > 0) {
 
-  switch (rto->presetID) {
-  case 0x01:
-  case 0x11:
-    toSend[1] = '1';
-    break;
-  case 0x02:
-  case 0x12:
-    toSend[1] = '2';
-    break;
-  case 0x03:
-  case 0x13:
-    toSend[1] = '3';
-    break;
-  case 0x04:
-  case 0x14:
-    toSend[1] = '4';
-    break;
-  case 0x05:
-  case 0x15:
-    toSend[1] = '5';
-    break;
-  case 0x09: // custom
-    toSend[1] = '9';
-    break;
-  case 0x21: // bypass 1
-  case 0x22: // bypass 2
-    toSend[1] = '8';
-    break;
-  default:
-    toSend[1] = '0';
-    break;
-  }
+      char toSend[7] = { 0 };
+      toSend[0] = '#'; // makeshift ping in slot 0
 
-  switch (uopt->presetSlot) {
-  case 1:
-    toSend[2] = '1';
-    break;
-  case 2:
-    toSend[2] = '2';
-    break;
-  case 3:
-    toSend[2] = '3';
-    break;
-  case 4:
-    toSend[2] = '4';
-    break;
-  case 5:
-    toSend[2] = '5';
-    break;
-  default:
-    toSend[2] = '1';
-    break;
-  }
+      switch (rto->presetID) {
+      case 0x01:
+      case 0x11:
+        toSend[1] = '1';
+        break;
+      case 0x02:
+      case 0x12:
+        toSend[1] = '2';
+        break;
+      case 0x03:
+      case 0x13:
+        toSend[1] = '3';
+        break;
+      case 0x04:
+      case 0x14:
+        toSend[1] = '4';
+        break;
+      case 0x05:
+      case 0x15:
+        toSend[1] = '5';
+        break;
+      case 0x09: // custom
+        toSend[1] = '9';
+        break;
+      case 0x21: // bypass 1
+      case 0x22: // bypass 2
+        toSend[1] = '8';
+        break;
+      default:
+        toSend[1] = '0';
+        break;
+      }
 
-  toSend[3] = '@'; // 0x40
-  toSend[4] = '@'; // 0x40
+      switch (uopt->presetSlot) {
+      case 1:
+        toSend[2] = '1';
+        break;
+      case 2:
+        toSend[2] = '2';
+        break;
+      case 3:
+        toSend[2] = '3';
+        break;
+      case 4:
+        toSend[2] = '4';
+        break;
+      case 5:
+        toSend[2] = '5';
+        break;
+      default:
+        toSend[2] = '1';
+        break;
+      }
 
-  if (uopt->enableAutoGain) { toSend[3] |= (1 << 0); }
-  if (uopt->wantScanlines) { toSend[3] |= (1 << 1); }
-  if (uopt->wantVdsLineFilter) { toSend[3] |= (1 << 2); }
-  if (uopt->wantPeaking) { toSend[3] |= (1 << 3); }
-  if (uopt->PalForce60) { toSend[3] |= (1 << 4); }
-  if (uopt->wantOutputComponent) { toSend[3] |= (1 << 5); }
+      // '@' = 0x40, used for "byte is present" detection; 0x80 not in ascii table
+      toSend[3] = '@';
+      toSend[4] = '@';
+      toSend[5] = '@';
 
-  if (uopt->matchPresetSource) { toSend[4] |= (1 << 0); }
-  if (uopt->enableFrameTimeLock) { toSend[4] |= (1 << 1); }
-  if (uopt->deintMode) { toSend[4] |= (1 << 2); }
-  if (uopt->wantTap6) { toSend[4] |= (1 << 3); }
-  if (uopt->wantStepResponse) { toSend[4] |= (1 << 4); }
-  if (uopt->wantFullHeight) { toSend[4] |= (1 << 5); }
+      if (uopt->enableAutoGain) { toSend[3] |= (1 << 0); }
+      if (uopt->wantScanlines) { toSend[3] |= (1 << 1); }
+      if (uopt->wantVdsLineFilter) { toSend[3] |= (1 << 2); }
+      if (uopt->wantPeaking) { toSend[3] |= (1 << 3); }
+      if (uopt->PalForce60) { toSend[3] |= (1 << 4); }
+      if (uopt->wantOutputComponent) { toSend[3] |= (1 << 5); }
 
-  // send ping and stats
-  if (ESP.getFreeHeap() > 14000) {
-    webSocket.broadcastTXT(toSend);
-  }
-  else {
-    webSocket.disconnect();
+      if (uopt->matchPresetSource) { toSend[4] |= (1 << 0); }
+      if (uopt->enableFrameTimeLock) { toSend[4] |= (1 << 1); }
+      if (uopt->deintMode) { toSend[4] |= (1 << 2); }
+      if (uopt->wantTap6) { toSend[4] |= (1 << 3); }
+      if (uopt->wantStepResponse) { toSend[4] |= (1 << 4); }
+      if (uopt->wantFullHeight) { toSend[4] |= (1 << 5); }
+
+      if (uopt->enableCalibrationADC) { toSend[5] |= (1 << 0); }
+
+      // send ping and stats
+      if (ESP.getFreeHeap() > 14000) {
+        webSocket.broadcastTXT(toSend);
+      }
+      else {
+        webSocket.disconnect();
+      }
+    }
+
   }
 }
 
@@ -5540,6 +5570,12 @@ void loop() {
         GBS::ADC_UNUSED_62::write(1); // remember to remove on restore
         GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 0x24);
         GBS::HD_Y_OFFSET::write(GBS::HD_Y_OFFSET::read() + 0x24);
+        if (!rto->inputIsYpBpR) {
+          // RGB input that has HD_DYN bypassed, use it now
+          GBS::HD_DYN_BYPS::write(0);
+          GBS::HD_U_OFFSET::write(GBS::HD_U_OFFSET::read() + 0x24);
+          GBS::HD_V_OFFSET::write(GBS::HD_V_OFFSET::read() + 0x24);
+        }
         //GBS::IF_IN_DREG_BYPS::write(1); // enhances noise from not delaying IF processing properly
         SerialM.println("on");
       }
@@ -5549,6 +5585,12 @@ void loop() {
         GBS::VDS_PK_LH_GAIN::write(0x18); // 3_47
         GBS::VDS_Y_OFST::write(GBS::ADC_UNUSED_60::read()); // restore
         GBS::HD_Y_OFFSET::write(GBS::ADC_UNUSED_61::read());
+        if (!rto->inputIsYpBpR) {
+          // RGB input, HD_DYN_BYPS again
+          GBS::HD_DYN_BYPS::write(1);
+          GBS::HD_U_OFFSET::write(0); // probably just 0 by default
+          GBS::HD_V_OFFSET::write(0); // probably just 0 by default
+        }
         //GBS::IF_IN_DREG_BYPS::write(0);
         GBS::ADC_UNUSED_60::write(0); // .. and clear
         GBS::ADC_UNUSED_61::write(0);
@@ -6328,6 +6370,13 @@ void loop() {
           {
             GBS::SP_DIS_SUB_COAST::write(0); // enable SUB_COAST
             GBS::SP_H_PROTECT::write(0);     // leave H_PROTECT off for now
+            // following seems to work even better:
+            // SP_H_PROTECT = 1, SP_DIS_SUB_COAST = 1, optional SP_H_COAST = 1 >> s5r3e = 0x34
+            // vsync recover 5_3f = 1 5_40 = 0
+            /*G5R0x4D value : 0x0
+              G5R0x4E value : 0x0
+              G5R0x4F value : 0xA8
+              G5R0x50 value : 0x6*/ // for psx
           }
         }
       }
@@ -6806,6 +6855,10 @@ void handleType2Command(char argument) {
     uopt->wantFullHeight = !uopt->wantFullHeight;
     saveUserPrefs();
   break;
+  case 'w':
+    uopt->enableCalibrationADC = !uopt->enableCalibrationADC;
+    saveUserPrefs();
+    break;
   default:
     break;
   }
@@ -6848,38 +6901,44 @@ void startWebserver()
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
     //Serial.println("sending web page");
-    AsyncWebServerResponse* response = request->beginResponse_P(200, "text/html", webui_html, webui_html_len);
-    response->addHeader("Content-Encoding", "gzip");
-    request->send(response);
+    if (ESP.getFreeHeap() > 10000) {
+      AsyncWebServerResponse* response = request->beginResponse_P(200, "text/html", webui_html, webui_html_len);
+      response->addHeader("Content-Encoding", "gzip");
+      request->send(response);
+    }
   });
 
   server.on("/sc", HTTP_GET, [](AsyncWebServerRequest* request) {
-    int params = request->params();
-    //Serial.print("got serial request params: ");
-    //Serial.println(params);
-    if (params > 0) {
-      AsyncWebParameter* p = request->getParam(0);
-      //Serial.println(p->name());
-      typeOneCommand = p->name().charAt(0);
+    if (ESP.getFreeHeap() > 10000) {
+      int params = request->params();
+      //Serial.print("got serial request params: ");
+      //Serial.println(params);
+      if (params > 0) {
+        AsyncWebParameter* p = request->getParam(0);
+        //Serial.println(p->name());
+        typeOneCommand = p->name().charAt(0);
 
-      // hack, problem with '+' command received via url param
-      if (typeOneCommand == ' ') {
-        typeOneCommand = '+';
+        // hack, problem with '+' command received via url param
+        if (typeOneCommand == ' ') {
+          typeOneCommand = '+';
+        }
       }
+      request->send(200); // reply
     }
-    request->send(200); // reply
   });
 
   server.on("/uc", HTTP_GET, [](AsyncWebServerRequest* request) {
-    int params = request->params();
-    //Serial.print("got user request params: ");
-    //Serial.println(params);
-    if (params > 0) {
-      AsyncWebParameter* p = request->getParam(0);
-      //Serial.println(p->name());
-      typeTwoCommand = p->name().charAt(0);
+    if (ESP.getFreeHeap() > 10000) {
+      int params = request->params();
+      //Serial.print("got user request params: ");
+      //Serial.println(params);
+      if (params > 0) {
+        AsyncWebParameter* p = request->getParam(0);
+        //Serial.println(p->name());
+        typeTwoCommand = p->name().charAt(0);
+      }
+      request->send(200); // reply
     }
-    request->send(200); // reply
   });
 
   server.on("/wifi/connect", HTTP_POST, [](AsyncWebServerRequest* request) {
@@ -7218,6 +7277,7 @@ void saveUserPrefs() {
   f.write(uopt->matchPresetSource + '0'); // #14
   f.write(uopt->wantStepResponse + '0');  // #15
   f.write(uopt->wantFullHeight + '0');    // #16
+  f.write(uopt->enableCalibrationADC + '0');    // #17
 
   f.close();
 }

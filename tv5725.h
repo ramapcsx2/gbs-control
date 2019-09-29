@@ -254,6 +254,8 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x30, 2,  1> HD_DYN_BYPS;
     typedef UReg<0x01, 0x30, 3,  1> HD_SEL_BLK_IN;
     typedef UReg<0x01, 0x32, 0,  8> HD_Y_OFFSET;
+    typedef UReg<0x01, 0x34, 0,  8> HD_U_OFFSET;
+    typedef UReg<0x01, 0x36, 0,  8> HD_V_OFFSET;
     typedef UReg<0x01, 0x37, 0, 11> HD_HSYNC_RST;
     typedef UReg<0x01, 0x39, 0, 11> HD_INI_ST;
     typedef UReg<0x01, 0x3B, 0, 12> HD_HB_ST;
@@ -634,6 +636,11 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x0C, 3,  1> ADC_TEST_0C_BIT3;
     typedef UReg<0x05, 0x0C, 4,  1> ADC_TEST_0C_BIT4;
     typedef UReg<0x05, 0x0E, 0,  1> ADC_AUTO_OFST_EN;
+    typedef UReg<0x05, 0x0E, 1,  1> ADC_AUTO_OFST_PRD;
+    typedef UReg<0x05, 0x0E, 2,  2> ADC_AUTO_OFST_DELAY;
+    typedef UReg<0x05, 0x0E, 4,  2> ADC_AUTO_OFST_STEP;
+    typedef UReg<0x05, 0x0E, 7,  1> ADC_AUTO_OFST_TEST;
+    typedef UReg<0x05, 0x0F, 0,  8> ADC_AUTO_OFST_RANGE_REG;
     typedef UReg<0x05, 0x11, 0,  8> PLLAD_CONTROL_00_5x11; // fake name
     typedef UReg<0x05, 0x11, 0,  1> PLLAD_VCORST;
     typedef UReg<0x05, 0x11, 1,  1> PLLAD_LEN;
@@ -658,7 +665,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x05, 0x19, 1,  5> PA_SP_S;
     typedef UReg<0x05, 0x19, 6,  1> PA_SP_LOCKOFF;
     typedef UReg<0x05, 0x19, 7,  1> PA_SP_LAT;
-    typedef UReg<0x05, 0x1e, 7,  1> DEC_WEN_MODE;
+    typedef UReg<0x05, 0x1E, 7,  1> DEC_WEN_MODE;
     typedef UReg<0x05, 0x1F, 0,  8> DEC_5_1F; // convenience
     typedef UReg<0x05, 0x1F, 0,  1> DEC1_BYPS;
     typedef UReg<0x05, 0x1F, 1,  1> DEC2_BYPS;
