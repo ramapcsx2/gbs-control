@@ -349,8 +349,8 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
   uint8_t bank[16];
   uint8_t y = 0;
 
-  GBS::PAD_SYNC_OUT_ENZ::write(1);
-  GBS::DAC_RGBS_PWDNZ::write(0);    // no DAC
+  //GBS::PAD_SYNC_OUT_ENZ::write(1);
+  //GBS::DAC_RGBS_PWDNZ::write(0);    // no DAC
 
   // should only be possible if previously was in RGBHV bypass, then hit a manual preset switch
   if (rto->videoStandardInput == 15) {
@@ -379,7 +379,7 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
         for (int x = 0; x <= 15; x++) {
           if (j == 0 && x == 4) {
             // keep DAC off
-            bank[x] = pgm_read_byte(programArray + index) & ~(1 << 0);
+            bank[x] = pgm_read_byte(programArray + index); // &~(1 << 0);
           }
           else if (j == 0 && x == 6) {
             bank[x] = reset46;
@@ -389,7 +389,7 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
           }
           else if (j == 0 && x == 9) {
             // keep sync output off
-            bank[x] = pgm_read_byte(programArray + index) | (1 << 2);
+            bank[x] = pgm_read_byte(programArray + index); // | (1 << 2);
           }
           else {
             // use preset values
@@ -520,17 +520,17 @@ void setResetParameters() {
   GBS::GBS_OPTION_SCALING_RGBHV::write(0);
   GBS::GBS_OPTION_PALFORCED60_ENABLED::write(0);
 
-  GBS::OUT_SYNC_CNTRL::write(0); // no H / V sync out to PAD
-  GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC
+  GBS::OUT_SYNC_CNTRL::write(0);          // no H / V sync out to PAD
+  GBS::DAC_RGBS_PWDNZ::write(0);          // disable DAC
   setAndUpdateSogLevel(rto->currentLevelSOG);
-  GBS::RESET_CONTROL_0x46::write(0x00); // all units off
+  GBS::RESET_CONTROL_0x46::write(0x00);   // all units off
   GBS::RESET_CONTROL_0x47::write(0x00);
-  GBS::GPIO_CONTROL_00::write(0x67); // most GPIO pins regular GPIO
-  GBS::GPIO_CONTROL_01::write(0x00); // all GPIO outputs disabled
-  GBS::DAC_RGBS_PWDNZ::write(0); // disable DAC (output)
-  GBS::PLL648_CONTROL_01::write(0x00); // VCLK(1/2/4) display clock // needs valid for debug bus
-  GBS::IF_SEL_ADC_SYNC::write(1); // ! 1_28
-  GBS::PLLAD_VCORST::write(1); // reset = 1
+  GBS::GPIO_CONTROL_00::write(0x67);      // most GPIO pins regular GPIO
+  GBS::GPIO_CONTROL_01::write(0x00);      // all GPIO outputs disabled
+  GBS::DAC_RGBS_PWDNZ::write(0);          // disable DAC (output)
+  GBS::PLL648_CONTROL_01::write(0x00);    // VCLK(1/2/4) display clock // needs valid for debug bus
+  GBS::IF_SEL_ADC_SYNC::write(1);         // ! 1_28 2
+  GBS::PLLAD_VCORST::write(1);            // reset = 1
   GBS::PLL_ADS::write(1); // When = 1, input clock is from ADC ( otherwise, from unconnected clock at pin 40 )
   GBS::PLL_CKIS::write(0); // PLL use OSC clock
   GBS::PLL_MS::write(2); // fb memory clock can go lower power
@@ -539,22 +539,23 @@ void setResetParameters() {
   loadHdBypassSection(); // 1_30 to 1_55
   loadPresetMdSection(); // 1_60 to 1_83
   setAdcParametersGainAndOffset();
-  GBS::SP_PRE_COAST::write(9); // was 0x07 // need pre / poast to allow all sources to detect
-  GBS::SP_POST_COAST::write(18); // was 0x10 // ps2 1080p 18
-  GBS::SP_NO_COAST_REG::write(0); // can be 1 in some soft reset situations, will prevent sog vsync decoding
-  GBS::SP_CS_CLP_ST::write(32); // define it to something at start
+  GBS::SP_PRE_COAST::write(9);        // was 0x07 // need pre / poast to allow all sources to detect
+  GBS::SP_POST_COAST::write(18);      // was 0x10 // ps2 1080p 18
+  GBS::SP_NO_COAST_REG::write(0);     // can be 1 in some soft reset situations, will prevent sog vsync decoding
+  GBS::SP_CS_CLP_ST::write(32);       // define it to something at start
   GBS::SP_CS_CLP_SP::write(48);
-  GBS::ADC_CLK_PA::write(0); // 5_00 0/1 PA_ADC input clock = PLLAD CLKO2
-  GBS::ADC_INPUT_SEL::write(1); // 1 = RGBS / RGBHV adc data input
-  GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
-  GBS::ADC_TA_05_CTRL::write(0x02); // 5_05 1 // minor SOG clamp effect
-  GBS::ADC_TEST_04::write(0x02);    // 5_04
-  GBS::ADC_TEST_0C::write(0x12);    // 5_0c 1 4
+  GBS::ADC_CLK_PA::write(0);          // 5_00 0/1 PA_ADC input clock = PLLAD CLKO2
+  GBS::ADC_INPUT_SEL::write(1);       // 1 = RGBS / RGBHV adc data input
+  GBS::SP_SOG_SRC_SEL::write(0);      // SOG source = ADC
+  GBS::SP_EXT_SYNC_SEL::write(0);     // connect HV input ( 5_20 bit 3 )
+  GBS::ADC_TA_05_CTRL::write(0x02);   // 5_05 1 // minor SOG clamp effect
+  GBS::ADC_TEST_04::write(0x02);      // 5_04
+  GBS::ADC_TEST_0C::write(0x12);      // 5_0c 1 4
   GBS::SP_NO_CLAMP_REG::write(1);
   GBS::ADC_SOGEN::write(1);
-  GBS::ADC_POWDZ::write(1); // ADC on
-  GBS::PLLAD_ICP::write(0); // lowest charge pump current
-  GBS::PLLAD_FS::write(0); // low gain (have to deal with cold and warm startups)
+  GBS::ADC_POWDZ::write(1);           // ADC on
+  GBS::PLLAD_ICP::write(0);           // lowest charge pump current
+  GBS::PLLAD_FS::write(0);            // low gain (have to deal with cold and warm startups)
   GBS::PLLAD_5_16::write(0x1f);
   GBS::PLLAD_MD::write(0x700);
   resetPLL(); // cycles PLL648
@@ -565,13 +566,13 @@ void setResetParameters() {
   resetDebugPort(); 
 
   //GBS::RESET_CONTROL_0x47::write(0x16);
-  GBS::RESET_CONTROL_0x46::write(0x41); // new 23.07.19
-  GBS::RESET_CONTROL_0x47::write(0x17); // new 23.07.19 (was 0x16)
-  GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
-  GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
+  GBS::RESET_CONTROL_0x46::write(0x41);     // new 23.07.19
+  GBS::RESET_CONTROL_0x47::write(0x17);     // new 23.07.19 (was 0x16)
+  GBS::INTERRUPT_CONTROL_01::write(0xff);   // enable interrupts
+  GBS::INTERRUPT_CONTROL_00::write(0xff);   // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
-  GBS::PAD_SYNC_OUT_ENZ::write(0); // sync output enabled, will be low (HC125 fix)
-  rto->clampPositionIsSet = 0; // some functions override these, so make sure
+  GBS::PAD_SYNC_OUT_ENZ::write(0);          // sync output enabled, will be low (HC125 fix)
+  rto->clampPositionIsSet = 0;              // some functions override these, so make sure
   rto->coastPositionIsSet = 0;
   rto->phaseIsSet = 0;
   rto->continousStableCounter = 0;
@@ -854,7 +855,6 @@ void prepareSyncProcessor() {
 void setAndUpdateSogLevel(uint8_t level) {
   rto->currentLevelSOG = level & 0x1f;
   GBS::ADC_SOGCTRL::write(level);
-  /*delay(8); togglePhaseAdjustUnits(); delay(8);*/   // disabled the phase toggle here
   setAndLatchPhaseSP(); delay(2);  setAndLatchPhaseADC();
   delay(2); latchPLLAD();
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
@@ -1094,6 +1094,8 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         boolean vsyncActive = 0;
         rto->inputIsYpBpR = false;  // declare for MD
         GBS::MD_SEL_VGA60::write(1);  // VGA 640x480 more likely than EDTV
+        rto->currentLevelSOG = 11;   // test startup with MD and MS separately!
+        setAndUpdateSogLevel(rto->currentLevelSOG);
 
         unsigned long timeOutStart = millis();
         // vsync test
@@ -1133,7 +1135,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
 
             // new: check for 25khz, use regular scaling route for those
             if (getVideoMode() == 8) {
-              rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 8;
+              rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 11;
               setAndUpdateSogLevel(rto->currentLevelSOG);
               rto->medResLineCount = GBS::MD_HD1250P_CNTRL::read();
               SerialM.println("25khz pure rgbs");
@@ -1151,7 +1153,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
 
           }
 
-          rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 8;
+          rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 11;
           setAndUpdateSogLevel(rto->currentLevelSOG);
 
           return 1; //anyway, let later stage deal with it
@@ -1189,7 +1191,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
             for (uint8_t i = 0; i < 8; i++) {
               //printInfo();
               if (getVideoMode() == 8) {
-                rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 8;
+                rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 11;
                 setAndUpdateSogLevel(rto->currentLevelSOG);
                 rto->medResLineCount = GBS::MD_HD1250P_CNTRL::read();
                 SerialM.println("25khz mixed rgbs");
@@ -1249,7 +1251,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
           }
         }
 
-        rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 8;
+        rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 11;
         setAndUpdateSogLevel(rto->currentLevelSOG);
         
         return 2; //anyway, let later stage deal with it
@@ -2462,8 +2464,8 @@ uint32_t getPllRate() {
 }
 
 void doPostPresetLoadSteps() {
-  GBS::PAD_SYNC_OUT_ENZ::write(1);  // no sync out
-  GBS::DAC_RGBS_PWDNZ::write(0);    // no DAC
+  //GBS::PAD_SYNC_OUT_ENZ::write(1);  // no sync out
+  //GBS::DAC_RGBS_PWDNZ::write(0);    // no DAC
   if (rto->videoStandardInput == 0) 
   {
     uint8_t videoMode = getVideoMode();
@@ -2512,7 +2514,7 @@ void doPostPresetLoadSteps() {
           rto->currentLevelSOG = 14;
       }
       else {
-          rto->currentLevelSOG = 8;
+          rto->currentLevelSOG = 11;
       }
   }
   setAndUpdateSogLevel(rto->currentLevelSOG);
@@ -2832,8 +2834,8 @@ void doPostPresetLoadSteps() {
   // noise starts here!
   // todo: change resetDigital usage, optimize time to stability with power use in idle
   resetDigital();
-  delay(2);
-  resetPLL();
+  //delay(2);
+  //resetPLL(); // attempt to do without. resetPLL causes VDS out glitch
   delay(2);
   resetPLLAD(); // turns on pllad
   GBS::PLLAD_LEN::write(1); // 5_11 1
@@ -3637,10 +3639,10 @@ void updateClampPosition() {
 // 2431 for psx, 2437 for MD
 // in this mode, sampling clock is free to choose
 void setOutModeHdBypass() {
-  rto->autoBestHtotalEnabled = false; // disable while in this mode
-  rto->outModeHdBypass = 1; // skips waiting at end of doPostPresetLoadSteps
+  rto->autoBestHtotalEnabled = false;   // disable while in this mode
+  rto->outModeHdBypass = 1;             // skips waiting at end of doPostPresetLoadSteps
 
-  loadHdBypassSection(); // this would be ignored otherwise
+  loadHdBypassSection();                // this would be ignored otherwise
   GBS::ADC_UNUSED_62::write(0x00);      // clear debug view
   GBS::RESET_CONTROL_0x46::write(0x00); // 0_46 all off, nothing needs to be enabled for bp mode
   GBS::RESET_CONTROL_0x47::write(0x00);
@@ -3682,7 +3684,9 @@ void setOutModeHdBypass() {
   if (rto->inputIsYpBpR) {
     GBS::DEC_MATRIX_BYPS::write(1); // 5_1f 2 = 1 for YUV / 0 for RGB
     GBS::HD_MATRIX_BYPS::write(0);  // 1_30 1 / input to jacks is yuv, adc leaves it as yuv > convert to rgb for output here
-    GBS::HD_DYN_BYPS::write(0);     // don't bypass color expansion (eventhough it's not doing anything, values are neutral)
+    GBS::HD_DYN_BYPS::write(0);     // don't bypass color expansion
+    //GBS::HD_U_OFFSET::write(3);     // color adjust via scope
+    //GBS::HD_V_OFFSET::write(3);     // color adjust via scope
   }
   else {
     GBS::DEC_MATRIX_BYPS::write(1); // assuming RGB to the jack, then adc should still leave it as yuv
@@ -3736,7 +3740,7 @@ void setOutModeHdBypass() {
       GBS::HD_HSYNC_RST::write(550); // 1_37
       //GBS::HD_INI_ST::write(78);     // 1_39
       // 720p has high pllad vco output clock, so don't do oversampling
-      GBS::PLLAD_KS::write(0); // 5_16 post divider 0 : FCKO1 > 87MHz, 3 : FCKO1<23MHz
+      GBS::PLLAD_KS::write(0);      // 5_16 post divider 0 : FCKO1 > 87MHz, 3 : FCKO1<23MHz
       GBS::PLLAD_CKOS::write(0);    // 5_16 1x OS (with KS=CKOS=0)
       GBS::ADC_CLK_ICLK1X::write(0);// 5_00 4 (OS=1)
       GBS::DEC2_BYPS::write(1);     // 5_1f 1 // dec2 disabled (OS=1)
@@ -3838,7 +3842,9 @@ void setOutModeHdBypass() {
   rto->phaseADC = 24; // fix value // works best with yuv input in tests
   setAndUpdateSogLevel(rto->currentLevelSOG); // also re-latch everything
 
-  //resetSyncProcessor(); // needed?
+  // these used to go after the wait, but should be fine here
+  GBS::DAC_RGBS_PWDNZ::write(1);   // enable DAC
+  GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
 
   unsigned long timeout = millis();
   while ((!getStatus16SpHsStable()) && (millis() - timeout < 2002)) {
@@ -3850,8 +3856,6 @@ void setOutModeHdBypass() {
   while (millis() - timeout < 600) { delay(1); } // minimum delay for pt: 600
 
   optimizePhaseSP();
-  GBS::DAC_RGBS_PWDNZ::write(1);   // enable DAC
-  GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
   SerialM.println("pass-through on");
 }
 
@@ -3965,36 +3969,35 @@ void bypassModeSwitch_RGBHV() {
   GBS::DAC_RGBS_G0ENZ::write(1);
   GBS::DAC_RGBS_B0ENZ::write(1);
   GBS::OUT_SYNC_CNTRL::write(1);
-  resetPLL();
+  //resetPLL();   // try to avoid this
   resetDigital(); // this will leave 0_46 all 0
   resetSyncProcessor(); // required to initialize SOG status
   delay(2);ResetSDRAM();delay(2);
-  resetPLLAD(); delay(20);
+  resetPLLAD();
+  togglePhaseAdjustUnits();
+  delay(20);
   GBS::PLLAD_LEN::write(1); // 5_11 1
   GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
   GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
 
   // todo: detect if H-PLL parameters fit the source before aligning clocks (5_11 etc)
 
-  delay(10);
-  togglePhaseAdjustUnits();
   setAndLatchPhaseSP(); // different for CSync and pure HV modes
   setAndLatchPhaseADC();
   latchPLLAD();
 
-  // auto ADC gain
   if (uopt->enableAutoGain == 1 && adco->r_gain == 0) {
-    SerialM.println("ADC gain: reset");
+    //SerialM.println("ADC gain: reset");
     GBS::ADC_RGCTRL::write(0x48);
     GBS::ADC_GGCTRL::write(0x48);
     GBS::ADC_BGCTRL::write(0x48);
     GBS::DEC_TEST_ENABLE::write(1);
   }
   else if (uopt->enableAutoGain == 1 && adco->r_gain != 0) {
-    SerialM.println("ADC gain: keep previous");
+    /*SerialM.println("ADC gain: keep previous");
     SerialM.print(adco->r_gain, HEX); SerialM.print(" ");
     SerialM.print(adco->g_gain, HEX); SerialM.print(" ");
-    SerialM.print(adco->b_gain, HEX); SerialM.println(" ");
+    SerialM.print(adco->b_gain, HEX); SerialM.println(" ");*/
     GBS::ADC_RGCTRL::write(adco->r_gain);
     GBS::ADC_GGCTRL::write(adco->g_gain);
     GBS::ADC_BGCTRL::write(adco->b_gain);
@@ -4993,6 +4996,7 @@ void calibrateAdcOffset()
 
     }
     if (i == 0) {
+      // G done, prep R
       adco->g_off = GBS::ADC_GOFCTRL::read();
       GBS::ADC_GOFCTRL::write(0x7F);
       GBS::ADC_ROFCTRL::write(0x3D);
@@ -5293,11 +5297,7 @@ void setup() {
 
   // some debug tools leave garbage in the serial rx buffer 
   if (Serial.available()) {
-    uint8_t maxThrowAway = 50;
-    while (Serial.available() && maxThrowAway > 0) {
-      Serial.read();
-      maxThrowAway--;
-    }
+    discardSerialRxData();
   }
 }
 
@@ -5345,6 +5345,14 @@ void handleButtons(void) {
     Menu::run(MenuInput::FORWARD);
 }
 #endif
+
+void discardSerialRxData() {
+  uint16_t maxThrowAway = 0x1fff;
+  while (Serial.available() && maxThrowAway > 0) {
+    Serial.read();
+    maxThrowAway--;
+  }
+}
 
 void updateWebSocketData() {
   if (rto->webServerEnabled && rto->webServerStarted) {
@@ -5470,7 +5478,7 @@ void handleWiFi(boolean instant) {
 
 void loop() {
   static uint8_t readout = 0;
-  static uint8_t segmentCurrent = 255; // illegal
+  static uint8_t segmentCurrent = 255;
   static uint8_t registerCurrent = 255;
   static uint8_t inputToogleBit = 0;
   static uint8_t inputStage = 0;
@@ -5497,12 +5505,27 @@ void loop() {
   if (Serial.available()) {
     typeOneCommand = Serial.read();
   }
+  else if (inputStage > 0) {
+    // multistage with no more data
+    SerialM.println(" abort");
+    discardSerialRxData();
+    typeOneCommand = ' ';
+  }
   if (typeOneCommand != '@') 
   {
+    // multistage with bad characters?
+    if (inputStage > 0) {
+      // need 's', 't' or 'g'
+      if (typeOneCommand != 's' && typeOneCommand != 't' && typeOneCommand != 'g') {
+        discardSerialRxData();
+        SerialM.println(" abort");
+        typeOneCommand = ' ';
+      }
+    }
     switch (typeOneCommand) {
     case ' ':
       // skip spaces
-      inputStage = 0; // reset this as well
+      inputStage = segmentCurrent = registerCurrent = 0; // and reset these
     break;
     case 'd':
     {
@@ -5841,14 +5864,11 @@ void loop() {
       }
     break;
     case ',':
-#if defined(ESP8266) // Arduino space saving
       getVideoTimings();
-#endif
     break;
     case 'i':
       rto->printInfos = !rto->printInfos;
     break;
-#if defined(ESP8266)
     case 'c':
       SerialM.println("OTA Updates on");
       initUpdateOTA();
@@ -5865,7 +5885,6 @@ void loop() {
         rto->enableDebugPings = 0;
       }
     break;
-#endif
     case 'u':
       ResetSDRAM();
     break;
@@ -6001,7 +6020,6 @@ void loop() {
     break;
     case 'g':
       inputStage++;
-      //Serial.flush();
       // we have a multibyte command
       if (inputStage > 0) {
         if (inputStage == 1) {
@@ -6014,7 +6032,7 @@ void loop() {
           szNumbers[0] = Serial.read(); szNumbers[1] = Serial.read(); szNumbers[2] = '\0';
           //char * pEnd;
           registerCurrent = strtol(szNumbers, NULL, 16);
-          SerialM.print("R0x");
+          SerialM.print("R");
           SerialM.print(registerCurrent, HEX);
           if (segmentCurrent <= 5) {
             writeOneByte(0xF0, segmentCurrent);
@@ -6022,6 +6040,7 @@ void loop() {
             SerialM.print(" value: 0x"); SerialM.println(readout, HEX);
           }
           else {
+            discardSerialRxData();
             SerialM.println("abort");
           }
           inputStage = 0;
@@ -6030,7 +6049,6 @@ void loop() {
     break;
     case 's':
       inputStage++;
-      //Serial.flush();
       // we have a multibyte command
       if (inputStage > 0) {
         if (inputStage == 1) {
@@ -6041,20 +6059,37 @@ void loop() {
         else if (inputStage == 2) {
           char szNumbers[3];
           for (uint8_t a = 0; a <= 1; a++) {
-            if (Serial.peek() != -1) szNumbers[a] = Serial.read();
-            else szNumbers[a] = 0;
+            // ascii 0x30 to 0x39 for '0' to '9'
+            if ((Serial.peek() >= '0' && Serial.peek() <= '9') ||
+                (Serial.peek() >= 'a' && Serial.peek() <= 'f') ||
+                (Serial.peek() >= 'A' && Serial.peek() <= 'F'))
+            {
+              szNumbers[a] = Serial.read();
+            }
+            else {
+              szNumbers[a] = 0;  // NUL char
+              Serial.read();     // but consume the char
+            }
           }
           szNumbers[2] = '\0';
           //char * pEnd;
           registerCurrent = strtol(szNumbers, NULL, 16);
-          SerialM.print("R0x");
+          SerialM.print("R");
           SerialM.print(registerCurrent, HEX);
         }
         else if (inputStage == 3) {
           char szNumbers[3];
           for (uint8_t a = 0; a <= 1; a++) {
-            if (Serial.peek() != -1) szNumbers[a] = Serial.read();
-            else szNumbers[a] = 0;
+            if ((Serial.peek() >= '0' && Serial.peek() <= '9') ||
+                (Serial.peek() >= 'a' && Serial.peek() <= 'f') ||
+                (Serial.peek() >= 'A' && Serial.peek() <= 'F'))
+            {
+              szNumbers[a] = Serial.read();
+            }
+            else {
+              szNumbers[a] = 0;  // NUL char
+              Serial.read();     // but consume the char
+            }
           }
           szNumbers[2] = '\0';
           //char * pEnd;
@@ -6068,6 +6103,7 @@ void loop() {
             SerialM.print(" is now: 0x"); SerialM.println(readout, HEX);
           }
           else {
+            discardSerialRxData();
             SerialM.println("abort");
           }
           inputStage = 0;
@@ -6076,7 +6112,6 @@ void loop() {
     break;
     case 't':
       inputStage++;
-      //Serial.flush();
       // we have a multibyte command
       if (inputStage > 0) {
         if (inputStage == 1) {
@@ -6086,14 +6121,32 @@ void loop() {
         }
         else if (inputStage == 2) {
           char szNumbers[3];
-          szNumbers[0] = Serial.read(); szNumbers[1] = Serial.read(); szNumbers[2] = '\0';
+          for (uint8_t a = 0; a <= 1; a++) {
+            // ascii 0x30 to 0x39 for '0' to '9'
+            if ((Serial.peek() >= '0' && Serial.peek() <= '9') || 
+                (Serial.peek() >= 'a' && Serial.peek() <= 'f') || 
+                (Serial.peek() >= 'A' && Serial.peek() <= 'F'))
+            {
+              szNumbers[a] = Serial.read(); 
+            }
+            else {
+              szNumbers[a] = 0;  // NUL char
+              Serial.read();     // but consume the char
+            }
+          }
+          szNumbers[2] = '\0';
           //char * pEnd;
           registerCurrent = strtol(szNumbers, NULL, 16);
-          SerialM.print("R0x");
+          SerialM.print("R");
           SerialM.print(registerCurrent, HEX);
         }
         else if (inputStage == 3) {
-          inputToogleBit = Serial.parseInt();
+          if (Serial.peek() >= '0' && Serial.peek() <= '7') { 
+            inputToogleBit = Serial.parseInt(); 
+          }
+          else {
+            inputToogleBit = 255; // will get discarded next step
+          }
           SerialM.print(" Bit: "); SerialM.print(inputToogleBit);
           inputStage = 0;
           if ((segmentCurrent <= 5) && (inputToogleBit <= 7)) {
@@ -6105,6 +6158,8 @@ void loop() {
             SerialM.print(" is now: 0x"); SerialM.println(readout, HEX);
           }
           else {
+            discardSerialRxData();
+            inputToogleBit = registerCurrent = 0;
             SerialM.println("abort");
           }
         }
@@ -6258,12 +6313,15 @@ void loop() {
     break;
     case 'V':
     {
+      SerialM.print("step response ");
       uopt->wantStepResponse = !uopt->wantStepResponse;
       if (uopt->wantStepResponse) {
         GBS::VDS_UV_STEP_BYPS::write(0);
+        SerialM.println("on");
       }
       else {
         GBS::VDS_UV_STEP_BYPS::write(1);
+        SerialM.println("off");
       }
       saveUserPrefs();
     }
