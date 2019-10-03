@@ -377,7 +377,7 @@ const uint8_t pal_1920x1080[] PROGMEM = {
 0x14, // s5_37
 0xA, // s5_38
 0x9, // s5_39
-0xA, // s5_3A
+0x3, // s5_3A
 0x0, // s5_3B
 0x0, // s5_3C
 0x0, // s5_3D
