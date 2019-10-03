@@ -497,7 +497,7 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
     }
   }
 
-  // 640x480 RGBHV scaling mode
+  // scaling RGBHV mode
   if (uopt->preferScalingRgbhv && rto->isValidForScalingRGBHV) {
     GBS::GBS_OPTION_SCALING_RGBHV::write(1);
     rto->videoStandardInput = 3;
@@ -2932,6 +2932,12 @@ void doPostPresetLoadSteps() {
       }
     }
   }
+  else {
+    // scaling rgbhv
+    delay(80);
+    updateCoastPosition(0);
+    updateClampPosition();
+  }
   //SerialM.print("pp time: "); SerialM.println(millis() - postLoadTimer);
 
   // noise starts here!
@@ -3109,6 +3115,12 @@ void doPostPresetLoadSteps() {
 }
 
 void applyPresets(uint8_t result) {
+  // if RGBHV scaling and invoked through web ui for preset change
+  if (result == 14) {
+    bypassModeSwitch_RGBHV();
+    return;
+  }
+  
   boolean waitExtra = 0;
   if (rto->outModeHdBypass || rto->videoStandardInput == 15 || rto->videoStandardInput == 0) {
     if (result <= 4 || result == 14) {
@@ -3216,12 +3228,10 @@ void applyPresets(uint8_t result) {
   else if (result == 15) {
     SerialM.print("RGB/HV bypass ");
     if (rto->syncTypeCsync) { SerialM.print("(CSync) "); }
-    if (uopt->preferScalingRgbhv) {
-      SerialM.println("(prefer scaling mode)");
-    }
-    else {
-      SerialM.println("");
-    }
+    //if (uopt->preferScalingRgbhv) {
+    //  SerialM.print("(prefer scaling mode)");
+    //}
+    SerialM.println();
     bypassModeSwitch_RGBHV();
     // don't go through doPostPresetLoadSteps
     return;
@@ -3976,7 +3986,7 @@ void bypassModeSwitch_RGBHV() {
   applyRGBPatches();
   resetDebugPort();
   rto->videoStandardInput = 15;       // making sure
-  rto->autoBestHtotalEnabled = false; // not necessary, since VDS is off / bypassed
+  rto->autoBestHtotalEnabled = false; // not necessary, since VDS is off / bypassed // todo: mode 14 (works anyway)
   rto->clampPositionIsSet = false;
   rto->HPLLState = 0;
 
@@ -4111,22 +4121,11 @@ void bypassModeSwitch_RGBHV() {
     GBS::DEC_TEST_ENABLE::write(0); // no need for decimation test to be enabled
   }
 
-  // ADC offset if measured
-  if (adco->r_off != 0 && adco->g_off != 0 && adco->b_off != 0) {
-    GBS::ADC_ROFCTRL::write(adco->r_off);
-    GBS::ADC_GOFCTRL::write(adco->g_off);
-    GBS::ADC_BOFCTRL::write(adco->b_off);
-    SerialM.print("ADC offset: R:"); SerialM.print(GBS::ADC_ROFCTRL::read(), HEX);
-    SerialM.print(" G:"); SerialM.print(GBS::ADC_GOFCTRL::read(), HEX);
-    SerialM.print(" B:"); SerialM.println(GBS::ADC_BOFCTRL::read(), HEX);
-  }
-
   // may want to optimize phase here, probably only for SOG
   //optimizePhaseSP();
 
   rto->presetID = 0x22; // bypass flavor 2, used to signal buttons in web ui
-  delay(100);
-  SerialM.println("RGB/HV bypass on");
+  delay(200);
 }
 
 void runAutoGain()
