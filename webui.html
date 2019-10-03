@@ -162,7 +162,7 @@
                 '<button class="button preset" type="button" id="4" onclick="loadUser(\'h\')">640x480</button>' + 
                 '<button class="button preset" type="button" id="8" onclick="loadDoc(\'K\')">Source Pass-through</button>' + 
                 '<br><br><br>' + 
-                '<p>If you want to save your customizations, firt select a slot for your new preset, then save to or load from that slot.</p>' + 
+                '<p>If you want to save your customizations, first select a slot for your new preset, then save to or load from that slot.</p>' + 
                 '<p>Selecting a slot also makes it the new startup preset.</p>' + 
                 '<button class="button slot" type="button" id="11" onclick="loadUser(\'b\')">Slot 1</button>' + 
                 '<button class="button slot" type="button" id="12" onclick="loadUser(\'c\')">Slot 2</button>' + 
@@ -219,6 +219,12 @@
                 '<p>With Full Height enabled, these presets will instead scale to fill more of the screen height. Reboot required.</p>' + 
                 '<p>(This currently only affects 1920 x 1080)</p>' + 
                 '<button class="button option fullHeight" type="button" onclick="loadUser(\'v\')">Full Height</button>' + 
+                '<h2>Low Resolution VGA input: Pass-through or Upscale</h2>' + 
+                '<p>Low resolution sources can be either passed on directly or get upscaled.</p>' + 
+                '<p>Upscaling may have some border / scaling issues, but is more compatible with displays.</p>' + 
+                '<p>Also, refresh rates other than 60Hz are not well supported yet.</p>' + 
+                '<p>"Low resolution" is currently set at below or equal to 640x480 (525 active lines).</p>' + 
+                '<button class="button option preferScalingRgbhv" type="button" onclick="loadUser(\'x\')">Low Res: Use Upscaling</button>' + 
                 '<h2>Output Format: RGBHV (regular) / YPbPr (Component Video)</h2>' + 
                 '<p>The default output mode is RGBHV, suitable for use with VGA cables or HDMI converters.</p>' + 
                 '<p>An experimental YPbPr mode can also be selected. Compatibility is still spotty.</p>' + 
@@ -277,19 +283,21 @@
                 '<button class="button" type="button" onclick="loadUser(\'1\')">Reset Defaults + Restart</button>';
             }
             window.addEventListener('load', function(event) {
+                siteUnloading = 0;
                 content1();
                 theTerminal = document.getElementById('outputTextArea');
                 createWebSocket();
             });
             window.addEventListener('unload', function(event) {
-                console.log('unload');
                 clearInterval(wsCheckTimer);
                 clearInterval(myTimer);
+                siteUnloading = 1;
                 if (ws) {
                     if (ws.readyState < 2) {
                         ws.close();
                     }
                 }
+                console.log('unload');
             });
             var eventsQueued = 0;
             var theTerminal;
@@ -297,6 +305,7 @@
             var myTimer;
             var wsCheckTimer;
             var wsConnectCounter = 0;
+            var siteUnloading = 0;
             var queuedText = '';
             function loadDoc(link) {
                 var xhttp = new XMLHttpRequest(); 
@@ -321,12 +330,17 @@
                 }
             }
             function checkWs() {
-                if (!ws) {
-                    console.log('checkWs: no ws, create new');
-                    createWebSocket();
-                } else if (ws.readyState >= 2) {
-                    console.log('checkWs: readyState2/3');
-                    createWebSocket();
+                if (siteUnloading == 0) {
+                    if (!ws) {
+                        console.log('checkWs: no ws, create new');
+                        createWebSocket();
+                    } else if (ws.readyState >= 2) {
+                        console.log('checkWs: rs closed or closing, create new');
+                        createWebSocket();
+                    } else if (ws.readyState == 0) {
+                        console.log('checkWs: ws connecting..');
+                        /*setInterval(checkWs, 1000);*/
+                    }
                 }
             }
             function timeOutWs() {
@@ -336,60 +350,53 @@
                 2 	CLOSING
                 3 	CLOSED
                 */
-                if (ws) {
-                    if (ws.readyState == 1) {
-                        console.log('TO rs is 1'); // > close and reconnect
-                        ws.close();
-                        createWebSocket();
+                if (siteUnloading == 0) {
+                    if (ws) {
+                        if (ws.readyState == 1) {
+                            console.log('TO rs is 1, close'); // > close and reconnect
+                            ws.close();
+                        }
+                        else if (ws.readyState == 0) {
+                            console.log('TO rs is 0, wait'); // > wait
+                        }
+                        else {
+                            console.log('TO rs is 2 or 3, new');
+                            createWebSocket();
+                        }
+                        /*theTerminal.value += 'ws' + wsConnectCounter + ' timeout\n';
+                        theTerminal.scrollTop = theTerminal.scrollHeight;*/
                     }
-                    else if (ws.readyState == 0) {
-                        console.log('TO rs is 0'); // > wait
-                    }
-                    else {
-                        console.log('TO rs is 2 or 3 > reconnect');
-                        createWebSocket();
-                    }
-                    theTerminal.value += 'ws' + wsConnectCounter + ' timeout\n';
-                    theTerminal.scrollTop = theTerminal.scrollHeight;
                 }
             }
             function createWebSocket() {
                 clearInterval(myTimer);
                 clearInterval(wsCheckTimer);
+                if (ws) {
+                    if (ws.readyState < 2) {
+                        /*already one ws open*/
+                        console.log('ws create, but already open');
+                        return;
+                    }
+                }
                 ws = new WebSocket('ws://' + location.hostname + ':81/',['arduino']);
-                wsCheckTimer = setInterval(checkWs, 2200);
+                wsCheckTimer = setInterval(checkWs, 2000);
                 
                 ws.onopen = function() {
                     wsConnectCounter++;
                     console.log('ws onopen');
                     
-                    theTerminal.value += 'ws' + wsConnectCounter + ' connected\n';
-                    theTerminal.scrollTop = theTerminal.scrollHeight;
+                    /*theTerminal.value += 'ws' + wsConnectCounter + ' connected\n';
+                    theTerminal.scrollTop = theTerminal.scrollHeight;*/
                     clearInterval(myTimer);
                     clearInterval(wsCheckTimer);
                     myTimer = setInterval(timeOutWs, 7000);
                 }
                 ;
-                ws.onerror = function(error) {
-                    if (ws) {
-                        if (ws.readyState == 1) {
-                            console.log('ERR rs is 1 > close and reconnect');
-                            /*return;*/
-                            ws.close();
-                        }
-                        else if (ws.readyState == 0) {
-                            console.log('ERR rs is 0 > wait');
-                            return;
-                            /*ws.close();*/
-                        }
-                        else {
-                            console.log('ERR rs is 2 or 3 > reconnect');
-                        }
+                ws.onclose = function(event) {
+                    console.log('ws.onclose');
+                    if (siteUnloading == 0) {
+                        createWebSocket();
                     }
-                    else {
-                        console.log('ERR but no ws > reconnect');
-                    }
-                    createWebSocket();
                 }
                 ;
                 ws.onmessage = function(e) {
@@ -531,6 +538,13 @@
                                 /* optionByte2 */
                                 if (button.classList.contains('enableCalibrationADC')) {
                                     if ((optionByte2 & 0x01) == 0x01) {
+                                        button.classList.add('active');
+                                    } else {
+                                        button.classList.remove('active');
+                                    }
+                                }
+                                if (button.classList.contains('preferScalingRgbhv')) {
+                                    if ((optionByte2 & 0x02) == 0x02) {
                                         button.classList.add('active');
                                     } else {
                                         button.classList.remove('active');

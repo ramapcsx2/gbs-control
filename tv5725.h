@@ -168,6 +168,8 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x46, 0,  8> RESET_CONTROL_0x46; // fake name
     typedef UReg<0x00, 0x46, 0,  1> SFTRST_IF_RSTZ;
     typedef UReg<0x00, 0x46, 1,  1> SFTRST_DEINT_RSTZ;
+    typedef UReg<0x00, 0x46, 2,  1> SFTRST_MEM_FF_RSTZ;
+    typedef UReg<0x00, 0x46, 4,  1> SFTRST_FIFO_RSTZ;
     typedef UReg<0x00, 0x46, 6,  1> SFTRST_VDS_RSTZ;
     typedef UReg<0x00, 0x47, 0,  8> RESET_CONTROL_0x47; // fake name
     typedef UReg<0x00, 0x47, 0,  1> SFTRST_DEC_RSTZ;
