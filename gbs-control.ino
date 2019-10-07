@@ -318,6 +318,16 @@ void zeroAll()
       for (int w = 0; w < 16; w++)
       {
         bank[w] = 0;
+        // exceptions
+        //if (y == 5 && z == 0 && w == 2) {
+        //  bank[w] = 0x51; // 5_02
+        //}
+        //if (y == 5 && z == 5 && w == 6) {
+        //  bank[w] = 0x01; // 5_56
+        //}
+        //if (y == 5 && z == 5 && w == 7) {
+        //  bank[w] = 0xC0; // 5_57
+        //}
       }
       writeBytes(z * 16, bank, 16);
     }
@@ -528,7 +538,7 @@ void setResetParameters() {
   rto->continousStableCounter = 0;
   rto->noSyncCounter = 0;
   rto->isInLowPowerMode = false;
-  rto->currentLevelSOG = 2;
+  rto->currentLevelSOG = 5;
   rto->thisSourceMaxLevelSOG = 31;  // 31 = auto sog has not (yet) run
   rto->failRetryAttempts = 0;
   rto->HPLLState = 0;
@@ -553,6 +563,14 @@ void setResetParameters() {
 
   GBS::OUT_SYNC_CNTRL::write(0);          // no H / V sync out to PAD
   GBS::DAC_RGBS_PWDNZ::write(0);          // disable DAC
+  GBS::ADC_TA_05_CTRL::write(0x02);       // 5_05 1 // minor SOG clamp effect
+  GBS::ADC_TEST_04::write(0x02);          // 5_04
+  GBS::ADC_TEST_0C::write(0x12);          // 5_0c 1 4
+  GBS::ADC_CLK_PA::write(0);              // 5_00 0/1 PA_ADC input clock = PLLAD CLKO2
+  GBS::ADC_SOGEN::write(1);
+  GBS::SP_SOG_MODE::write(1);
+  GBS::ADC_INPUT_SEL::write(1);           // 1 = RGBS / RGBHV adc data input
+  GBS::ADC_POWDZ::write(1);               // ADC on
   setAndUpdateSogLevel(rto->currentLevelSOG);
   GBS::RESET_CONTROL_0x46::write(0x00);   // all units off
   GBS::RESET_CONTROL_0x47::write(0x00);
@@ -560,6 +578,7 @@ void setResetParameters() {
   GBS::GPIO_CONTROL_01::write(0x00);      // all GPIO outputs disabled
   GBS::DAC_RGBS_PWDNZ::write(0);          // disable DAC (output)
   GBS::PLL648_CONTROL_01::write(0x00);    // VCLK(1/2/4) display clock // needs valid for debug bus
+  GBS::PAD_CKOUT_ENZ::write(1);           // clock output disable
   GBS::IF_SEL_ADC_SYNC::write(1);         // ! 1_28 2
   GBS::PLLAD_VCORST::write(1);            // reset = 1
   GBS::PLL_ADS::write(1); // When = 1, input clock is from ADC ( otherwise, from unconnected clock at pin 40 )
@@ -575,16 +594,9 @@ void setResetParameters() {
   GBS::SP_NO_COAST_REG::write(0);     // can be 1 in some soft reset situations, will prevent sog vsync decoding
   GBS::SP_CS_CLP_ST::write(32);       // define it to something at start
   GBS::SP_CS_CLP_SP::write(48);
-  GBS::ADC_CLK_PA::write(0);          // 5_00 0/1 PA_ADC input clock = PLLAD CLKO2
-  GBS::ADC_INPUT_SEL::write(1);       // 1 = RGBS / RGBHV adc data input
   GBS::SP_SOG_SRC_SEL::write(0);      // SOG source = ADC
   GBS::SP_EXT_SYNC_SEL::write(0);     // connect HV input ( 5_20 bit 3 )
-  GBS::ADC_TA_05_CTRL::write(0x02);   // 5_05 1 // minor SOG clamp effect
-  GBS::ADC_TEST_04::write(0x02);      // 5_04
-  GBS::ADC_TEST_0C::write(0x12);      // 5_0c 1 4
   GBS::SP_NO_CLAMP_REG::write(1);
-  GBS::ADC_SOGEN::write(1);
-  GBS::ADC_POWDZ::write(1);           // ADC on
   GBS::PLLAD_ICP::write(0);           // lowest charge pump current
   GBS::PLLAD_FS::write(0);            // low gain (have to deal with cold and warm startups)
   GBS::PLLAD_5_16::write(0x1f);
@@ -4121,9 +4133,6 @@ void bypassModeSwitch_RGBHV() {
     GBS::DEC_TEST_ENABLE::write(0); // no need for decimation test to be enabled
   }
 
-  // may want to optimize phase here, probably only for SOG
-  //optimizePhaseSP();
-
   rto->presetID = 0x22; // bypass flavor 2, used to signal buttons in web ui
   delay(200);
 }
@@ -4818,8 +4827,7 @@ void runSyncWatcher()
         }
         if (moveOn) {
           rto->isValidForScalingRGBHV = true;
-          GBS::ADC_SOGEN::write(0);
-          GBS::SP_SOG_MODE::write(0);
+          //GBS::SP_SOG_MODE::write(0);
           GBS::GBS_OPTION_SCALING_RGBHV::write(1);
           rto->autoBestHtotalEnabled = 1;
 
@@ -4863,18 +4871,18 @@ void runSyncWatcher()
           }
 
           updateSpDynamic();
-          if (rto->syncTypeCsync == false)
-          { // only set this for != csync
-            GBS::ADC_SOGEN::write(0); // may have to undo this below when returning from scaling rgbhv
-            GBS::SP_SOG_MODE::write(0);
-            GBS::SP_CLAMP_MANUAL::write(1);
-            GBS::SP_NO_COAST_REG::write(1);
-          }
-          else {
-            GBS::SP_H_CST_ST::write(0x18);    // 5_4d  // set some default values
-            GBS::SP_H_CST_SP::write(0x80);    // will be updated later
-            GBS::SP_H_PROTECT::write(1);      // some modes require this (or invert SOG)
-          }
+          //if (rto->syncTypeCsync == false)
+          //{
+          //  GBS::SP_SOG_MODE::write(0);
+          //  GBS::SP_CLAMP_MANUAL::write(1);
+          //  GBS::SP_NO_COAST_REG::write(1);
+          //}
+          //else {
+          //  GBS::SP_SOG_MODE::write(1);
+          //  GBS::SP_H_CST_ST::write(0x18);    // 5_4d  // set some default values
+          //  GBS::SP_H_CST_SP::write(0x80);    // will be updated later
+          //  GBS::SP_H_PROTECT::write(1);      // some modes require this (or invert SOG)
+          //}
           delay(300);
         }
       }
@@ -5163,16 +5171,13 @@ void calibrateAdcOffset()
   GBS::DEC_TEST_ENABLE::write(1);
   GBS::ADC_5_03::write(0x31);           // bottom clamps, filter max (40mhz)
   GBS::ADC_TEST_04::write(0x00);        // disable bit 1
-  //GBS::SP_CLAMP_INV_REG::write(1);  // 5_56 7
   GBS::SP_CS_CLP_ST::write(0x00);
   GBS::SP_CS_CLP_SP::write(0x00);
-  //GBS::ADC_TEST_0C_BIT3::write(1);
-  GBS::SP_5_56::write(0x05);
+  GBS::SP_5_56::write(0x05);            // SP_SOG_MODE needs to be 1
   GBS::SP_5_57::write(0x80);
   GBS::ADC_5_00::write(0x02);
   GBS::TEST_BUS_SEL::write(0x0b);   // 0x2b
   GBS::TEST_BUS_EN::write(1);
-
   resetDigital();
 
   uint16_t hitTargetCounter = 0;
@@ -5222,7 +5227,7 @@ void calibrateAdcOffset()
         }
         Serial.print(readout, HEX);
 
-        if (readout >= 0x5F) {
+        if (readout >= 0x52) {
           // some kind of failure
           break;
         }
@@ -5256,7 +5261,7 @@ void calibrateAdcOffset()
     Serial.println("");
   }
 
-  if (readout >= 0x5F) {
+  if (readout >= 0x52) {
     // there was a problem; revert
     adco->r_off = adco->g_off = adco->b_off = 0x40;
   }
@@ -5358,7 +5363,7 @@ void setup() {
   rto->clampPositionIsSet = 0;
   rto->coastPositionIsSet = 0;
   rto->continousStableCounter = 0;
-  rto->currentLevelSOG = 2;
+  rto->currentLevelSOG = 5;
   rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
 
   adco->r_gain = 0;
