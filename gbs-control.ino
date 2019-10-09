@@ -1028,7 +1028,7 @@ void optimizeSogLevel() {
     return;
   }
   if (rto->videoStandardInput == 15 || GBS::SP_SOG_MODE::read() != 1) {
-    rto->thisSourceMaxLevelSOG = 14;
+    rto->thisSourceMaxLevelSOG = 13;
     return;
   }
 
@@ -1036,10 +1036,10 @@ void optimizeSogLevel() {
       if (rto->thisSourceMaxLevelSOG >= 4) {
           rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
       } else {
-          rto->currentLevelSOG = 14; // max level was < 4, so better restart search
+          rto->currentLevelSOG = 13; // max level was < 4, so better restart search
       }
   } else {
-      rto->currentLevelSOG = 14;
+      rto->currentLevelSOG = 13;
   }
   setAndUpdateSogLevel(rto->currentLevelSOG);
 
@@ -1178,14 +1178,11 @@ uint8_t detectAndSwitchToActiveInput() { // if any
               }
               if (rto->currentLevelSOG >= 15) { rto->currentLevelSOG = 1; }
               setAndUpdateSogLevel(rto->currentLevelSOG);
-              // if, after 160 testCycles at default sog level it didn't sync,
-              // assume thisSourceMaxLevelSOG is low
-              rto->thisSourceMaxLevelSOG = 5;
             }
 
             // new: check for 25khz, use regular scaling route for those
             if (getVideoMode() == 8) {
-              rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 11;
+              rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 13;
               setAndUpdateSogLevel(rto->currentLevelSOG);
               rto->medResLineCount = GBS::MD_HD1250P_CNTRL::read();
               SerialM.println("25khz pure rgbs");
@@ -1203,7 +1200,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
 
           }
 
-          rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 11;
+          rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 13;
           setAndUpdateSogLevel(rto->currentLevelSOG);
 
           return 1; //anyway, let later stage deal with it
@@ -1241,7 +1238,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
             for (uint8_t i = 0; i < 8; i++) {
               //printInfo();
               if (getVideoMode() == 8) {
-                rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 11;
+                rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 13;
                 setAndUpdateSogLevel(rto->currentLevelSOG);
                 rto->medResLineCount = GBS::MD_HD1250P_CNTRL::read();
                 SerialM.println("25khz mixed rgbs");
@@ -1301,7 +1298,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
           }
         }
 
-        rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 11;
+        rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 13;
         setAndUpdateSogLevel(rto->currentLevelSOG);
         
         return 2; //anyway, let later stage deal with it
@@ -2546,23 +2543,13 @@ void doPostPresetLoadSteps() {
 
   prepareSyncProcessor(); // todo: handle modes 14 and 15 better, now that they support scaling
   updateSpDynamic();      // remember: rto->videoStandardInput for RGB(C/HV) in scaling is 1, 2 or 3 here
-  //if (rto->videoStandardInput >= 1 && rto->videoStandardInput <= 3) {
-  //  if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 1) {
-  //    GBS::SP_H_CST_ST::write(0x08);   // 5_4d
-  //    GBS::SP_H_CST_SP::write(0x100);  // 5_4f // how low (high) may this go? source dependant
-  //    // even HV mode benefits from SP_DIS_SUB_COAST = 0 when scaling?
-  //    GBS::SP_DIS_SUB_COAST::write(0); // enable SUB_COAST
-  //    GBS::SP_H_PROTECT::write(1);     // enable H_PROTECT
-  //    delay(300);
-  //  }
-  //}
 
   GBS::SP_HCST_AUTO_EN::write(0);
   if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0) // maybe more conditions, but only scaling rgbhv excluded from coast now
   {
     // for potentially faster detection
     GBS::SP_DIS_SUB_COAST::write(1); // SUB_COAST not yet
-    GBS::SP_H_PROTECT::write(1);     // enable H_PROTECT
+    GBS::SP_H_PROTECT::write(1);     // enable H_PROTECT temporarily
   }
   GBS::SP_NO_CLAMP_REG::write(1);  // (keep) clamp disabled, to be enabled when position determined
   GBS::OUT_SYNC_CNTRL::write(1);   // prepare sync out to PAD
@@ -2601,7 +2588,7 @@ void doPostPresetLoadSteps() {
           rto->currentLevelSOG = 14;
       }
       else {
-          rto->currentLevelSOG = 11;
+          rto->currentLevelSOG = 13;  // similar to yuv, allow variations
       }
   }
   setAndUpdateSogLevel(rto->currentLevelSOG);
@@ -2916,7 +2903,7 @@ void doPostPresetLoadSteps() {
       if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0) // maybe more conditions, but only scaling rgbhv excluded from coast now
       {
         GBS::SP_DIS_SUB_COAST::write(0); // enable SUB_COAST
-        GBS::SP_H_PROTECT::write(1);     // enable H_PROTECT
+        GBS::SP_H_PROTECT::write(1);     // enable H_PROTECT temporarily
       }
     }
 
@@ -3009,6 +2996,7 @@ void doPostPresetLoadSteps() {
     GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
     GBS::INTERRUPT_CONTROL_00::write(0x00);
     unfreezeVideo();  // eventhough not used atm
+    GBS::SP_H_PROTECT::write(0);     // disable H_PROTECT
     // DAC and Sync out will be enabled later
     return; // to setOutModeHdBypass();
   }
@@ -3056,6 +3044,7 @@ void doPostPresetLoadSteps() {
   setAndUpdateSogLevel(rto->currentLevelSOG); // use this to cycle SP / ADPLL latches
   optimizePhaseSP();
 
+  GBS::SP_H_PROTECT::write(0);            // disable H_PROTECT
   GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
@@ -4380,7 +4369,7 @@ void fastSogAdjust()
           rto->currentLevelSOG -= 2;
         }
         else {
-          rto->currentLevelSOG = 12;
+          rto->currentLevelSOG = 13;
           setAndUpdateSogLevel(rto->currentLevelSOG);
           delay(40);
           break; // abort / restart next round
@@ -4472,7 +4461,6 @@ void runSyncWatcher()
             setAndUpdateSogLevel(rto->currentLevelSOG);
           }
           else {
-            //rto->currentLevelSOG = 12;
             rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
             setAndUpdateSogLevel(rto->currentLevelSOG);
           }
@@ -4485,15 +4473,7 @@ void runSyncWatcher()
       else {
         // window expired, reset
         badLowLen = 0;
-        static uint8_t prevMax = 99;
-        if (getStatus16SpHsStable()) {
-          if (rto->currentLevelSOG > 5) rto->thisSourceMaxLevelSOG = rto->currentLevelSOG;
-          else rto->thisSourceMaxLevelSOG = 5;
-          if (prevMax != rto->thisSourceMaxLevelSOG) {
-            prevMax = rto->thisSourceMaxLevelSOG;
-            //Serial.print("thisSourceMaxLevelSOG: "); Serial.println(rto->thisSourceMaxLevelSOG);
-          }
-        }
+        // don't set thisSourceMaxLevelSOG here, let it go to 14 again
       }
     }
   }
@@ -6513,7 +6493,6 @@ void loop() {
           setDisplayVblankStopPosition(value);
         }
         else if (what.equals("sog")) {
-          //rto->thisSourceMaxLevelSOG = 31; // back to default
           setAndUpdateSogLevel(value);
         }
         else if (what.equals("ifini")) {
@@ -6676,15 +6655,7 @@ void loop() {
           if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
           {
             GBS::SP_DIS_SUB_COAST::write(0); // enable SUB_COAST
-            GBS::SP_H_PROTECT::write(1);     // enable H_PROTECT
-            
-            // following seems to work even better:
-            // SP_H_PROTECT = 1, SP_DIS_SUB_COAST = 1, optional SP_H_COAST = 1 >> s5r3e = 0x34
-            // vsync recover 5_3f = 1 5_40 = 0
-            /*G5R0x4D value : 0x0
-              G5R0x4E value : 0x0
-              G5R0x4F value : 0xA8
-              G5R0x50 value : 0x6*/ // for psx
+            GBS::SP_H_PROTECT::write(0);     // H_PROTECT stays off
           }
           else {
             GBS::SP_DIS_SUB_COAST::write(1); // keep disabled
@@ -6692,9 +6663,6 @@ void loop() {
           }
         }
       }
-      //else {
-      //  Serial.println("prevent coast");
-      //}
     }
   }
 
