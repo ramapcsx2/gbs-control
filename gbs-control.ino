@@ -1153,6 +1153,72 @@ uint8_t detectAndSwitchToActiveInput() { // if any
           handleWiFi(0); // wifi stack
           delay(1);
         }
+
+        // if VSync is active, it's RGBHV or RGBHV with CSync on HS pin
+        if (vsyncActive) {
+          SerialM.println("VSync: present");
+          boolean hsyncActive = 0;
+
+          timeOutStart = millis();
+          while (!hsyncActive && millis() - timeOutStart < 400) {
+            hsyncActive = GBS::STATUS_SYNC_PROC_HSACT::read();
+            handleWiFi(0); // wifi stack
+            delay(1);
+          }
+
+          if (hsyncActive) {
+            SerialM.println("HSync: present");
+            // The HSync and SOG pins are setup to detect CSync, if present 
+            // (SOG mode on, coasting setup, debug bus setup, etc)
+            // SP_H_PROTECT is needed for CSync with a VS source present as well
+            GBS::SP_H_PROTECT::write(1);
+            delay(120);
+
+            short decodeSuccess = 0;
+            for (int i = 0; i < 2; i++)
+            {
+              // no success if: no signal at all (returns 0.0f), no embedded VSync (returns ~18.5f)
+              if (getSourceFieldRate(1) > 40.0f) decodeSuccess++; // properly decoded vsync from 40 to xx Hz
+            }
+
+            if (decodeSuccess >= 2) { rto->syncTypeCsync = true; }
+            else { rto->syncTypeCsync = false; }
+
+            // check for 25khz, all regular SOG modes first
+            // if source is HS+VS, can't detect via MD unit, need to set 5_11=0x92 and look at vt: counter
+            for (uint8_t i = 0; i < 8; i++) {
+              //printInfo();
+              uint8_t innerVideoMode = getVideoMode();
+              if (innerVideoMode > 0 && innerVideoMode != 8) {
+                return 1;
+              }
+              if (innerVideoMode == 8) {
+                rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 13;
+                setAndUpdateSogLevel(rto->currentLevelSOG);
+                rto->medResLineCount = GBS::MD_HD1250P_CNTRL::read();
+                SerialM.println("25khz mixed rgbs");
+
+                return 1;
+              }
+              // update 25khz detection 
+              GBS::MD_HD1250P_CNTRL::write(GBS::MD_HD1250P_CNTRL::read() + 1);
+              //Serial.println(GBS::MD_HD1250P_CNTRL::read(), HEX);
+              delay(10);
+            }
+
+            rto->videoStandardInput = 15;
+            // exception: apply preset here, not later in syncwatcher
+            applyPresets(rto->videoStandardInput);
+            delay(100);
+
+            return 3;
+          }
+          else {
+            // need to continue looking
+            SerialM.println("but no HSync!");
+          }
+        }
+
         if (!vsyncActive) { // then do RGBS check
           uint16_t testCycle = 0;
           timeOutStart = millis();
@@ -1173,8 +1239,6 @@ uint8_t detectAndSwitchToActiveInput() { // if any
               }
               else {
                 rto->currentLevelSOG += 2;
-                // SP_H_PROTECT doesn't appear to help detection
-                //GBS::SP_H_PROTECT::write(1);
               }
               if (rto->currentLevelSOG >= 15) { rto->currentLevelSOG = 1; }
               setAndUpdateSogLevel(rto->currentLevelSOG);
@@ -1204,66 +1268,6 @@ uint8_t detectAndSwitchToActiveInput() { // if any
           setAndUpdateSogLevel(rto->currentLevelSOG);
 
           return 1; //anyway, let later stage deal with it
-        }
-
-        // if VSync is active, it's RGBHV or RGBHV with CSync on HS pin
-        if (vsyncActive) {
-          SerialM.println("VSync: present");
-          boolean hsyncActive = 0;
-
-          timeOutStart = millis();
-          while (!hsyncActive && millis() - timeOutStart < 400) {
-            hsyncActive = GBS::STATUS_SYNC_PROC_HSACT::read();
-            handleWiFi(0); // wifi stack
-            delay(1);
-          }
-
-          if (hsyncActive) {
-            SerialM.println("HSync: present");
-            // The HSync pin is setup to detect CSync, if present (SOG mode on, coasting setup, debug bus setup, etc)
-            GBS::SP_SOG_SRC_SEL::write(1); // but this may be needed (HS pin as SOG source)
-            
-            short decodeSuccess = 0;
-            for (int i = 0; i < 2; i++)
-            {
-              // no success if: no signal at all (returns 0.0f), no embedded VSync (returns ~18.5f)
-              if (getSourceFieldRate(1) > 40.0f) decodeSuccess++; // properly decoded vsync from 40 to xx Hz
-            }
-
-            if (decodeSuccess >= 2) { rto->syncTypeCsync = true; }
-            else { rto->syncTypeCsync = false; }
-
-            // new: check for 25khz, use regular scaling route for those
-            delay(120);
-            for (uint8_t i = 0; i < 8; i++) {
-              //printInfo();
-              if (getVideoMode() == 8) {
-                rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 13;
-                setAndUpdateSogLevel(rto->currentLevelSOG);
-                rto->medResLineCount = GBS::MD_HD1250P_CNTRL::read();
-                SerialM.println("25khz mixed rgbs");
-
-                return 1;
-              }
-              else {
-                //printInfo();
-                GBS::MD_HD1250P_CNTRL::write(GBS::MD_HD1250P_CNTRL::read() + 1);
-                //Serial.println(GBS::MD_HD1250P_CNTRL::read(), HEX);
-                delay(10);
-              }
-            }
-
-            rto->videoStandardInput = 15;
-            // exception: apply preset here, not later in syncwatcher
-            applyPresets(rto->videoStandardInput);
-            delay(100);
-
-            return 3;
-          }
-          else {
-            // need to continue looking
-            SerialM.println("but no HSync!");
-          }
         }
 
         GBS::SP_SOG_MODE::write(1);
@@ -3611,6 +3615,16 @@ void updateSpDynamic() {
       GBS::SP_H_PULSE_IGNOR::write(0x02);
     }
   }
+
+  if (rto->syncTypeCsync == true) {
+    if (GBS::STATUS_SYNC_PROC_VSACT::read() == 1) {
+      GBS::SP_H_PROTECT::write(1);
+    }
+    else {
+      GBS::SP_H_PROTECT::write(0);
+    }
+  }
+
 }
 
 void updateCoastPosition(boolean autoCoast) {
@@ -4807,7 +4821,7 @@ void runSyncWatcher()
         }
         if (moveOn) {
           rto->isValidForScalingRGBHV = true;
-          //GBS::SP_SOG_MODE::write(0);
+          GBS::SP_SOG_MODE::write(0);
           GBS::GBS_OPTION_SCALING_RGBHV::write(1);
           rto->autoBestHtotalEnabled = 1;
 
@@ -4851,18 +4865,18 @@ void runSyncWatcher()
           }
 
           updateSpDynamic();
-          //if (rto->syncTypeCsync == false)
-          //{
-          //  GBS::SP_SOG_MODE::write(0);
-          //  GBS::SP_CLAMP_MANUAL::write(1);
-          //  GBS::SP_NO_COAST_REG::write(1);
-          //}
-          //else {
-          //  GBS::SP_SOG_MODE::write(1);
-          //  GBS::SP_H_CST_ST::write(0x18);    // 5_4d  // set some default values
-          //  GBS::SP_H_CST_SP::write(0x80);    // will be updated later
-          //  GBS::SP_H_PROTECT::write(1);      // some modes require this (or invert SOG)
-          //}
+          if (rto->syncTypeCsync == false)
+          {
+            GBS::SP_SOG_MODE::write(0);
+            GBS::SP_CLAMP_MANUAL::write(1);
+            GBS::SP_NO_COAST_REG::write(1);
+          }
+          else {
+            GBS::SP_SOG_MODE::write(1);
+            GBS::SP_H_CST_ST::write(0x18);    // 5_4d  // set some default values
+            GBS::SP_H_CST_SP::write(0x80);    // will be updated later
+            GBS::SP_H_PROTECT::write(1);      // some modes require this (or invert SOG)
+          }
           delay(300);
         }
       }
