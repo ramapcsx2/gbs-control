@@ -1025,27 +1025,22 @@ boolean optimizePhaseSP() {
 void optimizeSogLevel() {
   if (rto->boardHasPower == false) // checkBoardPower is too invasive now
   {
+    rto->thisSourceMaxLevelSOG = rto->currentLevelSOG = 13;
     return;
   }
-  if (rto->videoStandardInput == 15 || GBS::SP_SOG_MODE::read() != 1) {
-    rto->thisSourceMaxLevelSOG = 13;
+  if (rto->videoStandardInput == 15 || GBS::SP_SOG_MODE::read() != 1 || rto->syncTypeCsync == false) {
+    rto->thisSourceMaxLevelSOG = rto->currentLevelSOG = 13;
     return;
   }
 
-  if (rto->thisSourceMaxLevelSOG != 31) {
-      if (rto->thisSourceMaxLevelSOG >= 4) {
-          rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
-      } else {
-          rto->currentLevelSOG = 13; // max level was < 4, so better restart search
-      }
-  } else {
-      rto->currentLevelSOG = 13;
+  if (rto->inputIsYpBpR) {
+    rto->thisSourceMaxLevelSOG = rto->currentLevelSOG = 14;
+  }
+  else {
+    rto->thisSourceMaxLevelSOG = rto->currentLevelSOG = 13;  // similar to yuv, allow variations
   }
   setAndUpdateSogLevel(rto->currentLevelSOG);
 
-  //GBS::ADC_TEST_0C_BIT4::write(1);  // ignore previous filter setting
-
-  //resetSyncProcessor(); //delay(400);
   resetModeDetect();
   delay(100);
   //unfreezeVideo();
@@ -1092,15 +1087,6 @@ void optimizeSogLevel() {
     else { // syncGoodCounter < 40
       //Serial.print("outer test failed syncGoodCounter: "); Serial.println(syncGoodCounter);
     }
-
-    // first attempt toggling sog filter (5_0c 4)
-    //if (GBS::ADC_TEST_0C_BIT4::read() == 1) {
-    //  GBS::ADC_TEST_0C_BIT4::write(0);
-    //  //Serial.println("filt off, back to test");
-    //  // todo: this is all dodgy, better rethink the whole function
-    //  continue; // back to test
-    //}
-    //GBS::ADC_TEST_0C_BIT4::write(1);
 
     if (rto->currentLevelSOG >= 4) {
       rto->currentLevelSOG -= 2;
@@ -1193,7 +1179,6 @@ uint8_t detectAndSwitchToActiveInput() { // if any
                 return 1;
               }
               if (innerVideoMode == 8) {
-                rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 13;
                 setAndUpdateSogLevel(rto->currentLevelSOG);
                 rto->medResLineCount = GBS::MD_HD1250P_CNTRL::read();
                 SerialM.println("25khz mixed rgbs");
@@ -1302,7 +1287,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
           }
         }
 
-        rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 13;
+        rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 14;
         setAndUpdateSogLevel(rto->currentLevelSOG);
         
         return 2; //anyway, let later stage deal with it
@@ -2310,10 +2295,12 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   int diffHTotal = bestHTotal - orig_htotal;
   uint16_t diffHTotalUnsigned = abs(diffHTotal);
   if (diffHTotalUnsigned < 1 && !rto->forceRetime) {
-    //if (!uopt->enableFrameTimeLock) { // FTL can double throw this when it resets to adjust
-    //  SerialM.print("already at bestHTotal: "); SerialM.print(bestHTotal);
-    //  SerialM.print(" Fieldrate: "); SerialM.println(getSourceFieldRate(0), 3); // prec. 3 // use IF testbus
-    //}
+    if (!uopt->enableFrameTimeLock) { // FTL can double throw this when it resets to adjust
+      float sfr = getSourceFieldRate(0);
+      SerialM.print("HTotal Adjust: "); SerialM.print(diffHTotal);
+      SerialM.print(", Fieldrate: ");
+      SerialM.println(sfr, 3); // prec. 3
+    }
     return true; // nothing to do
   }
   if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() == 1) {
@@ -2584,17 +2571,13 @@ void doPostPresetLoadSteps() {
   rto->phaseADC = GBS::PA_ADC_S::read();  // we can't know which is right, get from preset
   rto->phaseSP = 8;                       // get phase into global variables early: before latching
 
-  // for worst case sog, leave it at it's current low level, to give sub coast a chance later
-  if (rto->thisSourceMaxLevelSOG != 31) { // same source but format changed
-      rto->currentLevelSOG = rto->thisSourceMaxLevelSOG;
-  } else {
-      if (rto->inputIsYpBpR) {
-          rto->currentLevelSOG = 14;
-      }
-      else {
-          rto->currentLevelSOG = 13;  // similar to yuv, allow variations
-      }
+  if (rto->inputIsYpBpR) {
+    rto->thisSourceMaxLevelSOG = rto->currentLevelSOG = 14;
   }
+  else {
+    rto->thisSourceMaxLevelSOG = rto->currentLevelSOG = 13;  // similar to yuv, allow variations
+  }
+
   setAndUpdateSogLevel(rto->currentLevelSOG);
   
   if (!isCustomPreset) {
@@ -6081,8 +6064,6 @@ void loop() {
       /*for (int a = 0; a < 10000; a++) {
         GBS::VERYWIDEDUMMYREG::read();
       }*/
-
-      //rto->thisSourceMaxLevelSOG = 31; // if syncwatcher on, will autosog
 
       calibrateAdcOffset();
 
