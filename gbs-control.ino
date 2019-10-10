@@ -2297,9 +2297,26 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   if (diffHTotalUnsigned < 1 && !rto->forceRetime) {
     if (!uopt->enableFrameTimeLock) { // FTL can double throw this when it resets to adjust
       float sfr = getSourceFieldRate(0);
-      SerialM.print("HTotal Adjust: "); SerialM.print(diffHTotal);
-      SerialM.print(", Fieldrate: ");
-      SerialM.println(sfr, 3); // prec. 3
+      delay(0); // wifi
+      float ofr = getOutputFrameRate();
+      if (sfr < 1.0f) {
+        delay(1);
+        sfr = getSourceFieldRate(0);  // retry
+      }
+      if (ofr < 1.0f) {
+        delay(1);
+        sfr = getOutputFrameRate();  // retry
+      }
+      SerialM.print("HTotal Adjust: "); 
+      if (diffHTotal >= 0) {
+        SerialM.print(" "); // formatting to align with negative value readouts
+      }
+      SerialM.print(diffHTotal);
+      SerialM.print(", source Hz: ");
+      SerialM.print(sfr, 3); // prec. 3
+      SerialM.print(", output Hz: ");
+      SerialM.println(ofr, 3); // prec. 3
+      delay(0);
     }
     return true; // nothing to do
   }
@@ -2431,11 +2448,28 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
     GBS::VDS_HS_SP::write(h_sync_stop_position);
   }
 
-  delay(1); // wifi
+  delay(2); // wifi
   float sfr = getSourceFieldRate(0);
-  SerialM.print("HTotal Adjust: "); SerialM.print(diffHTotal);
-  SerialM.print(", Fieldrate: ");
-  SerialM.println(sfr, 3); // prec. 3
+  delay(0);
+  float ofr = getOutputFrameRate();
+  if (sfr < 1.0f) {
+    delay(1);
+    sfr = getSourceFieldRate(0);  // retry
+  }
+  if (ofr < 1.0f) {
+    delay(1);
+    sfr = getOutputFrameRate();  // retry
+  }
+  SerialM.print("HTotal Adjust: ");
+  if (diffHTotal >= 0) {
+    SerialM.print(" "); // formatting to align with negative value readouts
+  }
+  SerialM.print(diffHTotal);
+  SerialM.print(", source Hz: ");
+  SerialM.print(sfr, 3); // prec. 3
+  SerialM.print(", output Hz: ");
+  SerialM.println(ofr, 3); // prec. 3
+  delay(0);
 
   return true;
 }
@@ -2473,6 +2507,29 @@ float getSourceFieldRate(boolean useSPBus) {
   GBS::PAD_BOUT_EN::write(debugPinBackup);
   if (spBusSelBackup != 0x0f) GBS::TEST_BUS_SP_SEL::write(spBusSelBackup);
   if (ifBusSelBackup != 3)    GBS::IF_TEST_SEL::write(ifBusSelBackup);
+
+  return retVal;
+}
+
+float getOutputFrameRate() {
+  double esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
+  uint8_t testBusSelBackup = GBS::TEST_BUS_SEL::read();
+  uint8_t debugPinBackup = GBS::PAD_BOUT_EN::read();
+
+  if (debugPinBackup != 1) GBS::PAD_BOUT_EN::write(1); // enable output to pin for test
+
+  if (testBusSelBackup != 2) GBS::TEST_BUS_SEL::write(2); // 0x4d = 0x22 VDS test
+
+  delay(1); // wifi
+  uint32_t fieldTimeTicks = FrameSync::getPulseTicks();
+
+  float retVal = 0;
+  if (fieldTimeTicks > 0) {
+    retVal = esp8266_clock_freq / (double)fieldTimeTicks;
+  }
+
+  GBS::TEST_BUS_SEL::write(testBusSelBackup);
+  GBS::PAD_BOUT_EN::write(debugPinBackup);
 
   return retVal;
 }
@@ -2898,16 +2955,16 @@ void doPostPresetLoadSteps() {
     delay(50);  // minimum delay without which random failures happen: ~40
     //boolean autoBestHtotalSuccess = 0;
     if (rto->autoBestHtotalEnabled && rto->videoStandardInput != 0 && !rto->outModeHdBypass) {
-      for (uint8_t i = 0; i < 50; i++) {
+      for (uint8_t i = 0; i < 20; i++) {
         if (GBS::STATUS_INT_SOG_BAD::read() == 1) {
           SerialM.println("*");
+          optimizeSogLevel();
           resetInterruptSogBadBit();
         }
         else if (getStatus16SpHsStable()) {
           delay(1); // wifi
           float sfr = getSourceFieldRate(0);
           if (sfr > 45.0f && sfr < 87.0f) {
-            Serial.print("Fieldrate: "); Serial.println(sfr);
             //autoBestHtotalSuccess = 
             runAutoBestHTotal();
             delay(1); // wifi
@@ -6050,14 +6107,16 @@ void loop() {
     }
     break;
     case 'a':
+      SerialM.print("HTotal++: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
       if (GBS::VDS_HSYNC_RST::read() < 4095) {
         applyBestHTotal(GBS::VDS_HSYNC_RST::read() + 1);
       }
-      SerialM.print("HTotal++: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
     break;
     case 'A':
-      applyBestHTotal(GBS::VDS_HSYNC_RST::read() - 1);
       SerialM.print("HTotal--: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
+      if (GBS::VDS_HSYNC_RST::read() > 0) {
+        applyBestHTotal(GBS::VDS_HSYNC_RST::read() - 1);
+      }
     break;
     case 'M':
     {

@@ -265,14 +265,18 @@
                 '<button class="button" type="button" onclick="loadDoc(\'o\')">Oversampling</button>' + 
                 '<button class="button" type="button" onclick="loadUser(\'l\')">Cycle SDRAM clock speed</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'q\')">Reset Chip</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'.\')">Resynchronize HTotal</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'l\')">Reset SyncProcessor</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'n\')">PLL divider++</button>' + 
+                '<br>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'D\')">Debug View</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'F\')">ADC Filter</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'a\')">HTotal++</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'n\')">PLL divider++</button>' +  
+                '<button class="button" type="button" onclick="loadDoc(\'c\')">Enable OTA Updates</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'8\')">Invert Sync</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'c\')">Enable OTA Firmware Update</button>' + 
+                '<br>' +
+                '<button class="button" type="button" onclick="loadDoc(\'a\')">HTotal++</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'A\')">HTotal--</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'.\')">Resynchronize HTotal</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'l\')">Reset SyncProcessor</button>' + 
+                '<br>' +
                 '<button class="button" type="button" onclick="loadDoc(\'m\')">SyncWatcher</button>';
             }
             function content7() {
@@ -309,12 +313,13 @@
             var queuedText = '';
             function loadDoc(link) {
                 var xhttp = new XMLHttpRequest(); 
-                xhttp.open('GET', 'sc?' + link, true);
+                /*'&nocache=' + new Date().getTime() : prevents caching*/
+                xhttp.open('GET', 'sc?' + link + '&nocache=' + new Date().getTime(), true);
                 xhttp.send();
             }
             function loadUser(link) {
                 var xhttp = new XMLHttpRequest();
-                xhttp.open('GET', 'uc?' + link, true);
+                xhttp.open('GET', 'uc?' + link + '&nocache=' + new Date().getTime(), true);
                 xhttp.send();
                 if (link == 'a' || link == '1') {
                     if (ws) {
