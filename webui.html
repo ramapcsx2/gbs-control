@@ -269,7 +269,7 @@
                 '<br>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'D\')">Debug View</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'F\')">ADC Filter</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'c\')">Enable OTA Updates</button>' + 
+                '<button class="button" type="button" onclick="loadUser(\'z\')">SOG Level--</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'8\')">Invert Sync</button>' + 
                 '<br>' +
                 '<button class="button" type="button" onclick="loadDoc(\'a\')">HTotal++</button>' + 
@@ -277,7 +277,8 @@
                 '<button class="button" type="button" onclick="loadDoc(\'.\')">Resynchronize HTotal</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'l\')">Reset SyncProcessor</button>' + 
                 '<br>' +
-                '<button class="button" type="button" onclick="loadDoc(\'m\')">SyncWatcher</button>';
+                '<button class="button" type="button" onclick="loadDoc(\'m\')">SyncWatcher</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'c\')">Enable OTA Updates</button>';
             }
             function content7() {
                 document.getElementById("display").innerHTML = 
@@ -394,7 +395,7 @@
                     theTerminal.scrollTop = theTerminal.scrollHeight;*/
                     clearInterval(myTimer);
                     clearInterval(wsCheckTimer);
-                    myTimer = setInterval(timeOutWs, 7000);
+                    myTimer = setInterval(timeOutWs, 4000);
                 }
                 ;
                 ws.onclose = function(event) {
@@ -558,7 +559,7 @@
                             }
                         }
                     }
-                    myTimer = setInterval(timeOutWs, 7000);
+                    myTimer = setInterval(timeOutWs, 4000);
                 }
                 ;
             }

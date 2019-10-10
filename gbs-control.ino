@@ -936,6 +936,7 @@ void goLowPowerWithInputDetection() {
 boolean optimizePhaseSP() {
   uint16_t pixelClock = GBS::PLLAD_MD::read();
   uint8_t badHt = 0, prevBadHt = 0, worstBadHt = 0, worstPhaseSP = 0, prevPrevBadHt = 0, goodHt = 0;
+  boolean runTest = 1;
 
   if (GBS::STATUS_SYNC_PROC_HTOTAL::read() < (pixelClock - 8)) {
     return 0;
@@ -944,77 +945,97 @@ boolean optimizePhaseSP() {
     return 0;
   }
 
+  if (rto->currentLevelSOG <= 2) {
+    // not very stable, use fixed values
+    rto->phaseSP  = 16;
+    rto->phaseADC = 16;
+    if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 4) {
+      if (rto->osr == 4) {
+        rto->phaseADC += 16; rto->phaseADC &= 0x1f;
+      }
+    }
+    delay(8);      // a bit longer, to match default run time
+    runTest = 0;    // skip to end
+  }
+
   //unsigned long startTime = millis();
 
-  // 32 distinct phase settings, 3 average samples (missing 2 phase steps) > 34
-  for (uint8_t u = 0; u < 34; u++) {
-    rto->phaseSP++;
-    rto->phaseSP &= 0x1f;
-    setAndLatchPhaseSP();
-    badHt = 0;
-    delayMicroseconds(256);
-    for (uint8_t i = 0; i < 20; i++) {
-      if (GBS::STATUS_SYNC_PROC_HTOTAL::read() != pixelClock) {
-        badHt++;
-        delayMicroseconds(384);
+  if (runTest) {
+    // 32 distinct phase settings, 3 average samples (missing 2 phase steps) > 34
+    for (uint8_t u = 0; u < 34; u++) {
+      rto->phaseSP++;
+      rto->phaseSP &= 0x1f;
+      setAndLatchPhaseSP();
+      badHt = 0;
+      delayMicroseconds(256);
+      for (uint8_t i = 0; i < 20; i++) {
+        if (GBS::STATUS_SYNC_PROC_HTOTAL::read() != pixelClock) {
+          badHt++;
+          delayMicroseconds(384);
+        }
+      }
+      // if average 3 samples has more badHt than seen yet, this phase step is worse
+      if ((badHt + prevBadHt + prevPrevBadHt) > worstBadHt) {
+        worstBadHt = (badHt + prevBadHt + prevPrevBadHt);
+        worstPhaseSP = (rto->phaseSP - 1) & 0x1f; // medium of 3 samples
+      }
+
+      if (badHt == 0) {
+        // count good readings as well, to know whether the entire run is valid
+        goodHt++;
+      }
+
+      prevPrevBadHt = prevBadHt;
+      prevBadHt = badHt;
+      //Serial.print(rto->phaseSP); Serial.print(" badHt: "); Serial.println(badHt);
+    }
+
+    //Serial.println(goodHt);
+
+    if (goodHt < 17) {
+      //Serial.println("pxClk unstable");
+      return 0;
+    }
+
+    // adjust global phase values according to test results
+    if (worstBadHt != 0) {
+      rto->phaseSP = (worstPhaseSP + 16) & 0x1f;
+      // assume color signals arrive at same time: phase adc = phase sp
+      // test in hdbypass mode shows this is more related to sog.. the assumptions seem fine at sog = 8
+      rto->phaseADC = 16; //(rto->phaseSP) & 0x1f;
+
+      // different OSR require different phase angles, also depending on bypass, etc
+      // shift ADC phase 180 degrees for the following
+      if (rto->videoStandardInput >= 5 && rto->videoStandardInput <= 7) {
+        if (rto->osr == 2) {
+          //Serial.println("shift adc phase");
+          rto->phaseADC += 16; rto->phaseADC &= 0x1f;
+        }
+      }
+      else if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 4) {
+        if (rto->osr == 4) {
+          //Serial.println("shift adc phase");
+          rto->phaseADC += 16; rto->phaseADC &= 0x1f;
+        }
       }
     }
-    // if average 3 samples has more badHt than seen yet, this phase step is worse
-    if ((badHt + prevBadHt + prevPrevBadHt) > worstBadHt) {
-      worstBadHt = (badHt + prevBadHt + prevPrevBadHt);
-      worstPhaseSP = (rto->phaseSP - 1) & 0x1f; // medium of 3 samples
-    }
-
-    if (badHt == 0) {
-      // count good readings as well, to know whether the entire run is valid
-      goodHt++;
-    }
-
-    prevPrevBadHt = prevBadHt;
-    prevBadHt = badHt;
-    //Serial.print(rto->phaseSP); Serial.print(" badHt: "); Serial.println(badHt);
-  }
-
-  //Serial.println(goodHt);
-
-  if (goodHt < 17) {
-    //Serial.println("pxClk unstable");
-    return 0;
-  }
-
-  // adjust global phase values according to test results
-  if (worstBadHt != 0) {
-    rto->phaseSP = (worstPhaseSP + 16) & 0x1f;
-    // assume color signals arrive at same time: phase adc = phase sp
-    // test in hdbypass mode shows this is more related to sog.. the assumptions seem fine at sog = 8
-    rto->phaseADC = 16; //(rto->phaseSP) & 0x1f;
-
-    // different OSR require different phase angles, also depending on bypass, etc
-    // shift ADC phase 180 degrees for the following
-    if (rto->videoStandardInput >= 5 && rto->videoStandardInput <= 7) {
-      if (rto->osr == 2) {
-        //Serial.println("shift adc phase");
-        rto->phaseADC += 16; rto->phaseADC &= 0x1f;
+    else {
+      // test was always good, so choose any reasonable value
+      rto->phaseSP = 16;
+      rto->phaseADC = 16;
+      if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 4) {
+        if (rto->osr == 4) {
+          rto->phaseADC += 16; rto->phaseADC &= 0x1f;
+        }
       }
     }
-    else if (rto->videoStandardInput > 0 && rto->videoStandardInput <= 4) {
-      if (rto->osr == 4) {
-        //Serial.println("shift adc phase");
-        rto->phaseADC += 16; rto->phaseADC &= 0x1f;
-      }
-    }
-  }
-  else {
-    // test was always good, so choose any reasonable value
-    rto->phaseSP = 8;
-    rto->phaseADC = 16;
   }
 
   //Serial.println(millis() - startTime);
   //Serial.print("worstPhaseSP: "); Serial.println(worstPhaseSP);
-  Serial.print("Phase: "); Serial.print(rto->phaseSP);
-  Serial.print(" SOG: "); Serial.print(rto->currentLevelSOG);
-  Serial.println();
+  SerialM.print("Phase: "); SerialM.print(rto->phaseSP);
+  SerialM.print(" SOG: ");  SerialM.print(rto->currentLevelSOG);
+  SerialM.println();
   setAndLatchPhaseSP();
   delay(1);
   setAndLatchPhaseADC();
@@ -7201,6 +7222,17 @@ void handleType2Command(char argument) {
       SerialM.println("off");
     }
     saveUserPrefs();
+    break;
+  case 'z':
+    // sog slicer level
+    if (rto->currentLevelSOG > 0) {
+      rto->currentLevelSOG -= 1;
+    }
+    else {
+      rto->currentLevelSOG = 16;
+    }
+    setAndUpdateSogLevel(rto->currentLevelSOG);
+    optimizePhaseSP();
     break;
   default:
     break;
