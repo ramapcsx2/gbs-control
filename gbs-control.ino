@@ -3331,14 +3331,7 @@ void applyPresets(uint8_t result) {
 }
 
 void unfreezeVideo() {
-  //if (GBS::CAP_REQ_FREEZ::read() == 1)
-  if (rto->videoIsFrozen == 1)
-  {
-    /*GBS::CAP_REQ_FREEZ::write(0);
-    delay(60);
-    GBS::CAPTURE_ENABLE::write(1);*/
-    
-    //GBS::IF_VB_ST::write(4);
+  if (rto->videoIsFrozen == true) {
     GBS::IF_VB_ST::write(GBS::IF_VB_SP::read() - 2);
   }
   rto->videoIsFrozen = false;
@@ -3346,9 +3339,6 @@ void unfreezeVideo() {
 
 void freezeVideo() {
   if (rto->videoIsFrozen == false) {
-    /*GBS::CAP_REQ_FREEZ::write(1);
-    delay(1);
-    GBS::CAPTURE_ENABLE::write(0);*/
     GBS::IF_VB_ST::write(GBS::IF_VB_SP::read());
   }
   rto->videoIsFrozen = true;
@@ -4505,8 +4495,6 @@ void runSyncWatcher()
       }
     }
 
-    //if (detectedVideoMode == rto->videoStandardInput) {
-
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
       if ((millis() - preemptiveSogWindowStart) < sogWindowLen) {
         //Serial.print("-");
@@ -4559,7 +4547,7 @@ void runSyncWatcher()
 
   if ((detectedVideoMode == 0 || !status16SpHsStable) && rto->videoStandardInput != 15) 
   {
-    //freezeVideo();
+    freezeVideo();
     rto->noSyncCounter++;
     rto->continousStableCounter = 0;
     rto->phaseIsSet = 0;
@@ -4580,8 +4568,8 @@ void runSyncWatcher()
         }
       }
 
-      if (rto->noSyncCounter == 1) {                 // this usually repeats
-        if ((millis() - lastSyncDrop) > 1500) { // minimum space between runs
+      if (rto->noSyncCounter == 1) {              // this usually repeats
+        if ((millis() - lastSyncDrop) > 1500) {   // minimum space between runs
           updateSpDynamic();
         }
         lastSyncDrop = millis(); // restart timer
@@ -4592,12 +4580,11 @@ void runSyncWatcher()
       GBS::SP_NO_CLAMP_REG::write(1); // unlock clamp
       rto->clampPositionIsSet = false;
     }
-    if (rto->videoStandardInput != 15) {
-      if (rto->noSyncCounter % 40 == 0 || rto->noSyncCounter % 43 == 0) {
-        // the * check needs to be first (go before auto sog level) to support SD > HDTV detection
-        SerialM.print("*");
-        updateSpDynamic();
-      }
+
+    if (rto->noSyncCounter % 40 == 0 || rto->noSyncCounter % 43 == 0) {
+      // the * check needs to be first (go before auto sog level) to support SD > HDTV detection
+      SerialM.print("*");
+      updateSpDynamic();
     }
 
     if (rto->noSyncCounter == 122) {
