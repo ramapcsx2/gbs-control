@@ -1033,9 +1033,13 @@ boolean optimizePhaseSP() {
 
   //Serial.println(millis() - startTime);
   //Serial.print("worstPhaseSP: "); Serial.println(worstPhaseSP);
-  SerialM.print("Phase: "); SerialM.print(rto->phaseSP);
-  SerialM.print(" SOG: ");  SerialM.print(rto->currentLevelSOG);
-  SerialM.println();
+  static uint8_t lastLevelSOG = 99;
+  if (lastLevelSOG != rto->currentLevelSOG) {
+    SerialM.print("Phase: "); SerialM.print(rto->phaseSP);
+    SerialM.print(" SOG: ");  SerialM.print(rto->currentLevelSOG);
+    SerialM.println();
+  }
+  lastLevelSOG = rto->currentLevelSOG;
   setAndLatchPhaseSP();
   delay(1);
   setAndLatchPhaseADC();
@@ -3730,8 +3734,8 @@ void updateCoastPosition(boolean autoCoast) {
     else {
       // regular coast (5_55 7 = off): maximize length
       // test: psx pal black license screen, then ntsc SMPTE color bars 100%; or MS
-      GBS::SP_H_CST_ST::write((uint16_t)(accInHlength * 0.014f)); // 0.07f
-      GBS::SP_H_CST_SP::write((uint16_t)(accInHlength * 0.95)); // 0.978f // also test with t5t57t2
+      GBS::SP_H_CST_ST::write((uint16_t)(accInHlength * 0.034f)); // NTSC ~0x3d
+      GBS::SP_H_CST_SP::write((uint16_t)(accInHlength * 0.94));   // also test with t5t57t2
       GBS::SP_HCST_AUTO_EN::write(0);
     }
     rto->coastPositionIsSet = 1;
