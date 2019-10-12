@@ -4773,7 +4773,7 @@ void runSyncWatcher()
       }
     }
 
-    if (rto->continousStableCounter == 3) {
+    if (rto->continousStableCounter == 2) {
       unfreezeVideo();
     }
 
