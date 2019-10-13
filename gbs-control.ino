@@ -4351,6 +4351,86 @@ void disableMotionAdaptDeinterlace() {
   rto->motionAdaptiveDeinterlaceActive = false;
 }
 
+boolean snapToIntegralFrameRate(void) {
+
+  // Fetch the current output frame rate
+  float ofr = getOutputFrameRate();
+
+  if (ofr < 1.0f) {
+    delay(1);
+    ofr = getOutputFrameRate();
+  }
+  if (ofr < 1.0f) {
+    return false;
+  }
+
+  // Get the target frame rate.
+  float target = round(ofr);
+
+  // We'll be adjusting the htotal incrementally, so store current and best match.
+  uint16_t currentHTotal = GBS::VDS_HSYNC_RST::read();
+  uint16_t closestHTotal = currentHTotal;
+
+  // What's the closest we've been to the frame rate?
+  float closestDifference = fabs(target - ofr);
+
+  // Repeatedly adjust htotals until we find the closest match.
+  for (;;) {
+
+    delay(1);
+
+    // Try to move closer to the desired framerate.
+    if (target > ofr) {
+      if (currentHTotal > 0 && applyBestHTotal(currentHTotal - 1)) {
+        --currentHTotal;
+      }
+      else {
+        return false;
+      }
+    }
+    else if (target < ofr) {
+      if (currentHTotal < 4095 && applyBestHTotal(currentHTotal + 1)) {
+        ++currentHTotal;
+      }
+      else {
+        return false;
+      }
+    }
+    else {
+      return true;
+    }
+
+    // Are we closer?
+    ofr = getOutputFrameRate();
+
+    if (ofr < 1.0f) {
+      delay(1);
+      ofr = getOutputFrameRate();
+    }
+    if (ofr < 1.0f) {
+      return false;
+    }
+
+    // If we're getting closer, continue trying, otherwise break out of the test loop.
+    float newDifference = fabs(target - ofr);
+    if (newDifference < closestDifference) {
+      closestDifference = newDifference;
+      closestHTotal = currentHTotal;
+    }
+    else {
+      break;
+    }
+  }
+
+  // Reapply the closest htotal if need be.
+  if (closestHTotal != currentHTotal) {
+    applyBestHTotal(closestHTotal);
+  }
+
+  return true;
+
+}
+
 void printInfo() {
   static char print[113]; // 106 + 1 minimum
   static uint8_t clearIrqCounter = 0;
@@ -6688,6 +6768,12 @@ void loop() {
       saveUserPrefs();
     }
     break;
+    case 'S':
+    {
+      SerialM.println("Snap to integral frame rate");
+      snapToIntegralFrameRate();
+      break;
+    }
     default:
       Serial.print("unknown command ");
       Serial.println(typeOneCommand, HEX);
