@@ -4360,12 +4360,22 @@ boolean snapToIntegralFrameRate(void) {
     delay(1);
     ofr = getOutputFrameRate();
   }
-  if (ofr < 1.0f) {
+
+  float target;
+  if (ofr > 56.5f && ofr < 64.5f) {
+    target = 60.0f; // NTSC like
+  }
+  else if (ofr > 46.5f && ofr < 54.5f) {
+    target = 50.0f; // PAL like
+  }
+  else {
+    // too far out of spec for an auto adjust
+    SerialM.println(F("out of bounds"));
     return false;
   }
 
-  // Get the target frame rate.
-  float target = round(ofr);
+  SerialM.print("Snap to "); SerialM.print(target, 1); // precission 1
+  SerialM.println("Hz");
 
   // We'll be adjusting the htotal incrementally, so store current and best match.
   uint16_t currentHTotal = GBS::VDS_HSYNC_RST::read();
@@ -4377,7 +4387,7 @@ boolean snapToIntegralFrameRate(void) {
   // Repeatedly adjust htotals until we find the closest match.
   for (;;) {
 
-    delay(1);
+    delay(0);
 
     // Try to move closer to the desired framerate.
     if (target > ofr) {
@@ -6770,7 +6780,6 @@ void loop() {
     break;
     case 'S':
     {
-      SerialM.println("Snap to integral frame rate");
       snapToIntegralFrameRate();
       break;
     }
