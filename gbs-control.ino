@@ -675,6 +675,35 @@ void applyComponentColorMixing() {
   GBS::VDS_U_OFST::write(0x01); // 3_3b
 }
 
+void toggleIfAutoOffset() {
+  if (GBS::IF_AUTO_OFST_EN::read() == 0) {
+    // IF auto offset needs different mixing
+    GBS::VDS_Y_OFST::write(0x00); // 3_3a
+    GBS::VDS_U_OFST::write(0x00); // 3_3b
+    GBS::VDS_V_OFST::write(0x00); // 3_3c
+    // and different ADC offsets
+    GBS::ADC_ROFCTRL::write(0x40);
+    GBS::ADC_GOFCTRL::write(0x42);
+    GBS::ADC_BOFCTRL::write(0x40);
+    // enable
+    GBS::IF_AUTO_OFST_EN::write(1);
+    GBS::IF_AUTO_OFST_PRD::write(0);  // 0 = by line, 1 = by frame
+  }
+  else {
+    GBS::VDS_Y_OFST::write(0x00); // 3_3a
+    GBS::VDS_U_OFST::write(0x02); // 3_3b
+    GBS::VDS_V_OFST::write(0x02); // 3_3c
+    if (adco->r_off != 0 && adco->g_off != 0 && adco->b_off != 0) {
+      GBS::ADC_ROFCTRL::write(adco->r_off);
+      GBS::ADC_GOFCTRL::write(adco->g_off);
+      GBS::ADC_BOFCTRL::write(adco->b_off);
+    }
+    // adco->r_off = 0: auto calibration on boot failed, leave at current values
+    GBS::IF_AUTO_OFST_EN::write(0);
+    GBS::IF_AUTO_OFST_PRD::write(0);  // 0 = by line, 1 = by frame
+  }
+}
+
 void applyYuvPatches() {
   GBS::ADC_RYSEL_R::write(1); // midlevel clamp red
   GBS::ADC_RYSEL_B::write(1); // midlevel clamp blue
@@ -2929,10 +2958,15 @@ void doPostPresetLoadSteps() {
   SerialM.print(" G:"); SerialM.print(GBS::ADC_GOFCTRL::read(), HEX);
   SerialM.print(" B:"); SerialM.println(GBS::ADC_BOFCTRL::read(), HEX);
 
-  GBS::IF_AUTO_OFST_U_RANGE::write(1);
-  GBS::IF_AUTO_OFST_V_RANGE::write(1);
-  GBS::IF_AUTO_OFST_PRD::write(0);  // 0 = by line, 1 = by frame
+  GBS::IF_AUTO_OFST_U_RANGE::write(0);  // 0 seems to be full range, else 1 to 15
+  GBS::IF_AUTO_OFST_V_RANGE::write(0);  // 0 seems to be full range, else 1 to 15
+  GBS::IF_AUTO_OFST_PRD::write(0);  // 0 = by line, 1 = by frame ; by line is easier to spot
   GBS::IF_AUTO_OFST_EN::write(0);   // not reliable yet
+  // to get it working with RGB:
+  // leave RGB to YUV at the ADC DEC stage (s5_1f 2 = 0)
+  // s5s07s42, 1_2a to 0, s5_06 + s5_08 to 0x40
+  // 5_06 + 5_08 will be the target center value, 5_07 sets general offset
+  // s3s3as00 s3s3bs00 s3s3cs00
 
   if (uopt->wantVdsLineFilter) { GBS::VDS_D_RAM_BYPS::write(0); }
   else { GBS::VDS_D_RAM_BYPS::write(1); }
@@ -7202,10 +7236,12 @@ void handleType2Command(char argument) {
     uint8_t PLL_MS = GBS::PLL_MS::read();
     uint8_t memClock = 0;
     PLL_MS++; PLL_MS &= 0x7;
+    if (PLL_MS < 3) PLL_MS = 3;     // skip 108, 81 and fbck as they're unusuable with most presets
+    if (PLL_MS == 6) PLL_MS = 7;    // thou shalt not overclock thine SDRAM
     switch (PLL_MS) {
     case 0: memClock = 108; break;
-    case 1: memClock = 81; break; // goes well with 4_2C = 0x14, 4_2D = 0x27
-    case 2: memClock = 10; break; //feedback clock
+    case 1: memClock = 81; break;   // goes well with 4_2C = 0x14, 4_2D = 0x27
+    case 2: memClock = 10; break;   // feedback clock
     case 3: memClock = 162; break;
     case 4: memClock = 144; break;
     case 5: memClock = 185; break;
@@ -7387,6 +7423,17 @@ void handleType2Command(char argument) {
     }
     setAndUpdateSogLevel(rto->currentLevelSOG);
     optimizePhaseSP();
+    break;
+  case 'E':
+    // test option for now
+    SerialM.print("IF Auto Offset: ");
+    toggleIfAutoOffset();
+    if (GBS::IF_AUTO_OFST_EN::read()) {
+      SerialM.println("on");
+    }
+    else {
+      SerialM.println("off");
+    }
     break;
   default:
     break;
