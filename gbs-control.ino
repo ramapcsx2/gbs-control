@@ -677,10 +677,6 @@ void applyComponentColorMixing() {
 
 void toggleIfAutoOffset() {
   if (GBS::IF_AUTO_OFST_EN::read() == 0) {
-    // IF auto offset needs different mixing
-    GBS::VDS_Y_OFST::write(0x00); // 3_3a
-    GBS::VDS_U_OFST::write(0x00); // 3_3b
-    GBS::VDS_V_OFST::write(0x00); // 3_3c
     // and different ADC offsets
     GBS::ADC_ROFCTRL::write(0x40);
     GBS::ADC_GOFCTRL::write(0x42);
@@ -690,9 +686,6 @@ void toggleIfAutoOffset() {
     GBS::IF_AUTO_OFST_PRD::write(0);  // 0 = by line, 1 = by frame
   }
   else {
-    GBS::VDS_Y_OFST::write(0x00); // 3_3a
-    GBS::VDS_U_OFST::write(0x02); // 3_3b
-    GBS::VDS_V_OFST::write(0x02); // 3_3c
     if (adco->r_off != 0 && adco->g_off != 0 && adco->b_off != 0) {
       GBS::ADC_ROFCTRL::write(adco->r_off);
       GBS::ADC_GOFCTRL::write(adco->g_off);
@@ -716,9 +709,9 @@ void applyYuvPatches() {
     GBS::VDS_Y_GAIN::write(0x80); // 3_25 0x7f
     GBS::VDS_UCOS_GAIN::write(0x1c); // 3_26 blue
     GBS::VDS_VCOS_GAIN::write(0x27); // 3_27 red
-    GBS::VDS_Y_OFST::write(0x00); // 3_3a // fe
-    GBS::VDS_U_OFST::write(0x02); // 3_3b // with new adc offset calibration
-    GBS::VDS_V_OFST::write(0x02); // 3_3c
+    GBS::VDS_Y_OFST::write(0x00); // 0
+    GBS::VDS_U_OFST::write(0x00); // 2
+    GBS::VDS_V_OFST::write(0x00); // 2
   }
 
   if (uopt->wantOutputComponent) {
@@ -737,10 +730,10 @@ void applyRGBPatches() {
     // colors
     GBS::VDS_Y_GAIN::write(0x80); // 0x80 = 0
     GBS::VDS_UCOS_GAIN::write(0x1c); // blue
-    GBS::VDS_VCOS_GAIN::write(0x28); // red
-    GBS::VDS_Y_OFST::write(0x00); // 3_3a
-    GBS::VDS_U_OFST::write(0x02); // 3_3b // with new adc offset calibration
-    GBS::VDS_V_OFST::write(0x02); // 3_3c
+    GBS::VDS_VCOS_GAIN::write(0x27); // red
+    GBS::VDS_Y_OFST::write(0x00); // 0
+    GBS::VDS_U_OFST::write(0x00); // 2
+    GBS::VDS_V_OFST::write(0x00); // 2
   }
 
   if (uopt->wantOutputComponent) {
@@ -749,9 +742,9 @@ void applyRGBPatches() {
 }
 
 void setAdcParametersGainAndOffset() {
-  GBS::ADC_ROFCTRL::write(0x3F);
-  GBS::ADC_GOFCTRL::write(0x3F);
-  GBS::ADC_BOFCTRL::write(0x3F);
+  GBS::ADC_ROFCTRL::write(0x40);
+  GBS::ADC_GOFCTRL::write(0x40);
+  GBS::ADC_BOFCTRL::write(0x40);
   GBS::ADC_RGCTRL::write(0x7B);
   GBS::ADC_GGCTRL::write(0x7B);
   GBS::ADC_BGCTRL::write(0x7B);
@@ -2654,10 +2647,10 @@ void doPostPresetLoadSteps() {
 
   // auto offset adc prep
   GBS::ADC_AUTO_OFST_PRD::write(1);   // by line (0 = by frame)
-  GBS::ADC_AUTO_OFST_DELAY::write(2); // sample delay 2 (max 4)
-  GBS::ADC_AUTO_OFST_STEP::write(2);  // 0 = abs diff, then 1 to 3 steps
+  GBS::ADC_AUTO_OFST_DELAY::write(0); // sample delay 0 (1 to 4 pipes)
+  GBS::ADC_AUTO_OFST_STEP::write(0);  // 0 = abs diff, then 1 to 3 steps
   GBS::ADC_AUTO_OFST_TEST::write(1);
-  GBS::ADC_AUTO_OFST_RANGE_REG::write(0xff); // 5_0f U/V ranges = 15 (0 to 15)
+  GBS::ADC_AUTO_OFST_RANGE_REG::write(0x00); // 5_0f U/V ranges = 0 (full range, 1 to 15)
 
   if (rto->inputIsYpBpR == true) {
     applyYuvPatches();
@@ -3060,13 +3053,13 @@ void doPostPresetLoadSteps() {
     GBS::CAP_SAFE_GUARD_EN::write(0); // 4_21_5 // does more harm than good
     GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2 vertical scale down line buffer bypass (not the vds one, the internal one for reduction)
     // memory timings, anti noise
-    GBS::PB_CUT_REFRESH::write(1); // test, helps with PLL=ICLK mode artefacting
-    GBS::RFF_LREQ_CUT::write(0); // was in motionadaptive toggle function but on, off seems nicer
-    GBS::CAP_REQ_OVER::write(1); // 4_22 0  1=capture stop at hblank 0=free run
-    GBS::PB_REQ_SEL::write(3); // PlayBack 11 High request Low request
-    //GBS::PB_GENERAL_FLAG_REG::write(0x3d); // 4_2D should be set by preset
+    GBS::PB_CUT_REFRESH::write(1);  // helps with PLL=ICLK mode artefacting
+    GBS::RFF_LREQ_CUT::write(0);    // was in motionadaptive toggle function but on, off seems nicer
+    GBS::CAP_REQ_OVER::write(0);    // 4_22 0  1=capture stop at hblank 0=free run
+    GBS::CAP_STATUS_SEL::write(1);  // 4_22 1  1=capture request when FIFO 50%, 0= FIFO 100%
+    GBS::PB_REQ_SEL::write(3);      // PlayBack 11 High request Low request
+                                    // 4_2C, 4_2D should be set by preset
     GBS::RFF_WFF_OFFSET::write(0x0); // scanline fix
-    //GBS::PB_MAST_FLAG_REG::write(0x16); // 4_2c should be set by preset
     // 4_12 should be set by preset
   }
 
@@ -5004,7 +4997,7 @@ void runSyncWatcher()
           (rto->videoStandardInput == 2 && (sourceVlines >= 310 && sourceVlines <= 314)))
         {
           filteredLineCountShouldShiftUp = 0;
-          if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 0)
+          if (GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::read() == 0)
           {
             filteredLineCountShouldShiftDown++;
             if (filteredLineCountShouldShiftDown >= 3) // 2 or more // less = less jaring when action should be done
@@ -5017,7 +5010,7 @@ void runSyncWatcher()
               //GBS::SP_SDCS_VSSP_REG_L::write(3);  // 5_4f first
               //GBS::SP_SDCS_VSST_REG_L::write(5);  // 5_3f
 
-              GBS::IF_AUTO_OFST_RESERVED_2::write(1); // mark as adjusted
+              GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::write(1); // mark as adjusted
               filteredLineCountShouldShiftDown = 0;
             }
           }
@@ -5026,7 +5019,7 @@ void runSyncWatcher()
           (rto->videoStandardInput == 2 && (sourceVlines >= 319 && sourceVlines <= 324)))
         {
           filteredLineCountShouldShiftDown = 0;
-          if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
+          if (GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::read() == 1)
           {
             filteredLineCountShouldShiftUp++;
             if (filteredLineCountShouldShiftUp >= 3) // 2 or more // less = less jaring when action should be done
@@ -5039,7 +5032,7 @@ void runSyncWatcher()
               //GBS::SP_SDCS_VSSP_REG_L::write(3);  // 5_4f first
               //GBS::SP_SDCS_VSST_REG_L::write(12); // 5_3f
 
-              GBS::IF_AUTO_OFST_RESERVED_2::write(0); // mark as regular
+              GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::write(0); // mark as regular
               filteredLineCountShouldShiftUp = 0;
             }
           }
@@ -5573,7 +5566,7 @@ void setup() {
   rto->forceRetime = false;
   rto->syncWatcherEnabled = true;  // continously checks the current sync status. required for normal operation
   rto->phaseADC = 16;
-  rto->phaseSP = 8;
+  rto->phaseSP = 16;
   rto->failRetryAttempts = 0;
   rto->presetID = 0;
   rto->HPLLState = 0;
@@ -5620,8 +5613,10 @@ void setup() {
 
   //Serial.setDebugOutput(true); // if you want simple wifi debug info
 
-  unsigned long initDelay1 = millis();
-  while (millis() - initDelay1 < 500) {
+  // delay 1 of 2
+  unsigned long initDelay = millis();
+  // upped from < 500 to < 1500, allows more time for wifi and GBS startup
+  while (millis() - initDelay < 1500) {
     handleWiFi(0);
     delay(1);
   }
@@ -5695,8 +5690,9 @@ void setup() {
     }
   }
   
-  unsigned long initDelay2 = millis();
-  while (millis() - initDelay2 < 1000) {
+  // delay 2 of 2
+  initDelay = millis();
+  while (millis() - initDelay < 1000) {
     handleWiFi(0);
     delay(1);
   }
@@ -5712,7 +5708,8 @@ void setup() {
   }
 
   startWire();
-  boolean powerOrWireIssue = 0;  
+  boolean powerOrWireIssue = 0;
+  delay(30); // just precaution
   if ( !checkBoardPower() )
   {
     stopWire(); // sets pinmodes SDA, SCL to INPUT
@@ -6016,14 +6013,14 @@ void loop() {
     case 'd':
     {
       // check for vertical adjust and undo if necessary
-      if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
+      if (GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::read() == 1)
       {
         //GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
         //GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
         for (uint8_t a = 0; a <= 5; a++) {
           shiftVerticalUpIF();
         }
-        GBS::IF_AUTO_OFST_RESERVED_2::write(0);
+        GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::write(0);
       }
       // don't store scanlines
       if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) {
@@ -6266,27 +6263,35 @@ void loop() {
     case 'n':
     {
       uint16_t pll_divider = GBS::PLLAD_MD::read();
-      if (pll_divider < 4095) {
-        pll_divider += 1;
-        GBS::PLLAD_MD::write(pll_divider);
-        if (!rto->outModeHdBypass) {
-          uint16_t newHT = (GBS::PLLAD_MD::read() >> 1) + 1;
-          GBS::IF_HSYNC_RST::write(newHT); // 1_0e
-          GBS::IF_LINE_SP::write(newHT + 1); // 1_22
-          
-          //GBS::IF_INI_ST::write(newHT * 0.68f); // fixed to 0 now
+      pll_divider += 1;
+      GBS::PLLAD_MD::write(pll_divider);
+      SerialM.print("PLL div: "); SerialM.print(pll_divider, HEX);
+      SerialM.print(" "); SerialM.println(pll_divider);
+      // set IF before latching
+      if (!rto->outModeHdBypass) {
+        // if line doubling (PAL, NTSC), div 2 
+        pll_divider >>= 1; pll_divider += 1;
+        GBS::IF_HSYNC_RST::write(pll_divider); // 1_0e
+        GBS::IF_LINE_SP::write(pll_divider + 1); // 1_22
 
-          // s1s03sff s1s04sff s1s05sff s1s06sff s1s07sff s1s08sff s1s09sff s1s0asff s1s0bs4f
-          // s1s03s00 s1s04s00 s1s05s00 s1s06s00 s1s07s00 s1s08s00 s1s09s00 s1s0as00 s1s0bs50
-          // when using nonlinear scale then remember to zero 1_02 bit 3 (IF_HS_PSHIFT_BYPS)
-        }
-        latchPLLAD();
-        //applyBestHTotal(GBS::VDS_HSYNC_RST::read());
-        SerialM.print("PLL div: "); SerialM.println(pll_divider, HEX);
-        rto->clampPositionIsSet = 0;
-        rto->coastPositionIsSet = 0;
-        rto->continousStableCounter = 1; // necessary for clamp test
+        //GBS::IF_INI_ST::write(PLLAD_MD * 0.68f); // fixed to 0 now
+
+        // 1_18/19 IF_HB_ST2 (previosly always fixed to 0 or 8):
+        // pll_divider div 2 (already done above) - 2 is new minimum IF_HB_ST2
+        //GBS::IF_HB_ST2::write( todo );
+
+        // s1s03sff s1s04sff s1s05sff s1s06sff s1s07sff s1s08sff s1s09sff s1s0asff s1s0bs4f
+        // s1s03s00 s1s04s00 s1s05s00 s1s06s00 s1s07s00 s1s08s00 s1s09s00 s1s0as00 s1s0bs50
+        // when using nonlinear scale then remember to zero 1_02 bit 3 (IF_HS_PSHIFT_BYPS)
       }
+      latchPLLAD();
+      delay(1);
+      //applyBestHTotal(GBS::VDS_HSYNC_RST::read());
+      updateClampPosition();
+      updateCoastPosition(0);
+      //rto->clampPositionIsSet = 0;
+      //rto->coastPositionIsSet = 0;
+      //rto->continousStableCounter = 1; // necessary for clamp test
     }
     break;
     case 'N':
@@ -7435,6 +7440,15 @@ void handleType2Command(char argument) {
       SerialM.println("off");
     }
     break;
+  case 'F':
+    // freeze pic
+    if (GBS::CAPTURE_ENABLE::read()) {
+      GBS::CAPTURE_ENABLE::write(0);
+    }
+    else {
+      GBS::CAPTURE_ENABLE::write(1);
+    }
+    break;
   default:
     break;
   }
@@ -7772,14 +7786,14 @@ void savePresetToSPIFFS() {
       disableScanlines();
     }
     // next: check for vertical adjust and undo if necessary
-    if (GBS::IF_AUTO_OFST_RESERVED_2::read() == 1)
+    if (GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::read() == 1)
     {
       //GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
       //GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
       for (uint8_t a = 0; a <= 5; a++) {
         shiftVerticalUpIF();
       }
-      GBS::IF_AUTO_OFST_RESERVED_2::write(0);
+      GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::write(0);
     }
 
     for (int i = 0; i <= 5; i++) {

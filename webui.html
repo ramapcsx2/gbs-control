@@ -266,15 +266,15 @@
                 '<button class="button" type="button" onclick="loadDoc(\'i\')">Print Infos</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\',\')">Get Video Timings</button>' + 
                 '<h2>Commands</h2>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'o\')">Oversampling</button>' + 
                 '<button class="button" type="button" onclick="loadUser(\'l\')">Cycle SDRAM clock speed</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'q\')">Reset Chip</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'8\')">Invert Sync</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'n\')">PLL divider++</button>' + 
                 '<br>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'D\')">Debug View</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'F\')">ADC Filter</button>' + 
-                '<button class="button" type="button" onclick="loadUser(\'z\')">SOG Level--</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'8\')">Invert Sync</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'o\')">Oversampling</button>' +
+                '<button class="button" type="button" onclick="loadUser(\'F\')">Freeze Capture</button>' + 
                 '<br>' +
                 '<button class="button" type="button" onclick="loadDoc(\'a\')">HTotal++</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'A\')">HTotal--</button>' + 
@@ -284,7 +284,9 @@
                 '<button class="button" type="button" onclick="loadDoc(\'S\')">Snap to 60/50Hz for HDMI</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'m\')">SyncWatcher</button>' + 
                 '<button class="button" type="button" onclick="loadDoc(\'c\')">Enable OTA Updates</button>' + 
-                '<button class="button" type="button" onclick="loadUser(\'E\')">IF Auto Offset</button>';
+                '<button class="button" type="button" onclick="loadUser(\'E\')">IF Auto Offset</button>' + 
+                '<br>' +
+                '<button class="button" type="button" onclick="loadUser(\'z\')">SOG Level--</button>';
             }
             function content7() {
                 document.getElementById("display").innerHTML = 
@@ -294,17 +296,16 @@
                 '<button class="button" type="button" onclick="loadUser(\'1\')">Reset Defaults + Restart</button>';
             }
             window.addEventListener('load', function(event) {
-                siteUnloading = 0;
                 content1();
                 theTerminal = document.getElementById('outputTextArea');
+                ws = null;
                 createWebSocket();
+                wsCheckTimer = setInterval(checkWs, 500);
             });
             window.addEventListener('unload', function(event) {
                 clearInterval(wsCheckTimer);
-                clearInterval(myTimer);
-                siteUnloading = 1;
                 if (ws) {
-                    if (ws.readyState < 2) {
+                    if (ws.readyState == 0 || ws.readyState == 1) {
                         ws.close();
                     }
                 }
@@ -313,14 +314,14 @@
             var eventsQueued = 0;
             var theTerminal;
             var ws = null;
-            var myTimer;
+            var isWsActive = 0;
+            var wsTimeout;
             var wsCheckTimer;
             var wsConnectCounter = 0;
-            var siteUnloading = 0;
+            var wsNoSuccessConnectingCounter = 0;
             var queuedText = '';
             function loadDoc(link) {
                 var xhttp = new XMLHttpRequest(); 
-                /*'&nocache=' + new Date().getTime() : prevents caching*/
                 xhttp.open('GET', 'sc?' + link + '&nocache=' + new Date().getTime(), true);
                 xhttp.send();
             }
@@ -329,90 +330,96 @@
                 xhttp.open('GET', 'uc?' + link + '&nocache=' + new Date().getTime(), true);
                 xhttp.send();
                 if (link == 'a' || link == '1') {
-                    if (ws) {
-                        if (ws.readyState < 2) {
-                            ws.close();
-                        }
-                    }
+                    isWsActive = 0;
                     theTerminal.value += ' Restart';
                     theTerminal.value += '\n';
                     theTerminal.scrollTop = theTerminal.scrollHeight;
-                    clearInterval(wsCheckTimer);
-                    wsCheckTimer = setInterval(checkWs, 1800);
                 }
             }
             function checkWs() {
-                if (siteUnloading == 0) {
-                    if (!ws) {
-                        console.log('checkWs: no ws, create new');
-                        createWebSocket();
-                    } else if (ws.readyState >= 2) {
-                        console.log('checkWs: rs closed or closing, create new');
-                        createWebSocket();
-                    } else if (ws.readyState == 0) {
-                        console.log('checkWs: ws connecting..');
-                        /*setInterval(checkWs, 1000);*/
+                if (isWsActive === 0) {
+                    if (ws) {
+                        /*
+                        0 	CONNECTING
+                        1 	OPEN
+                        2 	CLOSING
+                        3 	CLOSED
+                        */
+                        if (ws.readyState == 3) {
+                            ws = null;
+                        }
+                        else if (ws.readyState == 2) {
+                            /* console.log('ws CLOSING > repeat ws.close()'); */
+                            ws.close();
+                        }
+                        else if (ws.readyState == 1) {
+                            ws.close();
+                        }
+                        /* createWebSocket deals with 0 */
                     }
+                    createWebSocket();
                 }
             }
             function timeOutWs() {
-                /*
-                0 	CONNECTING
-                1 	OPEN
-                2 	CLOSING
-                3 	CLOSED
-                */
-                if (siteUnloading == 0) {
-                    if (ws) {
-                        if (ws.readyState == 1) {
-                            console.log('TO rs is 1, close'); // > close and reconnect
-                            ws.close();
-                        }
-                        else if (ws.readyState == 0) {
-                            console.log('TO rs is 0, wait'); // > wait
-                        }
-                        else {
-                            console.log('TO rs is 2 or 3, new');
-                            createWebSocket();
-                        }
-                        /*theTerminal.value += 'ws' + wsConnectCounter + ' timeout\n';
-                        theTerminal.scrollTop = theTerminal.scrollHeight;*/
-                    }
+                console.log('timeOutWs');
+                if (ws) {
+                    ws.close();
                 }
+                isWsActive = 0;
             }
             function createWebSocket() {
-                clearInterval(myTimer);
-                clearInterval(wsCheckTimer);
                 if (ws) {
-                    if (ws.readyState < 2) {
-                        /*already one ws open*/
-                        console.log('ws create, but already open');
+                    if (ws.readyState == 2) {
+                        wsNoSuccessConnectingCounter++;
+                        /* console.log(wsNoSuccessConnectingCounter); */
+                        if (wsNoSuccessConnectingCounter >= 7) {
+                            console.log('ws still closing, force close');
+                            ws = null;
+                            wsNoSuccessConnectingCounter = 0;
+                            /* fall through */
+                        }
+                        else {
+                            return;
+                        }
+                    }
+                    else if (ws.readyState == 0) {
+                        wsNoSuccessConnectingCounter++;
+                        /*console.log(wsNoSuccessConnectingCounter); */
+                        if (wsNoSuccessConnectingCounter >= 14) {
+                            console.log('ws still connecting, retry');
+                            ws.close();
+                            wsNoSuccessConnectingCounter = 0;
+                        }
+                        return;
+                    }
+                    else {
                         return;
                     }
                 }
-                ws = new WebSocket('ws://' + location.hostname + ':81/',['arduino']);
-                wsCheckTimer = setInterval(checkWs, 2000);
                 
+                wsNoSuccessConnectingCounter = 0;
+                ws = new WebSocket('ws://' + location.hostname + ':81/',['arduino']);
+                            
                 ws.onopen = function() {
                     wsConnectCounter++;
                     console.log('ws onopen');
-                    
+                    isWsActive = 1;
+                    wsTimeout = setTimeout(timeOutWs, 2700);
+                    wsNoSuccessConnectingCounter = 0;
                     /*theTerminal.value += 'ws' + wsConnectCounter + ' connected\n';
                     theTerminal.scrollTop = theTerminal.scrollHeight;*/
-                    clearInterval(myTimer);
-                    clearInterval(wsCheckTimer);
-                    myTimer = setInterval(timeOutWs, 4000);
                 }
                 ;
                 ws.onclose = function(event) {
                     console.log('ws.onclose');
-                    if (siteUnloading == 0) {
-                        createWebSocket();
-                    }
+                    clearTimeout(wsTimeout);
+                    isWsActive = 0;
                 }
                 ;
                 ws.onmessage = function(e) {
-                    clearInterval(myTimer);
+                    clearTimeout(wsTimeout);
+                    wsTimeout = setTimeout(timeOutWs, 2700);
+                    isWsActive = 1;
                     if (e.data[0] != '#') {
                         queuedText += e.data;
                         eventsQueued++;
@@ -565,7 +572,6 @@
                             }
                         }
                     }
-                    myTimer = setInterval(timeOutWs, 4000);
                 }
                 ;
             }

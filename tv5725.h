@@ -242,7 +242,6 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x28, 4,  4> IF_TEST_SEL;
     typedef UReg<0x01, 0x29, 0,  1> IF_AUTO_OFST_EN;
     typedef UReg<0x01, 0x29, 1,  1> IF_AUTO_OFST_PRD;
-    typedef UReg<0x01, 0x29, 2,  1> IF_AUTO_OFST_RESERVED_2;
     typedef UReg<0x01, 0x2A, 0,  4> IF_AUTO_OFST_U_RANGE;
     typedef UReg<0x01, 0x2A, 4,  4> IF_AUTO_OFST_V_RANGE;
     typedef UReg<0x01, 0x2B, 0,  7> GBS_PRESET_ID;
@@ -250,6 +249,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x2C, 0,  1> GBS_OPTION_SCANLINES_ENABLED;
     typedef UReg<0x01, 0x2C, 1,  1> GBS_OPTION_SCALING_RGBHV;
     typedef UReg<0x01, 0x2C, 2,  1> GBS_OPTION_PALFORCED60_ENABLED;
+    typedef UReg<0x01, 0x2C, 3,  1> GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE;
 
     // HDBypass
     typedef UReg<0x01, 0x30, 1,  1> HD_MATRIX_BYPS;
@@ -548,6 +548,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x04, 0x21, 1,  1> CAP_FF_HALF_REQ;
     typedef UReg<0x04, 0x21, 5,  1> CAP_SAFE_GUARD_EN;
     typedef UReg<0x04, 0x22, 0,  1> CAP_REQ_OVER;
+    typedef UReg<0x04, 0x22, 1,  1> CAP_STATUS_SEL;
     typedef UReg<0x04, 0x22, 3,  1> CAP_REQ_FREEZ;
     typedef UReg<0x04, 0x24, 0,  21> CAP_SAFE_GUARD_A;
     typedef UReg<0x04, 0x27, 0,  21> CAP_SAFE_GUARD_B;
