@@ -881,8 +881,8 @@ void prepareSyncProcessor() {
   //GBS::SP_SDCS_VSST_REG_L::write(2); // S5_3F
   //GBS::SP_SDCS_VSSP_REG_L::write(0); // S5_40
 
-  GBS::SP_CS_HS_ST::write(0);    // 5_45
-  GBS::SP_CS_HS_SP::write(0x40); // 5_47 720p source needs ~20 range, may be necessary to adjust at runtime, based on source res
+  GBS::SP_CS_HS_ST::write(0x10);  // 5_45
+  GBS::SP_CS_HS_SP::write(0x00);  // 5_47 720p source needs ~20 range, may be necessary to adjust at runtime, based on source res
 
   writeOneByte(0x49, 0x00); // retime HS start for RGB+HV rgbhv: 20
   writeOneByte(0x4a, 0x00); //
@@ -2174,6 +2174,38 @@ void readEeprom() {
   }
 }
 
+void setIfHblankParameters() {
+  if (!rto->outModeHdBypass) {
+    uint16_t pll_divider = GBS::PLLAD_MD::read();
+
+    // if line doubling (PAL, NTSC), div 2 + a couple pixels
+    GBS::IF_HSYNC_RST::write(((pll_divider >> 1) + 13) & 0xfffe);   // 1_0e
+    GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);          // 1_22
+
+    if (GBS::IF_LD_RAM_BYPS::read()) {
+      // no LD = EDTV or similar
+      GBS::IF_HB_SP2::write((uint16_t)((float)pll_divider * 0.06512f) & 0xfffe);  // 1_1a // 0.06512f
+      // pll_divider / 2 - 3 is minimum IF_HB_ST2
+      GBS::IF_HB_ST2::write((uint16_t)((float)pll_divider * 0.4912f) & 0xfffe);   // 1_18
+    }
+    else {
+      // LD mode (PAL, NTSC)
+      GBS::IF_HB_SP2::write(4 + ((uint16_t)((float)pll_divider * 0.0224f) & 0xfffe)); // 1_1a
+      GBS::IF_HB_ST2::write((uint16_t)((float)pll_divider * 0.4550f) & 0xfffe);       // 1_18
+
+      if (GBS::IF_HB_ST2::read() >= 1056) {
+        GBS::IF_HB_ST2::write(1056);  // limit (fifo?)
+      }
+
+      // position move via 1_26 and reserve for deinterlacer: add IF RST pixels
+      // seems no extra pixels available at around PLLAD:84A or 2122px
+      //uint16_t currentRst = GBS::IF_HSYNC_RST::read();
+      //GBS::IF_HSYNC_RST::write((currentRst + (currentRst / 15)) & 0xfffe);  // 1_0e
+      //GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);                // 1_22
+    }
+  }
+}
+
 void fastGetBestHtotal() {
   uint32_t inStart, inStop;
   signed long inPeriod = 1;
@@ -2419,6 +2451,13 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   uint16_t h_blank_memory_start_position = GBS::VDS_HB_ST::read();
   uint16_t h_blank_memory_stop_position = GBS::VDS_HB_SP::read();
  
+  // new 25.10.2019
+  //uint16_t blankingAreaTotal = bestHTotal * 0.233f;
+  //h_blank_display_start_position += (diffHTotal / 2);
+  //h_blank_display_stop_position += (diffHTotal / 2);
+  //h_blank_memory_start_position = bestHTotal - (blankingAreaTotal * 0.212f);
+  //h_blank_memory_stop_position = blankingAreaTotal * 0.788f;
+
   // h_blank_memory_start_position usually is == h_blank_display_start_position
   if (h_blank_memory_start_position == h_blank_display_start_position) {
     h_blank_display_start_position += (diffHTotal / 2);
@@ -2699,16 +2738,21 @@ void doPostPresetLoadSteps() {
   rto->boardHasPower = true; //same
 
   if (!isCustomPreset) {
-    GBS::IF_INI_ST::write(0); // 16.08.19: don't calculate, use fixed to 0
+    if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 || rto->videoStandardInput == 8) {
+      GBS::IF_LD_RAM_BYPS::write(1);    // 1_0c 0 no LD, do this before setIfHblankParameters
+    }
+
+    setIfHblankParameters();              // 1_0e, 1_18, 1_1a
+    GBS::IF_INI_ST::write(0);             // 16.08.19: don't calculate, use fixed to 0
     //GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() * 0.68); // see update above
 
-    GBS::IF_HS_INT_LPF_BYPS::write(0); // // 1_02 2
+    GBS::IF_HS_INT_LPF_BYPS::write(0);    // 1_02 2
     // 0 allows int/lpf for smoother scrolling with non-ideal scaling, also reduces jailbars and even noise
     // interpolation or lpf available, lpf looks better
-    GBS::IF_HS_SEL_LPF::write(1); // 1_02 1
-    GBS::IF_HS_PSHIFT_BYPS::write(1); // 1_02 3 nonlinear scale phase shift bypass
+    GBS::IF_HS_SEL_LPF::write(1);         // 1_02 1
+    GBS::IF_HS_PSHIFT_BYPS::write(1);     // 1_02 3 nonlinear scale phase shift bypass
     // 1_28 1 1:hbin generated write reset 0:line generated write reset
-    GBS::IF_LD_WRST_SEL::write(1); // at 1 fixes output position regardless of 1_24
+    GBS::IF_LD_WRST_SEL::write(1);        // at 1 fixes output position regardless of 1_24
     //GBS::MADPT_Y_DELAY_UV_DELAY::write(0); // 2_17 default: 0 // don't overwrite
 
     GBS::SP_RT_HS_ST::write(0); // 5_49 // retiming hs ST, SP
@@ -2733,28 +2777,28 @@ void doPostPresetLoadSteps() {
     setOverSampleRatio(2, true); // prepare only = true
 
     // full height option
-    if (rto->videoStandardInput == 1 || rto->videoStandardInput == 3) {
-      if (rto->presetID == 0x5)
-      { // out 1080p 60
-        if (uopt->wantFullHeight) {
+    if (uopt->wantFullHeight) {
+      if (rto->videoStandardInput == 1 || rto->videoStandardInput == 3) {
+        if (rto->presetID == 0x5)
+        { // out 1080p 60
           GBS::VDS_VSCALE::write(455);
           GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 2);
           GBS::VDS_DIS_VB_SP::write(40);
-          GBS::VDS_VB_SP::write(GBS::VDS_DIS_VB_SP::read() - 2); // 38
+          GBS::VDS_VB_SP::write(40 - 2); // is VDS_DIS_VB_SP - 2 = 38
           GBS::IF_VB_SP::write(0x10);
           GBS::IF_VB_ST::write(0xE);
+          SerialM.println(F("full height"));
         }
       }
-    }
-    else if (rto->videoStandardInput == 2 || rto->videoStandardInput == 4) {
-      if (rto->presetID == 0x15)
-      { // out 1080p 50
-        if (uopt->wantFullHeight) {
+      else if (rto->videoStandardInput == 2 || rto->videoStandardInput == 4) {
+        if (rto->presetID == 0x15)
+        { // out 1080p 50
           GBS::VDS_VSCALE::write(455);
           GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 2);
           GBS::VDS_DIS_VB_SP::write(38);
           GBS::IF_VB_SP::write(0x3C);
           GBS::IF_VB_ST::write(0x3A);
+          SerialM.println(F("full height"));
         }
       }
     }
@@ -2777,7 +2821,7 @@ void doPostPresetLoadSteps() {
     {
       // EDTV p-scan, need to either double adc data rate and halve vds scaling
       // or disable line doubler (better) (50 / 60Hz shared)
-      GBS::IF_LD_RAM_BYPS::write(1);    // 1_0c 0 no LD
+      
       GBS::ADC_FLTR::write(3);          // 5_03 4/5
       GBS::PLLAD_KS::write(1);          // 5_16
       setOverSampleRatio(2, true);      // with KS = 1 for modes 3, 4, 8
@@ -2795,53 +2839,61 @@ void doPostPresetLoadSteps() {
     }
     if (rto->videoStandardInput == 3) 
     { // ED YUV 60
-      //GBS::VDS_VSCALE::write(512); // remove
-      GBS::IF_HB_ST::write(30);     // 1_10; magic number
-      GBS::IF_HB_ST2::write(0x60);  // 1_18
-      GBS::IF_HB_SP2::write(0x88);  // 1_1a
-      GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
+      GBS::IF_HB_ST::write(30);       // 1_10; magic number
+      GBS::IF_HBIN_SP::write(0x60);   // 1_26
       if (rto->presetID == 0x5) 
       { // out 1080p
-        GBS::IF_HB_SP2::write(GBS::IF_HB_SP2::read() + 12);  // 1_1a  = 0x94
+        GBS::IF_HB_SP2::write(0x94);  // 1_1a
       }
       else if (rto->presetID == 0x3) 
       { // out 720p
         GBS::VDS_VSCALE::write(683); // same as base preset
-        GBS::IF_HB_SP2::write(0x8c);  // 1_1a
+        GBS::IF_HB_SP2::write(0x88);  // 1_1a
       }
       else if (rto->presetID == 0x2) 
       { // out x1024
         GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - 8);
+        GBS::IF_HB_SP2::write(0x8C);  // 1_1a
         GBS::IF_HBIN_ST::write(0x20); // 1_24
       }
       else if (rto->presetID == 0x1) 
       { // out x960
         GBS::IF_HBIN_ST::write(0x20); // 1_24
-        GBS::IF_HB_SP2::write(GBS::IF_HB_SP2::read() + 10);  // 1_1a
+        GBS::IF_HB_SP2::write(0x88);  // 1_1a
+      }
+      else if (rto->presetID == 0x4)
+      { // out x480
+        GBS::IF_HB_ST2::write(0x34C); // 1_18
+        GBS::IF_HB_SP2::write(0x78);  // 1_1a
       }
     }
     else if (rto->videoStandardInput == 4) 
     { // ED YUV 50
-      GBS::IF_HB_ST2::write(0x60);  // 1_18
-      GBS::IF_HB_SP2::write(0x88);  // 1_1a for hshift (now only left for out 640x480)
       GBS::IF_HBIN_SP::write(0x40); // 1_26 was 0x80 test: ps2 videomodetester 576p mode
       GBS::IF_HBIN_ST::write(0x20); // 1_24, odd but need to set this here (blue bar)
       GBS::IF_HB_ST::write(0x30); // 1_10
       if (rto->presetID == 0x15) 
       { // out 1080p
-        GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 10); // extend left blank
+        GBS::IF_HB_SP2::write(0x88);  // 1_1a
       }
       else if (rto->presetID == 0x13) 
       { // out 720p
-
+        GBS::IF_HB_SP2::write(0x8C);  // 1_1a
       }
       else if (rto->presetID == 0x12) 
       { // out x1024
         GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - 12);
+        GBS::IF_HB_SP2::write(0x8C);  // 1_1a
+        //GBS::IF_HB_ST2::write(0x468);  // 1_18
       }
       else if (rto->presetID == 0x11) 
       { // out x960
-
+        GBS::IF_HB_SP2::write(0x88);  // 1_1a
+      }
+      else if (rto->presetID == 0x14)
+      { // out x480
+        GBS::IF_HB_ST2::write(0x350); // 1_18
+        GBS::IF_HB_SP2::write(0x88);  // 1_1a
       }
     }
     else if (rto->videoStandardInput == 5) 
@@ -2867,8 +2919,8 @@ void doPostPresetLoadSteps() {
       GBS::PLLAD_ICP::write(6);     // all 25khz submodes have more lines than NTSC
       GBS::ADC_FLTR::write(1);      // 5_03
       GBS::IF_HB_ST::write(30);     // 1_10; magic number
-      GBS::IF_HB_ST2::write(0x60);  // 1_18
-      GBS::IF_HB_SP2::write(0x88);  // 1_1a
+      //GBS::IF_HB_ST2::write(0x60);  // 1_18
+      //GBS::IF_HB_SP2::write(0x88);  // 1_1a
       GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
       if (rto->presetID == 0x1)
       { // out x960
@@ -3034,9 +3086,30 @@ void doPostPresetLoadSteps() {
   }
   //SerialM.print("pp time: "); SerialM.println(millis() - postLoadTimer);
 
+  // new, might be useful (3_6D - 3_72)
+  GBS::VDS_EXT_HB_ST::write(GBS::VDS_DIS_HB_ST::read());
+  GBS::VDS_EXT_HB_SP::write(GBS::VDS_DIS_HB_SP::read());
+  GBS::VDS_EXT_VB_ST::write(GBS::VDS_DIS_VB_ST::read());
+  GBS::VDS_EXT_VB_SP::write(GBS::VDS_DIS_VB_SP::read());
+
   // noise starts here!
   resetDigital();
-  delay(8);
+  // HDMI dongle not updating workaround:
+  // extend HSync length for a short while
+  //uint16_t temp;
+  //if (GBS::VDS_HS_ST::read() < GBS::VDS_HS_SP::read()) {
+  //  temp = GBS::VDS_HS_SP::read();
+  //  GBS::VDS_HS_SP::write(GBS::VDS_DIS_HB_SP::read());
+  //  delay(300); // 300 seems okay, 100 too little
+  //  GBS::VDS_HS_SP::write(temp);
+  //}
+  //else {
+  //  temp = GBS::VDS_HS_ST::read();
+  //  GBS::VDS_HS_ST::write(GBS::VDS_DIS_HB_SP::read());
+  //  delay(300);
+  //  GBS::VDS_HS_ST::write(temp);
+  //}
+
   resetPLLAD(); // also turns on pllad
   GBS::PLLAD_LEN::write(1); // 5_11 1
 
@@ -3060,6 +3133,7 @@ void doPostPresetLoadSteps() {
     GBS::PB_REQ_SEL::write(3);      // PlayBack 11 High request Low request
                                     // 4_2C, 4_2D should be set by preset
     GBS::RFF_WFF_OFFSET::write(0x0); // scanline fix
+    //GBS::PB_CAP_OFFSET::write(GBS::PB_FETCH_NUM::read()); // 4_37 to 4_39 (green bar)
     // 4_12 should be set by preset
   }
 
@@ -3759,11 +3833,6 @@ void updateCoastPosition(boolean autoCoast) {
       GBS::SP_HCST_AUTO_EN::write(0);
     }
     rto->coastPositionIsSet = 1;
-
-    // also set SP regenerated HS position, in case it is to be used
-    // this appears to be used in Mode Detect so mind interlace / progressive switches (halved h period)
-    GBS::SP_CS_HS_ST::write(32);
-    GBS::SP_CS_HS_SP::write(0);
 
     /*Serial.print("coast ST: "); Serial.print("0x"); Serial.print(GBS::SP_H_CST_ST::read(), HEX);
     Serial.print(", ");
@@ -4883,15 +4952,16 @@ void runSyncWatcher()
     rto->noSyncCounter = 0;
     newVideoModeCounter = 0;
 
+    if (rto->continousStableCounter == 1 && !doFullRestore) {
+      unfreezeVideo();
+    }
+
     if (rto->continousStableCounter == 2) {
       if (doFullRestore) {
         optimizeSogLevel();
         doFullRestore = 0;
+        unfreezeVideo();
       }
-    }
-
-    if (rto->continousStableCounter == 2) {
-      unfreezeVideo();
     }
 
     if (rto->continousStableCounter == 4) {
@@ -5435,8 +5505,8 @@ void calibrateAdcOffset()
     while ((millis() - startTimer) < 800) {
       readout16 = GBS::TEST_BUS::read() & 0x7fff;
       //Serial.println(readout16, HEX);
-
-      if (readout16 >= 0 && readout16 < 7) {
+      // readout16 is unsigned, always >= 0
+      if (readout16 < 7) {
         hitTargetCounter++;
         missTargetCounter = 0;
       }
@@ -5705,6 +5775,7 @@ void setup() {
   }
   else {
     SerialM.println(F("(WiFi): still connecting.."));
+    WiFi.reconnect(); // only valid for station class (ok here)
   }
 
   startWire();
@@ -6268,30 +6339,12 @@ void loop() {
       SerialM.print("PLL div: "); SerialM.print(pll_divider, HEX);
       SerialM.print(" "); SerialM.println(pll_divider);
       // set IF before latching
-      if (!rto->outModeHdBypass) {
-        // if line doubling (PAL, NTSC), div 2 
-        pll_divider >>= 1; pll_divider += 1;
-        GBS::IF_HSYNC_RST::write(pll_divider); // 1_0e
-        GBS::IF_LINE_SP::write(pll_divider + 1); // 1_22
-
-        //GBS::IF_INI_ST::write(PLLAD_MD * 0.68f); // fixed to 0 now
-
-        // 1_18/19 IF_HB_ST2 (previosly always fixed to 0 or 8):
-        // pll_divider div 2 (already done above) - 2 is new minimum IF_HB_ST2
-        //GBS::IF_HB_ST2::write( todo );
-
-        // s1s03sff s1s04sff s1s05sff s1s06sff s1s07sff s1s08sff s1s09sff s1s0asff s1s0bs4f
-        // s1s03s00 s1s04s00 s1s05s00 s1s06s00 s1s07s00 s1s08s00 s1s09s00 s1s0as00 s1s0bs50
-        // when using nonlinear scale then remember to zero 1_02 bit 3 (IF_HS_PSHIFT_BYPS)
-      }
+      setIfHblankParameters();
       latchPLLAD();
       delay(1);
       //applyBestHTotal(GBS::VDS_HSYNC_RST::read());
       updateClampPosition();
       updateCoastPosition(0);
-      //rto->clampPositionIsSet = 0;
-      //rto->coastPositionIsSet = 0;
-      //rto->continousStableCounter = 1; // necessary for clamp test
     }
     break;
     case 'N':
@@ -6468,8 +6521,12 @@ void loop() {
         shiftHorizontalRight(); // use VDS mem move for EDTV presets
       }
       else {
-        if (GBS::IF_HBIN_SP::read() >= 10) { // IF_HBIN_SP: min 2
-          GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() - 8); // canvas move right
+        if (GBS::IF_HBIN_SP::read() >= 10) {                            // IF_HBIN_SP: min 2
+          GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() - 8);          // canvas move right
+          if ((GBS::IF_HSYNC_RST::read() - 4) > ((GBS::PLLAD_MD::read() >> 1) + 5)) {
+            GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() - 4);    // shrink 1_0e
+            GBS::IF_LINE_SP::write(GBS::IF_LINE_SP::read() - 4);        // and 1_22 to go with it
+          }
         }
         else {
           SerialM.println("limit");
@@ -6481,7 +6538,16 @@ void loop() {
         shiftHorizontalLeft();
       }
       else {
-        GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() + 8); // canvas move left
+        if (GBS::IF_HBIN_SP::read() < 0x120) {                        // (arbitrary) max limit
+          GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() + 8);        // canvas move left
+          if (GBS::IF_HBIN_SP::read() >= 0xAA) {                      // at some point (arbitrary, but avoid right border cutoff)
+            GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() + 4);  // extend 1_0e
+            GBS::IF_LINE_SP::write(GBS::IF_LINE_SP::read() + 4);      // and 1_22 to go with it
+          }
+        }
+        else {
+          SerialM.println("limit");
+        }
       }
     break;
     case '8':
@@ -7454,23 +7520,23 @@ void handleType2Command(char argument) {
   }
 }
 
-void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length) {
-  switch (type) {
-  case WStype_DISCONNECTED:
-    //Serial.print("WS: #"); Serial.print(num); Serial.print(" disconnected,");
-    //Serial.print(" remaining: "); Serial.println(webSocket.connectedClients());
-  break;
-  case WStype_CONNECTED:
-    //Serial.print("WS: #"); Serial.print(num); Serial.print(" connected, ");
-    //Serial.print(" total: "); Serial.println(webSocket.connectedClients());
-    updateWebSocketData();
-  break;
-  case WStype_PONG:
-    //Serial.print("p");
-    updateWebSocketData();
-  break;
-  }
-}
+//void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length) {
+//  switch (type) {
+//  case WStype_DISCONNECTED:
+//    //Serial.print("WS: #"); Serial.print(num); Serial.print(" disconnected,");
+//    //Serial.print(" remaining: "); Serial.println(webSocket.connectedClients());
+//  break;
+//  case WStype_CONNECTED:
+//    //Serial.print("WS: #"); Serial.print(num); Serial.print(" connected, ");
+//    //Serial.print(" total: "); Serial.println(webSocket.connectedClients());
+//    updateWebSocketData();
+//  break;
+//  case WStype_PONG:
+//    //Serial.print("p");
+//    updateWebSocketData();
+//  break;
+//  }
+//}
 
 void startWebserver()
 {
@@ -7552,7 +7618,7 @@ void startWebserver()
     typeTwoCommand = 'u'; // next loop, set wifi station mode and restart device
   });
 
-  webSocket.onEvent(webSocketEvent);
+  //webSocket.onEvent(webSocketEvent);
 
   persWM.setConnectNonBlock(true);
   if (WiFi.SSID().length() == 0) {
