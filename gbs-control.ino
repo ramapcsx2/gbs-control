@@ -173,6 +173,7 @@ struct runTimeOptions {
   boolean presetIsPalForce60;
   boolean syncTypeCsync;
   boolean isValidForScalingRGBHV;
+  boolean useHdmiSyncFix;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -408,7 +409,12 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
         for (int x = 0; x <= 15; x++) {
           if (j == 0 && x == 4) {
             // keep DAC off
-            bank[x] = pgm_read_byte(programArray + index); // &~(1 << 0);
+            if (rto->useHdmiSyncFix) {
+              bank[x] = pgm_read_byte(programArray + index) & ~(1 << 0);
+            }
+            else {
+              bank[x] = pgm_read_byte(programArray + index);
+            }
           }
           else if (j == 0 && x == 6) {
             bank[x] = reset46;
@@ -418,7 +424,12 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
           }
           else if (j == 0 && x == 9) {
             // keep sync output off
-            bank[x] = pgm_read_byte(programArray + index); // | (1 << 2);
+            if (rto->useHdmiSyncFix) {
+              bank[x] = pgm_read_byte(programArray + index) | (1 << 2);
+            }
+            else {
+              bank[x] = pgm_read_byte(programArray + index);
+            }
           }
           else {
             // use preset values
@@ -548,6 +559,7 @@ void setResetParameters() {
   rto->isValidForScalingRGBHV = false;
   rto->medResLineCount = 0x33; // 51*8=408
   rto->osr = 0;
+  rto->useHdmiSyncFix = 0;
 
   adco->r_gain = 0;
   adco->g_gain = 0;
@@ -1937,6 +1949,7 @@ void scaleVertical(uint16_t amountToScale, bool subtracting) {
   GBS::VDS_VSCALE::write(vscale);
 }
 
+// modified to move VBSP, set VBST to VBSP-2
 void shiftVertical(uint16_t amountToAdd, bool subtracting) {
   typedef GBS::Tie<GBS::VDS_VB_ST, GBS::VDS_VB_SP> Regs;
   uint16_t vrst = GBS::VDS_VSYNC_RST::read() - FrameSync::getSyncLastCorrection();
@@ -1947,11 +1960,11 @@ void shiftVertical(uint16_t amountToAdd, bool subtracting) {
   newVbst = vbst; newVbsp = vbsp;
 
   if (subtracting) {
-    newVbst -= amountToAdd;
+    //newVbst -= amountToAdd;
     newVbsp -= amountToAdd;
   }
   else {
-    newVbst += amountToAdd;
+    //newVbst += amountToAdd;
     newVbsp += amountToAdd;
   }
 
@@ -1970,6 +1983,13 @@ void shiftVertical(uint16_t amountToAdd, bool subtracting) {
   if (newVbsp > (int16_t)vrst) {
     newVbsp = newVbsp - vrst;
   }
+
+  // mod: newVbsp needs to be at least newVbst+2
+  if (newVbsp < (newVbst + 2)) {
+    newVbsp = newVbst + 2;
+  }
+  // mod: -= 2
+  newVbst = newVbsp - 2;
 
   Regs::write(newVbst, newVbsp);
   //SerialM.print("VSST: "); SerialM.print(newVbst); SerialM.print(" VSSP: "); SerialM.println(newVbsp);
@@ -2700,7 +2720,6 @@ void doPostPresetLoadSteps() {
 
   if (rto->outModeHdBypass) {
     GBS::OUT_SYNC_SEL::write(1); // 0_4f 1=sync from HDBypass, 2=sync from SP
-    //GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC
     rto->autoBestHtotalEnabled = false;
   }
   else {
@@ -2785,8 +2804,8 @@ void doPostPresetLoadSteps() {
           GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 2);
           GBS::VDS_DIS_VB_SP::write(40);
           GBS::VDS_VB_SP::write(40 - 2); // is VDS_DIS_VB_SP - 2 = 38
-          GBS::IF_VB_SP::write(0x10);
-          GBS::IF_VB_ST::write(0xE);
+          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 8);
+          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 8);
           SerialM.println(F("full height"));
         }
       }
@@ -2795,9 +2814,9 @@ void doPostPresetLoadSteps() {
         { // out 1080p 50
           GBS::VDS_VSCALE::write(455);
           GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 2);
-          GBS::VDS_DIS_VB_SP::write(38);
-          GBS::IF_VB_SP::write(0x3C);
-          GBS::IF_VB_ST::write(0x3A);
+          GBS::VDS_DIS_VB_SP::write(36);
+          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 24);
+          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 24);
           SerialM.println(F("full height"));
         }
       }
@@ -3094,21 +3113,6 @@ void doPostPresetLoadSteps() {
 
   // noise starts here!
   resetDigital();
-  // HDMI dongle not updating workaround:
-  // extend HSync length for a short while
-  //uint16_t temp;
-  //if (GBS::VDS_HS_ST::read() < GBS::VDS_HS_SP::read()) {
-  //  temp = GBS::VDS_HS_SP::read();
-  //  GBS::VDS_HS_SP::write(GBS::VDS_DIS_HB_SP::read());
-  //  delay(300); // 300 seems okay, 100 too little
-  //  GBS::VDS_HS_SP::write(temp);
-  //}
-  //else {
-  //  temp = GBS::VDS_HS_ST::read();
-  //  GBS::VDS_HS_ST::write(GBS::VDS_DIS_HB_SP::read());
-  //  delay(300);
-  //  GBS::VDS_HS_ST::write(temp);
-  //}
 
   resetPLLAD(); // also turns on pllad
   GBS::PLLAD_LEN::write(1); // 5_11 1
@@ -3158,7 +3162,11 @@ void doPostPresetLoadSteps() {
   GBS::SP_CLP_SRC_SEL::write(0); // 0: 27Mhz clock; 1: pixel clock
   GBS::SP_CS_CLP_ST::write(32); GBS::SP_CS_CLP_SP::write(48); // same as reset parameters
 
-  GBS::DAC_RGBS_PWDNZ::write(1);  // DAC on if needed
+  if (!uopt->wantOutputComponent) {
+    GBS::PAD_SYNC_OUT_ENZ::write(0);    // enable sync out if needed
+  }
+  GBS::DAC_RGBS_PWDNZ::write(1);        // DAC on if needed
+  rto->useHdmiSyncFix = 0;              // reset flag
 
   if (rto->outModeHdBypass) {
     GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
@@ -3928,6 +3936,12 @@ void setOutModeHdBypass() {
   rto->outModeHdBypass = 1;             // skips waiting at end of doPostPresetLoadSteps
 
   loadHdBypassSection();                // this would be ignored otherwise
+  if (GBS::ADC_UNUSED_62::read() != 0x00) {
+    // remember debug view
+    if (uopt->presetPreference != 2) {
+      typeOneCommand = 'D';
+    }
+  }
   GBS::ADC_UNUSED_62::write(0x00);      // clear debug view
   GBS::RESET_CONTROL_0x46::write(0x00); // 0_46 all off, nothing needs to be enabled for bp mode
   GBS::RESET_CONTROL_0x47::write(0x00);
@@ -4119,6 +4133,7 @@ void setOutModeHdBypass() {
 
   rto->outModeHdBypass = 1;
   rto->presetID = 0x21; // bypass flavor 1, used to signal buttons in web ui
+  GBS::GBS_PRESET_ID::write(0x21);
 
   updateSpDynamic(); // !
   GBS::DEC_IDREG_EN::write(1); // 5_1f 7
@@ -4291,6 +4306,7 @@ void bypassModeSwitch_RGBHV() {
   }
 
   rto->presetID = 0x22; // bypass flavor 2, used to signal buttons in web ui
+  GBS::GBS_PRESET_ID::write(0x22);
   delay(200);
 }
 
@@ -4897,6 +4913,19 @@ void runSyncWatcher()
         if (GBS::SP_SOG_MODE::read() == 1) { rto->syncTypeCsync = true; }
         else { rto->syncTypeCsync = false; }
         boolean wantPassThroughMode = uopt->presetPreference == 10;
+
+        if (((rto->videoStandardInput == 1 || rto->videoStandardInput == 3) && (detectedVideoMode == 2 || detectedVideoMode == 4)) ||
+              rto->videoStandardInput == 0 ||
+            ((rto->videoStandardInput == 2 || rto->videoStandardInput == 4) && (detectedVideoMode == 1 || detectedVideoMode == 3)))
+        {
+          rto->useHdmiSyncFix = 1;
+          //SerialM.println("hdmi sync fix: yes");
+        }
+        else {
+          rto->useHdmiSyncFix = 0;
+          //SerialM.println("hdmi sync fix: no");
+        }
+
         if (!wantPassThroughMode)
         {
           // needs to know the sync type for early updateclamp
@@ -5649,6 +5678,7 @@ void setup() {
   rto->isValidForScalingRGBHV = false;
   rto->medResLineCount = 0x33; // 51*8=408
   rto->osr = 0;
+  rto->useHdmiSyncFix = 0;
 
   // more run time variables
   rto->inputIsYpBpR = false;
@@ -6174,6 +6204,7 @@ void loop() {
         GBS::ADC_UNUSED_62::write(0);
         SerialM.println("off");
       }
+      typeOneCommand = '@';
     break;
     case 'C':
       SerialM.println("PLL: ICLK");
@@ -6484,6 +6515,13 @@ void loop() {
     {
       uopt->matchPresetSource = !uopt->matchPresetSource;
       saveUserPrefs();
+      uint8_t vidMode = getVideoMode();
+      if (uopt->presetPreference == 0 && GBS::GBS_PRESET_ID::read() == 0x11) {
+        applyPresets(vidMode);
+      }
+      else if (uopt->presetPreference == 4 && GBS::GBS_PRESET_ID::read() == 0x02 ) {
+        applyPresets(vidMode);
+      }
     }
     break;
     case 'W':
@@ -6511,10 +6549,44 @@ void loop() {
       //
     break;
     case '4':
+    {
+      // scale vertical +
+      if (GBS::VDS_VSCALE::read() <= 256) {
+        SerialM.println("limit");
+        break;
+      }
       scaleVertical(2, true);
+      // actually requires full vertical mask + position offset calculation
+      /*shiftVerticalUp();
+      uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
+      uint16_t vbstd = GBS::VDS_DIS_VB_ST::read();
+      uint16_t vbspd = GBS::VDS_DIS_VB_SP::read();
+      if ((vbstd < (vtotal - 4)) && (vbspd > 6))
+      {
+        GBS::VDS_DIS_VB_ST::write(vbstd + 1);
+        GBS::VDS_DIS_VB_SP::write(vbspd - 1);
+      }*/
+    }
     break;
     case '5':
+    {
+      // scale vertical -
+      if (GBS::VDS_VSCALE::read() == 1023) {
+        SerialM.println("limit");
+        break;
+      }
       scaleVertical(2, false);
+      // actually requires full vertical mask + position offset calculation
+      /*shiftVerticalDown();
+      uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
+      uint16_t vbstd = GBS::VDS_DIS_VB_ST::read();
+      uint16_t vbspd = GBS::VDS_DIS_VB_SP::read();
+      if ((vbstd > 6) && (vbspd < (vtotal - 4)))
+      {
+        GBS::VDS_DIS_VB_ST::write(vbstd - 1);
+        GBS::VDS_DIS_VB_SP::write(vbspd + 1);
+      }*/
+    }
     break;
     case '6':
       if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4) {
@@ -6902,7 +6974,10 @@ void loop() {
 
     if (!Serial.available()) {
       // in case we handled a Serial or web server command and there's no more extra commands
-      typeOneCommand = '@';
+      // but keep debug view command (resets once called)
+      if (typeOneCommand != 'D') {
+        typeOneCommand = '@';
+      }
       handleWiFi(1);
     }
   }
@@ -7394,6 +7469,7 @@ void handleType2Command(char argument) {
   break;
   case 'C':
   {
+    // vert mask +
     uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
     uint16_t vbstd = GBS::VDS_DIS_VB_ST::read();
     uint16_t vbspd = GBS::VDS_DIS_VB_SP::read();
@@ -7410,6 +7486,7 @@ void handleType2Command(char argument) {
   break;
   case 'D':
   {
+    // vert mask -
     uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
     uint16_t vbstd = GBS::VDS_DIS_VB_ST::read();
     uint16_t vbspd = GBS::VDS_DIS_VB_SP::read();
@@ -7466,8 +7543,16 @@ void handleType2Command(char argument) {
     ESP.reset();
   break;
   case 'v':
+  {
     uopt->wantFullHeight = !uopt->wantFullHeight;
     saveUserPrefs();
+    uint8_t vidMode = getVideoMode();
+    if (uopt->presetPreference == 5) {
+      if (GBS::GBS_PRESET_ID::read() == 0x05 || GBS::GBS_PRESET_ID::read() == 0x15) {
+        applyPresets(vidMode);
+      }
+    }
+  }
   break;
   case 'w':
     uopt->enableCalibrationADC = !uopt->enableCalibrationADC;
