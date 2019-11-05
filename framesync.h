@@ -41,14 +41,14 @@ private:
   typedef typename GBS::VDS_HSYNC_RST HSYNC_RST;
   typedef typename GBS::VDS_VSYNC_RST VSYNC_RST;
   typedef typename GBS::VDS_VS_ST VSST;
-  typedef typename GBS::VDS_VS_SP VSSP;
-  typedef typename GBS::template Tie<VSYNC_RST, VSST, VSSP> VRST_SST_SSP;
+  typedef typename GBS::template Tie<VSYNC_RST, VSST> VRST_SST;
 
   static const uint8_t debugInPin = Attrs::debugInPin;
   static const int16_t syncCorrection = Attrs::syncCorrection;
   static const int32_t syncTargetPhase = Attrs::syncTargetPhase;
 
   static bool syncLockReady;
+  static uint8_t delayLock;
   static int16_t syncLastCorrection;
 
   // Sample vsync start and stop times from debug pin.
@@ -75,13 +75,7 @@ private:
       // ESP.getCycleCount() overflow oder no pulse, just fail this round
       return false;
     }
-#ifdef FS_DEBUG
-    int32 tstC = *stop - *start;
-    static int32_t tstP = tstC;
-    Serial.print("                                   out jitter: "); 
-    Serial.println(abs(tstC - tstP));
-    tstP = tstC;
-#endif
+
     return true;
   }
 
@@ -113,10 +107,6 @@ private:
     if (phase)
       *phase = (diff < inPeriod) ? diff : diff - inPeriod;
 
-#ifdef FS_DEBUG
-      Serial.print(" inPeriod: "); Serial.println(inPeriod);
-      Serial.print("outPeriod: "); Serial.println(outPeriod);
-#endif
     return true;
   }
 
@@ -132,9 +122,7 @@ private:
     return true;
   }
 
-  // Find the largest htotal that makes output frame time less than
-  // the input.
-  // update: has to be less for the soft frame time lock to work (but not for hard frame lock (3_1A 4))
+  // Find appropriate htotal that makes output frame time slightly more than the input.
   static bool findBestHTotal(uint32_t &bestHtotal) {
     uint16_t inHtotal = HSYNC_RST::read();
     uint32_t inPeriod, outPeriod;
@@ -142,16 +130,21 @@ private:
     if (inHtotal == 0) { return false; } // safety
     if (!sampleVsyncPeriods(&inPeriod, &outPeriod)) { return false; }
 
+    if (inPeriod == 0 || outPeriod == 0) { return false; } // safety
+
+    inPeriod -= 18; // skew to smaller bestHtotal 
     // large htotal can push intermediates to 33 bits
     bestHtotal = (uint64_t)(inHtotal * (uint64_t)inPeriod) / (uint64_t)outPeriod;
 
     if (bestHtotal == (inHtotal + 1)) { bestHtotal -= 1; } // works well
-    if (bestHtotal == (inHtotal - 1)) { bestHtotal += 1; } // same (outPeriod very slightly larger like this doesn't cause the vertical bar)
+    if (bestHtotal == (inHtotal - 1)) { bestHtotal += 1; } // check with SNES + vtotal = 1000 (1280x960)
 
 #ifdef FS_DEBUG
     if (bestHtotal != inHtotal) {
-      Serial.print("                     wants new htotal, oldbest: "); Serial.print(inHtotal);
-      Serial.print(" newbest: "); Serial.println(bestHtotal);
+      Serial.print(F("                     wants new htotal, oldbest: ")); Serial.print(inHtotal);
+      Serial.print(F(" newbest: ")); Serial.println(bestHtotal);
+      Serial.print(F("                     inPeriod: ")); Serial.print(inPeriod);
+      Serial.print(F(" outPeriod: ")); Serial.println(outPeriod);
     }
 #endif
     return true;
@@ -159,14 +152,41 @@ private:
 
 public:
   // sets syncLockReady = false, which in turn starts a new findBestHtotal run in loop()
-  static void reset() {
+  static void reset(uint8_t frameTimeLockMethod) {
+#ifdef FS_DEBUG
+    Serial.print("FS reset(), with correction: ");
+#endif
+    if (syncLastCorrection != 0) {
+#ifdef FS_DEBUG
+      Serial.println("Yes");
+#endif
+      uint16_t vtotal = 0, vsst = 0;
+      VRST_SST::read(vtotal, vsst);
+      uint16_t timeout = 0;
+      vtotal -= syncLastCorrection;
+      if (frameTimeLockMethod == 1) { // moves VS position
+        vsst -= syncLastCorrection;
+      }
+      do {
+        // wait for right window for stability
+      } while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 400));
+      
+      VRST_SST::write(vtotal, vsst);
+    }
+#ifdef FS_DEBUG
+    else {
+      Serial.println("No");
+    }
+#endif
     syncLockReady = false;
     syncLastCorrection = 0;
+    delayLock = 0;
   }
 
   static void resetWithoutRecalculation() {
     syncLockReady = true;
     syncLastCorrection = 0;
+    delayLock = 0;
   }
 
   static uint16_t init() {
@@ -182,6 +202,7 @@ public:
     }
 
     syncLockReady = true;
+    delayLock = 0;
     return (uint16_t)bestHTotal;
   }
 
@@ -199,6 +220,12 @@ public:
 
   static int16_t getSyncLastCorrection() {
     return syncLastCorrection;
+  }
+
+  static void cleanup() {
+    syncLastCorrection = 0; // the important bit
+    syncLockReady = 0;
+    delayLock = 0;
   }
 
   // Sample vsync start and stop times from debug pin.
@@ -225,13 +252,7 @@ public:
       // ESP.getCycleCount() overflow oder no pulse, just fail this round
       return false;
     }
-#ifdef FS_DEBUG
-    int32 tstC = *stop - *start;
-    static int32_t tstP = tstC;
-    Serial.print("                                    in jitter: "); 
-    Serial.println(abs(tstC - tstP));
-    tstP = tstC;
-#endif
+
     return true;
   }
 
@@ -245,54 +266,19 @@ public:
     int32_t phase;
     int32_t target;
     int16_t correction;
-    uint16_t thisHtotal = HSYNC_RST::read();
-    static int16_t prevHtotal = thisHtotal;
 
     if (!syncLockReady)
       return false;
 
-    if (prevHtotal != thisHtotal) {
-      if (syncLastCorrection != 0) {
-#ifdef FS_DEBUG
-        Serial.println("reset with restore >");
-#endif
-        uint16_t vtotal = 0, vsst = 0, vssp = 0;
-        uint16_t currentLineNumber, earlyFrameBoundary;
-        uint16_t timeout = 10;
-        VRST_SST_SSP::read(vtotal, vsst, vssp);
-        earlyFrameBoundary = vtotal / 4;
-        vtotal -= syncLastCorrection;
-        if (frameTimeLockMethod == 1) { // moves VS position
-          vsst -= syncLastCorrection;
-          vssp -= syncLastCorrection;
-        }
-        // else it is method 0: leaves VS position alone
-
-        do {
-          // wait for next frame start + 20 lines for stability
-          currentLineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
-        } while ((currentLineNumber > earlyFrameBoundary || currentLineNumber < 20) && --timeout > 0);
-        VRST_SST_SSP::write(vtotal, vsst, vssp);
-#ifdef FS_DEBUG
-        Serial.print(" vtotal now: "); Serial.println(vtotal);
-#endif
-      }
-      else {
-#ifdef FS_DEBUG
-        uint16_t vtotal = 0, vsst = 0, vssp = 0;
-        VRST_SST_SSP::read(vtotal, vsst, vssp);
-        Serial.print("reset without restore > vtotal now: "); Serial.println(vtotal);
-#endif
-      }
-      reset(); // sets syncLockReady = false, which in turn starts a new findBestHtotal run in loop()
-      prevHtotal = thisHtotal;
+    if (delayLock < 2) {
+      delayLock++;
       return true;
     }
 
     if (!vsyncPeriodAndPhase(&period, NULL, &phase))
       return false;
 
-    target = (syncTargetPhase * period) / 360; // -300; //debug
+    target = (syncTargetPhase * period) / 360;
 
     if (phase > target)
       correction = 0;
@@ -300,37 +286,32 @@ public:
       correction = syncCorrection;
 
 #ifdef FS_DEBUG
-    if (correction || syncLastCorrection) {
-      Serial.print("Correction: "); Serial.print(correction);
-      Serial.print(" syncLastCorrection: "); Serial.println(syncLastCorrection);
-    }
+    Serial.print(" target: "); Serial.print(target);
+    Serial.print(" phase: "); Serial.println(phase);
 #endif
+
+    if (correction == syncLastCorrection) {
+      return true;
+    }
+
     int16_t delta = correction - syncLastCorrection;
-    uint16_t vtotal = 0, vsst = 0, vssp = 0;
-    uint16_t currentLineNumber, earlyFrameBoundary;
-    uint16_t timeout = 10; // this routine usually finishes on first or second attempt
-    VRST_SST_SSP::read(vtotal, vsst, vssp);
-    earlyFrameBoundary = vtotal / 4;
+    uint16_t vtotal = 0, vsst = 0;
+    uint16_t timeout = 0;
+    VRST_SST::read(vtotal, vsst);
     vtotal += delta;
     if (frameTimeLockMethod == 1) { // moves VS position
       vsst += delta;
-      vssp += delta;
     }
     // else it is method 0: leaves VS position alone
 
     do {
-      // wait for next frame start + 20 lines for stability
-      currentLineNumber = GBS::STATUS_VDS_VERT_COUNT::read();
-    } while ((currentLineNumber > earlyFrameBoundary || currentLineNumber < 20) && --timeout > 0);
-    VRST_SST_SSP::write(vtotal, vsst, vssp);
-
+      // wait for right window for stability
+    } while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 400));
+    
+    VRST_SST::write(vtotal, vsst);
     syncLastCorrection = correction;
-    prevHtotal = thisHtotal;
 
 #ifdef FS_DEBUG
-    VRST_SST_SSP::read(vtotal, vsst, vssp);
-    Serial.print("thisHtotal: "); Serial.print(thisHtotal);
-    Serial.print(" prevHtotal: "); Serial.print(prevHtotal);
     Serial.print("  vtotal: "); Serial.println(vtotal);
 #endif
 
@@ -340,6 +321,9 @@ public:
 
 template <class GBS, class Attrs>
 int16_t FrameSyncManager<GBS, Attrs>::syncLastCorrection;
+
+template <class GBS, class Attrs>
+uint8_t FrameSyncManager<GBS, Attrs>::delayLock;
 
 template <class GBS, class Attrs>
 bool FrameSyncManager<GBS, Attrs>::syncLockReady;

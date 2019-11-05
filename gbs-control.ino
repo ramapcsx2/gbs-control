@@ -116,9 +116,10 @@ uint8_t getMovingAverage(uint8_t item)
 //
 struct FrameSyncAttrs {
   static const uint8_t debugInPin = DEBUG_IN_PIN;
-  static const uint32_t lockInterval = 60 * 16; // every 60 frames. good range for this: 30 to 90 (milliseconds)
-  static const int16_t syncCorrection = 2; // Sync correction in scanlines to apply when phase lags target
-  static const int32_t syncTargetPhase = 90; // Target vsync phase offset (output trails input) in degrees
+  static const uint32_t lockInterval = 120 * 16; // every 120 frames
+  static const int16_t syncCorrection = 1; // Sync correction in scanlines to apply when phase lags target
+  static const int32_t syncTargetPhase = 115; // Target vsync phase offset (output trails input) in degrees
+  // to debug: syncTargetPhase = 343 lockInterval = 15 * 16
 };
 typedef FrameSyncManager<GBS, FrameSyncAttrs> FrameSync;
 
@@ -382,6 +383,8 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
   //GBS::DAC_RGBS_PWDNZ::write(0);    // no DAC
   //GBS::SFTRST_MEM_FF_RSTZ::write(0);  // stop mem fifos
 
+  FrameSync::cleanup();
+
   // should only be possible if previously was in RGBHV bypass, then hit a manual preset switch
   if (rto->videoStandardInput == 15) {
     rto->videoStandardInput = 0;
@@ -525,6 +528,35 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
   }
 }
 
+void activeFrameTimeLockInitialSteps() {
+  SerialM.print(F("Active FrameTime Lock enabled, disable if display unstable or stays blank! Method: "));
+  if (uopt->frameTimeLockMethod == 1) {
+    SerialM.println("1 (vtotal + VSST)");
+  }
+  if (uopt->frameTimeLockMethod == 0) {
+    SerialM.println("0 (vtotal only)");
+  }
+  if (GBS::VDS_VS_ST::read() == 0) {
+    // VS_ST needs to be at least 1, so method 1 can decrease it when needed (but currently only increases VS_ST)
+    // don't force this here, instead make sure to have all presets follow the rule (easier dev)
+    SerialM.println(F("Warning: Check VDS_VS_ST!"));
+  }
+  
+  // show the display that vtotal can vary by one, helps one of my test displays be
+  // less "surprised" by this several seconds or minutes into working mode
+  //uint16_t timeout = 0;
+  //for (uint8_t i = 0; i < 2; i++) {
+  //  handleWiFi(0); timeout = 0;
+  //  do {} while ((GBS::STATUS_VDS_FIELD::read() == 0) && (++timeout < 400)); 
+  //  do {} while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 800));
+  //  GBS::VDS_VSYNC_RST::write(GBS::VDS_VSYNC_RST::read() + 1);
+  //  delay(1); handleWiFi(0); timeout = 0;
+  //  delay(800);
+  //  do {} while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 400));
+  //  GBS::VDS_VSYNC_RST::write(GBS::VDS_VSYNC_RST::read() - 1);
+  //}
+}
+
 void resetInterruptSogBadBit() {
   GBS::INT_CONTROL_RST_SOGBAD::write(1);
   GBS::INT_CONTROL_RST_SOGBAD::write(0);
@@ -572,6 +604,8 @@ void setResetParameters() {
   GBS::GBS_PRESET_ID::write(0);
   GBS::GBS_OPTION_SCALING_RGBHV::write(0);
   GBS::GBS_OPTION_PALFORCED60_ENABLED::write(0);
+
+  FrameSync::cleanup();
 
   GBS::OUT_SYNC_CNTRL::write(0);          // no H / V sync out to PAD
   GBS::DAC_RGBS_PWDNZ::write(0);          // disable DAC
@@ -2353,7 +2387,7 @@ boolean runAutoBestHTotal() {
     }
 
     // if we reach here, it failed
-    FrameSync::reset();
+    FrameSync::reset(uopt->frameTimeLockMethod);
 
     if (rto->syncLockFailIgnore > 0) {
       rto->syncLockFailIgnore--;
@@ -2438,7 +2472,7 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
       rto->failRetryAttempts++;
       if (rto->failRetryAttempts < 8) {
         SerialM.println("retry");
-        FrameSync::reset();
+        FrameSync::reset(uopt->frameTimeLockMethod);
         delay(60);
       }
       else {
@@ -2525,10 +2559,10 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
 
   // finally, fix forced timings with large diff
   if (isLargeDiff) {
-    h_blank_display_start_position = bestHTotal * 0.996f;
-    h_blank_display_stop_position = bestHTotal * 0.08f;
-    h_blank_memory_start_position = h_blank_display_start_position;
-    h_blank_memory_stop_position = h_blank_display_stop_position * 0.2f;
+    h_blank_display_start_position = bestHTotal * 0.946f;
+    h_blank_display_stop_position = bestHTotal * 0.22f;
+    h_blank_memory_start_position = h_blank_display_start_position - 4;
+    h_blank_memory_stop_position = bestHTotal * 0.138f;
 
     if (h_sync_start_position > h_sync_stop_position) { // is neg HSync
       h_sync_stop_position = 0;
@@ -3056,7 +3090,7 @@ void doPostPresetLoadSteps() {
 
   resetDebugPort();
   Menu::init();
-  FrameSync::reset();
+  FrameSync::cleanup();
   rto->syncLockFailIgnore = 16;
 
   if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0) {
@@ -3253,7 +3287,7 @@ void doPostPresetLoadSteps() {
   unfreezeVideo();
 
   if (uopt->enableFrameTimeLock) {
-    SerialM.println(F("FrameTime Lock is enabled. Disable if display goes blank!"));
+    activeFrameTimeLockInitialSteps();
   }
 
   SerialM.print(F("post preset done (preset id: ")); SerialM.print(rto->presetID, HEX);
@@ -3942,6 +3976,7 @@ void setOutModeHdBypass() {
       typeOneCommand = 'D';
     }
   }
+  FrameSync::cleanup();
   GBS::ADC_UNUSED_62::write(0x00);      // clear debug view
   GBS::RESET_CONTROL_0x46::write(0x00); // 0_46 all off, nothing needs to be enabled for bp mode
   GBS::RESET_CONTROL_0x47::write(0x00);
@@ -4164,6 +4199,7 @@ void bypassModeSwitch_RGBHV() {
   GBS::PAD_SYNC_OUT_ENZ::write(1);  // disable sync out
   
   loadHdBypassSection();
+  FrameSync::cleanup();
   GBS::ADC_UNUSED_62::write(0x00);      // clear debug view
   GBS::PA_ADC_BYPSZ::write(1);          // enable phase unit ADC
   GBS::PA_SP_BYPSZ::write(1);           // enable phase unit SP
@@ -4973,7 +5009,7 @@ void runSyncWatcher()
       // clamp will be updated at continousStableCounter 50
       rto->coastPositionIsSet = false;
       rto->phaseIsSet = false;
-      FrameSync::reset();
+      FrameSync::reset(uopt->frameTimeLockMethod);
       doFullRestore = 1;
       SerialM.println();
     }
@@ -6208,20 +6244,18 @@ void loop() {
     break;
     case 'C':
       SerialM.println("PLL: ICLK");
-      GBS::PLL_MS::write(0); // required again (108Mhz)
-      //GBS::MEM_ADR_DLY_REG::write(0x03); GBS::MEM_CLK_DLY_REG::write(0x03); // memory subtimings
-      GBS::PLLAD_FS::write(1); // gain high
-      GBS::PLLAD_ICP::write(3); // CPC was 5, but MD works with as low as 0 and it removes a glitch
+      // display clock in last test best at 0x85
+      GBS::PLL648_CONTROL_01::write(0x85);
       GBS::PLL_CKIS::write(1); // PLL use ICLK (instead of oscillator)
       latchPLLAD();
-      GBS::VDS_HSCALE::write(512);
+      //GBS::VDS_HSCALE::write(512);
       rto->syncLockFailIgnore = 16;
-      //FrameSync::reset(); // adjust htotal to new display clock
-      //rto->forceRetime = true;
-      applyBestHTotal(FrameSync::init()); // adjust htotal to new display clock
-      applyBestHTotal(FrameSync::init()); // twice
+      FrameSync::reset(uopt->frameTimeLockMethod); // adjust htotal to new display clock
+      rto->forceRetime = true;
+      //applyBestHTotal(FrameSync::init()); // adjust htotal to new display clock
+      //applyBestHTotal(FrameSync::init()); // twice
       //GBS::VDS_FLOCK_EN::write(1); //risky
-      delay(100);
+      delay(200);
     break;
     case 'Y':
       writeProgramArrayNew(ntsc_1280x720, false);
@@ -6293,7 +6327,7 @@ void loop() {
       rto->autoBestHtotalEnabled = true;
       rto->syncLockFailIgnore = 16;
       rto->forceRetime = true;
-      FrameSync::reset();
+      FrameSync::reset(uopt->frameTimeLockMethod);
 
       if (!rto->syncWatcherEnabled) {
         boolean autoBestHtotalSuccess = 0;
@@ -6402,12 +6436,20 @@ void loop() {
     case 'a':
       SerialM.print("HTotal++: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
       if (GBS::VDS_HSYNC_RST::read() < 4095) {
+        if (uopt->enableFrameTimeLock) {
+          // syncLastCorrection != 0 check is included
+          FrameSync::reset(uopt->frameTimeLockMethod);
+        }
         applyBestHTotal(GBS::VDS_HSYNC_RST::read() + 1);
       }
     break;
     case 'A':
       SerialM.print("HTotal--: "); SerialM.println(GBS::VDS_HSYNC_RST::read());
       if (GBS::VDS_HSYNC_RST::read() > 0) {
+        if (uopt->enableFrameTimeLock) {
+          // syncLastCorrection != 0 check is included
+          FrameSync::reset(uopt->frameTimeLockMethod);
+        }
         applyBestHTotal(GBS::VDS_HSYNC_RST::read() - 1);
       }
     break;
@@ -7000,7 +7042,7 @@ void loop() {
     }
     if (!FrameSync::run(uopt->frameTimeLockMethod)) {
       if (rto->syncLockFailIgnore-- == 0) {
-        FrameSync::reset(); // in case run() failed because we lost sync signal
+        FrameSync::reset(uopt->frameTimeLockMethod); // in case run() failed because we lost sync signal
       }
     }
     else if (rto->syncLockFailIgnore > 0) {
@@ -7257,8 +7299,10 @@ void handleType2Command(char argument) {
     saveUserPrefs();
     if (uopt->enableFrameTimeLock) { SerialM.println("FTL on"); }
     else { SerialM.println("FTL off"); }
-    FrameSync::reset();
-    //runAutoBestHTotal(); // includes needed checks
+    FrameSync::reset(uopt->frameTimeLockMethod);
+    if (uopt->enableFrameTimeLock) {
+      activeFrameTimeLockInitialSteps();
+    }
     break;
   case '6':
     //
@@ -7365,16 +7409,15 @@ void handleType2Command(char argument) {
   break;
   case 'i':
     // toggle active frametime lock method
-    SerialM.print("FTL method: ");
+    FrameSync::reset(uopt->frameTimeLockMethod);
     if (uopt->frameTimeLockMethod == 0) {
       uopt->frameTimeLockMethod = 1;
-      SerialM.println("1");
     }
     else if (uopt->frameTimeLockMethod == 1) {
       uopt->frameTimeLockMethod = 0;
-      SerialM.println("0");
     }
     saveUserPrefs();
+    activeFrameTimeLockInitialSteps();
     break;
   case 'l':
     // cycle through available SDRAM clocks
