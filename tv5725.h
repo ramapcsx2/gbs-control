@@ -361,7 +361,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x03, 0x1F, 4,  1> VDS_DIF_FR_SEL_EN;
     typedef UReg<0x03, 0x1F, 5,  1> VDS_EN_FR_NUM_RST;
     typedef UReg<0x03, 0x20, 0, 11> VDS_VSYN_SIZE1;
-    typedef UReg<0x03, 0x21, 0, 11> VDS_VSYN_SIZE2;
+    typedef UReg<0x03, 0x22, 0, 11> VDS_VSYN_SIZE2;
     typedef UReg<0x03, 0x24, 0,  8> VDS_3_24; // convenience
     typedef UReg<0x03, 0x24, 0,  1> VDS_UV_FLIP;
     typedef UReg<0x03, 0x24, 1,  1> VDS_U_DELAY;

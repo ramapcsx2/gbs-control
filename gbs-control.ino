@@ -116,9 +116,9 @@ uint8_t getMovingAverage(uint8_t item)
 //
 struct FrameSyncAttrs {
   static const uint8_t debugInPin = DEBUG_IN_PIN;
-  static const uint32_t lockInterval = 120 * 16; // every 120 frames
-  static const int16_t syncCorrection = 1; // Sync correction in scanlines to apply when phase lags target
-  static const int32_t syncTargetPhase = 115; // Target vsync phase offset (output trails input) in degrees
+  static const uint32_t lockInterval = 100 * 16.70; // every 100 frames
+  static const int16_t syncCorrection = 2; // Sync correction in scanlines to apply when phase lags target
+  static const int32_t syncTargetPhase = 90; // Target vsync phase offset (output trails input) in degrees
   // to debug: syncTargetPhase = 343 lockInterval = 15 * 16
 };
 typedef FrameSyncManager<GBS, FrameSyncAttrs> FrameSync;
@@ -530,31 +530,17 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
 
 void activeFrameTimeLockInitialSteps() {
   SerialM.print(F("Active FrameTime Lock enabled, disable if display unstable or stays blank! Method: "));
-  if (uopt->frameTimeLockMethod == 1) {
-    SerialM.println("1 (vtotal + VSST)");
-  }
   if (uopt->frameTimeLockMethod == 0) {
-    SerialM.println("0 (vtotal only)");
+    SerialM.println("0 (vtotal + VSST)");
+  }
+  if (uopt->frameTimeLockMethod == 1) {
+    SerialM.println("1 (vtotal only)");
   }
   if (GBS::VDS_VS_ST::read() == 0) {
     // VS_ST needs to be at least 1, so method 1 can decrease it when needed (but currently only increases VS_ST)
     // don't force this here, instead make sure to have all presets follow the rule (easier dev)
     SerialM.println(F("Warning: Check VDS_VS_ST!"));
   }
-  
-  // show the display that vtotal can vary by one, helps one of my test displays be
-  // less "surprised" by this several seconds or minutes into working mode
-  //uint16_t timeout = 0;
-  //for (uint8_t i = 0; i < 2; i++) {
-  //  handleWiFi(0); timeout = 0;
-  //  do {} while ((GBS::STATUS_VDS_FIELD::read() == 0) && (++timeout < 400)); 
-  //  do {} while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 800));
-  //  GBS::VDS_VSYNC_RST::write(GBS::VDS_VSYNC_RST::read() + 1);
-  //  delay(1); handleWiFi(0); timeout = 0;
-  //  delay(800);
-  //  do {} while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 400));
-  //  GBS::VDS_VSYNC_RST::write(GBS::VDS_VSYNC_RST::read() - 1);
-  //}
 }
 
 void resetInterruptSogBadBit() {
@@ -2193,6 +2179,10 @@ void set_vtotal(uint16_t vtotal) {
   GBS::VDS_VB_SP::write(VDS_VB_SP);
   GBS::VDS_DIS_VB_ST::write(VDS_DIS_VB_ST);
   GBS::VDS_DIS_VB_SP::write(VDS_DIS_VB_SP);
+
+  // VDS_VSYN_SIZE1 + VDS_VSYN_SIZE2 to VDS_VSYNC_RST + 2
+  GBS::VDS_VSYN_SIZE1::write(GBS::VDS_VSYNC_RST::read() + 2);
+  GBS::VDS_VSYN_SIZE2::write(GBS::VDS_VSYNC_RST::read() + 2);
 }
 
 void resetDebugPort() {
@@ -2576,8 +2566,12 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   }
 
   if (diffHTotal != 0) { // apply
-    //Serial.println("                        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-    GBS::VDS_HSYNC_RST::write(bestHTotal); // instant apply
+    // delay the change to field start, a bit more compatible
+    uint16_t timeout = 0;
+    while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 400));
+    while ((GBS::STATUS_VDS_FIELD::read() == 0) && (++timeout < 800));
+
+    GBS::VDS_HSYNC_RST::write(bestHTotal);
     GBS::VDS_DIS_HB_ST::write(h_blank_display_start_position);
     GBS::VDS_DIS_HB_SP::write(h_blank_display_stop_position);
     GBS::VDS_HB_ST::write(h_blank_memory_start_position);
@@ -2797,7 +2791,8 @@ void doPostPresetLoadSteps() {
 
     setIfHblankParameters();              // 1_0e, 1_18, 1_1a
     GBS::IF_INI_ST::write(0);             // 16.08.19: don't calculate, use fixed to 0
-    //GBS::IF_INI_ST::write(GBS::IF_HSYNC_RST::read() * 0.68); // see update above
+    // the following sets a field offset that eliminates 240p content forced to 480i flicker
+    //GBS::IF_INI_ST::write(GBS::PLLAD_MD::read() * 0.4261f);  // upper: * 0.4282f  lower: 0.424f
 
     GBS::IF_HS_INT_LPF_BYPS::write(0);    // 1_02 2
     // 0 allows int/lpf for smoother scrolling with non-ideal scaling, also reduces jailbars and even noise
@@ -3144,6 +3139,13 @@ void doPostPresetLoadSteps() {
   GBS::VDS_EXT_HB_SP::write(GBS::VDS_DIS_HB_SP::read());
   GBS::VDS_EXT_VB_ST::write(GBS::VDS_DIS_VB_ST::read());
   GBS::VDS_EXT_VB_SP::write(GBS::VDS_DIS_VB_SP::read());
+  // VDS_VSYN_SIZE1 + VDS_VSYN_SIZE2 to VDS_VSYNC_RST + 2
+  GBS::VDS_VSYN_SIZE1::write(GBS::VDS_VSYNC_RST::read() + 2);
+  GBS::VDS_VSYN_SIZE2::write(GBS::VDS_VSYNC_RST::read() + 2);
+  GBS::VDS_FRAME_RST::write(4); // 3_19
+  // VDS_FRAME_NO, VDS_FR_SELECT
+  GBS::VDS_FRAME_NO::write(1);  // 3_1f 0-3
+  GBS::VDS_FR_SELECT::write(1); // 3_1b, 3_1c, 3_1d, 3_1e
 
   // noise starts here!
   resetDigital();
@@ -6323,18 +6325,20 @@ void loop() {
     break;
     case '.':
     {
-      // bestHtotal recalc
-      rto->autoBestHtotalEnabled = true;
-      rto->syncLockFailIgnore = 16;
-      rto->forceRetime = true;
-      FrameSync::reset(uopt->frameTimeLockMethod);
+      if (!rto->outModeHdBypass) {
+        // bestHtotal recalc
+        rto->autoBestHtotalEnabled = true;
+        rto->syncLockFailIgnore = 16;
+        rto->forceRetime = true;
+        FrameSync::reset(uopt->frameTimeLockMethod);
 
-      if (!rto->syncWatcherEnabled) {
-        boolean autoBestHtotalSuccess = 0;
-        delay(30);
-        autoBestHtotalSuccess = runAutoBestHTotal();
-        if (!autoBestHtotalSuccess) {
-          SerialM.println(F("(unchanged)"));
+        if (!rto->syncWatcherEnabled) {
+          boolean autoBestHtotalSuccess = 0;
+          delay(30);
+          autoBestHtotalSuccess = runAutoBestHTotal();
+          if (!autoBestHtotalSuccess) {
+            SerialM.println(F("(unchanged)"));
+          }
         }
       }
     }
@@ -7040,6 +7044,7 @@ void loop() {
     if (debug_backup != 0x0) {
       GBS::TEST_BUS_SEL::write(0x0);
     }
+    //unsigned long startTime = millis();
     if (!FrameSync::run(uopt->frameTimeLockMethod)) {
       if (rto->syncLockFailIgnore-- == 0) {
         FrameSync::reset(uopt->frameTimeLockMethod); // in case run() failed because we lost sync signal
@@ -7048,6 +7053,8 @@ void loop() {
     else if (rto->syncLockFailIgnore > 0) {
       rto->syncLockFailIgnore = 16;
     }
+    //Serial.println(millis() - startTime);
+
     if (debug_backup != 0x0) {
       GBS::TEST_BUS_SEL::write(debug_backup);
     }

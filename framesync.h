@@ -15,7 +15,10 @@
 // no define for DEBUG_IN_PIN
 #endif
 
+// FS_DEBUG:      full verbose debug over serial
+// FS_DEBUG_LED:  just blink LED (off = adjust phase, on = normal phase)
 //#define FS_DEBUG
+//#define FS_DEBUG_LED
 
 volatile uint32_t stopTime, startTime;
 
@@ -132,12 +135,14 @@ private:
 
     if (inPeriod == 0 || outPeriod == 0) { return false; } // safety
 
-    inPeriod -= 18; // skew to smaller bestHtotal 
+    //inPeriod -= 18; // use straight bestHtotal -= 1 instead
     // large htotal can push intermediates to 33 bits
     bestHtotal = (uint64_t)(inHtotal * (uint64_t)inPeriod) / (uint64_t)outPeriod;
+    bestHtotal -= 1;  // skew to smaller bestHtotal
 
-    if (bestHtotal == (inHtotal + 1)) { bestHtotal -= 1; } // works well
-    if (bestHtotal == (inHtotal - 1)) { bestHtotal += 1; } // check with SNES + vtotal = 1000 (1280x960)
+    // new 08.11.19: skip this step, IF period measurement should be stable enough to give repeatable results
+    //if (bestHtotal == (inHtotal + 1)) { bestHtotal -= 1; } // works well
+    //if (bestHtotal == (inHtotal - 1)) { bestHtotal += 1; } // check with SNES + vtotal = 1000 (1280x960)
 
 #ifdef FS_DEBUG
     if (bestHtotal != inHtotal) {
@@ -164,14 +169,15 @@ public:
       VRST_SST::read(vtotal, vsst);
       uint16_t timeout = 0;
       vtotal -= syncLastCorrection;
-      if (frameTimeLockMethod == 1) { // moves VS position
+      if (frameTimeLockMethod == 0) { // moves VS position
         vsst -= syncLastCorrection;
       }
-      do {
-        // wait for right window for stability
-      } while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 400));
-      
-      VRST_SST::write(vtotal, vsst);
+
+      while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 400));
+      GBS::VDS_VS_ST::write(vsst);
+      timeout = 0;
+      while ((GBS::STATUS_VDS_FIELD::read() == 0) && (++timeout < 400));
+      GBS::VDS_VSYNC_RST::write(vtotal);
     }
 #ifdef FS_DEBUG
     else {
@@ -286,10 +292,22 @@ public:
       correction = syncCorrection;
 
 #ifdef FS_DEBUG
-    Serial.print(" target: "); Serial.print(target);
-    Serial.print(" phase: "); Serial.println(phase);
+    Serial.printf("phase: %7d target: %7d", phase, target);
+    if (correction == syncLastCorrection) {
+      // terminate line if returning early
+      Serial.println();
+    }
+#endif
+#ifdef FS_DEBUG_LED
+    if (correction == 0) {
+      digitalWrite(LED_BUILTIN, LOW); // LED ON
+    }
+    else {
+      digitalWrite(LED_BUILTIN, HIGH); // LED OFF
+    }
 #endif
 
+    // return early?
     if (correction == syncLastCorrection) {
       return true;
     }
@@ -299,20 +317,21 @@ public:
     uint16_t timeout = 0;
     VRST_SST::read(vtotal, vsst);
     vtotal += delta;
-    if (frameTimeLockMethod == 1) { // moves VS position
+    if (frameTimeLockMethod == 0) { // moves VS position
       vsst += delta;
     }
-    // else it is method 0: leaves VS position alone
+    // else it is method 1: leaves VS position alone
 
-    do {
-      // wait for right window for stability
-    } while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 400));
-    
-    VRST_SST::write(vtotal, vsst);
+    while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 400));
+    GBS::VDS_VS_ST::write(vsst);
+    timeout = 0;
+    while ((GBS::STATUS_VDS_FIELD::read() == 0) && (++timeout < 400));
+    GBS::VDS_VSYNC_RST::write(vtotal);
+
     syncLastCorrection = correction;
 
 #ifdef FS_DEBUG
-    Serial.print("  vtotal: "); Serial.println(vtotal);
+    Serial.printf("  vtotal: %4d\n", vtotal);
 #endif
 
     return true;
