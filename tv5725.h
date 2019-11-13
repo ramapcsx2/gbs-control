@@ -268,6 +268,9 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x45, 0, 12> HD_VB_SP;
     typedef UReg<0x01, 0x47, 0, 12> HD_VS_ST;
     typedef UReg<0x01, 0x49, 0, 12> HD_VS_SP;
+    typedef UReg<0x01, 0x53, 0,  8> HD_BLK_GY_DATA;
+    typedef UReg<0x01, 0x54, 0,  8> HD_BLK_BU_DATA;
+    typedef UReg<0x01, 0x55, 0,  8> HD_BLK_RV_DATA;
 
     // Mode Detect
     typedef UReg<0x01, 0x60, 0,  5> MD_HPERIOD_LOCK_VALUE;
