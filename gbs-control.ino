@@ -2175,17 +2175,17 @@ void getVideoTimings() {
     SerialM.print(" "); SerialM.println(GBS::HD_HB_SP::read());
     SerialM.println(F("------"));
     // vertical 
-    SerialM.print(F("VT           : ")); SerialM.println(GBS::STATUS_SYNC_PROC_VTOTAL::read());
     SerialM.print(F("VS ST/SP     : ")); SerialM.print(GBS::HD_VS_ST::read());
     SerialM.print(" "); SerialM.println(GBS::HD_VS_SP::read());
     SerialM.print(F("VB ST/SP     : ")); SerialM.print(GBS::HD_VB_ST::read());
     SerialM.print(" "); SerialM.println(GBS::HD_VB_SP::read());
-
-    SerialM.print(F("CsVS_ST/SP   : ")); SerialM.print(getCsVsStart());
-    SerialM.print(F(" ")); SerialM.println(getCsVsStop());
     SerialM.print(F("HD_HSYNC_RST : ")); SerialM.println(GBS::HD_HSYNC_RST::read());
     SerialM.print(F("HD_INI_ST    : ")); SerialM.println(GBS::HD_INI_ST::read());
   }
+
+  SerialM.print(F("CsVT         : ")); SerialM.println(GBS::STATUS_SYNC_PROC_VTOTAL::read());
+  SerialM.print(F("CsVS_ST/SP   : ")); SerialM.print(getCsVsStart());
+  SerialM.print(F(" ")); SerialM.println(getCsVsStop());
 }
 
 void set_htotal(uint16_t htotal) {

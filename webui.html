@@ -155,143 +155,144 @@
         </style>
         <script>
             function content1() {
-                document.getElementById("display").innerHTML = 
+                document.getElementById("display").innerHTML =
                 '<p>Choose an output resolution from these presets. Your selection will also be used for startup.</p>' +
                 '<p>1280x960 is recommended for NTSC sources, 1280x1024 for PAL.</p>' +
                 '<p>If either of these presets is selected, the best one for the source will be used. This can be changed in the Preferences tab.</p>' +
-                '<button class="button preset" type="button" id="1" onclick="loadUser(\'f\')">1280x960</button>' + 
-                '<button class="button preset" type="button" id="2" onclick="loadUser(\'p\')">1280x1024</button>' + 
-                '<button class="button preset" type="button" id="3" onclick="loadUser(\'g\')">1280x720</button>' + 
-                '<button class="button preset" type="button" id="5" onclick="loadUser(\'s\')">1920x1080</button>' + 
-                '<button class="button preset" type="button" id="4" onclick="loadUser(\'h\')">640x480</button>' + 
-                '<button class="button preset" type="button" id="8" onclick="loadDoc(\'K\')">Source Pass-through</button>' + 
-                '<br><br><br>' + 
-                '<p>If you want to save your customizations, first select a slot for your new preset, then save to or load from that slot.</p>' + 
-                '<p>Selecting a slot also makes it the new startup preset.</p>' + 
-                '<button class="button slot" type="button" id="11" onclick="loadUser(\'b\')">Slot 1</button>' + 
-                '<button class="button slot" type="button" id="12" onclick="loadUser(\'c\')">Slot 2</button>' + 
-                '<button class="button slot" type="button" id="13" onclick="loadUser(\'d\')">Slot 3</button>' + 
-                '<button class="button slot" type="button" id="14" onclick="loadUser(\'j\')">Slot 4</button>' + 
-                '<button class="button slot" type="button" id="15" onclick="loadUser(\'k\')">Slot 5</button>' + 
-                '<br>' + 
-                '<button class="button preset" type="button" id="9" onclick="loadUser(\'3\')">Load Custom Preset</button>' + 
+                '<button class="button preset" type="button" id="1" onclick="loadUser(\'f\')">1280x960</button>' +
+                '<button class="button preset" type="button" id="2" onclick="loadUser(\'p\')">1280x1024</button>' +
+                '<button class="button preset" type="button" id="3" onclick="loadUser(\'g\')">1280x720</button>' +
+                '<button class="button preset" type="button" id="5" onclick="loadUser(\'s\')">1920x1080</button>' +
+                '<button class="button preset" type="button" id="4" onclick="loadUser(\'h\')">640x480</button>' +
+                '<button class="button preset" type="button" id="8" onclick="loadDoc(\'K\')">Source Pass-through</button>' +
+                '<br><br><br>' +
+                '<p>If you want to save your customizations, first select a slot for your new preset, then save to or load from that slot.</p>' +
+                '<p>Selecting a slot also makes it the new startup preset.</p>' +
+                '<button class="button slot" type="button" id="11" onclick="loadUser(\'b\')">Slot 1</button>' +
+                '<button class="button slot" type="button" id="12" onclick="loadUser(\'c\')">Slot 2</button>' +
+                '<button class="button slot" type="button" id="13" onclick="loadUser(\'d\')">Slot 3</button>' +
+                '<button class="button slot" type="button" id="14" onclick="loadUser(\'j\')">Slot 4</button>' +
+                '<button class="button slot" type="button" id="15" onclick="loadUser(\'k\')">Slot 5</button>' +
+                '<br>' +
+                '<button class="button preset" type="button" id="9" onclick="loadUser(\'3\')">Load Custom Preset</button>' +
                 '<button class="button" type="button" onclick="loadUser(\'4\')">Save Custom Preset</button>';
             }
             function content2() {
-                document.getElementById("display").innerHTML = 
-                '<h2>Move Picture</h2>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'*\')">Picture Up</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'/\')">Picture Down</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'7\')">Picture Left</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'6\')">Picture Right</button>' + 
-                '<h2>Scaling</h2>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'z\')">Horizontal +</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'h\')">Horizontal -</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'4\')">Vertical +</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'5\')">Vertical -</button>' + 
-                '<h2>Boarder Masking</h2>' + 
-                '<button class="button" type="button" onclick="loadUser(\'A\')">Horizontal +</button>' + 
-                '<button class="button" type="button" onclick="loadUser(\'B\')">Horizontal -</button>' + 
-                '<button class="button" type="button" onclick="loadUser(\'C\')">Vertical +</button>' + 
-                '<button class="button" type="button" onclick="loadUser(\'D\')">Vertical -</button>' + '<br>' + 
-                '<h2>ADC Gain (brightness)</h2>' + 
-                '<p>Gain +/- adjusts the gain for the currently loaded preset.</p>' + 
-                '<button class="button" type="button" onclick="loadUser(\'n\')">Gain +</button>' + 
-                '<button class="button" type="button" onclick="loadUser(\'o\')">Gain -</button>' + 
+                document.getElementById("display").innerHTML =
+                '<h2>Move Picture</h2>' +
+                '<button class="button repeating" type="button" onclick="loadDoc(\'*\')">Picture Up</button>' +
+                '<button class="button repeating" type="button" onclick="loadDoc(\'/\')">Picture Down</button>' +
+                '<button class="button repeating" type="button" onclick="loadDoc(\'7\')">Picture Left</button>' +
+                '<button class="button repeating" type="button" onclick="loadDoc(\'6\')">Picture Right</button>' +
+                '<h2>Scaling</h2>' +
+                '<button class="button repeating" type="button" onclick="loadDoc(\'z\')">Horizontal +</button>' +
+                '<button class="button repeating" type="button" onclick="loadDoc(\'h\')">Horizontal -</button>' +
+                '<button class="button repeating" type="button" onclick="loadDoc(\'4\')">Vertical +</button>' +
+                '<button class="button repeating" type="button" onclick="loadDoc(\'5\')">Vertical -</button>' +
+                '<h2>Border Masking</h2>' +
+                '<button class="button repeating" type="button" onclick="loadUser(\'A\')">Horizontal +</button>' +
+                '<button class="button repeating" type="button" onclick="loadUser(\'B\')">Horizontal -</button>' +
+                '<button class="button repeating" type="button" onclick="loadUser(\'C\')">Vertical +</button>' +
+                '<button class="button repeating" type="button" onclick="loadUser(\'D\')">Vertical -</button>' + '<br>' +
+                '<h2>ADC Gain (brightness)</h2>' +
+                '<p>Gain +/- adjusts the gain for the currently loaded preset.</p>' +
+                '<button class="button repeating" type="button" onclick="loadUser(\'n\')">Gain +</button>' +
+                '<button class="button repeating" type="button" onclick="loadUser(\'o\')">Gain -</button>' +
                 '<button class="button option adcAutoGain" type="button" onclick="loadDoc(\'T\')">Auto Gain Adjust Toggle</button>';
+                makeButtonsRepeatable();
             }
             function content3() {
-                document.getElementById("display").innerHTML = 
-                '<p>The Line Filter and Peaking options are recommended, the others are optional.</p>' + 
-                '<p>Scanlines only work with 240p sources at this time.</p>' + 
-                '<p>The 6-Tap LPF output filter should be enabled, unless you notice jailbar effects.</p>' + 
-                '<p>The Step Response filter sharpens color edges. It works best with 256px and 320px wide sources.</p>' + 
-                '<button class="button option scanlines" type="button" onclick="loadUser(\'7\')">Scanlines</button>' + 
-                '<button class="button option vdsLineFilter" type="button" onclick="loadUser(\'m\')">Line Filter</button>' + 
-                '<button class="button option peaking" type="button" onclick="loadDoc(\'f\')">Peaking</button>' + 
-                '<button class="button option step" type="button" onclick="loadDoc(\'V\')">Step Response</button>' + 
+                document.getElementById("display").innerHTML =
+                '<p>The Line Filter and Peaking options are recommended, the others are optional.</p>' +
+                '<p>Scanlines only work with 240p sources at this time.</p>' +
+                '<p>The 6-Tap LPF output filter should be enabled, unless you notice jailbar effects.</p>' +
+                '<p>The Step Response filter sharpens color edges. It works best with 256px and 320px wide sources.</p>' +
+                '<button class="button option scanlines" type="button" onclick="loadUser(\'7\')">Scanlines</button>' +
+                '<button class="button option vdsLineFilter" type="button" onclick="loadUser(\'m\')">Line Filter</button>' +
+                '<button class="button option peaking" type="button" onclick="loadDoc(\'f\')">Peaking</button>' +
+                '<button class="button option step" type="button" onclick="loadDoc(\'V\')">Step Response</button>' +
                 '<button class="button option tap6" type="button" onclick="loadUser(\'t\')">6-Tap LPF</button>';
             }
             function content5() {
-                document.getElementById("display").innerHTML = 
-                '<h2>Matched Preset for Source Format</h2>' + 
-                '<p>If enabled, default to 1280x960 for NTSC 60 and 1280x1024 for PAL 50 (does not apply for 720p / 1080p presets).</p>' + 
-                '<button class="button option matched" type="button" onclick="loadDoc(\'Z\')">Matched Presets</button>' + 
-                '<h2>Prefer Full Height</h2>' + 
-                '<p>Some presets default to not using the entire vertical output resolution, leaving some lines black.</p>' + 
-                '<p>With Full Height enabled, these presets will instead scale to fill more of the screen height.</p>' + 
-                '<p>(This currently only affects 1920 x 1080)</p>' + 
-                '<button class="button option fullHeight" type="button" onclick="loadUser(\'v\')">Full Height</button>' + 
-                '<h2>Low Resolution VGA input: Pass-through or Upscale</h2>' + 
-                '<p>Low resolution sources can be either passed on directly or get upscaled.</p>' + 
-                '<p>Upscaling may have some border / scaling issues, but is more compatible with displays.</p>' + 
-                '<p>Also, refresh rates other than 60Hz are not well supported yet.</p>' + 
-                '<p>"Low resolution" is currently set at below or equal to 640x480 (525 active lines).</p>' + 
-                '<button class="button option preferScalingRgbhv" type="button" onclick="loadUser(\'x\')">Low Res: Use Upscaling</button>' + 
-                '<h2>Output Format: RGBHV (regular) / YPbPr (Component Video)</h2>' + 
-                '<p>The default output mode is RGBHV, suitable for use with VGA cables or HDMI converters.</p>' + 
-                '<p>An experimental YPbPr mode can also be selected. Compatibility is still spotty.</p>' + 
-                '<button class="button option wantOutputComponent" type="button" onclick="loadDoc(\'L\')">RGBHV/Component Toggle</button>' + 
-                '<h2>Output Frame Rate: Force PAL 50Hz to 60Hz</h2>' + 
-                '<p>If your TV does not support 50Hz sources (displaying unknown format, no matter the preset), try this option.</p>' + 
-                '<p>The frame rate will not be as smooth. Reboot required.</p>' + 
-                '<button class="button option palForce60" type="button" onclick="loadUser(\'0\')">Force PAL 60Hz</button>' + 
-                '<h2>ADC auto offset calibration</h2>' + 
-                '<p>Gbscontrol calibrates the ADC offsets on startup.</p>' + 
-                '<p>In case of color shift problems, try disabling this function.</p>' + 
-                '<button class="button option enableCalibrationADC" type="button" onclick="loadUser(\'w\')">ADC calibration</button>' + 
-                '<h2>Active FrameTime Lock (not compatible with all displays)</h2>' + 
-                '<p>This option keeps the input and output timings aligned, fixing the horizontal tear line that can appear sometimes.</p>' + 
-                '<p>Two methods are available. Try switching methods if your display goes blank.</p>' + 
-                '<button class="button option frameTimeLock" type="button" onclick="loadUser(\'5\')">FrameTime Lock</button>' + 
+                document.getElementById("display").innerHTML =
+                '<h2>Matched Preset for Source Format</h2>' +
+                '<p>If enabled, default to 1280x960 for NTSC 60 and 1280x1024 for PAL 50 (does not apply for 720p / 1080p presets).</p>' +
+                '<button class="button option matched" type="button" onclick="loadDoc(\'Z\')">Matched Presets</button>' +
+                '<h2>Prefer Full Height</h2>' +
+                '<p>Some presets default to not using the entire vertical output resolution, leaving some lines black.</p>' +
+                '<p>With Full Height enabled, these presets will instead scale to fill more of the screen height.</p>' +
+                '<p>(This currently only affects 1920 x 1080)</p>' +
+                '<button class="button option fullHeight" type="button" onclick="loadUser(\'v\')">Full Height</button>' +
+                '<h2>Low Resolution VGA input: Pass-through or Upscale</h2>' +
+                '<p>Low resolution sources can be either passed on directly or get upscaled.</p>' +
+                '<p>Upscaling may have some border / scaling issues, but is more compatible with displays.</p>' +
+                '<p>Also, refresh rates other than 60Hz are not well supported yet.</p>' +
+                '<p>"Low resolution" is currently set at below or equal to 640x480 (525 active lines).</p>' +
+                '<button class="button option preferScalingRgbhv" type="button" onclick="loadUser(\'x\')">Low Res: Use Upscaling</button>' +
+                '<h2>Output Format: RGBHV (regular) / YPbPr (Component Video)</h2>' +
+                '<p>The default output mode is RGBHV, suitable for use with VGA cables or HDMI converters.</p>' +
+                '<p>An experimental YPbPr mode can also be selected. Compatibility is still spotty.</p>' +
+                '<button class="button option wantOutputComponent" type="button" onclick="loadDoc(\'L\')">RGBHV/Component Toggle</button>' +
+                '<h2>Output Frame Rate: Force PAL 50Hz to 60Hz</h2>' +
+                '<p>If your TV does not support 50Hz sources (displaying unknown format, no matter the preset), try this option.</p>' +
+                '<p>The frame rate will not be as smooth. Reboot required.</p>' +
+                '<button class="button option palForce60" type="button" onclick="loadUser(\'0\')">Force PAL 60Hz</button>' +
+                '<h2>ADC auto offset calibration</h2>' +
+                '<p>Gbscontrol calibrates the ADC offsets on startup.</p>' +
+                '<p>In case of color shift problems, try disabling this function.</p>' +
+                '<button class="button option enableCalibrationADC" type="button" onclick="loadUser(\'w\')">ADC calibration</button>' +
+                '<h2>Active FrameTime Lock (not compatible with all displays)</h2>' +
+                '<p>This option keeps the input and output timings aligned, fixing the horizontal tear line that can appear sometimes.</p>' +
+                '<p>Two methods are available. Try switching methods if your display goes blank.</p>' +
+                '<button class="button option frameTimeLock" type="button" onclick="loadUser(\'5\')">FrameTime Lock</button>' +
                 '<button class="button" type="button" onclick="loadUser(\'i\')">Switch Lock Method</button>' +
-                '<h2>Deinterlace Method</h2>' + 
-                '<p>Gbscontrol detects interlaced content and automatically toggles deinterlacing. <br>' + 
-                '- Bob Method: essentially no deinterlacing, no added lag but flickers <br>' + 
-                '- Motion Adaptive: removes flicker, adds 1 frame of lag and shows some artefacts in moving details<br>' + 
-                'If possible, configure the source for progressive output. Otherwise, using Motion Adaptive is recommended.</p>' + 
-                '<button class="button option motionAdaptive" type="button" onclick="loadUser(\'r\')">Use Motion Adaptive</button>' + 
+                '<h2>Deinterlace Method</h2>' +
+                '<p>Gbscontrol detects interlaced content and automatically toggles deinterlacing. <br>' +
+                '- Bob Method: essentially no deinterlacing, no added lag but flickers <br>' +
+                '- Motion Adaptive: removes flicker, adds 1 frame of lag and shows some artefacts in moving details<br>' +
+                'If possible, configure the source for progressive output. Otherwise, using Motion Adaptive is recommended.</p>' +
+                '<button class="button option motionAdaptive" type="button" onclick="loadUser(\'r\')">Use Motion Adaptive</button>' +
                 '<button class="button option bob" type="button" onclick="loadUser(\'q\')">Use Bob</button>';
             }
             function content6() {
-                document.getElementById("display").innerHTML = 
-                '<p>Options that aid in development of gbscontrol. Users normally don\'t need to adjust these.</p>' + 
-                '<h2>Move Picture (memory blank, HS)</h2>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'-\')">Left</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'+\')">Right</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'1\')">HS Left</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'0\')">HS Right</button>' + 
-                '<h2>Information</h2>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'i\')">Print Infos</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\',\')">Get Video Timings</button>' + 
-                '<h2>Commands</h2>' + 
-                '<button class="button" type="button" onclick="loadUser(\'l\')">Cycle SDRAM clock speed</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'q\')">Reset Chip</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'8\')">Invert Sync</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'n\')">PLL divider++</button>' + 
-                '<br>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'D\')">Debug View</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'F\')">ADC Filter</button>' + 
+                document.getElementById("display").innerHTML =
+                '<p>Options that aid in development of gbscontrol. Users normally don\'t need to adjust these.</p>' +
+                '<h2>Move Picture (memory blank, HS)</h2>' +
+                '<button class="button" type="button" onclick="loadDoc(\'-\')">Left</button>' +
+                '<button class="button" type="button" onclick="loadDoc(\'+\')">Right</button>' +
+                '<button class="button" type="button" onclick="loadDoc(\'1\')">HS Left</button>' +
+                '<button class="button" type="button" onclick="loadDoc(\'0\')">HS Right</button>' +
+                '<h2>Information</h2>' +
+                '<button class="button" type="button" onclick="loadDoc(\'i\')">Print Infos</button>' +
+                '<button class="button" type="button" onclick="loadDoc(\',\')">Get Video Timings</button>' +
+                '<h2>Commands</h2>' +
+                '<button class="button" type="button" onclick="loadUser(\'l\')">Cycle SDRAM clock speed</button>' +
+                '<button class="button" type="button" onclick="loadDoc(\'q\')">Reset Chip</button>' +
+                '<button class="button" type="button" onclick="loadDoc(\'8\')">Invert Sync</button>' +
+                '<button class="button" type="button" onclick="loadDoc(\'n\')">PLL divider++</button>' +
+                '<br>' +
+                '<button class="button" type="button" onclick="loadDoc(\'D\')">Debug View</button>' +
+                '<button class="button" type="button" onclick="loadDoc(\'F\')">ADC Filter</button>' +
                 '<button class="button" type="button" onclick="loadDoc(\'o\')">Oversampling</button>' +
-                '<button class="button" type="button" onclick="loadUser(\'F\')">Freeze Capture</button>' + 
+                '<button class="button" type="button" onclick="loadUser(\'F\')">Freeze Capture</button>' +
                 '<br>' +
-                '<button class="button" type="button" onclick="loadDoc(\'a\')">HTotal++</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'A\')">HTotal--</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'.\')">Resynchronize HTotal</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'l\')">Reset SyncProcessor</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'a\')">HTotal++</button>' +
+                '<button class="button" type="button" onclick="loadDoc(\'A\')">HTotal--</button>' +
+                '<button class="button" type="button" onclick="loadDoc(\'.\')">Resynchronize HTotal</button>' +
+                '<button class="button" type="button" onclick="loadDoc(\'l\')">Reset SyncProcessor</button>' +
                 '<br>' +
-                '<button class="button" type="button" onclick="loadDoc(\'S\')">Snap to 60/50Hz for HDMI</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'m\')">SyncWatcher</button>' + 
-                '<button class="button" type="button" onclick="loadDoc(\'c\')">Enable OTA Updates</button>' + 
-                '<button class="button" type="button" onclick="loadUser(\'E\')">IF Auto Offset</button>' + 
+                '<button class="button" type="button" onclick="loadDoc(\'S\')">Snap to 60/50Hz for HDMI</button>' +
+                '<button class="button" type="button" onclick="loadDoc(\'m\')">SyncWatcher</button>' +
+                '<button class="button" type="button" onclick="loadDoc(\'c\')">Enable OTA Updates</button>' +
+                '<button class="button" type="button" onclick="loadUser(\'E\')">IF Auto Offset</button>' +
                 '<br>' +
                 '<button class="button" type="button" onclick="loadUser(\'z\')">SOG Level--</button>';
             }
             function content7() {
-                document.getElementById("display").innerHTML = 
-                '<button class="button" type="button" onclick="javascript:location.href=\'/wifi.htm\'">Connect to WiFi Network</button>' + 
-                '<button class="button" type="button" onclick="loadUser(\'a\')">Restart</button>' + 
-                '<button class="button" type="button" onclick="loadUser(\'e\')">List Options</button>' + 
+                document.getElementById("display").innerHTML =
+                '<button class="button" type="button" onclick="javascript:location.href=\'/wifi.htm\'">Connect to WiFi Network</button>' +
+                '<button class="button" type="button" onclick="loadUser(\'a\')">Restart</button>' +
+                '<button class="button" type="button" onclick="loadUser(\'e\')">List Options</button>' +
                 '<button class="button" type="button" onclick="loadUser(\'1\')">Reset Defaults + Restart</button>';
             }
             window.addEventListener('load', function(event) {
@@ -320,7 +321,7 @@
             var wsNoSuccessConnectingCounter = 0;
             var queuedText = '';
             function loadDoc(link) {
-                var xhttp = new XMLHttpRequest(); 
+                var xhttp = new XMLHttpRequest();
                 xhttp.open('GET', 'sc?' + link + '&nocache=' + new Date().getTime(), true);
                 xhttp.send();
             }
@@ -335,14 +336,58 @@
                     theTerminal.scrollTop = theTerminal.scrollHeight;
                 }
             }
+            var repeatTimeout = null;
+            var repeatInterval = null;
+            function repeatStart(fn, link) {
+                repeatStop();
+                fn(link);
+                repeatTimeout = setTimeout(function() {
+                    repeatInterval = setInterval(function() {
+                        fn(link);
+                    }, 80);
+                }, 600);
+            }
+            function repeatStop() {
+                if (repeatTimeout) {
+                    clearTimeout(repeatTimeout);
+                    repeatTimeout = null;
+                }
+                if (repeatInterval) {
+                    clearInterval(repeatInterval);
+                    repeatInterval = null;
+                }
+            }
+            function makeButtonsRepeatable() {
+                var buttons = document.getElementById('display').getElementsByTagName('button');
+                for (var i = 0; i < buttons.length; ++i) {
+                    var button = buttons[i];
+                    if (/(^|\s)repeating(\s|$)/.test(button.className)) {
+                        var onClick = /(load(User|Doc))\(\'(.+)\'\)/.exec(button.onclick);
+                        if (onClick) {
+                            var fn = onClick[1];
+                            var link = onClick[3];
+                            if (typeof window[fn] == 'function') {
+                                fn = window[fn];
+                                (function(fn, link) {
+                                    button.onclick = null;
+                                    button.onmousedown = function() { repeatStart(fn, link); };
+                                    button.onmouseup = repeatStop;
+                                    button.onmouseleave = repeatStop;
+                                    button.onkeypress = function(e) { if (e.keyCode == 13) fn(link); };
+                                })(fn, link);
+                            }
+                        }
+                    }
+                }
+            }
             function checkWs() {
                 if (isWsActive === 0) {
                     if (ws) {
                         /*
-                        0 	CONNECTING
-                        1 	OPEN
-                        2 	CLOSING
-                        3 	CLOSED
+                        0     CONNECTING
+                        1     OPEN
+                        2     CLOSING
+                        3     CLOSED
                         */
                         if (ws.readyState == 3) {
                             ws = null;
@@ -395,10 +440,10 @@
                         return;
                     }
                 }
-                
+               
                 wsNoSuccessConnectingCounter = 0;
                 ws = new WebSocket('ws://' + location.hostname + ':81/',['arduino']);
-                            
+                           
                 ws.onopen = function() {
                     wsConnectCounter++;
                     console.log('ws onopen');
@@ -436,26 +481,27 @@
                         var activePresetButton = document.getElementById(presetId);
                         if (activePresetButton) {
                             var presetButtonList = document.getElementsByClassName('button preset');
-                            for (let button of presetButtonList) {
+                            /* for (let button of presetButtonList) { .. } */
+                            [].forEach.call(presetButtonList, function(button) {
                                 if (button !== activePresetButton) {
                                     button.classList.remove('active');
                                 } else {
                                     button.classList.add('active');
                                 }
-                            }
+                            });
                         }
 
                         var slotId = '1' + e.data[2];
                         var activeSlotButton = document.getElementById(slotId);
                         if (activeSlotButton) {
                             var slotButtonList = document.getElementsByClassName('button slot');
-                            for (let button of slotButtonList) {
+                            [].forEach.call(slotButtonList, function(button) {
                                 if (button !== activeSlotButton) {
                                     button.classList.remove('active');
                                 } else {
                                     button.classList.add('active');
                                 }
-                            }
+                            });
                         }
 
                         if (e.data[3] && e.data[4] && e.data[5]) {
@@ -463,7 +509,7 @@
                             var optionByte1 = e.data[4].charCodeAt(0);
                             var optionByte2 = e.data[5].charCodeAt(0);
                             var optionButtonList = document.getElementsByClassName('button option');
-                            for (let button of optionButtonList) {
+                            [].forEach.call(optionButtonList, function(button) {
                                 /* optionByte0 */
                                 if (button.classList.contains('adcAutoGain')) {
                                     if ((optionByte0 & 0x01) == 0x01) {
@@ -568,7 +614,7 @@
                                         button.classList.remove('active');
                                     }
                                 }
-                            }
+                            });
                         }
                     }
                 }
