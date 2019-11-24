@@ -33,6 +33,6 @@ const uint8_t presetMdSection[] PROGMEM = {
 51, // s1_7F // changed to ~416 // was 156 HD2376_1250P (PAL FHD?)
 0xff, // s1_80 // custom mode h // was 32(d)
 0xff, // s1_81 // custom mode v // was 26(d)
-0x01, // s1_82 // was 0x05 // result in 0_16 // 0x31 = SP timer detect used for something
+0x05, // s1_82 // was 0x01 // result in 0_16 // 0x31 = SP timer detect used for something
 0x0c, // s1_83 MD_UNSTABLE_LOCK_VALUE = 3 // was 0x10 (lock val 4)
 };
