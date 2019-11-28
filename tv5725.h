@@ -197,6 +197,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x00, 0x53, 0,  8> GPIO_CONTROL_01;
     typedef UReg<0x00, 0x58, 0,  8> INTERRUPT_CONTROL_00;
     typedef UReg<0x00, 0x58, 0,  1> INT_CONTROL_RST_SOGBAD;
+    typedef UReg<0x00, 0x58, 1,  1> INT_CONTROL_RST_SOGSWITCH;
     typedef UReg<0x00, 0x58, 4,  1> INT_CONTROL_RST_NOHSYNC;
     typedef UReg<0x00, 0x59, 0,  8> INTERRUPT_CONTROL_01;
 
@@ -250,6 +251,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x2C, 1,  1> GBS_OPTION_SCALING_RGBHV;
     typedef UReg<0x01, 0x2C, 2,  1> GBS_OPTION_PALFORCED60_ENABLED;
     typedef UReg<0x01, 0x2C, 3,  1> GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE;
+    typedef UReg<0x01, 0x2C, 4,  1> GBS_RUNTIME_FTL_ADJUSTED;
 
     // HDBypass
     typedef UReg<0x01, 0x30, 1,  1> HD_MATRIX_BYPS;

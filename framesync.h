@@ -190,8 +190,7 @@ public:
   }
 
   static void resetWithoutRecalculation() {
-    syncLockReady = true;
-    syncLastCorrection = 0;
+    syncLockReady = false;
     delayLock = 0;
   }
 
