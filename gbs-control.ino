@@ -8434,6 +8434,11 @@ void savePresetToSPIFFS() {
     if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) {
       disableScanlines();
     }
+
+    if (uopt->enableFrameTimeLock) {
+      FrameSync::reset(uopt->frameTimeLockMethod);
+    }
+
     // next: check for vertical adjust and undo if necessary
     //if (GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::read() == 1)
     //{
