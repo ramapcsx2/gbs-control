@@ -524,6 +524,9 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
           //if (index == 324) { // s5_04 reset(0) for ADC REF init
           //  bank[x] = 0x00;
           //}
+          //if (index == 375) { // s5_37  todo
+          //  bank[x] = 0x04;
+          //}
           if (index == 382) { // s5_3e
             bitSet(bank[x], 5); // SP_DIS_SUB_COAST = 1
           }
@@ -2892,8 +2895,8 @@ void doPostPresetLoadSteps() {
           GBS::VDS_VSCALE::write(455);
           GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 2);
           GBS::VDS_DIS_VB_SP::write(36);
-          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 24);
-          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 24);
+          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 28);
+          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 28);
           SerialM.println(F("full height"));
         }
       }
@@ -3905,8 +3908,19 @@ void updateSpDynamic() {
   if (rto->videoStandardInput <= 2) { // SD interlaced
     GBS::SP_PRE_COAST::write(7);
     GBS::SP_POST_COAST::write(3);
-    GBS::SP_DLT_REG::write(0x130); // was 0x130
-    GBS::SP_H_PULSE_IGNOR::write(0x6B);
+    GBS::SP_DLT_REG::write(0x130);
+    GBS::SP_H_PULSE_IGNOR::write(0x6B); // 0x6b for general case
+    for (int i = 0; i < 8; i++) {
+      uint16_t lowLen = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
+      if (lowLen > 110 && lowLen < 350 && getStatus16SpHsStable()) {
+        // readout is in expected range
+        if (lowLen > 195) {
+          GBS::SP_H_PULSE_IGNOR::write(0x74); // MD long hsync can reach slightly higher
+          delay(10);
+          break;
+        }
+      }
+    }
   }
   else if (rto->videoStandardInput <= 4) {
     GBS::SP_PRE_COAST::write(7); // these two were 7 and 6
@@ -4654,6 +4668,11 @@ void enableMotionAdaptDeinterlace() {
   //GBS::MADPT_UVDLY_PD_BYPS::write(0); // 2_35_5 // UVDLY
   //GBS::MADPT_EN_UV_DEINT::write(0);   // 2_3a 0
   //GBS::MADPT_EN_STILL_FOR_NRD::write(1); // 2_3a 3 (new)
+
+  if (rto->videoStandardInput == 1)
+    GBS::MADPT_VTAP2_COEFF::write(6); // 2_19 vertical filter
+  if (rto->videoStandardInput == 2)
+    GBS::MADPT_VTAP2_COEFF::write(4);
 
   //GBS::RFF_WFF_STA_ADDR_A::write(0);
   //GBS::RFF_WFF_STA_ADDR_B::write(1);
@@ -8077,6 +8096,9 @@ void handleType2Command(char argument) {
     }
     setAndUpdateSogLevel(rto->currentLevelSOG);
     optimizePhaseSP();
+    SerialM.print("Phase: "); SerialM.print(rto->phaseSP);
+    SerialM.print(" SOG: ");  SerialM.print(rto->currentLevelSOG);
+    SerialM.println();
     break;
   case 'E':
     // test option for now

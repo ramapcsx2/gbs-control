@@ -314,6 +314,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x02, 0x19, 0,  1> MADPT_BIT_STILL_EN;
     typedef UReg<0x02, 0x19, 2,  1> MADPT_VTAP2_BYPS;
     typedef UReg<0x02, 0x19, 3,  1> MADPT_VTAP2_ROUND_SEL;
+    typedef UReg<0x02, 0x19, 4,  4> MADPT_VTAP2_COEFF;
     typedef UReg<0x02, 0x21, 4,  1> MADPT_EN_NOUT_FOR_STILL;
     typedef UReg<0x02, 0x21, 5,  1> MADPT_EN_NOUT_FOR_LESS_STILL;
     typedef UReg<0x02, 0x24, 2,  1> MADPT_PD_RAM_BYPS;
