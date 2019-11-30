@@ -1202,6 +1202,9 @@ void optimizeSogLevel() {
   }
 
   rto->thisSourceMaxLevelSOG = rto->currentLevelSOG;
+  if (rto->thisSourceMaxLevelSOG == 0) {
+    rto->thisSourceMaxLevelSOG = 1; // fail safe
+  }
 }
 
 // GBS boards have 2 potential sync sources:
@@ -3889,6 +3892,7 @@ void updateSpDynamic() {
     GBS::SP_H_PULSE_IGNOR::write(0x02);
     GBS::SP_DIS_SUB_COAST::write(1);
     GBS::SP_H_COAST::write(0);     // 5_3e 2 (just in case)
+    GBS::SP_H_TIMER_VAL::write(0x3a); // new: 5_33 default 0x3a, set shorter for better hsync drop detect
     if (rto->syncTypeCsync) {
       GBS::SP_COAST_INV_REG::write(1); // new, allows SP to see otherwise potentially skipped vlines
     }
@@ -3905,6 +3909,7 @@ void updateSpDynamic() {
     GBS::SP_POST_COAST::write(3);
     GBS::SP_DLT_REG::write(0x130);
     GBS::SP_H_PULSE_IGNOR::write(0x6B); // 0x6b for general case
+    GBS::SP_H_TIMER_VAL::write(0x24);   // 5_33
     for (int i = 0; i < 8; i++) {
       uint16_t lowLen = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
       if (lowLen > 110 && lowLen < 350 && getStatus16SpHsStable()) {
@@ -4800,7 +4805,7 @@ boolean snapToIntegralFrameRate(void) {
 }
 
 void printInfo() {
-  static char print[116]; // 109 + 1 minimum
+  static char print[108]; // 103 + 1 minimum
   static uint8_t clearIrqCounter = 0;
   uint8_t lockCounter = 0;
 
@@ -4836,11 +4841,11 @@ void printInfo() {
   }
 
   //int charsToPrint = 
-  sprintf(print, "h:%4u v:%4u PLL:%02u A:%02x%02x%02x S:%02x.%02x %c%c%c%c 3E:%02x I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2d W:%2d",
+  sprintf(print, "h:%4u v:%4u PLL:%02u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2d W:%2d",
     hperiod, vperiod, lockCounter,
     GBS::ADC_RGCTRL::read(), GBS::ADC_GGCTRL::read(), GBS::ADC_BGCTRL::read(),
-    GBS::STATUS_00::read(), GBS::STATUS_05::read(), h, HSp, v, VSp,
-    GBS::SP_CS_0x3E::read(), stat0FIrq, GBS::TEST_BUS::read(), getVideoMode(),
+    GBS::STATUS_00::read(), GBS::STATUS_05::read(), GBS::SP_CS_0x3E::read(),
+    h, HSp, v, VSp, stat0FIrq, GBS::TEST_BUS::read(), getVideoMode(),
     GBS::STATUS_SYNC_PROC_HTOTAL::read(), GBS::STATUS_SYNC_PROC_VTOTAL::read() /*+ 1*/,   // emucrt: without +1 is correct line count 
     GBS::STATUS_SYNC_PROC_HLOW_LEN::read(), rto->noSyncCounter,
     rto->currentLevelSOG, wifi);
@@ -5022,15 +5027,12 @@ void runSyncWatcher()
         if ((millis() - preemptiveSogWindowStart) < sogWindowLen) {
           //Serial.print("-");
           for (uint8_t i = 0; i < 16; i++) {
-            if (GBS::STATUS_SYNC_PROC_HLOW_LEN::read() < 14) {
+            if (GBS::STATUS_SYNC_PROC_HSACT::read() == 0) {
               uint16_t hlowStart = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
               for (int a = 0; a < 20; a++) {
-                //Serial.print("+");
                 if (GBS::STATUS_SYNC_PROC_HLOW_LEN::read() != hlowStart) {
-                  // okay, source still active so count this one
+                  // okay, source still active so count this one, break back to outer for loop
                   badLowLen++;
-                  //Serial.print("badLowLen "); Serial.println(badLowLen);
-                  // and break back to outer for loop
                   i = 16; break;
                 }
                 delay(0);
@@ -5051,7 +5053,7 @@ void runSyncWatcher()
             }
             badLowLen = 0;
             delay(30);
-            rto->phaseIsSet = optimizePhaseSP();
+            rto->phaseIsSet = 0; // optimizePhaseSP();
           }
         }
         else {
@@ -5072,10 +5074,6 @@ void runSyncWatcher()
     }
 
     freezeVideo();
-    if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
-      GBS::SP_DIS_SUB_COAST::write(1);
-      rto->coastPositionIsSet = 0;
-    }
     rto->continousStableCounter = 0;
     rto->phaseIsSet = 0;
     
@@ -5105,6 +5103,13 @@ void runSyncWatcher()
           }
         }
         lastSyncDrop = millis(); // restart timer
+      }
+    }
+
+    if (rto->noSyncCounter == 3) {
+      if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
+        GBS::SP_DIS_SUB_COAST::write(1);
+        rto->coastPositionIsSet = 0;
       }
     }
 
@@ -6446,20 +6451,19 @@ void updateWebSocketData() {
 void handleWiFi(boolean instant) {
   static unsigned long lastTimePing = millis();
   yield();
-#if defined(ESP8266)
   if (rto->webServerEnabled && rto->webServerStarted) {
     MDNS.update();
     persWM.handleWiFi(); // if connected, returns instantly. otherwise it reconnects or opens AP
     dnsServer.processNextRequest();
 
-    //webSocket.loop(); // checks _runnning internally, skips all work if not
-
-    if ((millis() - lastTimePing > 973) || instant) { // slightly odd value so not everything happens at once
-      //if (webSocket.connectedClients(true) > 0) { // true = with compliant ping
+    if ((millis() - lastTimePing) > 953) { // slightly odd value so not everything happens at once
         webSocket.broadcastPing();
+    }
+    if (((millis() - lastTimePing) > 973) || instant) {
+      if ((webSocket.connectedClients(false) > 0) || instant) { // true = with compliant ping
         updateWebSocketData();
         delay(1);
-      //}
+      }
       lastTimePing = millis();
     }
   }
@@ -6468,7 +6472,6 @@ void handleWiFi(boolean instant) {
     ArduinoOTA.handle();
   }
   yield();
-#endif
 }
 
 void loop() {
