@@ -3247,14 +3247,6 @@ void doPostPresetLoadSteps() {
     ResetSDRAM();
   }
 
-  {
-    // prepare ideal vline shift for PAL / NTSC SD sources
-    // best test for upper content is snes 239 mode (use mainly for setting IF_VB_ST/SP first (1_1c/1e))
-    // rto->presetVlineShift = 26; // for ntsc_240p, 1280x1024 ntsc
-
-    // gonsky
-  }
-
   setAndUpdateSogLevel(rto->currentLevelSOG); // use this to cycle SP / ADPLL latches
   
   // IF_VS_SEL = 1 for SD/HD SP mode in HD mode (5_3e 1)
@@ -3277,6 +3269,9 @@ void doPostPresetLoadSteps() {
     GBS::SP_EXT_SYNC_SEL::write(1); // 5_20 3 disconnect HV input
     // stays disconnected until reset condition
   }
+
+  rto->coastPositionIsSet = false;  // re-arm these
+  rto->clampPositionIsSet = false;
 
   if (rto->outModeHdBypass) {
     GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
@@ -3328,7 +3323,7 @@ void doPostPresetLoadSteps() {
   //}
 
   setAndUpdateSogLevel(rto->currentLevelSOG); // use this to cycle SP / ADPLL latches
-  optimizePhaseSP();
+  //optimizePhaseSP();  // do this later in run loop
 
   GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
@@ -5030,6 +5025,7 @@ void runSyncWatcher()
             if (GBS::STATUS_SYNC_PROC_HLOW_LEN::read() < 14) {
               uint16_t hlowStart = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
               for (int a = 0; a < 20; a++) {
+                //Serial.print("+");
                 if (GBS::STATUS_SYNC_PROC_HLOW_LEN::read() != hlowStart) {
                   // okay, source still active so count this one
                   badLowLen++;
@@ -5076,6 +5072,10 @@ void runSyncWatcher()
     }
 
     freezeVideo();
+    if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
+      GBS::SP_DIS_SUB_COAST::write(1);
+      rto->coastPositionIsSet = 0;
+    }
     rto->continousStableCounter = 0;
     rto->phaseIsSet = 0;
     
@@ -5348,15 +5348,16 @@ void runSyncWatcher()
     }
 
     if (!rto->phaseIsSet) {
-      if (rto->continousStableCounter >= 8) {
-        if ((rto->continousStableCounter % 8) == 0) { // will give up at 255
+      if (rto->continousStableCounter >= 10 && rto->continousStableCounter < 61) {
+        // added < 61 to make a window, else sources with little pll lock hammer this
+        if ((rto->continousStableCounter % 10) == 0) {
           rto->phaseIsSet = optimizePhaseSP();
         }
       }
     }
 
     // 5_3e 2 SP_H_COAST test
-    //if (rto->continousStableCounter == 10) {
+    //if (rto->continousStableCounter == 11) {
     //  if (rto->coastPositionIsSet) {
     //    GBS::SP_H_COAST::write(1); 
     //  }
@@ -5457,60 +5458,6 @@ void runSyncWatcher()
             disableScanlines();
           }
         }
-
-        // the test can't get stability status when the MD glitch filters are too long
-        //static uint8_t filteredLineCountShouldShiftDown = 0, filteredLineCountShouldShiftUp = 0;
-        //uint16_t sourceVlines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
-        //if ((rto->videoStandardInput == 1 && (sourceVlines >= 256 && sourceVlines <= 265)) ||
-        //  (rto->videoStandardInput == 2 && (sourceVlines >= 310 && sourceVlines <= 314)))
-        //{
-        //  filteredLineCountShouldShiftUp = 0;
-        //  if (GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::read() == 0)
-        //  {
-        //    filteredLineCountShouldShiftDown++;
-        //    if (filteredLineCountShouldShiftDown >= 3) // 2 or more // less = less jaring when action should be done
-        //    {
-        //      //Serial.println("down");
-        //      for (uint8_t a = 0; a <= 5; a++) {
-        //        shiftVerticalDownIF();
-        //      }
-
-        //      //GBS::SP_SDCS_VSSP_REG_L::write(3);  // 5_4f first
-        //      //GBS::SP_SDCS_VSST_REG_L::write(5);  // 5_3f
-        //      GBS::SP_PRE_COAST::write(0x03);
-        //      GBS::SP_POST_COAST::write(0x07);
-        //      delay(30);
-
-        //      GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::write(1); // mark as adjusted
-        //      filteredLineCountShouldShiftDown = 0;
-        //    }
-        //  }
-        //}
-        //else if ((rto->videoStandardInput == 1 && (sourceVlines >= 267 && sourceVlines <= 274)) ||
-        //  (rto->videoStandardInput == 2 && (sourceVlines >= 319 && sourceVlines <= 324)))
-        //{
-        //  filteredLineCountShouldShiftDown = 0;
-        //  if (GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::read() == 1)
-        //  {
-        //    filteredLineCountShouldShiftUp++;
-        //    if (filteredLineCountShouldShiftUp >= 3) // 2 or more // less = less jaring when action should be done
-        //    {
-        //      //Serial.println("up");
-        //      for (uint8_t a = 0; a <= 5; a++) {
-        //        shiftVerticalUpIF();
-        //      }
-
-        //      //GBS::SP_SDCS_VSSP_REG_L::write(3);  // 5_4f first
-        //      //GBS::SP_SDCS_VSST_REG_L::write(12); // 5_3f
-        //      GBS::SP_PRE_COAST::write(0x10);
-        //      GBS::SP_POST_COAST::write(0x09);
-        //      delay(30);
-
-        //      GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::write(0); // mark as regular
-        //      filteredLineCountShouldShiftUp = 0;
-        //    }
-        //  }
-        //}
       }
     }
   }
@@ -6576,22 +6523,15 @@ void loop() {
     break;
     case 'd':
     {
-      // check for vertical adjust and undo if necessary
-      //if (GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::read() == 1)
-      //{
-      //  //GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
-      //  //GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
-      //  for (uint8_t a = 0; a <= 5; a++) {
-      //    shiftVerticalUpIF();
-      //  }
-      //  GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::write(0);
-      //}
       // don't store scanlines
       if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) {
         disableScanlines();
       }
       // pal forced 60hz: no need to revert here. let the voffset function handle it
-
+      
+      if (uopt->enableFrameTimeLock && FrameSync::getSyncLastCorrection() != 0) {
+        FrameSync::reset(uopt->frameTimeLockMethod);
+      }
       // dump
       for (int segment = 0; segment <= 5; segment++) {
         dumpRegisters(segment);
@@ -7550,21 +7490,11 @@ void loop() {
       {
         updateCoastPosition(0);
         if (rto->coastPositionIsSet) {
-          GBS::SP_DIS_SUB_COAST::write(1);
-          GBS::SP_H_PROTECT::write(0);
+          if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
+            GBS::SP_DIS_SUB_COAST::write(0);  // enable 5_3e 5
+            GBS::SP_H_PROTECT::write(0);      // no 5_3e 4
+          }
         }
-        //if (rto->coastPositionIsSet) {
-        //  if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
-        //  {
-        //    // normal case
-        //    GBS::SP_DIS_SUB_COAST::write(0); // enable SUB_COAST 
-        //  }
-        //  else {
-        //    // special for RGBHV scaling mode
-        //    GBS::SP_DIS_SUB_COAST::write(1); // keep disabled
-        //    GBS::SP_H_PROTECT::write(1);     // but use this
-        //  }
-        //}
       }
     }
   }
@@ -8457,20 +8387,9 @@ void savePresetToSPIFFS() {
       disableScanlines();
     }
 
-    if (uopt->enableFrameTimeLock) {
+    if (uopt->enableFrameTimeLock && FrameSync::getSyncLastCorrection() != 0) {
       FrameSync::reset(uopt->frameTimeLockMethod);
     }
-
-    // next: check for vertical adjust and undo if necessary
-    //if (GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::read() == 1)
-    //{
-    //  //GBS::VDS_VB_ST::write(GBS::VDS_VB_ST::read() - rto->presetVlineShift);
-    //  //GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - rto->presetVlineShift);
-    //  for (uint8_t a = 0; a <= 5; a++) {
-    //    shiftVerticalUpIF();
-    //  }
-    //  GBS::GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE::write(0);
-    //}
 
     for (int i = 0; i <= 5; i++) {
       writeOneByte(0xF0, i);

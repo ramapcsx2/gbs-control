@@ -250,7 +250,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x01, 0x2C, 0,  1> GBS_OPTION_SCANLINES_ENABLED;
     typedef UReg<0x01, 0x2C, 1,  1> GBS_OPTION_SCALING_RGBHV;
     typedef UReg<0x01, 0x2C, 2,  1> GBS_OPTION_PALFORCED60_ENABLED;
-    typedef UReg<0x01, 0x2C, 3,  1> GBS_RUNTIME_AUTOSHIFTVERTICAL_ACTIVE;
+    typedef UReg<0x01, 0x2C, 3,  1> GBS_RUNTIME_UNUSED_BIT;
     typedef UReg<0x01, 0x2C, 4,  1> GBS_RUNTIME_FTL_ADJUSTED;
 
     // HDBypass
