@@ -320,6 +320,13 @@ void copyBank(uint8_t* bank, const uint8_t* programArray, uint16_t* index)
   }
 }
 
+boolean videoStandardInputIsPalNtscSd() {
+  if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
+    return true;
+  }
+  return false;
+}
+
 void zeroAll()
 {
   // turn processing units off first
@@ -524,9 +531,14 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
           //if (index == 324) { // s5_04 reset(0) for ADC REF init
           //  bank[x] = 0x00;
           //}
-          //if (index == 375) { // s5_37  todo
-          //  bank[x] = 0x04;
-          //}
+          if (index == 375) { // s5_37
+            if (videoStandardInputIsPalNtscSd()) {
+              bank[x] = 0x6b;
+            }
+            else {
+              bank[x] = 0x02;
+            }
+          }
           if (index == 382) { // s5_3e
             bitSet(bank[x], 5); // SP_DIS_SUB_COAST = 1
           }
@@ -896,20 +908,20 @@ void prepareSyncProcessor() {
   GBS::SP_SOG_P_ATO::write(0); // 5_20 disable sog auto polarity // hpw can be > ht, but auto is worse
   GBS::SP_JITTER_SYNC::write(0);
   // H active detect control
-  writeOneByte(0x21, 0x18); // SP_SYNC_TGL_THD    H Sync toggle times threshold  0x20; lower than 5_33(not always); 0 to turn off (?) 0x18 for 53.69 system @ 33.33
-  writeOneByte(0x22, 0x0F); // SP_L_DLT_REG       Sync pulse width different threshold (little than this as equal)
+  writeOneByte(0x21, 0x18); // SP_SYNC_TGL_THD    H Sync toggle time threshold  0x20; lower than 5_33(not always); 0 to turn off (?) 0x18 for 53.69 system @ 33.33
+  writeOneByte(0x22, 0x0F); // SP_L_DLT_REG       Sync pulse width difference threshold (less than this = equal)
   writeOneByte(0x23, 0x00); // UNDOCUMENTED       range from 0x00 to at least 0x1d
-  writeOneByte(0x24, 0x40); // SP_T_DLT_REG       H total width different threshold rgbhv: b // range from 0x02 upwards
+  writeOneByte(0x24, 0x40); // SP_T_DLT_REG       H total width difference threshold rgbhv: b // range from 0x02 upwards
   writeOneByte(0x25, 0x00); // SP_T_DLT_REG
   writeOneByte(0x26, 0x04); // SP_SYNC_PD_THD     H sync pulse width threshold // from 0(?) to 0x50 // in yuv 720p range only to 0x0a!
   writeOneByte(0x27, 0x00); // SP_SYNC_PD_THD
   writeOneByte(0x2a, 0x0F); // SP_PRD_EQ_THD      How many legal lines as valid; scales with 5_33 (needs to be below)
   // V active detect control
   // these 4 only have effect with HV input; test:  s5s2ds34 s5s2es24 s5s2fs16 s5s31s84
-  writeOneByte(0x2d, 0x03); // SP_VSYNC_TGL_THD   V sync toggle times threshold // at 5 starts to drop many 0_16 vsync events
-  writeOneByte(0x2e, 0x00); // SP_SYNC_WIDTH_DTHD V sync pulse width threshod
+  writeOneByte(0x2d, 0x03); // SP_VSYNC_TGL_THD   V sync toggle time threshold // at 5 starts to drop many 0_16 vsync events
+  writeOneByte(0x2e, 0x00); // SP_SYNC_WIDTH_DTHD V sync pulse width threshold
   writeOneByte(0x2f, 0x02); // SP_V_PRD_EQ_THD    How many continue legal v sync as valid // at 4 starts to drop 0_16 vsync events
-  writeOneByte(0x31, 0x2f); // SP_VT_DLT_REG      V total different threshold
+  writeOneByte(0x31, 0x2f); // SP_VT_DLT_REG      V total difference threshold
   // Timer value control
   writeOneByte(0x33, 0x3a); // SP_H_TIMER_VAL     H timer value for h detect (was 0x28)
   writeOneByte(0x34, 0x06); // SP_V_TIMER_VAL     V timer for V detect // 0_16 vsactive // was 0x05
@@ -919,8 +931,13 @@ void prepareSyncProcessor() {
   else if (rto->videoStandardInput <= 6) GBS::SP_DLT_REG::write(0x110);
   else if (rto->videoStandardInput == 7) GBS::SP_DLT_REG::write(0x70);
   else GBS::SP_DLT_REG::write(0x70);
-  GBS::SP_H_PULSE_IGNOR::write(0x02); // test with MS / Genesis mode (wsog 2) vs ps2 1080p (0x13 vs 0x05)
 
+  if (videoStandardInputIsPalNtscSd()) {
+    GBS::SP_H_PULSE_IGNOR::write(0x6b);
+  }
+  else {
+    GBS::SP_H_PULSE_IGNOR::write(0x02); // test with MS / Genesis mode (wsog 2) vs ps2 1080p (0x13 vs 0x05)
+  }
   // leave out pre / post coast here
   // 5_3a  attempted 2 for 1chip snes 239 mode intermittency, works fine except for MD in MS mode
   // make sure this is stored in the presets as well, as it affects sync time
@@ -3883,11 +3900,13 @@ void updateSpDynamic() {
   }
   
   uint8_t vidModeReadout = getVideoMode();
+  if (vidModeReadout == 0) {
+    delay(1); vidModeReadout = getVideoMode();
+  }
+
   // reset condition, allow most formats to detect
   // compare 1chip snes and ps2 1080p
-  if (vidModeReadout == 0 || vidModeReadout != rto->videoStandardInput) {
-    //GBS::SP_PRE_COAST::write(10);   // 0xa
-    //GBS::SP_POST_COAST::write(18);  // 0x12 // ps2 1080p
+  if (vidModeReadout == 0 /*|| vidModeReadout != rto->videoStandardInput*/) {
     GBS::SP_DLT_REG::write(0x30);  // 5_35
     GBS::SP_H_PULSE_IGNOR::write(0x02);
     GBS::SP_DIS_SUB_COAST::write(1);
@@ -4094,7 +4113,7 @@ void updateClampPosition() {
     // new: HDBypass rewrite to sync to falling HS edge: move clamp position forward
     // RGB can stay the same for now (clamp will start on sync pulse, a benefit in RGB
     if (rto->outModeHdBypass) {
-      if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
+      if (videoStandardInputIsPalNtscSd()) {
         start += 0x60;
         stop  += 0x60;
       }
@@ -4953,7 +4972,7 @@ void runSyncWatcher()
   boolean status16SpHsStable = getStatus16SpHsStable();
 
   if (rto->outModeHdBypass && status16SpHsStable) {
-    if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
+    if (videoStandardInputIsPalNtscSd()) {
       if (millis() - lastLineCountMeasure > 765) {
         thisStableLineCount = GBS::STATUS_SYNC_PROC_VTOTAL::read();
         for (uint8_t i = 0; i < 3; i++) {
@@ -5023,7 +5042,7 @@ void runSyncWatcher()
 
     // new: inputIsYpBpR check. assume sync problems here aren't sog level related
     if (!rto->inputIsYpBpR) {
-      if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
+      if (videoStandardInputIsPalNtscSd()) {
         if ((millis() - preemptiveSogWindowStart) < sogWindowLen) {
           //Serial.print("-");
           for (uint8_t i = 0; i < 16; i++) {
@@ -5095,7 +5114,7 @@ void runSyncWatcher()
         }
 
         // if sog is lowest, adjust up
-        if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
+        if (videoStandardInputIsPalNtscSd()) {
           if (rto->currentLevelSOG <= 1) {
             rto->currentLevelSOG += 1;
             setAndUpdateSogLevel(rto->currentLevelSOG);
@@ -5107,10 +5126,16 @@ void runSyncWatcher()
     }
 
     if (rto->noSyncCounter == 3) {
-      if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
-        GBS::SP_DIS_SUB_COAST::write(1);
-        rto->coastPositionIsSet = 0;
+      GBS::SP_H_CST_ST::write(0x10);
+      GBS::SP_H_CST_SP::write(0x100);
+      //GBS::SP_H_PROTECT::write(1);  // at noSyncCounter = 32 will alternate on / off
+      if (videoStandardInputIsPalNtscSd()) {
+        // this can early detect mode changes (before updateSpDynamic resets all)
+        //GBS::SP_H_PULSE_IGNOR::write(2);
+        GBS::SP_PRE_COAST::write(9);
+        GBS::SP_POST_COAST::write(9);
       }
+      rto->coastPositionIsSet = 0;
     }
 
     if (rto->noSyncCounter == 16) {
@@ -5213,26 +5238,25 @@ void runSyncWatcher()
     (detectedVideoMode != 0 && rto->videoStandardInput == 0)) &&
     rto->videoStandardInput != 15)
   {
-    // before thoroughly checking for a mode change, use delay via newVideoModeCounter
+    // before thoroughly checking for a mode change, watch format via newVideoModeCounter
     if (newVideoModeCounter < 255) { 
       newVideoModeCounter++;
       SerialM.print(newVideoModeCounter);  // help debug a few commits worth
       if (newVideoModeCounter == 2) {
         freezeVideo();
-        rto->continousStableCounter = 0;  // usually already 0, but occasionally not
-        updateSpDynamic();                // check ntsc to 480p and back
-      }
-      if (newVideoModeCounter >= 3) {
-        if (rto->coastPositionIsSet) {
-          GBS::SP_DIS_SUB_COAST::write(1);  // turn SUB_COAST off to see if the format change is good
-          GBS::SP_H_PROTECT::write(0);      // H_PROTECT off
-          rto->coastPositionIsSet = 0;
+        GBS::SP_H_CST_ST::write(0x10);
+        GBS::SP_H_CST_SP::write(0x100);
+        rto->coastPositionIsSet = 0;
+        delay(10);
+        if (getVideoMode() == 0) {
+          rto->continousStableCounter = 0;  // usually already 0, but occasionally not
+          updateSpDynamic();                // check ntsc to 480p and back
           delay(40);
         }
       }
     }
 
-    if (newVideoModeCounter >= 6)
+    if (newVideoModeCounter >= 8)
     {
       uint8_t vidModeReadout = 0;
       uint16_t vtotalSP = GBS::STATUS_SYNC_PROC_VTOTAL::read();
@@ -7493,7 +7517,8 @@ void loop() {
       {
         updateCoastPosition(0);
         if (rto->coastPositionIsSet) {
-          if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
+          if (videoStandardInputIsPalNtscSd()) {
+            // todo: verify for other csync formats
             GBS::SP_DIS_SUB_COAST::write(0);  // enable 5_3e 5
             GBS::SP_H_PROTECT::write(0);      // no 5_3e 4
           }
