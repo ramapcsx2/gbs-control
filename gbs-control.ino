@@ -966,7 +966,7 @@ void prepareSyncProcessor() {
     GBS::SP_CLP_SRC_SEL::write(0);  // clamp source 1: pixel clock, 0: 27mhz // was 1 but the pixel clock isn't available at first
     GBS::SP_NO_CLAMP_REG::write(1); // 5_57_0 unlock clamp
     GBS::SP_SOG_MODE::write(1);
-    GBS::SP_H_CST_ST::write(0x20);   // 5_4d
+    GBS::SP_H_CST_ST::write(0x10);   // 5_4d
     GBS::SP_H_CST_SP::write(0x100);  // 5_4f
     GBS::SP_H_PROTECT::write(1);     // SP_H_PROTECT on for detection
     GBS::SP_HCST_AUTO_EN::write(0);
@@ -4041,13 +4041,14 @@ void updateCoastPosition(boolean autoCoast) {
       GBS::SP_HCST_AUTO_EN::write(1);
     }
     else {
-      // regular coast (5_55 7 = off)
       // test: psx pal black license screen, then ntsc SMPTE color bars 100%; or MS
-      // ---
       // scope test psx: t5t11t3, 5_3e = 0x01, 5_36/5_35 = 0x30 5_37 = 0x10 :
       // cst sp should be > 0x62b to clean out HS from eq pulses
       // cst st should be 0, sp should be 0x69f when t5t57t7 = disabled
-      GBS::SP_H_CST_ST::write((uint16_t)(accInHlength * 0.088f)); // ~0x9a, leave some room for SNES 239 mode
+      //GBS::SP_H_CST_ST::write((uint16_t)(accInHlength * 0.088f)); // ~0x9a, leave some room for SNES 239 mode
+      // new: with SP_H_PROTECT disabled, even SNES can be a small value. Small value greatly improves Mega Drive
+      GBS::SP_H_CST_ST::write(0x10);
+      
       //GBS::SP_H_CST_SP::write((uint16_t)(accInHlength * 0.916f));  // ~0x62B, right after active video - before sync
       // need a bit earlier, making 5_3e 2 more stable
       GBS::SP_H_CST_SP::write((uint16_t)(accInHlength * 0.7383f));  // ~0x4f0, before sync
@@ -5141,7 +5142,7 @@ void runSyncWatcher()
     }
 
     if (rto->noSyncCounter == 3) {
-      GBS::SP_H_CST_ST::write(0x20);
+      GBS::SP_H_CST_ST::write(0x10);
       GBS::SP_H_CST_SP::write(0x100);
       //GBS::SP_H_PROTECT::write(1);  // at noSyncCounter = 32 will alternate on / off
       if (videoStandardInputIsPalNtscSd()) {
@@ -5259,7 +5260,7 @@ void runSyncWatcher()
       SerialM.print(newVideoModeCounter);  // help debug a few commits worth
       if (newVideoModeCounter == 2) {
         freezeVideo();
-        GBS::SP_H_CST_ST::write(0x20);
+        GBS::SP_H_CST_ST::write(0x10);
         GBS::SP_H_CST_SP::write(0x100);
         rto->coastPositionIsSet = 0;
         delay(10);
@@ -5587,7 +5588,7 @@ void runSyncWatcher()
           }
           else {
             GBS::SP_SOG_MODE::write(1);
-            GBS::SP_H_CST_ST::write(0x20);    // 5_4d  // set some default values
+            GBS::SP_H_CST_ST::write(0x10);    // 5_4d  // set some default values
             GBS::SP_H_CST_SP::write(0x80);    // will be updated later
             GBS::SP_H_PROTECT::write(1);      // some modes require this (or invert SOG)
           }
@@ -5686,7 +5687,7 @@ void runSyncWatcher()
             }
             else {
               GBS::SP_SOG_MODE::write(1);
-              GBS::SP_H_CST_ST::write(0x20);    // 5_4d  // set some default values
+              GBS::SP_H_CST_ST::write(0x10);    // 5_4d  // set some default values
               GBS::SP_H_CST_SP::write(0x80);    // will be updated later
               GBS::SP_H_PROTECT::write(1);      // some modes require this (or invert SOG)
             }
