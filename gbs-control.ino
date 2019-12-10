@@ -449,15 +449,15 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
           else if (j == 0 && x == 7) {
             bank[x] = reset47;
           }
-          else if (j == 0 && x == 9) {
-            // keep sync output off
-            if (rto->useHdmiSyncFix) {
-              bank[x] = pgm_read_byte(programArray + index) | (1 << 2);
-            }
-            else {
-              bank[x] = pgm_read_byte(programArray + index);
-            }
-          }
+          //else if (j == 0 && x == 9) {
+          //  // keep sync output off
+          //  if (rto->useHdmiSyncFix) {
+          //    bank[x] = pgm_read_byte(programArray + index) | (1 << 2);
+          //  }
+          //  else {
+          //    bank[x] = pgm_read_byte(programArray + index);
+          //  }
+          //}
           else {
             // use preset values
             bank[x] = pgm_read_byte(programArray + index);
@@ -767,7 +767,7 @@ void applyYuvPatches() {
     GBS::VDS_Y_OFST::write(0xFE);
     GBS::VDS_U_OFST::write(0x03);
     GBS::VDS_V_OFST::write(0x03);
-    if (rto->videoStandardInput >= 5 && rto->videoStandardInput >= 7) {
+    if (rto->videoStandardInput >= 5 && rto->videoStandardInput <= 7) {
       // todo: Rec. 709 (vs Rec. 601 used normally
       // needs this on VDS and HDBypass
     }
@@ -2614,7 +2614,7 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
     h_blank_memory_start_position = h_blank_display_start_position - 4;
     h_blank_memory_stop_position = bestHTotal * 0.138f;
 
-    if (h_sync_start_position > h_sync_stop_position) { // is neg HSync
+    if (h_sync_start_position > h_sync_stop_position && (h_sync_start_position < (bestHTotal / 2))) { // is neg HSync
       h_sync_stop_position = 0;
       // stop = at least start, then a bit outwards
       h_sync_start_position = 16 + (h_blank_display_stop_position * 0.4f);
@@ -2959,8 +2959,8 @@ void doPostPresetLoadSteps() {
       else {
         GBS::PLLAD_FS::write(1);
       }
-      setCsVsStart(16);
-      setCsVsStop(13);
+      setCsVsStart(14); // pal
+      setCsVsStop(11);  //
       setOverSampleRatio(2, true);      // with KS = 1 for modes 3, 4, 8
       GBS::IF_HS_DEC_FACTOR::write(0);  // 1_0b 4+5
       GBS::IF_LD_SEL_PROV::write(1);    // 1_0b 7
@@ -2985,6 +2985,8 @@ void doPostPresetLoadSteps() {
     }
     if (rto->videoStandardInput == 3) 
     { // ED YUV 60
+      setCsVsStart(16); // ntsc
+      setCsVsStop(13);  //
       GBS::IF_HB_ST::write(30);       // 1_10; magic number
       GBS::IF_HBIN_SP::write(0x60);   // 1_26
       if (rto->presetID == 0x5) 
@@ -2994,22 +2996,22 @@ void doPostPresetLoadSteps() {
       else if (rto->presetID == 0x3) 
       { // out 720p
         GBS::VDS_VSCALE::write(683); // same as base preset
-        GBS::IF_HB_SP2::write(0x8C);  // 1_1a
+        GBS::IF_HB_SP2::write(0x8A);  // 1_1a
       }
       else if (rto->presetID == 0x2) 
       { // out x1024
-        GBS::IF_HB_SP2::write(0x8C);  // 1_1a
+        GBS::IF_HB_SP2::write(0x84);  // 1_1a
         GBS::IF_HBIN_ST::write(0x20); // 1_24
       }
       else if (rto->presetID == 0x1) 
       { // out x960
-        GBS::IF_HB_SP2::write(0x8C);  // 1_1a
+        GBS::IF_HB_SP2::write(0x84);  // 1_1a
         GBS::IF_HBIN_ST::write(0x20); // 1_24
       }
       else if (rto->presetID == 0x4)
       { // out x480
         GBS::IF_HB_ST2::write(0x34C); // 1_18
-        GBS::IF_HB_SP2::write(0x78);  // 1_1a
+        GBS::IF_HB_SP2::write(0x84);  // 1_1a
       }
     }
     else if (rto->videoStandardInput == 4) 
@@ -3027,9 +3029,9 @@ void doPostPresetLoadSteps() {
       }
       else if (rto->presetID == 0x12) 
       { // out x1024
-        GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - 12);
+        // VDS_VB_SP -= 12 used to shift pic up, but seems not necessary anymore
+        //GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - 12);
         GBS::IF_HB_SP2::write(0x8C);  // 1_1a
-        //GBS::IF_HB_ST2::write(0x468);  // 1_18
       }
       else if (rto->presetID == 0x11) 
       { // out x960
@@ -3195,6 +3197,14 @@ void doPostPresetLoadSteps() {
   FrameSync::cleanup();
   rto->syncLockFailIgnore = 16;
 
+  // undo eventual rto->useHdmiSyncFix
+  GBS::VDS_SYNC_EN::write(0);
+  GBS::VDS_FLOCK_EN::write(0);
+
+  if (rto->useHdmiSyncFix) {
+    GBS::PAD_SYNC_OUT_ENZ::write(1);  // no sync out
+  }
+
   if (!rto->outModeHdBypass && rto->autoBestHtotalEnabled &&
     GBS::GBS_OPTION_SCALING_RGBHV::read() == 0 && !avoidAutoBest &&
     (rto->videoStandardInput >= 1 && rto->videoStandardInput <= 4))
@@ -3239,6 +3249,10 @@ void doPostPresetLoadSteps() {
     updateClampPosition();
   }
   //SerialM.print("pp time: "); SerialM.println(millis() - postLoadTimer);
+
+  if (rto->useHdmiSyncFix && !uopt->wantOutputComponent) {
+    GBS::PAD_SYNC_OUT_ENZ::write(0);  // sync out
+  }
 
   // new, might be useful (3_6D - 3_72)
   GBS::VDS_EXT_HB_ST::write(GBS::VDS_DIS_HB_ST::read());
@@ -3456,7 +3470,7 @@ void applyPresets(uint8_t result) {
   
   boolean waitExtra = 0;
   if (rto->outModeHdBypass || rto->videoStandardInput == 15 || rto->videoStandardInput == 0) {
-    if (result <= 4 || result == 14) {
+    if (result <= 4 || result == 14 || result == 8 || result == 9) {
       GBS::SFTRST_IF_RSTZ::write(1); // early init
       GBS::SFTRST_VDS_RSTZ::write(1);
       GBS::SFTRST_DEC_RSTZ::write(1);
@@ -5328,7 +5342,7 @@ void runSyncWatcher()
 
         if (!wantPassThroughMode)
         {
-          // needs to know the sync type for early updateclamp
+          // needs to know the sync type for early updateclamp (set above)
           applyPresets(detectedVideoMode);
         }
         else
@@ -5341,7 +5355,7 @@ void runSyncWatcher()
         rto->continousStableCounter = 0; // also in postloadsteps
         newVideoModeCounter = 0;
         activeStableLineCount = 0;
-        delay(2); // post delay
+        delay(20); // post delay
         badHsActive = 0;
         preemptiveSogWindowStart = millis();
       }
@@ -7868,6 +7882,8 @@ void handleType2Command(char argument) {
     if (argument == 'p') uopt->presetPreference = 4; // 1280x1024
     if (argument == 's') uopt->presetPreference = 5; // 1920x1080
     //rto->videoStandardInput = 0; // force hard reset  // update: why? it conflicts with early init
+
+    rto->useHdmiSyncFix = 1;  // disables sync out when programming preset
     applyPresets(videoMode);
     saveUserPrefs();
     //uopt->presetPreference = backup;
