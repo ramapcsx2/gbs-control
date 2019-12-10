@@ -2548,7 +2548,6 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   }
 
   rto->failRetryAttempts = 0; // else all okay!, reset to 0
-  rto->forceRetime = false;
 
   // move blanking (display)
   uint16_t h_blank_display_start_position = GBS::VDS_DIS_HB_ST::read();
@@ -2642,25 +2641,39 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   }
 
   delay(2); // wifi
-  float sfr = getSourceFieldRate(0);
-  delay(0);
-  float ofr = getOutputFrameRate();
-  if (sfr < 1.0f) {
-    delay(1); sfr = getSourceFieldRate(0);  // retry
+
+  boolean print = 1;
+  if (uopt->enableFrameTimeLock) {
+    if ((GBS::GBS_RUNTIME_FTL_ADJUSTED::read() == 1) && !rto->forceRetime) {
+      // FTL enabled and regular update, so don't print
+      print = 0;
+    }
+    GBS::GBS_RUNTIME_FTL_ADJUSTED::write(0);
   }
-  if (ofr < 1.0f) {
-    delay(1); ofr = getOutputFrameRate();  // retry
+
+  rto->forceRetime = false;
+
+  if (print) {
+    float sfr = getSourceFieldRate(0);
+    delay(0);
+    float ofr = getOutputFrameRate();
+    if (sfr < 1.0f) {
+      delay(1); sfr = getSourceFieldRate(0);  // retry
+    }
+    if (ofr < 1.0f) {
+      delay(1); ofr = getOutputFrameRate();  // retry
+    }
+    SerialM.print(F("HTotal Adjust: "));
+    if (diffHTotal >= 0) {
+      SerialM.print(" "); // formatting to align with negative value readouts
+    }
+    SerialM.print(diffHTotal);
+    SerialM.print(F(", source Hz: "));
+    SerialM.print(sfr, 3); // prec. 3
+    SerialM.print(F(", output Hz: "));
+    SerialM.println(ofr, 3); // prec. 3
+    delay(0);
   }
-  SerialM.print(F("HTotal Adjust: "));
-  if (diffHTotal >= 0) {
-    SerialM.print(" "); // formatting to align with negative value readouts
-  }
-  SerialM.print(diffHTotal);
-  SerialM.print(F(", source Hz: "));
-  SerialM.print(sfr, 3); // prec. 3
-  SerialM.print(F(", output Hz: "));
-  SerialM.println(ofr, 3); // prec. 3
-  delay(0);
 
   return true;
 }
@@ -5064,6 +5077,7 @@ void runSyncWatcher()
         preemptiveSogWindowStart = millis();
         badHsActive = 0;
       }
+      lastVsyncLock = millis(); // best reset this
     }
 
     if ((millis() - preemptiveSogWindowStart) < sogWindowLen) {
@@ -5100,7 +5114,6 @@ void runSyncWatcher()
         preemptiveSogWindowStart = millis();  // restart window
       }
     }
-    lastVsyncLock = millis(); // best reset this
   }
 
   if ((detectedVideoMode == 0 || !status16SpHsStable) && rto->videoStandardInput != 15) 
@@ -5380,8 +5393,8 @@ void runSyncWatcher()
         delay(20);
         optimizeSogLevel();
         doFullRestore = 0;
-        unfreezeVideo();
       }
+      unfreezeVideo();  // called 2nd time here to make sure
     }
 
     if (rto->continousStableCounter == 4) {
@@ -5434,6 +5447,7 @@ void runSyncWatcher()
               if (uopt->deintMode == 1) { // using bob
                 //FrameSync::resetWithoutRecalculation();
                 FrameSync::reset(uopt->frameTimeLockMethod);
+                GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);  // store that this is runtime adjust
                 lastVsyncLock = millis();
               }
             }
@@ -5450,6 +5464,7 @@ void runSyncWatcher()
                 enableMotionAdaptDeinterlace();
                 if (uopt->enableFrameTimeLock) {
                   FrameSync::reset(uopt->frameTimeLockMethod);
+                  GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);
                 }
                 preventScanlines = 1;
               }
@@ -5465,6 +5480,7 @@ void runSyncWatcher()
                 disableMotionAdaptDeinterlace();
                 if (uopt->enableFrameTimeLock) {
                   FrameSync::reset(uopt->frameTimeLockMethod);
+                  GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);
                   lastVsyncLock = millis();
                 }
               }
@@ -5478,6 +5494,7 @@ void runSyncWatcher()
             if (rto->motionAdaptiveDeinterlaceActive) {
               disableMotionAdaptDeinterlace();
               FrameSync::reset(uopt->frameTimeLockMethod);
+              GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);
               lastVsyncLock = millis();
             }
             if (uopt->wantScanlines && !rto->scanlinesEnabled) {
