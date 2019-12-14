@@ -301,6 +301,7 @@
                 ws = null;
                 createWebSocket();
                 wsCheckTimer = setInterval(checkWs, 500);
+                updateTerminalTimer = setInterval(updateTerminal, 50);
             });
             window.addEventListener('unload', function(event) {
                 clearInterval(wsCheckTimer);
@@ -319,6 +320,7 @@
             var wsCheckTimer;
             var wsConnectCounter = 0;
             var wsNoSuccessConnectingCounter = 0;
+            var updateTerminalTimer;
             var queuedText = '';
             function loadDoc(link) {
                 var xhttp = new XMLHttpRequest();
@@ -378,6 +380,15 @@
                             }
                         }
                     }
+                }
+            }
+            function updateTerminal() {
+                if (queuedText.length > 0) {
+                    requestAnimationFrame(function() {
+                        theTerminal.value += queuedText;
+                        theTerminal.scrollTop = theTerminal.scrollHeight;
+                        queuedText = '';
+                    });
                 }
             }
             function checkWs() {
@@ -471,11 +482,6 @@
                             theTerminal.value = '';
                             eventsQueued = 0;
                         }
-                        requestAnimationFrame(function() {
-                            theTerminal.value += queuedText;
-                            queuedText = '';
-                            theTerminal.scrollTop = theTerminal.scrollHeight;
-                        });
                     } else {
                         var presetId = e.data[1];
                         var activePresetButton = document.getElementById(presetId);

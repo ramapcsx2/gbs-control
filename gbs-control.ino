@@ -2925,7 +2925,12 @@ void doPostPresetLoadSteps() {
 
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
-      GBS::PLLAD_ICP::write(6);           // 5 looks worse
+      if (GBS::PLLAD_MD::read() >= 2300) {
+        GBS::PLLAD_ICP::write(6);         // most presets
+      }
+      else {
+        GBS::PLLAD_ICP::write(5);         // example: PAL x1024
+      }
       if (rto->presetID == 0x04 || rto->presetID == 0x14) {
         // out 480p needs low gain
         GBS::PLLAD_FS::write(0);
@@ -4881,21 +4886,10 @@ boolean snapToIntegralFrameRate(void) {
 }
 
 void printInfo() {
-  static char print[115]; // 108 + 1 minimum
+  static char print[114]; // 108 + 1 minimum
   static uint8_t clearIrqCounter = 0;
+  static uint8_t lockCounterPrevious = 0;
   uint8_t lockCounter = 0;
-
-  if (GBS::STATUS_SYNC_PROC_HSACT::read()) {
-    for (uint8_t i = 0; i < 20; i++) {
-      if (GBS::STATUS_MISC_PLLAD_LOCK::read() == 1) {
-        lockCounter++;
-      }
-      else {
-        delay(1);
-      }
-    }
-  }
-  lockCounter = getMovingAverage(lockCounter); // stores first, then updates with average
 
   int32_t wifi = 0;
   if ((WiFi.status() == WL_CONNECTED) || (WiFi.getMode() == WIFI_AP))
@@ -4917,8 +4911,8 @@ void printInfo() {
   }
 
   //int charsToPrint = 
-  sprintf(print, "h:%4u v:%4u PLL:%02u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d",
-    hperiod, vperiod, lockCounter,
+  sprintf(print, "h:%4u v:%4u PLL:%01u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d\n",
+    hperiod, vperiod, lockCounterPrevious,
     GBS::ADC_RGCTRL::read(), GBS::ADC_GGCTRL::read(), GBS::ADC_BGCTRL::read(),
     GBS::STATUS_00::read(), GBS::STATUS_05::read(), GBS::SP_CS_0x3E::read(),
     h, HSp, v, VSp, stat0FIrq, GBS::TEST_BUS::read(), getVideoMode(),
@@ -4927,7 +4921,7 @@ void printInfo() {
     rto->currentLevelSOG, wifi);
 
   //SerialM.print("charsToPrint: "); SerialM.println(charsToPrint);
-  SerialM.println(print);
+  SerialM.print(print);
 
   if (stat0FIrq != 0x00) {
     // clear 0_0F interrupt bits regardless of syncwatcher status
@@ -4939,11 +4933,23 @@ void printInfo() {
     }
   }
 
-  if (rto->webServerEnabled && rto->webServerStarted) {
-    if (webSocket.connectedClients() > 0) {
-      delay(2); handleWiFi(0); delay(1);
+  yield();
+  if (GBS::STATUS_SYNC_PROC_HSACT::read()) {  // else source might not be active
+    for (uint8_t i = 0; i < 9; i++) {
+      if (GBS::STATUS_MISC_PLLAD_LOCK::read() == 1) {
+        lockCounter++;
+      }
+      else {
+        for (int i = 0; i < 10; i++) {
+          if (GBS::STATUS_MISC_PLLAD_LOCK::read() == 1) {
+            lockCounter++;
+            break;
+          }
+        }
+      }
     }
   }
+  lockCounterPrevious = getMovingAverage(lockCounter);
 }
 
 void stopWire() {
@@ -5139,9 +5145,12 @@ void runSyncWatcher()
       return; // do nothing
     }
 
-    freezeVideo();
     rto->phaseIsSet = 0;
-    
+
+    if (rto->noSyncCounter <= 3 || GBS::STATUS_SYNC_PROC_HSACT::read() == 0) {
+      freezeVideo();
+    }
+
     if (newVideoModeCounter == 0) {
       LEDOFF; // LEDOFF on sync loss
 
@@ -5193,6 +5202,15 @@ void runSyncWatcher()
       SerialM.print("*");
       updateSpDynamic(1);
       rto->noSyncCounter++;
+    }
+
+    if (rto->noSyncCounter % 27 == 0) {
+      if (GBS::STATUS_SYNC_PROC_HSACT::read() == 1) {
+        unfreezeVideo();
+      }
+      else {
+        freezeVideo();
+      }
     }
 
     if (rto->inputIsYpBpR && (rto->noSyncCounter == 28)) {
