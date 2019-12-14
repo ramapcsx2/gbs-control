@@ -3955,7 +3955,7 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck) {
   }
   // reset condition, allow most formats to detect
   // compare 1chip snes and ps2 1080p
-  if (vidModeReadout == 0 && withCurrentVideoModeCheck /*|| vidModeReadout != rto->videoStandardInput*/) {
+  if (vidModeReadout == 0 && withCurrentVideoModeCheck) {
     if ((rto->noSyncCounter % 16) <= 8 && rto->noSyncCounter != 0) {
       GBS::SP_DLT_REG::write(0x30); // 5_35
     }
@@ -3987,17 +3987,30 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck) {
       GBS::SP_PRE_COAST::write(7);
       GBS::SP_POST_COAST::write(3);
       GBS::SP_DLT_REG::write(0x130);
-      GBS::SP_H_PULSE_IGNOR::write(0x6B); // 0x6b for general case
       GBS::SP_H_TIMER_VAL::write(0x24);   // 5_33
-      for (int i = 0; i < 12; i++) {
-        uint16_t lowLen = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
-        if (lowLen > 110 && lowLen < 350 && getStatus16SpHsStable()) {
-          // readout is in expected range
-          if (lowLen > 195) {
-            GBS::SP_H_PULSE_IGNOR::write(0x74); // MD long hsync can reach slightly higher
-            delay(10);
-            break;
+
+      // should this find a long sync pulse condition, then stay at 0x74
+      if (GBS::SP_H_PULSE_IGNOR::read() != 0x74) {
+        uint8_t longPulseCount = 0;
+        for (int i = 0; i < 12; i++) {
+          uint16_t lowLen = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
+          if (lowLen > 124 && lowLen < 330 && getStatus16SpHsStable()) {
+            // readout is in expected range
+            if (lowLen > 195) {
+              longPulseCount++;
+              if (longPulseCount >= 3) {
+                break;
+              }
+            }
           }
+        }
+        if (longPulseCount >= 3) {
+          GBS::SP_H_PULSE_IGNOR::write(0x74); // MD long hsync
+          //Serial.println("long");
+        }
+        else {
+          GBS::SP_H_PULSE_IGNOR::write(0x6B); // 0x6b for general case
+          //Serial.println("short");
         }
       }
     }
@@ -5418,7 +5431,7 @@ void runSyncWatcher()
     }
 
     if (rto->continousStableCounter == 2) {
-      updateSpDynamic(1);
+      updateSpDynamic(0);
       if (doFullRestore) {
         delay(20);
         optimizeSogLevel();
@@ -5455,6 +5468,21 @@ void runSyncWatcher()
       GBS::ADC_UNUSED_67::write(0); // clear sync fix temp registers (67/68)
       //rto->coastPositionIsSet = 0; // leads to a flicker
       rto->clampPositionIsSet = 0;  // run updateClampPosition occasionally
+    }
+
+    if (rto->continousStableCounter >= 3) {
+      if ((rto->videoStandardInput == 1 || rto->videoStandardInput == 2) && rto->noSyncCounter == 0) {
+        if (getVideoMode() == 1) {
+          if (GBS::STATUS_SYNC_PROC_VTOTAL::read() >= 264) {
+            updateSpDynamic(0);
+          }
+        }
+        else if (getVideoMode() == 2) {
+          if (GBS::STATUS_SYNC_PROC_VTOTAL::read() >= 314) {
+            updateSpDynamic(0);
+          }
+        }
+      }
     }
 
     if (rto->continousStableCounter >= 3) {

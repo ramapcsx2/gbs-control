@@ -312,7 +312,7 @@
                 }
                 console.log('unload');
             });
-            var eventsQueued = 0;
+            var dataQueued = 0;
             var theTerminal;
             var ws = null;
             var isWsActive = 0;
@@ -477,10 +477,12 @@
                     isWsActive = 1;
                     if (e.data[0] != '#') {
                         queuedText += e.data;
-                        eventsQueued++;
-                        if (eventsQueued >= 2000) {
+                        dataQueued += e.data.length;
+                        /*console.log(queuedText);
+                        console.log(dataQueued);*/
+                        if (dataQueued >= 70000) {
                             theTerminal.value = '';
-                            eventsQueued = 0;
+                            dataQueued = 0;
                         }
                     } else {
                         var presetId = e.data[1];
