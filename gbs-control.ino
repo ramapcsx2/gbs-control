@@ -5151,15 +5151,13 @@ void runSyncWatcher()
   }
 
   static unsigned long preemptiveSogWindowStart = millis();
-  static const uint16_t sogWindowLen = 6000; // ms
+  static const uint16_t sogWindowLen = 3000; // ms
   static uint16_t badHsActive = 0;
   static boolean lastAdjustWasInActiveWindow = 0;
 
   if (rto->syncTypeCsync && !rto->inputIsYpBpR && (newVideoModeCounter == 0)) {
     // look for SOG instability
     if (GBS::STATUS_INT_SOG_BAD::read() == 1 || GBS::STATUS_INT_SOG_SW::read() == 1) {
-      // start window
-      resetInterruptSogBadBit();
       resetInterruptSogSwitchBit();
       if ((millis() - preemptiveSogWindowStart) > sogWindowLen) {
         // start new window
@@ -5171,13 +5169,17 @@ void runSyncWatcher()
 
     if ((millis() - preemptiveSogWindowStart) < sogWindowLen) {
       for (uint8_t i = 0; i < 16; i++) {
-        if (GBS::STATUS_SYNC_PROC_HSACT::read() == 0) {
+        if (GBS::STATUS_INT_SOG_BAD::read() == 1 || GBS::STATUS_SYNC_PROC_HSACT::read() == 0) 
+        {
+          resetInterruptSogBadBit();
           uint16_t hlowStart = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
           if (rto->videoStandardInput == 0) hlowStart = 777;  // fix initial state no HLOW_LEN
           for (int a = 0; a < 20; a++) {
             if (GBS::STATUS_SYNC_PROC_HLOW_LEN::read() != hlowStart) {
               // okay, source still active so count this one, break back to outer for loop
-              badHsActive++; 
+              badHsActive++;
+              lastVsyncLock = millis(); // delay this
+              //Serial.print(badHsActive); Serial.print(" ");
               break;
             }
           }
@@ -5186,7 +5188,7 @@ void runSyncWatcher()
         else { delay(0); }
       }
 
-      if (badHsActive > 28) {
+      if (badHsActive >= 17) {
         if (rto->currentLevelSOG >= 2) {
           rto->currentLevelSOG -= 1;
           setAndUpdateSogLevel(rto->currentLevelSOG);
@@ -5195,7 +5197,7 @@ void runSyncWatcher()
           badHsActive = 0;
           lastAdjustWasInActiveWindow = 1;
         }
-        else if (badHsActive > 120) {
+        else if (badHsActive > 40) {
           optimizeSogLevel();
           badHsActive = 0;
           lastAdjustWasInActiveWindow = 1;
@@ -5391,7 +5393,12 @@ void runSyncWatcher()
     if (newVideoModeCounter < 255) { 
       newVideoModeCounter++;
       rto->continousStableCounter = 0;  // usually already 0, but occasionally not
-      if (newVideoModeCounter > 1) SerialM.print(newVideoModeCounter);  // help debug a few commits worth
+      if (newVideoModeCounter > 1) {    // help debug a few commits worth
+        if (newVideoModeCounter == 2) {
+          SerialM.println();
+        }
+        SerialM.print(newVideoModeCounter);
+      }
       if (newVideoModeCounter == 3) {
         freezeVideo();
         GBS::SP_H_CST_ST::write(0x10);
@@ -7679,7 +7686,7 @@ void loop() {
   // init frame sync + besthtotal routine
   if (rto->autoBestHtotalEnabled && !FrameSync::ready() && rto->syncWatcherEnabled) {
     if (rto->continousStableCounter >= 10 && rto->coastPositionIsSet && 
-      ((millis() - lastVsyncLock) > 250)) 
+      ((millis() - lastVsyncLock) > 500)) 
     {
       if ((rto->continousStableCounter % 5) == 0) { // 5, 10, 15, .., 255
         uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
