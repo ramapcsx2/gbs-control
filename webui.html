@@ -144,6 +144,20 @@
                 border-radius: 10px;
                 border: solid thin #555;
             }
+            
+            #overlayNoWs {
+                position: fixed;
+                display: none;
+                width: 32px;
+                height: 32px;
+                top: 16px;
+                left: 8px;
+                right: 0;
+                bottom: 0;
+                border-radius: 24px;
+                background-color: rgba(200, 30, 30, 0.9);
+                z-index: 2;
+            }
 
             br {
                 clear: left;
@@ -412,6 +426,7 @@
                         }
                         /* createWebSocket deals with 0 */
                     }
+                    document.getElementById('overlayNoWs').style.display = 'block'; /*show*/
                     createWebSocket();
                 }
             }
@@ -421,6 +436,7 @@
                     ws.close();
                 }
                 isWsActive = 0;
+                document.getElementById('overlayNoWs').style.display = 'block'; /*show*/
             }
             function createWebSocket() {
                 if (ws) {
@@ -459,6 +475,7 @@
                     wsConnectCounter++;
                     console.log('ws onopen');
                     isWsActive = 1;
+                    document.getElementById('overlayNoWs').style.display = 'none'; /*hide*/
                     wsTimeout = setTimeout(timeOutWs, 6000);
                     wsNoSuccessConnectingCounter = 0;
                     /*theTerminal.value += 'ws' + wsConnectCounter + ' connected\n';
@@ -640,6 +657,7 @@
             <button class="btn-h" onclick="content7()">System</button>
         </div>
         <div class="div2" id="display"></div>
+        <div id="overlayNoWs"></div>
         <div class="div3" id="terminal">
             <form>
                 <textarea id='outputTextArea' readonly></textarea>

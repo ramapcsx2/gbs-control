@@ -927,7 +927,7 @@ void prepareSyncProcessor() {
   writeOneByte(0x34, 0x06); // SP_V_TIMER_VAL     V timer for V detect // 0_16 vsactive // was 0x05
   // Sync separation control
   if (rto->videoStandardInput == 0) GBS::SP_DLT_REG::write(0x70); // 5_35  130 too much for ps2 1080i, 0xb0 for 1080p
-  else if (rto->videoStandardInput <= 4) GBS::SP_DLT_REG::write(0x130); // would be best to measure somehow
+  else if (rto->videoStandardInput <= 4) GBS::SP_DLT_REG::write(0x130); // extended to 0x150 later if mode = 1 or 2
   else if (rto->videoStandardInput <= 6) GBS::SP_DLT_REG::write(0x110);
   else if (rto->videoStandardInput == 7) GBS::SP_DLT_REG::write(0x70);
   else GBS::SP_DLT_REG::write(0x70);
@@ -2595,35 +2595,55 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
 
   // fix over / underflows
   if (h_blank_display_start_position > (bestHTotal - 8)) {
+    // typically happens when scaling Hz up (60 to 70)
+    //Serial.println("overflow h_blank_display_start_position");
     h_blank_display_start_position = bestHTotal - 8;
   }
   if (h_blank_display_stop_position > bestHTotal) {
+    //Serial.println("overflow h_blank_display_stop_position");
     h_blank_display_stop_position = bestHTotal * 0.178f;
   }
   if ((h_blank_memory_start_position > bestHTotal) || (h_blank_memory_start_position > h_blank_display_start_position)) {
-    h_blank_memory_start_position = h_blank_display_start_position;
+    //Serial.println("overflow h_blank_memory_start_position");
+    h_blank_memory_start_position = h_blank_display_start_position * 0.971f;
   }
   if (h_blank_memory_stop_position > bestHTotal) {
+    //Serial.println("overflow h_blank_memory_stop_position");
     h_blank_memory_stop_position = h_blank_display_stop_position * 0.64f;
   }
 
-  // finally, fix forced timings with large diff
-  if (isLargeDiff) {
-    h_blank_display_start_position = bestHTotal * 0.946f;
-    h_blank_display_stop_position = bestHTotal * 0.22f;
-    h_blank_memory_start_position = h_blank_display_start_position - 4;
-    h_blank_memory_stop_position = bestHTotal * 0.138f;
-
-    if (h_sync_start_position > h_sync_stop_position && (h_sync_start_position < (bestHTotal / 2))) { // is neg HSync
-      h_sync_stop_position = 0;
-      // stop = at least start, then a bit outwards
-      h_sync_start_position = 16 + (h_blank_display_stop_position * 0.4f);
-    }
-    else {
-      h_sync_start_position = 0;
-      h_sync_stop_position = 16 + (h_blank_display_stop_position * 0.4f);
+  // check whether HS spills over HBSPD
+  if (h_sync_start_position > h_sync_stop_position && (h_sync_start_position < (bestHTotal / 2))) { // is neg HSync
+    if (h_sync_start_position >= h_blank_display_stop_position) {
+      h_sync_start_position = h_blank_display_stop_position * 0.8f;
+      h_sync_stop_position = 4;   // good idea to move this close to 0 as well
     }
   }
+  else {
+    if (h_sync_stop_position >= h_blank_display_stop_position) {
+      h_sync_stop_position = h_blank_display_stop_position * 0.8f;
+      h_sync_start_position = 4;  //
+    }
+  }
+
+  // finally, fix forced timings with large diff
+  // update: doesn't seem necessary anymore
+  //if (isLargeDiff) {
+  //  h_blank_display_start_position = bestHTotal * 0.946f;
+  //  h_blank_display_stop_position = bestHTotal * 0.22f;
+  //  h_blank_memory_start_position = h_blank_display_start_position * 0.971f;
+  //  h_blank_memory_stop_position = h_blank_display_stop_position * 0.64f;
+
+  //  if (h_sync_start_position > h_sync_stop_position && (h_sync_start_position < (bestHTotal / 2))) { // is neg HSync
+  //    h_sync_stop_position = 0;
+  //    // stop = at least start, then a bit outwards
+  //    h_sync_start_position = 16 + (h_blank_display_stop_position * 0.4f);
+  //  }
+  //  else {
+  //    h_sync_start_position = 0;
+  //    h_sync_stop_position = 16 + (h_blank_display_stop_position * 0.4f);
+  //  }
+  //}
 
   if (diffHTotal != 0) { // apply
     // delay the change to field start, a bit more compatible
@@ -3183,8 +3203,10 @@ void doPostPresetLoadSteps() {
 
   if (uopt->wantTap6) { GBS::VDS_TAP6_BYPS::write(0); }
   else { 
-    GBS::VDS_TAP6_BYPS::write(1); 
-    //GBS::MADPT_Y_DELAY_UV_DELAY::write(GBS::MADPT_Y_DELAY_UV_DELAY::read() + 1);
+    GBS::VDS_TAP6_BYPS::write(1);
+    if (!isCustomPreset) {
+      GBS::MADPT_Y_DELAY_UV_DELAY::write(GBS::MADPT_Y_DELAY_UV_DELAY::read() + 1);
+    }
   }
 
   if (uopt->wantStepResponse) {
@@ -3743,12 +3765,27 @@ static uint8_t getVideoMode() {
   }
 
   detectedMode = GBS::STATUS_00::read();
-  if ((detectedMode & 0x07) == 0x07) {
-    // 0_00 H+V stable
+  if ((detectedMode & 0x2F) == 0x07) {      // 0_00 H+V stable, not NTSCI, not PALI
     detectedMode = GBS::STATUS_16::read();
-    if ((detectedMode & 0x02) == 0x02) {
-      // SP H active
-      if (rto->notRecognizedCounter < 255) {
+    if ((detectedMode & 0x02) == 0x02) {    // SP H active
+      uint16_t lineCount = GBS::STATUS_SYNC_PROC_VTOTAL::read();
+      for (uint8_t i = 0; i < 2; i++) {
+        delay(2);
+        if (GBS::STATUS_SYNC_PROC_VTOTAL::read() < (lineCount - 1) ||
+          GBS::STATUS_SYNC_PROC_VTOTAL::read() > (lineCount + 1))
+        {
+          lineCount = 0;
+          rto->notRecognizedCounter = 0;
+          break;
+        }
+        detectedMode = GBS::STATUS_00::read();
+        if ((detectedMode & 0x2F) != 0x07) {
+          lineCount = 0;
+          rto->notRecognizedCounter = 0;
+          break;
+        }
+      }
+      if (lineCount != 0 && rto->notRecognizedCounter < 255) {
         rto->notRecognizedCounter++;
       }
     }
@@ -3986,11 +4023,25 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck) {
     if (rto->videoStandardInput <= 2) { // SD interlaced
       GBS::SP_PRE_COAST::write(7);
       GBS::SP_POST_COAST::write(3);
-      GBS::SP_DLT_REG::write(0x130);
+      GBS::SP_DLT_REG::write(0x150);      // 0x140 works better than 0x130 with psx
       GBS::SP_H_TIMER_VAL::write(0x24);   // 5_33
 
-      uint16_t ignoreLength = GBS::PLLAD_MD::read() * 0.0498f;
-      GBS::SP_H_PULSE_IGNOR::write(ignoreLength); // MD long hsync
+      if (rto->syncTypeCsync) {
+        uint16_t hPeriod = GBS::HPERIOD_IF::read();
+        // retry if unusually low. could be overflow / faulty
+        if (hPeriod <= 200) hPeriod = GBS::HPERIOD_IF::read();
+        uint16_t ignoreLength = hPeriod * 0.266f;
+        if (hPeriod <= 200) {             // mode is NTSC / PAL, very likely overflow
+          ignoreLength = 0x74;            // use neutral value
+        }
+        if (ignoreLength != GBS::SP_H_PULSE_IGNOR::read()) {
+          if (ignoreLength <= 0x85) {     // if higher, HPERIOD_IF was 511 / limit
+            GBS::SP_H_PULSE_IGNOR::write(ignoreLength);
+            rto->coastPositionIsSet = 0;  // mustn't be skipped, needed when input changes dotclock / Hz
+            SerialM.print(F(" (debug) ign. length: 0x")); SerialM.println(ignoreLength, HEX);
+          }
+        }
+      }
     }
     else if (rto->videoStandardInput <= 4) {
       GBS::SP_PRE_COAST::write(7); // these two were 7 and 6
@@ -4028,12 +4079,6 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck) {
       }
     }
   }
-
-  //if (rto->syncTypeCsync == true) {
-  //  if (GBS::STATUS_SYNC_PROC_VSACT::read() == 1) {
-  //    GBS::SP_H_PROTECT::write(1);
-  //  }
-  //}
 }
 
 void updateCoastPosition(boolean autoCoast) {
@@ -4066,6 +4111,26 @@ void updateCoastPosition(boolean autoCoast) {
   // limit to more likely actual value of 430
   if (accInHlength >= 2040) {
     accInHlength = 1716;
+  }
+  
+  if (accInHlength <= 240) {
+    // check for low res, low Hz > can overflow HPERIOD_IF
+    if (GBS::STATUS_SYNC_PROC_VTOTAL::read() <= 322) {
+      delay(4);
+      if (GBS::STATUS_SYNC_PROC_VTOTAL::read() <= 322) {
+        SerialM.println(F(" (debug) updateCoastPosition: low res, low hz"));
+        accInHlength = 2000;
+        // usually need to lower charge pump. todo: write better check
+        if (rto->syncTypeCsync && rto->videoStandardInput > 0 && rto->videoStandardInput <= 4) {
+          if (GBS::PLLAD_ICP::read() >= 5 && GBS::PLLAD_FS::read() == 1) {
+            GBS::PLLAD_ICP::write(5);
+            GBS::PLLAD_FS::write(0);
+            latchPLLAD();
+            rto->phaseIsSet = 0;
+          }
+        }
+      }
+    }
   }
 
   // accInHlength around 1732 here / NTSC
@@ -4145,9 +4210,10 @@ void updateClampPosition() {
   }
   accInHlength = accInHlength / 16;  // for the 16x loop
 
-  // HPERIOD_IF: 9 bits (0-511, represents actual scanline time / 4)
+  // HPERIOD_IF: 9 bits (0-511, represents actual scanline time / 4, can overflow to low values)
+  // if it overflows, the calculated clamp positions are likely around 1 to 4. good enough
   // STATUS_SYNC_PROC_HTOTAL: 12 bits (0-4095)
-  if (accInHlength < 16 || accInHlength > 4095) {
+  if (accInHlength > 4095) {
       return;
   }
 
@@ -4630,58 +4696,69 @@ void bypassModeSwitch_RGBHV() {
 
 void runAutoGain()
 {
-    uint8_t limit_found = 0;
-    uint8_t status00reg = GBS::STATUS_00::read(); // confirm no mode changes happened
+  static unsigned long lastTimeAutoGain = millis();
+  uint8_t limit_found = 0;
+  uint8_t status00reg = GBS::STATUS_00::read(); // confirm no mode changes happened
 
-    //GBS::DEC_TEST_SEL::write(5);
+  //GBS::DEC_TEST_SEL::write(5);
 
-    //for (uint8_t i = 0; i < 14; i++) {
-    //  uint8_t greenValue = GBS::TEST_BUS_2E::read();
-    //  if (greenValue >= 0x28 && greenValue <= 0x2f) {  // 0x2c seems to be "highest" (haven't seen 0x2b yet)
-    //    if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
-    //      limit_found++;
-    //    }
-    //    else return;
-    //  }
-    //}
+  //for (uint8_t i = 0; i < 14; i++) {
+  //  uint8_t greenValue = GBS::TEST_BUS_2E::read();
+  //  if (greenValue >= 0x28 && greenValue <= 0x2f) {  // 0x2c seems to be "highest" (haven't seen 0x2b yet)
+  //    if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
+  //      limit_found++;
+  //    }
+  //    else return;
+  //  }
+  //}
 
-    GBS::DEC_TEST_SEL::write(1); // luma and G channel
+  GBS::DEC_TEST_SEL::write(1); // luma and G channel
+  uint8_t loopCeiling;
+  if ((millis() - lastTimeAutoGain) < 30000) {
+    loopCeiling = 121;
+  }
+  else {
+    loopCeiling = 6;
+  }
 
-    for (uint8_t i = 0; i < 20; i++) {
-        limit_found = 0;
-        uint8_t greenValue = GBS::TEST_BUS_2F::read() & 0x7f;
-        uint8_t blueValue = GBS::TEST_BUS_2E::read() & 0x7f;
+  for (uint8_t i = 0; i < loopCeiling; i++) {
+    if (i % 40 == 0) delay(1);
+    limit_found = 0;
+    uint8_t greenValue = GBS::TEST_BUS_2F::read() & 0x7f;
+    uint8_t blueValue = GBS::TEST_BUS_2E::read() & 0x7f;
+    if ((greenValue >= 0x7b && greenValue <= 0x7f) || (blueValue >= 0x7b && blueValue <= 0x7f)) {
+      for (uint8_t a = 0; a < 3; a++) {
+        delayMicroseconds(24);
+        greenValue = GBS::TEST_BUS_2F::read() & 0x7f;
+        blueValue = GBS::TEST_BUS_2E::read() & 0x7f;
         if ((greenValue >= 0x7c && greenValue <= 0x7f) || (blueValue >= 0x7c && blueValue <= 0x7f)) {
-            for (uint8_t a = 0; a < 2; a++) {
-                delayMicroseconds(22);
-                greenValue = GBS::TEST_BUS_2F::read() & 0x7f;
-                blueValue = GBS::TEST_BUS_2E::read() & 0x7f;
-                if ((greenValue >= 0x7c && greenValue <= 0x7f) || (blueValue >= 0x7c && blueValue <= 0x7f)) {
-                    if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
-                        limit_found++;
-                    } else
-                        return;
-                }
-            }
-            if (limit_found == 2) {
-                limit_found = 0;
-                uint8_t level = GBS::ADC_GGCTRL::read();
-                if (level < 0xff) {
-                    GBS::ADC_GGCTRL::write(level + 1);
-                    GBS::ADC_RGCTRL::write(level + 1);
-                    GBS::ADC_BGCTRL::write(level + 1);
-
-                    // remember these gain settings
-                    adco->r_gain = GBS::ADC_RGCTRL::read();
-                    adco->g_gain = GBS::ADC_GGCTRL::read();
-                    adco->b_gain = GBS::ADC_BGCTRL::read();
-
-                    //printInfo();
-                    delayMicroseconds(100); // let it settle a little
-                }
-            }
+          if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
+            limit_found++;
+          }
+          else
+            return;
         }
+      }
+      if (limit_found == 2) {
+        limit_found = 0;
+        uint8_t level = GBS::ADC_GGCTRL::read();
+        if (level < 0xff) {
+          GBS::ADC_GGCTRL::write(level + 2);
+          GBS::ADC_RGCTRL::write(level + 2);
+          GBS::ADC_BGCTRL::write(level + 2);
+
+          // remember these gain settings
+          adco->r_gain = GBS::ADC_RGCTRL::read();
+          adco->g_gain = GBS::ADC_GGCTRL::read();
+          adco->b_gain = GBS::ADC_BGCTRL::read();
+
+          printInfo();
+          delay(1); // let it settle a little
+          lastTimeAutoGain = millis();
+        }
+      }
     }
+  }
 }
 
 void enableScanlines() {
@@ -5076,6 +5153,7 @@ void runSyncWatcher()
   static unsigned long preemptiveSogWindowStart = millis();
   static const uint16_t sogWindowLen = 6000; // ms
   static uint16_t badHsActive = 0;
+  static boolean lastAdjustWasInActiveWindow = 0;
 
   if (rto->syncTypeCsync && !rto->inputIsYpBpR && (newVideoModeCounter == 0)) {
     // look for SOG instability
@@ -5115,14 +5193,25 @@ void runSyncWatcher()
           delay(30);
           updateSpDynamic(0);
           badHsActive = 0;
-          rto->phaseIsSet = 0;
+          lastAdjustWasInActiveWindow = 1;
         }
         else if (badHsActive > 120) {
           optimizeSogLevel();
           badHsActive = 0;
-          rto->phaseIsSet = 0;
+          lastAdjustWasInActiveWindow = 1;
         }
         preemptiveSogWindowStart = millis();  // restart window
+      }
+    }
+    else if (lastAdjustWasInActiveWindow) {
+      lastAdjustWasInActiveWindow = 0;
+      if (rto->currentLevelSOG >= 8) {
+        rto->currentLevelSOG -= 1;
+        setAndUpdateSogLevel(rto->currentLevelSOG);
+        delay(30);
+        updateSpDynamic(0);
+        badHsActive = 0;
+        rto->phaseIsSet = 0;
       }
     }
   }
@@ -5589,24 +5678,11 @@ void runSyncWatcher()
           GBS::GBS_OPTION_SCALING_RGBHV::write(1);
           GBS::SP_SOG_P_ATO::write(1);          // 5_20 1 auto SOG polarity (now "hpw" should never be close to "ht")
 
-          // adjust vposition
           GBS::SP_SDCS_VSST_REG_L::write(2); // 5_3f
           GBS::SP_SDCS_VSSP_REG_L::write(0); // 5_40
-          setMemoryVblankStartPosition(2);
-          setMemoryVblankStopPosition(4);
-          GBS::IF_VB_SP::write(8);
-          GBS::IF_VB_ST::write(6);
 
           rto->coastPositionIsSet = rto->clampPositionIsSet = 0;
           rto->videoStandardInput = 14;
-
-          if (needPostAdjust) {
-            // base preset was "3" / no line doubling
-            // info: actually the position needs to be adjusted based on hor. freq or "h:" value (todo!)
-            GBS::IF_HB_ST2::write(0x08); // patches
-            GBS::IF_HB_SP2::write(0x68); // image
-            GBS::IF_HBIN_SP::write(0x50);// position
-          }
 
           if (GBS::PLLAD_ICP::read() >= 6) {
             GBS::PLLAD_ICP::write(5); // reduce charge pump current for more general use
@@ -5627,6 +5703,30 @@ void runSyncWatcher()
             GBS::SP_H_PROTECT::write(1);      // some modes require this (or invert SOG)
           }
           delay(300);
+
+          // note: this is all duplicated below. unify!
+          if (needPostAdjust) {
+            // base preset was "3" / no line doubling
+            // info: actually the position needs to be adjusted based on hor. freq or "h:" value (todo!)
+            GBS::IF_HB_ST2::write(0x08); // patches
+            GBS::IF_HB_SP2::write(0x68); // image
+            GBS::IF_HBIN_SP::write(0x50);// position
+
+            float sfr = getSourceFieldRate(0);
+            if (sfr >= 69.0) {
+              SerialM.println("source >= 70Hz");
+              // increase vscale; vscale -= 57 seems to hit magic factor often
+              // 512 + 57 = 569 + 57 = 626 + 57 = 683
+              GBS::VDS_VSCALE::write(GBS::VDS_VSCALE::read() - 57);
+
+            }
+            else {
+              // 50/60Hz, presumably
+              // adjust vposition
+              GBS::IF_VB_SP::write(8);
+              GBS::IF_VB_ST::write(6);
+            }
+          }
         }
       }
       // check whether to revert back to full bypass
@@ -5693,19 +5793,9 @@ void runSyncWatcher()
             // adjust vposition
             GBS::SP_SDCS_VSST_REG_L::write(2); // 5_3f
             GBS::SP_SDCS_VSSP_REG_L::write(0); // 5_40
-            setMemoryVblankStartPosition(2);
-            setMemoryVblankStopPosition(4);
-            GBS::IF_VB_SP::write(8);
-            GBS::IF_VB_ST::write(6);
 
             rto->coastPositionIsSet = rto->clampPositionIsSet = 0;
             rto->videoStandardInput = 14;
-
-            if (needPostAdjust) {
-              GBS::IF_HB_ST2::write(0x08); // patches
-              GBS::IF_HB_SP2::write(0x68); // image
-              GBS::IF_HBIN_SP::write(0x50);// position
-            }
 
             if (GBS::PLLAD_ICP::read() >= 6) {
               GBS::PLLAD_ICP::write(5); // reduce charge pump current for more general use
@@ -5726,6 +5816,30 @@ void runSyncWatcher()
               GBS::SP_H_PROTECT::write(1);      // some modes require this (or invert SOG)
             }
             delay(300);
+
+            // note: this is all duplicated above. unify!
+            if (needPostAdjust) {
+              // base preset was "3" / no line doubling
+              // info: actually the position needs to be adjusted based on hor. freq or "h:" value (todo!)
+              GBS::IF_HB_ST2::write(0x08); // patches
+              GBS::IF_HB_SP2::write(0x68); // image
+              GBS::IF_HBIN_SP::write(0x50);// position
+
+              float sfr = getSourceFieldRate(0);
+              if (sfr >= 69.0) {
+                SerialM.println("source >= 70Hz");
+                // increase vscale; vscale -= 57 seems to hit magic factor often
+                // 512 + 57 = 569 + 57 = 626 + 57 = 683
+                GBS::VDS_VSCALE::write(GBS::VDS_VSCALE::read() - 57);
+
+              }
+              else {
+                // 50/60Hz, presumably
+                // adjust vposition
+                GBS::IF_VB_SP::write(8);
+                GBS::IF_VB_ST::write(6);
+              }
+            }
           }
           else {
             // was unstable, undo videoStandardInput change
@@ -6556,7 +6670,6 @@ void loop() {
   static uint8_t inputStage = 0;
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastTimeSourceCheck = 500; // 500 to start right away (after setup it will be 2790ms when we get here)
-  static unsigned long lastTimeAutoGain = millis();
   static unsigned long lastTimeInterruptClear = millis();
 #ifdef HAVE_BUTTONS
   static unsigned long lastButton = micros();
@@ -7540,6 +7653,27 @@ void loop() {
   {
     runSyncWatcher();
     lastTimeSyncWatcher = millis();
+
+    if (uopt->enableAutoGain == 1 && !rto->sourceDisconnected
+      && rto->videoStandardInput > 0 && rto->clampPositionIsSet
+      && rto->noSyncCounter == 0 && rto->continousStableCounter > 120
+      && rto->boardHasPower)
+    {
+      uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+      uint16_t pllad = GBS::PLLAD_MD::read();
+      if (((htotal > (pllad - 3)) && (htotal < (pllad + 3)))) {
+        uint8_t debugRegBackup = 0, debugPinBackup = 0;
+        debugPinBackup = GBS::PAD_BOUT_EN::read();
+        debugRegBackup = GBS::TEST_BUS_SEL::read();
+        GBS::PAD_BOUT_EN::write(0); // disable output to pin for test
+        GBS::TEST_BUS_SEL::write(0xb); // decimation
+        if (GBS::STATUS_INT_SOG_BAD::read() == 0) {
+          runAutoGain();
+        }
+        GBS::TEST_BUS_SEL::write(debugRegBackup);
+        GBS::PAD_BOUT_EN::write(debugPinBackup); // debug output pin back on
+      }
+    }
   }
 
   // init frame sync + besthtotal routine
@@ -7625,29 +7759,6 @@ void loop() {
   {
     rto->applyPresetDoneStage = 11; // set first, so we don't loop applying presets
     setOutModeHdBypass();
-  }
-
-  // run auto ADC gain feature (if enabled)
-  if (rto->syncWatcherEnabled && uopt->enableAutoGain == 1 && !rto->sourceDisconnected
-    && rto->videoStandardInput > 0 && rto->clampPositionIsSet
-    && rto->noSyncCounter == 0 && rto->continousStableCounter > 30
-    && ((millis() - lastTimeAutoGain) > 3) && rto->boardHasPower)
-  {
-    uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
-    uint16_t pllad = GBS::PLLAD_MD::read();
-    if (((htotal > (pllad - 3)) && (htotal < (pllad + 3)))) {
-      uint8_t debugRegBackup = 0, debugPinBackup = 0;
-      debugPinBackup = GBS::PAD_BOUT_EN::read();
-      debugRegBackup = GBS::TEST_BUS_SEL::read();
-      GBS::PAD_BOUT_EN::write(0); // disable output to pin for test
-      GBS::TEST_BUS_SEL::write(0xb); // decimation
-      if (GBS::STATUS_INT_SOG_BAD::read() == 0) {
-        runAutoGain();
-      }
-      GBS::TEST_BUS_SEL::write(debugRegBackup);
-      GBS::PAD_BOUT_EN::write(debugPinBackup); // debug output pin back on
-    }
-    lastTimeAutoGain = millis();
   }
 
   if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true && rto->boardHasPower)
@@ -8062,11 +8173,13 @@ void handleType2Command(char argument) {
     {
       uopt->wantTap6 = 1;
       GBS::VDS_TAP6_BYPS::write(0);
+      GBS::MADPT_Y_DELAY_UV_DELAY::write(GBS::MADPT_Y_DELAY_UV_DELAY::read() - 1);
       SerialM.println("on");
     }
     else {
       uopt->wantTap6 = 0;
       GBS::VDS_TAP6_BYPS::write(1);
+      GBS::MADPT_Y_DELAY_UV_DELAY::write(GBS::MADPT_Y_DELAY_UV_DELAY::read() + 1);
       SerialM.println("off");
     }
     saveUserPrefs();
