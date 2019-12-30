@@ -2962,14 +2962,10 @@ void doPostPresetLoadSteps() {
 
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
-      if (GBS::PLLAD_MD::read() >= 2300) {
-        GBS::PLLAD_ICP::write(6);         // most presets
-      }
-      else {
-        GBS::PLLAD_ICP::write(5);         // example: PAL x1024
-      }
-      if (rto->presetID == 0x04 || rto->presetID == 0x14) {
-        // out 480p needs low gain
+      GBS::PLLAD_ICP::write(5);         // 5 rather than 6 to work well with CVBS sync as well as CSync
+
+      if (rto->presetID == 0x04 || rto->presetID == 0x14 || rto->presetID == 0x01 || rto->presetID == 0x11) {
+        // out 480p needs low gain; added x960 as well
         GBS::PLLAD_FS::write(0);
       }
       else {
@@ -4806,7 +4802,7 @@ void runAutoGain()
       if (limit_found == 2) {
         limit_found = 0;
         uint8_t level = GBS::ADC_GGCTRL::read();
-        if (level < 0xff) {
+        if (level < 0xfe) {
           GBS::ADC_GGCTRL::write(level + 2);
           GBS::ADC_RGCTRL::write(level + 2);
           GBS::ADC_BGCTRL::write(level + 2);
@@ -6360,8 +6356,8 @@ void setup() {
   if (rto->webServerEnabled) {
     rto->allowUpdatesOTA = false; // need to initialize for handleWiFi()
     WiFi.setSleepMode(WIFI_NONE_SLEEP); // low latency responses, less chance for missing packets
+    WiFi.setOutputPower(16.0f); // float: min 0.0f, max 20.5f
     startWebserver();
-    WiFi.setOutputPower(20.0f); // float: min 0.0f, max 20.5f // reduced from max, but still strong
     rto->webServerStarted = true;
   }
   else {
@@ -8395,13 +8391,15 @@ void handleType2Command(char argument) {
 //  }
 //}
 
+WiFiEventHandler disconnectedEventHandler;
+
 void startWebserver()
 {
   persWM.setApCredentials(ap_ssid, ap_password);
   persWM.onConnect([]() {
     SerialM.print(F("(WiFi): STA mode connected; IP: "));
     SerialM.println(WiFi.localIP().toString());
-    if (MDNS.begin(device_hostname_partial)) { // MDNS request for gbscontrol.local
+    if (MDNS.begin(device_hostname_partial, WiFi.localIP())) { // MDNS request for gbscontrol.local
       //Serial.println("MDNS started");
       MDNS.addService("http", "tcp", 80); // Add service to MDNS-SD
       MDNS.announce();
@@ -8410,7 +8408,14 @@ void startWebserver()
   });
   persWM.onAp([]() {
     SerialM.println(FPSTR(ap_info_string));
+    // add mdns announce here as well?
   });
+
+  disconnectedEventHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected& event)
+    {
+      Serial.print("Station disconnected, reason: ");
+      Serial.println(event.reason);
+    });
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
     //Serial.println("sending web page");
