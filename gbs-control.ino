@@ -2298,6 +2298,11 @@ void setIfHblankParameters() {
     // if line doubling (PAL, NTSC), div 2 + a couple pixels
     GBS::IF_HSYNC_RST::write(((pll_divider >> 1) + 13) & 0xfffe);   // 1_0e
     GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);          // 1_22
+    if (rto->presetID == 0x03 || rto->presetID == 0x05) {
+      // override for 720p/1080p manually for now (pll_divider alone isn't correct :/)
+      GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() + 32);
+      GBS::IF_LINE_SP::write(GBS::IF_LINE_SP::read() + 32);
+    }
 
     if (GBS::IF_LD_RAM_BYPS::read()) {
       // no LD = EDTV or similar
@@ -2312,6 +2317,11 @@ void setIfHblankParameters() {
 
       if (GBS::IF_HB_ST2::read() >= 1056) {
         GBS::IF_HB_ST2::write(1056);  // limit (fifo?)
+      }
+
+      if (rto->presetID == 0x03 || rto->presetID == 0x05) {
+        // override 1_1a for 720p/1080p manually for now (pll_divider alone isn't correct :/)
+        GBS::IF_HB_SP2::write(0x30);
       }
 
       // position move via 1_26 and reserve for deinterlacer: add IF RST pixels
@@ -2919,8 +2929,14 @@ void doPostPresetLoadSteps() {
 
     GBS::VDS_PK_LB_CORE::write(0);    // 3_44 0-3 // 1 for anti source jailbars
     GBS::VDS_PK_LH_CORE::write(0);    // 3_46 0-3 // 1 for anti source jailbars
-    GBS::VDS_PK_LB_GAIN::write(0x16); // 3_45 // peaking HF
-    GBS::VDS_PK_LH_GAIN::write(0x18); // 3_47
+    if (rto->presetID == 0x05) {
+      GBS::VDS_PK_LB_GAIN::write(0x16); // 3_45 // peaking HF
+      GBS::VDS_PK_LH_GAIN::write(0x0A); // 3_47
+    }
+    else {
+      GBS::VDS_PK_LB_GAIN::write(0x16); // 3_45
+      GBS::VDS_PK_LH_GAIN::write(0x18); // 3_47
+    }
     GBS::VDS_PK_VL_HL_SEL::write(0);  // 3_43 0 if 1 then 3_45 HF almost no effect (coring 0xf9)
     GBS::VDS_PK_VL_HH_SEL::write(0);  // 3_43 1
 
@@ -2936,16 +2952,16 @@ void doPostPresetLoadSteps() {
     // full height option
     if (uopt->wantFullHeight) {
       if (rto->videoStandardInput == 1 || rto->videoStandardInput == 3) {
-        if (rto->presetID == 0x5)
-        { // out 1080p 60
-          GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 1);
-          GBS::VDS_DIS_VB_SP::write(42);
-          GBS::VDS_VB_SP::write(42 - 10); // is VDS_DIS_VB_SP - 10 = 32 // watch for vblank overflow (ps3)
-          GBS::VDS_VSCALE::write(455);
-          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 4);
-          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 4);
-          SerialM.println(F("full height"));
-        }
+        //if (rto->presetID == 0x5)
+        //{ // out 1080p 60
+        //  GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 1);
+        //  GBS::VDS_DIS_VB_SP::write(42);
+        //  GBS::VDS_VB_SP::write(42 - 10); // is VDS_DIS_VB_SP - 10 = 32 // watch for vblank overflow (ps3)
+        //  GBS::VDS_VSCALE::write(455);
+        //  GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 4);
+        //  GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 4);
+        //  SerialM.println(F("full height"));
+        //}
       }
       else if (rto->videoStandardInput == 2 || rto->videoStandardInput == 4) {
         if (rto->presetID == 0x15)
@@ -3029,12 +3045,14 @@ void doPostPresetLoadSteps() {
       GBS::IF_HBIN_SP::write(0x60);   // 1_26
       if (rto->presetID == 0x5) 
       { // out 1080p
-        GBS::IF_HB_SP2::write(0x92);  // 1_1a
+        GBS::IF_HB_ST2::write(0x4B0); // 1_18
+        GBS::IF_HB_SP2::write(0xB0);  // 1_1a
       }
       else if (rto->presetID == 0x3) 
       { // out 720p
         GBS::VDS_VSCALE::write(683); // same as base preset
-        GBS::IF_HB_SP2::write(0x8A);  // 1_1a
+        GBS::IF_HB_ST2::write(0x4B0); // 1_18
+        GBS::IF_HB_SP2::write(0xB0);  // 1_1a
       }
       else if (rto->presetID == 0x2) 
       { // out x1024
@@ -3223,9 +3241,13 @@ void doPostPresetLoadSteps() {
   }
 
   if (uopt->wantStepResponse) {
-    // step response requested, but only apply if not feedback clock presets
-    if (rto->presetID != 0x04 && rto->presetID != 0x14) {
+    // step response requested, but exclude feedback clock and 720p/1080p presets
+    if (rto->presetID != 0x04 && rto->presetID != 0x14 && 
+        rto->presetID != 0x03 && rto->presetID != 0x05) {
       GBS::VDS_UV_STEP_BYPS::write(0);
+    }
+    else {
+      GBS::VDS_UV_STEP_BYPS::write(1);
     }
   }
   else { 
@@ -4067,7 +4089,7 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck) {
         uint8_t testOk = 0;
         for (int i = 0; i < 30; i++) {
           ratioHs = (double)GBS::STATUS_SYNC_PROC_HLOW_LEN::read() / (double)(GBS::STATUS_SYNC_PROC_HTOTAL::read() + 1);
-          if (ratioHs > 0.025 && ratioHs < 0.152) {   // 0.152 : (354 / 2345) is 9.5uS on NTSC (crtemudriver)
+          if (ratioHs > 0.041 && ratioHs < 0.152) {   // 0.152 : (354 / 2345) is 9.5uS on NTSC (crtemudriver)
             testOk++;
             ratioHsAverage += ratioHs;
             if (testOk == 12) {
@@ -4079,20 +4101,22 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck) {
         }
         if (testOk != 12) {
           //Serial.print("          testok: "); Serial.println(testOk);
-          ratioHs = 0.032;  // 0.046: (~100 / 2345) is ~2.9uS on NTSC (find with crtemudriver)
+          ratioHs = 0.032;  // 0.032: (~100 / 2560) is ~2.5uS on NTSC (find with crtemudriver)
         }
 
         //Serial.print(" (debug) hPeriod: ");  Serial.println(hPeriod);
         //Serial.print(" (debug) ratioHs: ");  Serial.println(ratioHs, 5);
-        //Serial.print(" (debug) ignoreBase: ");  Serial.println(ignoreLength,HEX);
-        ignoreLength = ignoreLength + (ignoreLength * (ratioHs * 24)); // factor 24 chosen through crtemudriver tests
+        //Serial.print(" (debug) ignoreBase: 0x");  Serial.println(ignoreLength,HEX);
+        uint16_t pllDiv = GBS::PLLAD_MD::read();
+        ignoreLength = ignoreLength + (pllDiv * (ratioHs * 0.38)); // for factor: crtemudriver tests
+        //SerialM.print(" (debug) ign.length: 0x"); SerialM.println(ignoreLength, HEX);
 
         // > check relies on sync instability (potentially from too large ign. length) getting cought earlier
         if (ignoreLength > GBS::SP_H_PULSE_IGNOR::read() || GBS::SP_H_PULSE_IGNOR::read() >= 0x90) {
           if (ignoreLength > 0x90) {     // if higher, HPERIOD_IF probably was 511 / limit
             ignoreLength = 0x90;
           }
-          if (ignoreLength >= 0x1A && ignoreLength <= 0x40) {
+          if (ignoreLength >= 0x1A && ignoreLength <= 0x42) {
             ignoreLength = 0x1A;         // at the low end should stick to 0x1A
           }
           if (ignoreLength != GBS::SP_H_PULSE_IGNOR::read()) {
@@ -5799,7 +5823,7 @@ void runSyncWatcher()
 
           if (GBS::PLLAD_ICP::read() >= 6) {
             GBS::PLLAD_ICP::write(5); // reduce charge pump current for more general use
-            latchPLLAD();
+            latchPLLAD(); delay(40);
           }
 
           updateSpDynamic(1);
@@ -5824,6 +5848,10 @@ void runSyncWatcher()
             GBS::IF_HB_ST2::write(0x08); // patches
             GBS::IF_HB_SP2::write(0x68); // image
             GBS::IF_HBIN_SP::write(0x50);// position
+            if (rto->presetID == 0x05 || rto->presetID == 0x03) {
+              GBS::IF_HB_ST2::write(0x480);
+              GBS::IF_HB_SP2::write(0x8E);
+            }
 
             float sfr = getSourceFieldRate(0);
             if (sfr >= 69.0) {
@@ -5917,6 +5945,10 @@ void runSyncWatcher()
               GBS::IF_HB_ST2::write(0x08); // patches
               GBS::IF_HB_SP2::write(0x68); // image
               GBS::IF_HBIN_SP::write(0x50);// position
+              if (rto->presetID == 0x05 || rto->presetID == 0x03) {
+                GBS::IF_HB_ST2::write(0x480);
+                GBS::IF_HB_SP2::write(0x8E);
+              }
 
               float sfr = getSourceFieldRate(0);
               if (sfr >= 69.0) {
@@ -6894,8 +6926,14 @@ void loop() {
       }
       else {
         //if (uopt->wantPeaking == 0) { GBS::VDS_PK_Y_H_BYPS::write(1); } // 3_4e 0
-        GBS::VDS_PK_LB_GAIN::write(0x16); // 3_45
-        GBS::VDS_PK_LH_GAIN::write(0x18); // 3_47
+        if (rto->presetID == 0x05) {
+          GBS::VDS_PK_LB_GAIN::write(0x16); // 3_45
+          GBS::VDS_PK_LH_GAIN::write(0x0A); // 3_47
+        }
+        else {
+          GBS::VDS_PK_LB_GAIN::write(0x16); // 3_45
+          GBS::VDS_PK_LH_GAIN::write(0x18); // 3_47
+        }
         GBS::VDS_Y_OFST::write(GBS::ADC_UNUSED_60::read()); // restore
         GBS::HD_Y_OFFSET::write(GBS::ADC_UNUSED_61::read());
         if (!rto->inputIsYpBpR) {
@@ -7325,7 +7363,7 @@ void loop() {
         shiftHorizontalLeft();
       }
       else {
-        if (GBS::IF_HBIN_SP::read() < 0x120) {                        // (arbitrary) max limit
+        if (GBS::IF_HBIN_SP::read() < 0x150) {                        // (arbitrary) max limit
           GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() + 8);        // canvas move left
           if (GBS::IF_HBIN_SP::read() >= 0xAA) {                      // at some point (arbitrary, but avoid right border cutoff)
             GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() + 4);  // extend 1_0e
