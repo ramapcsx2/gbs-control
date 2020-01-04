@@ -1870,27 +1870,56 @@ void scaleHorizontal(uint16_t amountToScale, bool subtracting)
     GBS::VDS_HSCALE::write(hscale);
 }
 
+// moves horizontal sync (VDS or HDB as needed)
 void moveHS(uint16_t amountToAdd, bool subtracting) {
-  uint16_t VDS_HS_ST = GBS::VDS_HS_ST::read();
-  uint16_t VDS_HS_SP = GBS::VDS_HS_SP::read();
-  uint16_t htotal = GBS::VDS_HSYNC_RST::read();
-  
-  if (htotal == 0) return; // safety
-  int16_t amount = subtracting ? (0 - amountToAdd) : amountToAdd;
+  if (rto->outModeHdBypass) {
+    uint16_t SP_CS_HS_ST = GBS::SP_CS_HS_ST::read();
+    uint16_t SP_CS_HS_SP = GBS::SP_CS_HS_SP::read();
+    uint16_t htotal = GBS::HD_HSYNC_RST::read();
 
-  if (VDS_HS_ST + amount < 0) {
-    VDS_HS_ST = htotal + VDS_HS_ST; // yep, this works :p
+    if (videoStandardInputIsPalNtscSd()) {
+      htotal -= 8;  // account for the way hdbypass is setup in setOutModeHdBypass()
+      htotal *= 2;
+    }
+
+    if (htotal == 0) return; // safety
+    int16_t amount = subtracting ? (0 - amountToAdd) : amountToAdd;
+
+    if (SP_CS_HS_ST + amount < 0) {
+      SP_CS_HS_ST = htotal + SP_CS_HS_ST; // yep, this works :p
+    }
+    if (SP_CS_HS_SP + amount < 0) {
+      SP_CS_HS_SP = htotal + SP_CS_HS_SP;
+    }
+
+    GBS::SP_CS_HS_ST::write((SP_CS_HS_ST + amount) % htotal);
+    GBS::SP_CS_HS_SP::write((SP_CS_HS_SP + amount) % htotal);
+
+    SerialM.print("HSST: "); SerialM.print(GBS::SP_CS_HS_ST::read());
+    SerialM.print(" HSSP: "); SerialM.println(GBS::SP_CS_HS_SP::read());
   }
-  if (VDS_HS_SP + amount < 0) {
-    VDS_HS_SP = htotal + VDS_HS_SP;
+  else {
+    uint16_t VDS_HS_ST = GBS::VDS_HS_ST::read();
+    uint16_t VDS_HS_SP = GBS::VDS_HS_SP::read();
+    uint16_t htotal = GBS::VDS_HSYNC_RST::read();
+
+    if (htotal == 0) return; // safety
+    int16_t amount = subtracting ? (0 - amountToAdd) : amountToAdd;
+
+    if (VDS_HS_ST + amount < 0) {
+      VDS_HS_ST = htotal + VDS_HS_ST; // yep, this works :p
+    }
+    if (VDS_HS_SP + amount < 0) {
+      VDS_HS_SP = htotal + VDS_HS_SP;
+    }
+
+    GBS::VDS_HS_ST::write((VDS_HS_ST + amount) % htotal);
+    GBS::VDS_HS_SP::write((VDS_HS_SP + amount) % htotal);
+
+    //SerialM.print("HSST: "); SerialM.print(GBS::VDS_HS_ST::read());
+    //SerialM.print(" HSSP: "); SerialM.println(GBS::VDS_HS_SP::read());
   }
-
-  GBS::VDS_HS_ST::write((VDS_HS_ST + amount) % htotal);
-  GBS::VDS_HS_SP::write((VDS_HS_SP + amount) % htotal);
-
-  //SerialM.print("HSST: "); SerialM.print(GBS::VDS_HS_ST::read());
-  //SerialM.print(" HSSP: "); SerialM.println(GBS::VDS_HS_SP::read());
-  getVideoTimings();
+  printVideoTimings();
 }
 
 void moveVS(uint16_t amountToAdd, bool subtracting) {
@@ -2088,13 +2117,23 @@ void shiftVerticalDownIF() {
 }
 
 void setHSyncStartPosition(uint16_t value) {
-  GBS::VDS_HS_ST::write(value);
-  GBS::HD_HS_ST::write(value);
+  if (rto->outModeHdBypass) {
+    //GBS::HD_HS_ST::write(value);
+    GBS::SP_CS_HS_ST::write(value);
+  }
+  else {
+    GBS::VDS_HS_ST::write(value);
+  }
 }
 
 void setHSyncStopPosition(uint16_t value) {
-  GBS::VDS_HS_SP::write(value);
-  GBS::HD_HS_SP::write(value);
+  if (rto->outModeHdBypass) {
+    //GBS::HD_HS_SP::write(value);
+    GBS::SP_CS_HS_SP::write(value);
+  }
+  else {
+    GBS::VDS_HS_SP::write(value);
+  }
 }
 
 void setMemoryHblankStartPosition(uint16_t value) {
@@ -2161,7 +2200,7 @@ void setCsVsStop(uint16_t stop) {
   GBS::SP_SDCS_VSSP_REG_L::write(stop & 0xff);
 }
 
-void getVideoTimings() {
+void printVideoTimings() {
   if (rto->presetID < 0x20) {
     SerialM.println("");
     SerialM.print(F("HT / scale   : ")); SerialM.print(GBS::VDS_HSYNC_RST::read());
@@ -2188,8 +2227,10 @@ void getVideoTimings() {
   }
   else {
     SerialM.println("");
-    SerialM.print(F("HS ST/SP     : ")); SerialM.print(GBS::HD_HS_ST::read());
-    SerialM.print(" "); SerialM.println(GBS::HD_HS_SP::read());
+    SerialM.print(F("HD_HSYNC_RST : ")); SerialM.println(GBS::HD_HSYNC_RST::read());
+    SerialM.print(F("HD_INI_ST    : ")); SerialM.println(GBS::HD_INI_ST::read());
+    SerialM.print(F("HS ST/SP     : ")); SerialM.print(GBS::SP_CS_HS_ST::read());
+    SerialM.print(" "); SerialM.println(GBS::SP_CS_HS_SP::read());
     SerialM.print(F("HB ST/SP     : ")); SerialM.print(GBS::HD_HB_ST::read());
     SerialM.print(" "); SerialM.println(GBS::HD_HB_SP::read());
     SerialM.println(F("------"));
@@ -2198,8 +2239,6 @@ void getVideoTimings() {
     SerialM.print(" "); SerialM.println(GBS::HD_VS_SP::read());
     SerialM.print(F("VB ST/SP     : ")); SerialM.print(GBS::HD_VB_ST::read());
     SerialM.print(" "); SerialM.println(GBS::HD_VB_SP::read());
-    SerialM.print(F("HD_HSYNC_RST : ")); SerialM.println(GBS::HD_HSYNC_RST::read());
-    SerialM.print(F("HD_INI_ST    : ")); SerialM.println(GBS::HD_INI_ST::read());
   }
 
   SerialM.print(F("CsVT         : ")); SerialM.println(GBS::STATUS_SYNC_PROC_VTOTAL::read());
@@ -7195,7 +7234,7 @@ void loop() {
       }
     break;
     case ',':
-      getVideoTimings();
+      printVideoTimings();
     break;
     case 'i':
       rto->printInfos = !rto->printInfos;
