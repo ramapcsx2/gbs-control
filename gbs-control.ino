@@ -2298,8 +2298,8 @@ void setIfHblankParameters() {
     // if line doubling (PAL, NTSC), div 2 + a couple pixels
     GBS::IF_HSYNC_RST::write(((pll_divider >> 1) + 13) & 0xfffe);   // 1_0e
     GBS::IF_LINE_SP::write(GBS::IF_HSYNC_RST::read() + 1);          // 1_22
-    if (rto->presetID == 0x03 || rto->presetID == 0x05) {
-      // override for 720p/1080p manually for now (pll_divider alone isn't correct :/)
+    if (rto->presetID == 0x05) {
+      // override for 1080p manually for now (pll_divider alone isn't correct :/)
       GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() + 32);
       GBS::IF_LINE_SP::write(GBS::IF_LINE_SP::read() + 32);
     }
@@ -2315,13 +2315,13 @@ void setIfHblankParameters() {
       GBS::IF_HB_SP2::write(4 + ((uint16_t)((float)pll_divider * 0.0224f) & 0xfffe)); // 1_1a
       GBS::IF_HB_ST2::write((uint16_t)((float)pll_divider * 0.4550f) & 0xfffe);       // 1_18
 
-      if (GBS::IF_HB_ST2::read() >= 1056) {
-        GBS::IF_HB_ST2::write(1056);  // limit (fifo?)
+      if (GBS::IF_HB_ST2::read() >= 0x420) {
+        GBS::IF_HB_ST2::write(0x420);  // limit (fifo?) (0x420 = 1056)
       }
 
-      if (rto->presetID == 0x03 || rto->presetID == 0x05) {
-        // override 1_1a for 720p/1080p manually for now (pll_divider alone isn't correct :/)
-        GBS::IF_HB_SP2::write(0x30);
+      if (rto->presetID == 0x05) {
+        // override 1_1a for 1080p manually for now (pll_divider alone isn't correct :/)
+        GBS::IF_HB_SP2::write(0x2A);
       }
 
       // position move via 1_26 and reserve for deinterlacer: add IF RST pixels
@@ -3050,9 +3050,8 @@ void doPostPresetLoadSteps() {
       }
       else if (rto->presetID == 0x3) 
       { // out 720p
-        GBS::VDS_VSCALE::write(683); // same as base preset
-        GBS::IF_HB_ST2::write(0x4B0); // 1_18
-        GBS::IF_HB_SP2::write(0xB0);  // 1_1a
+        GBS::VDS_VSCALE::write(683);  // same as base preset
+        GBS::IF_HB_SP2::write(0x8A);  // 1_1a
       }
       else if (rto->presetID == 0x2) 
       { // out x1024
@@ -3241,9 +3240,9 @@ void doPostPresetLoadSteps() {
   }
 
   if (uopt->wantStepResponse) {
-    // step response requested, but exclude feedback clock and 720p/1080p presets
+    // step response requested, but exclude feedback clock and 1080p presets
     if (rto->presetID != 0x04 && rto->presetID != 0x14 && 
-        rto->presetID != 0x03 && rto->presetID != 0x05) {
+        rto->presetID != 0x05) {
       GBS::VDS_UV_STEP_BYPS::write(0);
     }
     else {
@@ -4811,13 +4810,17 @@ void runAutoGain()
     uint8_t greenValue = GBS::TEST_BUS_2F::read() & 0x7f;
     uint8_t blueValue = GBS::TEST_BUS_2E::read() & 0x7f;
     if ((greenValue >= 0x7b && greenValue <= 0x7f) || (blueValue >= 0x7b && blueValue <= 0x7f)) {
-      for (uint8_t a = 0; a < 3; a++) {
-        delayMicroseconds(24);
+      for (uint8_t a = 0; a < 2; a++) { // check below: if (limit_found == 2)
+        delayMicroseconds(64);
         greenValue = GBS::TEST_BUS_2F::read() & 0x7f;
         blueValue = GBS::TEST_BUS_2E::read() & 0x7f;
         if ((greenValue >= 0x7c && greenValue <= 0x7f) || (blueValue >= 0x7c && blueValue <= 0x7f)) {
           if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
             limit_found++;
+            // 240p test suite (SNES ver): display vertical lines (hor. line test)
+            //Serial.print("g: "); Serial.println(greenValue);
+            //Serial.print("b: "); Serial.println(blueValue);
+            //Serial.print("--"); Serial.println();
           }
           else
             return;
@@ -5848,7 +5851,7 @@ void runSyncWatcher()
             GBS::IF_HB_ST2::write(0x08); // patches
             GBS::IF_HB_SP2::write(0x68); // image
             GBS::IF_HBIN_SP::write(0x50);// position
-            if (rto->presetID == 0x05 || rto->presetID == 0x03) {
+            if (rto->presetID == 0x05) {
               GBS::IF_HB_ST2::write(0x480);
               GBS::IF_HB_SP2::write(0x8E);
             }
@@ -5945,7 +5948,7 @@ void runSyncWatcher()
               GBS::IF_HB_ST2::write(0x08); // patches
               GBS::IF_HB_SP2::write(0x68); // image
               GBS::IF_HBIN_SP::write(0x50);// position
-              if (rto->presetID == 0x05 || rto->presetID == 0x03) {
+              if (rto->presetID == 0x05) {
                 GBS::IF_HB_ST2::write(0x480);
                 GBS::IF_HB_SP2::write(0x8E);
               }
