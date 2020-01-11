@@ -138,7 +138,7 @@ private:
     //inPeriod -= 18; // use straight bestHtotal -= 1 instead
     // large htotal can push intermediates to 33 bits
     bestHtotal = (uint64_t)(inHtotal * (uint64_t)inPeriod) / (uint64_t)outPeriod;
-    bestHtotal -= 1;  // skew to smaller bestHtotal
+    //bestHtotal -= 1;  // skew to smaller bestHtotal
 
     // new 08.11.19: skip this step, IF period measurement should be stable enough to give repeatable results
     //if (bestHtotal == (inHtotal + 1)) { bestHtotal -= 1; } // works well

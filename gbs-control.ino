@@ -3019,8 +3019,8 @@ void doPostPresetLoadSteps() {
     {
       GBS::PLLAD_ICP::write(5);         // 5 rather than 6 to work well with CVBS sync as well as CSync
 
-      if (rto->presetID == 0x04 || rto->presetID == 0x14 || rto->presetID == 0x01 || rto->presetID == 0x11) {
-        // out 480p needs low gain; added x960 as well
+      if (rto->presetID == 0x04 || rto->presetID == 0x14) {
+        // out 480p needs low gain; had x960 as well but this is bad on V4.0 boards
         GBS::PLLAD_FS::write(0);
       }
       else {
