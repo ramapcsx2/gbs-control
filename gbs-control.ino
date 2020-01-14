@@ -3006,10 +3006,10 @@ void doPostPresetLoadSteps() {
         if (rto->presetID == 0x15)
         { // out 1080p 50
           GBS::VDS_VSCALE::write(455);
-          GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 2);
-          GBS::VDS_DIS_VB_SP::write(36);
-          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 28);
-          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 28);
+          GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read());  // full = 1125 of 1125
+          GBS::VDS_DIS_VB_SP::write(42);
+          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 26);
+          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 26);
           SerialM.println(F("full height"));
         }
       }
@@ -3019,13 +3019,15 @@ void doPostPresetLoadSteps() {
     {
       GBS::PLLAD_ICP::write(5);         // 5 rather than 6 to work well with CVBS sync as well as CSync
 
-      if (rto->presetID == 0x04 || rto->presetID == 0x14) {
-        // out 480p needs low gain; had x960 as well but this is bad on V4.0 boards
-        GBS::PLLAD_FS::write(0);
-      }
-      else {
-        GBS::PLLAD_FS::write(1);
-      }
+      // keep these in the presets from now on
+      //if (rto->presetID == 0x04 || rto->presetID == 0x14) {
+      //  // out 480p needs low gain; had x960 as well but this is bad on V4.0 boards
+      //  GBS::PLLAD_FS::write(0);
+      //}
+      //else {
+      //  GBS::PLLAD_FS::write(1);
+      //}
+
       GBS::ADC_FLTR::write(3);            // 5_03 4/5 ADC filter 3=40, 2=70, 1=110, 0=150 Mhz
       GBS::PLLAD_KS::write(2);            // 5_16
       setOverSampleRatio(2, true);        // prepare only = true
@@ -3045,13 +3047,15 @@ void doPostPresetLoadSteps() {
       
       GBS::ADC_FLTR::write(3);          // 5_03 4/5
       GBS::PLLAD_KS::write(1);          // 5_16
-      if (rto->presetID == 0x04 || rto->presetID == 0x14) {
-        // out 480p needs low gain
-        GBS::PLLAD_FS::write(0);
-      }
-      else {
-        GBS::PLLAD_FS::write(1);
-      }
+
+      // keep these in the presets from now on
+      //if (rto->presetID == 0x04 || rto->presetID == 0x14) {
+      //  // out 480p needs low gain
+      //  GBS::PLLAD_FS::write(0);
+      //}
+      //else {
+      //  GBS::PLLAD_FS::write(1);
+      //}
       setCsVsStart(14); // pal
       setCsVsStop(11);  //
       setOverSampleRatio(2, true);      // with KS = 1 for modes 3, 4, 8
@@ -3279,9 +3283,8 @@ void doPostPresetLoadSteps() {
   }
 
   if (uopt->wantStepResponse) {
-    // step response requested, but exclude feedback clock and 1080p presets
-    if (rto->presetID != 0x04 && rto->presetID != 0x14 && 
-        rto->presetID != 0x05) {
+    // step response requested, but exclude 1080p60 preset
+    if (rto->presetID != 0x05) {
       GBS::VDS_UV_STEP_BYPS::write(0);
     }
     else {
@@ -3417,6 +3420,10 @@ void doPostPresetLoadSteps() {
     GBS::PAD_SYNC_OUT_ENZ::write(0);    // enable sync out if needed
   }
   GBS::DAC_RGBS_PWDNZ::write(1);        // DAC on if needed
+  GBS::DAC_RGBS_SPD::write(0);          // 0_45 2 DAC_SVM power down disable, somehow less jailbars
+  GBS::DAC_RGBS_S0ENZ::write(0);        //
+  GBS::DAC_RGBS_S1EN::write(1);         // these 2 also help
+
   rto->useHdmiSyncFix = 0;              // reset flag
 
   GBS::SP_H_PROTECT::write(0);
@@ -3728,17 +3735,21 @@ void applyPresets(uint8_t result) {
 }
 
 void unfreezeVideo() {
-  if (rto->videoIsFrozen == true) {
+  /*if (rto->videoIsFrozen == true) {
     GBS::IF_VB_ST::write(GBS::IF_VB_SP::read() - 2);
   }
-  rto->videoIsFrozen = false;
+  rto->videoIsFrozen = false;*/
+  //Serial.print("u");
+  GBS::CAPTURE_ENABLE::write(1);
 }
 
 void freezeVideo() {
-  if (rto->videoIsFrozen == false) {
+  /*if (rto->videoIsFrozen == false) {
     GBS::IF_VB_ST::write(GBS::IF_VB_SP::read());
   }
-  rto->videoIsFrozen = true;
+  rto->videoIsFrozen = true;*/
+  //Serial.print("f");
+  GBS::CAPTURE_ENABLE::write(0);
 }
 
 static uint8_t getVideoMode() {
@@ -4936,6 +4947,7 @@ void disableScanlines() {
 }
 
 void enableMotionAdaptDeinterlace() {
+  freezeVideo();
   GBS::DEINT_00::write(0x19);         // 2_00 // bypass angular (else 0x00)
   GBS::MADPT_Y_MI_OFFSET::write(0x00); // 2_0b  // also used for scanline mixing
   //GBS::MADPT_STILL_NOISE_EST_EN::write(1); // 2_0A 5 (was 0 before)
@@ -4962,7 +4974,9 @@ void enableMotionAdaptDeinterlace() {
   //GBS::WFF_LINE_FLIP::write(0); // 4_4a_4 // 22.03.19 : turned off // update: only required in PAL?
   GBS::WFF_ENABLE::write(1); // 4_42 0 // enable before RFF
   GBS::RFF_ENABLE::write(1); // 4_4d 7
-  delay(60); // 55 first good
+  //delay(60); // 55 first good
+  unfreezeVideo();
+  delay(60);
   GBS::MAPDT_VT_SEL_PRGV::write(0);   // 2_16_7
   rto->motionAdaptiveDeinterlaceActive = true;
 }
@@ -8221,17 +8235,22 @@ void handleType2Command(char argument) {
   {
     uint8_t PLL_MS = GBS::PLL_MS::read();
     uint8_t memClock = 0;
-    PLL_MS++; PLL_MS &= 0x7;
-    if (PLL_MS < 3) PLL_MS = 3;     // skip 108, 81 and fbck as they're unusuable with most presets
-    if (PLL_MS == 6) PLL_MS = 7;    // thou shalt not overclock thine SDRAM
+
+    if (PLL_MS == 0) PLL_MS = 2;
+    else if (PLL_MS == 2) PLL_MS = 7;
+    else if (PLL_MS == 7) PLL_MS = 4;
+    else if (PLL_MS == 4) PLL_MS = 3;
+    else if (PLL_MS == 3) PLL_MS = 5;
+    else if (PLL_MS == 5) PLL_MS = 0;
+
     switch (PLL_MS) {
     case 0: memClock = 108; break;
     case 1: memClock = 81; break;   // goes well with 4_2C = 0x14, 4_2D = 0x27
     case 2: memClock = 10; break;   // feedback clock
     case 3: memClock = 162; break;
     case 4: memClock = 144; break;
-    case 5: memClock = 185; break;
-    case 6: memClock = 216; break;
+    case 5: memClock = 185; break;  // slight OC
+    case 6: memClock = 216; break;  // !OC!
     case 7: memClock = 129; break;
     default: break;
     }
