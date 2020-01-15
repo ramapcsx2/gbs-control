@@ -1,7 +1,7 @@
 #include "ntsc_240p.h"
 #include "pal_240p.h"
-#include "ntsc_feedbackclock.h"
-#include "pal_feedbackclock.h"
+#include "ntsc_720x480.h"
+#include "pal_768x576.h"
 #include "ntsc_1280x720.h"
 #include "ntsc_1280x1024.h"
 #include "ntsc_1920x1080.h"
@@ -197,7 +197,7 @@ struct runTimeOptions *rto = &rtos;
 
 // userOptions holds user preferences / customizations
 struct userOptions {
-  uint8_t presetPreference; // 0 - normal, 1 - feedback clock, 2 - customized, 3 - 1280x720, 4 - 1280x1024, 5 - 1920x1080, 10 - bypass
+  uint8_t presetPreference; // 0 - normal, 1 - x480/x576, 2 - customized, 3 - 1280x720, 4 - 1280x1024, 5 - 1920x1080, 10 - bypass
   uint8_t presetSlot;
   uint8_t enableFrameTimeLock;
   uint8_t frameTimeLockMethod;
@@ -3647,7 +3647,7 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(ntsc_240p, false);
     }
     else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(ntsc_feedbackclock, false);
+      writeProgramArrayNew(ntsc_720x480, false);
     }
     else if (uopt->presetPreference == 3) {
       writeProgramArrayNew(ntsc_1280x720, false);
@@ -3682,7 +3682,7 @@ void applyPresets(uint8_t result) {
       }
     }
     else if (uopt->presetPreference == 1) {
-      writeProgramArrayNew(pal_feedbackclock, false);
+      writeProgramArrayNew(pal_768x576, false);
     }
     else if (uopt->presetPreference == 3) {
       writeProgramArrayNew(pal_1280x720, false);
@@ -7351,7 +7351,7 @@ void loop() {
       moveHS(4, false);
     break;
     case '2':
-      writeProgramArrayNew(pal_feedbackclock, false); // ModeLine "720x576@50" 27 720 732 795 864 576 581 586 625 -hsync -vsync
+      writeProgramArrayNew(pal_768x576, false); // ModeLine "720x576@50" 27 720 732 795 864 576 581 586 625 -hsync -vsync
       doPostPresetLoadSteps();
     break;
     case '3':
@@ -7437,7 +7437,7 @@ void loop() {
       //optimizePhaseSP();
     break;
     case '9':
-      writeProgramArrayNew(ntsc_feedbackclock, false);
+      writeProgramArrayNew(ntsc_720x480, false);
       doPostPresetLoadSteps();
     break;
     case 'o':
