@@ -9,7 +9,7 @@ const uint8_t ntsc_720x480[] PROGMEM = {
 0x17, // s0_47
 0xEB, // s0_48
 0xB, // s0_49
-0x1, // s0_4A
+0x0, // s0_4A
 0x0, // s0_4B
 0x0, // s0_4C
 0x2A, // s0_4D

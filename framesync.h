@@ -59,22 +59,18 @@ private:
     startTime = 0; stopTime = 0;
     ESP.wdtDisable();
     attachInterrupt(DEBUG_IN_PIN, risingEdgeISR_prepare, RISING);
-    // PAL50: 20ms, worst case 2 fields, sometimes needed when tuning VDS clock
-    for (uint32_t i = 0; i < 1500; i++)
+    // typical: 300000 at 80MHz, 600000 at 160MHz
+    for (uint32_t i = 0; i < 3000000; i++)
     {
       if (stopTime > 0) {
         break;
       }
-      if ((i % 100) == 0) {
-        ESP.wdtFeed();
-      }
-      delayMicroseconds(100);
     }
     *start = startTime;
     *stop = stopTime;
     ESP.wdtEnable(0);
 
-    if ((*start > *stop) || *stop == 0 || *start == 0) {
+    if ((*start >= *stop) || *stop == 0 || *start == 0) {
       // ESP.getCycleCount() overflow oder no pulse, just fail this round
       return false;
     }
@@ -135,10 +131,22 @@ private:
 
     if (inPeriod == 0 || outPeriod == 0) { return false; } // safety
 
-    //inPeriod -= 18; // use straight bestHtotal -= 1 instead
-    // large htotal can push intermediates to 33 bits
-    bestHtotal = (uint64_t)(inHtotal * (uint64_t)inPeriod) / (uint64_t)outPeriod;
-    //bestHtotal -= 1;  // skew to smaller bestHtotal
+    // allow ~4 negative (inPeriod is < outPeriod) clock cycles jitter 
+    if (abs(inPeriod - outPeriod) <= 4) {
+      /*if (inPeriod >= outPeriod) {
+        Serial.print("inPeriod >= out: ");
+        Serial.println(inPeriod - outPeriod);
+      }
+      else {
+        Serial.print("inPeriod < out: ");
+        Serial.println(outPeriod - inPeriod);
+      }*/
+      bestHtotal = inHtotal;
+    }
+    else {
+      // large htotal can push intermediates to 33 bits
+      bestHtotal = (uint64_t)(inHtotal * (uint64_t)inPeriod) / (uint64_t)outPeriod;
+    }
 
     // new 08.11.19: skip this step, IF period measurement should be stable enough to give repeatable results
     //if (bestHtotal == (inHtotal + 1)) { bestHtotal -= 1; } // works well
@@ -238,22 +246,18 @@ public:
     startTime = 0; stopTime = 0;
     ESP.wdtDisable();
     attachInterrupt(DEBUG_IN_PIN, risingEdgeISR_prepare, RISING);
-    // PAL50: 20ms, worst case 2 fields, sometimes needed when tuning VDS clock
-    for (uint32_t i = 0; i < 1500; i++)
+    // typical: 300000 at 80MHz, 600000 at 160MHz
+    for (uint32_t i = 0; i < 3000000; i++)
     {
       if (stopTime > 0) {
         break;
       }
-      if ((i % 100) == 0) {
-        ESP.wdtFeed();
-      }
-      delayMicroseconds(100);
     }
     *start = startTime;
     *stop = stopTime;
     ESP.wdtEnable(0);
 
-    if ((*start > *stop) || *stop == 0 || *start == 0) {
+    if ((*start >= *stop) || *stop == 0 || *start == 0) {
       // ESP.getCycleCount() overflow oder no pulse, just fail this round
       return false;
     }
