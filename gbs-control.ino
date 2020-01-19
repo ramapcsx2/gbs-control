@@ -346,6 +346,7 @@ void externalClockGenSyncInOutRate() {
   SerialM.print(F(" > ")); SerialM.print(rto->freqExtClockGen);
   SerialM.print(F(" source Hz: ")); SerialM.print(sfr, 5);
   SerialM.print(F(" new out Hz: ")); SerialM.println(getOutputFrameRate(), 5);
+  delay(1);
 }
 
 void externalClockGenInitialize() {
@@ -3105,16 +3106,7 @@ void doPostPresetLoadSteps() {
 
     if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
-      GBS::PLLAD_ICP::write(5);         // 5 rather than 6 to work well with CVBS sync as well as CSync
-
-      // keep these in the presets from now on
-      //if (rto->presetID == 0x04 || rto->presetID == 0x14) {
-      //  // out 480p needs low gain; had x960 as well but this is bad on V4.0 boards
-      //  GBS::PLLAD_FS::write(0);
-      //}
-      //else {
-      //  GBS::PLLAD_FS::write(1);
-      //}
+      //GBS::PLLAD_ICP::write(5);         // 5 rather than 6 to work well with CVBS sync as well as CSync
 
       GBS::ADC_FLTR::write(3);            // 5_03 4/5 ADC filter 3=40, 2=70, 1=110, 0=150 Mhz
       GBS::PLLAD_KS::write(2);            // 5_16
@@ -3136,14 +3128,6 @@ void doPostPresetLoadSteps() {
       GBS::ADC_FLTR::write(3);          // 5_03 4/5
       GBS::PLLAD_KS::write(1);          // 5_16
 
-      // keep these in the presets from now on
-      //if (rto->presetID == 0x04 || rto->presetID == 0x14) {
-      //  // out 480p needs low gain
-      //  GBS::PLLAD_FS::write(0);
-      //}
-      //else {
-      //  GBS::PLLAD_FS::write(1);
-      //}
       setCsVsStart(14); // pal
       setCsVsStop(11);  //
       setOverSampleRatio(2, true);      // with KS = 1 for modes 3, 4, 8
@@ -3196,8 +3180,8 @@ void doPostPresetLoadSteps() {
       }
       else if (rto->presetID == 0x4)
       { // out x480
-        GBS::IF_HB_ST2::write(0x34C); // 1_18
-        GBS::IF_HB_SP2::write(0x84);  // 1_1a
+        GBS::IF_HB_ST2::write(0x478); // 1_18
+        GBS::IF_HB_SP2::write(0x90);  // 1_1a
       }
     }
     else if (rto->videoStandardInput == 4) 
@@ -3224,9 +3208,9 @@ void doPostPresetLoadSteps() {
         GBS::IF_HB_SP2::write(0x88);  // 1_1a
       }
       else if (rto->presetID == 0x14)
-      { // out x480
-        GBS::IF_HB_ST2::write(0x350); // 1_18
-        GBS::IF_HB_SP2::write(0x88);  // 1_1a
+      { // out x576
+        GBS::IF_HB_ST2::write(0x470); // 1_18
+        GBS::IF_HB_SP2::write(0xA0);  // 1_1a
       }
     }
     else if (rto->videoStandardInput == 5) 
@@ -4490,6 +4474,7 @@ void setOutModeHdBypass() {
   rto->autoBestHtotalEnabled = false;   // disable while in this mode
   rto->outModeHdBypass = 1;             // skips waiting at end of doPostPresetLoadSteps
 
+  externalClockGenResetClock();
   updateSpDynamic(0);
   loadHdBypassSection();                // this would be ignored otherwise
   if (GBS::ADC_UNUSED_62::read() != 0x00) {
@@ -4771,6 +4756,7 @@ void bypassModeSwitch_RGBHV() {
   GBS::PAD_SYNC_OUT_ENZ::write(1);  // disable sync out
   
   loadHdBypassSection();
+  externalClockGenResetClock();
   FrameSync::cleanup();
   GBS::ADC_UNUSED_62::write(0x00);      // clear debug view
   GBS::PA_ADC_BYPSZ::write(1);          // enable phase unit ADC
