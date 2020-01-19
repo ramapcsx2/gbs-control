@@ -57,6 +57,15 @@ Pinger pinger; // pinger global object to aid debugging WiFi issues
 
 typedef TV5725<GBS_ADDR> GBS;
 
+static unsigned long lastVsyncLock = millis();
+
+// Si5351mcu library by Pavel Milanes
+// https ://github.com/pavelmc/Si5351mcu
+// included in project root folder to allow modifications within limitations of the Arduino framework
+// See 3rdparty/Si5351mcu for unmodified source and license
+#include "src/si5351mcu.h"
+Si5351mcu Si;
+
 #define THIS_DEVICE_MASTER
 #ifdef THIS_DEVICE_MASTER
 const char* ap_ssid = "gbscontrol";
@@ -102,8 +111,6 @@ PersWiFiManager persWM(server, dnsServer);
 // fast ESP8266 digitalRead (21 cycles vs 77), *should* work with all possible input pins
 // but only "D7" and "D6" have been tested so far
 #define digitalRead(x) ((GPIO_REG_READ(GPIO_IN_ADDRESS) >> x) & 1)
-
-static unsigned long lastVsyncLock = millis();
 
 // feed the current measurement, get back the moving average
 uint8_t getMovingAverage(uint8_t item)
@@ -152,6 +159,7 @@ typedef MenuManager<GBS, MenuAttrs> Menu;
 
 // runTimeOptions holds system variables
 struct runTimeOptions {
+  uint32_t freqExtClockGen;
   uint16_t noSyncCounter;
   uint8_t presetVlineShift;
   uint8_t videoStandardInput; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 480p NTSC, 4 576p PAL
@@ -192,6 +200,7 @@ struct runTimeOptions {
   boolean syncTypeCsync;
   boolean isValidForScalingRGBHV;
   boolean useHdmiSyncFix;
+  boolean extClockGenDetected;
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
@@ -230,6 +239,7 @@ struct adcOptions *adco = &adcopts;
 
 char typeOneCommand; // Serial / Web Server commands
 char typeTwoCommand; // Serial / Web Server commands
+static uint8_t lastSegment = 0xFF;  // GBS segment for direct access
 //uint8_t globalDelay; // used for dev / debug
 
 #if defined(ESP8266)
@@ -296,7 +306,81 @@ SerialMirror SerialM;
 #define SerialM Serial
 #endif
 
-static uint8_t lastSegment = 0xFF;
+void externalClockGenResetClock() {
+  rto->freqExtClockGen = 27000000;
+  if (!rto->extClockGenDetected) {
+    return;
+  }
+  Si.setFreq(0, rto->freqExtClockGen);
+
+  SerialM.print(F("clock gen reset: ")); 
+  SerialM.println(rto->freqExtClockGen);
+}
+
+void externalClockGenSyncInOutRate() {
+  if (!rto->extClockGenDetected) {
+    return;
+  }
+
+  double sfr = getSourceFieldRate(0);
+  if (sfr < 40.0f || sfr > 125.0f) {
+    return;
+  }
+
+  double ofr = getOutputFrameRate();
+  if (sfr < 40.0f || sfr > 125.0f) {
+    return;
+  }
+
+  SerialM.print(F("clock gen: ")); SerialM.print(rto->freqExtClockGen);
+  rto->freqExtClockGen = (sfr / ofr) * rto->freqExtClockGen;
+
+  if (rto->freqExtClockGen < 24000000 || rto->freqExtClockGen > 30000000) {
+    rto->freqExtClockGen = 27000000;
+    return;
+  }
+
+  Si.setFreq(0, rto->freqExtClockGen);
+  delay(4);
+
+  SerialM.print(F(" > ")); SerialM.print(rto->freqExtClockGen);
+  SerialM.print(F(" source Hz: ")); SerialM.print(sfr, 5);
+  SerialM.print(F(" new out Hz: ")); SerialM.println(getOutputFrameRate(), 5);
+}
+
+void externalClockGenInitialize() {
+  rto->freqExtClockGen = 27000000;
+  if (!rto->extClockGenDetected) {
+    return;
+  }
+  Si.init(25000000L); // many Si5351 boards come with 25MHz crystal; 27000000L for one with 27MHz
+  Si.setFreq(0, rto->freqExtClockGen);
+  Si.enable(0);
+}
+
+void externalClockGenDetectPresence() {
+  const uint8_t siAddress = 0x60; // default Si5351 address 
+  uint8_t retVal = 0;
+
+  Wire.beginTransmission(siAddress);
+  // want to see some bits on reg 183, on reset at least [7:6] should be high
+  Wire.write(183);
+  Wire.endTransmission();
+  Wire.requestFrom(siAddress, (uint8_t)1, (uint8_t)0);
+
+  while (Wire.available())
+  {
+    retVal = Wire.read();
+    Serial.println(); Serial.println(retVal);
+  }
+
+  if (retVal == 0) {
+    rto->extClockGenDetected = 0;
+  }
+  else {
+    rto->extClockGenDetected = 1;
+  }
+}
 
 static inline void writeOneByte(uint8_t slaveRegister, uint8_t value)
 {
@@ -407,6 +491,7 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
   //GBS::DAC_RGBS_PWDNZ::write(0);    // no DAC
   //GBS::SFTRST_MEM_FF_RSTZ::write(0);  // stop mem fifos
 
+  externalClockGenResetClock();
   FrameSync::cleanup();
 
   // should only be possible if previously was in RGBHV bypass, then hit a manual preset switch
@@ -639,6 +724,7 @@ void setResetParameters() {
   GBS::IF_VB_ST::write(0);
   GBS::IF_VB_SP::write(2);
 
+  externalClockGenResetClock();
   FrameSync::cleanup();
 
   GBS::OUT_SYNC_CNTRL::write(0);          // no H / V sync out to PAD
@@ -658,6 +744,7 @@ void setResetParameters() {
   GBS::GPIO_CONTROL_01::write(0x00);      // all GPIO outputs disabled
   GBS::DAC_RGBS_PWDNZ::write(0);          // disable DAC (output)
   GBS::PLL648_CONTROL_01::write(0x00);    // VCLK(1/2/4) display clock // needs valid for debug bus
+  GBS::PAD_CKIN_ENZ::write(1);            // 1 = clock input disable (pin40)
   GBS::PAD_CKOUT_ENZ::write(1);           // clock output disable
   GBS::IF_SEL_ADC_SYNC::write(1);         // ! 1_28 2
   GBS::PLLAD_VCORST::write(1);            // reset = 1
@@ -2757,7 +2844,7 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   return true;
 }
 
-float getSourceFieldRate(boolean useSPBus) {
+double getSourceFieldRate(boolean useSPBus) {
   double esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
   uint8_t testBusSelBackup =  GBS::TEST_BUS_SEL::read();
   uint8_t spBusSelBackup =    GBS::TEST_BUS_SP_SEL::read();
@@ -2788,7 +2875,7 @@ float getSourceFieldRate(boolean useSPBus) {
   delay(1); // wifi
   uint32_t fieldTimeTicks = FrameSync::getPulseTicks();
 
-  float retVal = 0;
+  double retVal = 0;
   if (fieldTimeTicks > 0) {
     retVal = esp8266_clock_freq / (double)fieldTimeTicks;
   }
@@ -2801,7 +2888,7 @@ float getSourceFieldRate(boolean useSPBus) {
   return retVal;
 }
 
-float getOutputFrameRate() {
+double getOutputFrameRate() {
   double esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
   uint8_t testBusSelBackup = GBS::TEST_BUS_SEL::read();
   uint8_t debugPinBackup = GBS::PAD_BOUT_EN::read();
@@ -2813,7 +2900,7 @@ float getOutputFrameRate() {
   delay(1); // wifi
   uint32_t fieldTimeTicks = FrameSync::getPulseTicks();
 
-  float retVal = 0;
+  double retVal = 0;
   if (fieldTimeTicks > 0) {
     retVal = esp8266_clock_freq / (double)fieldTimeTicks;
   }
@@ -2878,6 +2965,7 @@ void doPostPresetLoadSteps() {
   
   GBS::ADC_UNUSED_64::write(0); GBS::ADC_UNUSED_65::write(0); // clear temp storage
   GBS::ADC_UNUSED_66::write(0); GBS::ADC_UNUSED_67::write(0); // clear temp storage
+  GBS::PAD_CKIN_ENZ::write(1);                                // 1 = clock input disable (pin40)
 
   prepareSyncProcessor(); // todo: handle modes 14 and 15 better, now that they support scaling
   GBS::SP_H_PROTECT::write(0);
@@ -3208,6 +3296,10 @@ void doPostPresetLoadSteps() {
     {
       GBS::MADPT_Y_DELAY_UV_DELAY::write(1); // 2_17 : 1
     }
+    // get OSR
+    if (GBS::DEC1_BYPS::read() && GBS::DEC2_BYPS::read())  { rto->osr = 1; }
+    else if (GBS::DEC1_BYPS::read() && !GBS::DEC2_BYPS::read()) { rto->osr = 2; }
+    else { rto->osr = 4; }
   }
 
   if (rto->presetIsPalForce60) {
@@ -5168,25 +5260,14 @@ void stopWire() {
 
 void startWire() {
   Wire.begin();
-  // The i2c wire library sets pullup resistors on by default. Disable this so that 5V MCUs aren't trying to drive the 3.3V bus.
-#if defined(ESP8266)
+  // The i2c wire library sets pullup resistors on by default. 
+  // Disable these to detect/work with GBS onboard pullups
   pinMode(SCL, OUTPUT_OPEN_DRAIN);
   pinMode(SDA, OUTPUT_OPEN_DRAIN);
-  // no issues at 700k, requires ESP8266 160Mhz CPU clock, else (80Mhz) falls back to 400k via library
-  //Wire.setClock(700000);
+  // no issues even at 700k, requires ESP8266 160Mhz CPU clock, else (80Mhz) uses 400k in library
+  // no problem with Si5351 at 700k either
   Wire.setClock(400000);
-#else
-  digitalWrite(SCL, LOW);
-  digitalWrite(SDA, LOW);
-  Wire.setClock(100000);
-#endif
-  delayMicroseconds(80);
-  {
-    // run some dummy commands to reinit I2C
-    GBS::SP_SOG_MODE::read(); GBS::SP_SOG_MODE::read();
-    writeOneByte(0xF0, 0); writeOneByte(0x00, 0); // update cached segment
-    GBS::STATUS_00::read();
-  }
+  //Wire.setClock(700000);
 }
 
 void fastSogAdjust()
@@ -6439,8 +6520,17 @@ void setup() {
   Serial.begin(115200); // Arduino IDE Serial Monitor requires the same 115200 bauds!
   Serial.setTimeout(10);
 
+  // millis() at this point: typically 65ms
   // start web services as early in boot as possible
   WiFi.hostname(device_hostname_partial); // was _full
+
+  // worst case startup time for ext clock gen: 10ms
+  // library may change i2c clock or pins, so restart
+  startWire();
+  externalClockGenDetectPresence();
+  externalClockGenInitialize(); // sets rto->extClockGenDetected
+  startWire();
+
   if (rto->webServerEnabled) {
     rto->allowUpdatesOTA = false; // need to initialize for handleWiFi()
     WiFi.setSleepMode(WIFI_NONE_SLEEP); // low latency responses, less chance for missing packets
@@ -6517,6 +6607,13 @@ void setup() {
   LEDON; // enable the LED, lets users know the board is starting up
 
   //Serial.setDebugOutput(true); // if you want simple wifi debug info
+
+  // if i2c established and chip running, issue software reset now
+  // run some dummy commands to init I2C to GBS and cached segments
+  GBS::SP_SOG_MODE::read(); writeOneByte(0xF0, 0); writeOneByte(0x00, 0);
+  GBS::STATUS_00::read();
+  GBS::RESET_CONTROL_0x46::write(0); GBS::RESET_CONTROL_0x47::write(0);
+  GBS::PLLAD_VCORST::write(1); GBS::PLLAD_PDZ::write(0);  // AD PLL off
 
   // delay 1 of 2
   unsigned long initDelay = millis();
@@ -6595,6 +6692,9 @@ void setup() {
     }
   }
   
+  // dummy commands
+  GBS::STATUS_00::read(); GBS::STATUS_00::read(); GBS::STATUS_00::read();
+
   // delay 2 of 2
   initDelay = millis();
   while (millis() - initDelay < 1000) {
@@ -6613,22 +6713,26 @@ void setup() {
     WiFi.reconnect(); // only valid for station class (ok here)
   }
 
-  startWire();
+  // dummy commands
+  GBS::STATUS_00::read(); GBS::STATUS_00::read(); GBS::STATUS_00::read();
+
   boolean powerOrWireIssue = 0;
-  delay(30); // just precaution
   if ( !checkBoardPower() )
   {
     stopWire(); // sets pinmodes SDA, SCL to INPUT
     for (int i = 0; i < 40; i++) {
       // I2C SDA probably stuck, attempt recovery (max attempts in tests was around 10)
       startWire();
+      GBS::STATUS_00::read();
       digitalWrite(SCL, 0); delayMicroseconds(12);
       stopWire();
       if (digitalRead(SDA) == 1) { break; } // unstuck
       if ((i % 7) == 0) { delay(1); }
     }
 
-    startWire();
+    // restart and dummy
+    startWire(); delay(1);
+    GBS::STATUS_00::read(); delay(1);
 
     if (!checkBoardPower()) {
       stopWire();
@@ -6645,6 +6749,15 @@ void setup() {
 
   if (powerOrWireIssue == 0)
   {
+    // second init, in cases where i2c got stuck earlier but has recovered
+    // *if* ext clock gen is installed and *if* i2c got stuck, then clockgen must be already running
+    if (!rto->extClockGenDetected) {
+      externalClockGenDetectPresence(); // sets rto->extClockGenDetected
+      externalClockGenInitialize();
+    }
+    if (rto->extClockGenDetected == 1) { Serial.println(F("ext clockgen detected")); }
+    else { Serial.println(F("no ext clockgen")); }
+
     zeroAll();
     setResetParameters();
     prepareSyncProcessor();
@@ -6665,6 +6778,15 @@ void setup() {
     delay(4); // help wifi (presets are unloaded now)
     handleWiFi(1);
     delay(4);
+
+    // startup reliability test routine
+    /*rto->videoStandardInput = 1;
+    writeProgramArrayNew(ntsc_240p, 0);
+    doPostPresetLoadSteps();
+    int i = 100000;
+    while (i-- > 0) loop();
+    ESP.restart();*/
+
     //rto->syncWatcherEnabled = false; // allows passive operation by disabling syncwatcher here
     //inputAndSyncDetect();
     //if (rto->syncWatcherEnabled == true) {
@@ -7646,10 +7768,28 @@ void loop() {
       String what = Serial.readStringUntil(' ');
 
       if (what.length() > 5) {
-        SerialM.println("abort");
+        SerialM.println(F("abort"));
         inputStage = 0;
         break;
       }
+      if (what.equals("f")) {
+        if (rto->extClockGenDetected) {
+          Serial.print(F("old freqExtClockGen: ")); Serial.println((uint32_t)rto->freqExtClockGen);
+          rto->freqExtClockGen = Serial.parseInt();
+          // safety range: 1 - 250 MHz
+          if (rto->freqExtClockGen > 1000000 && rto->freqExtClockGen < 250000000) {
+            Si.setFreq(0, rto->freqExtClockGen);
+            rto->clampPositionIsSet = 0;
+            rto->coastPositionIsSet = 0;
+          }
+          else {
+            rto->freqExtClockGen = 27000000;
+          }
+          Serial.print(F("set freqExtClockGen: ")); Serial.println((uint32_t)rto->freqExtClockGen);
+        }
+        break;
+      }
+
       value = Serial.parseInt();
       if (value < 4096) {
         SerialM.print("set "); SerialM.print(what); SerialM.print(" "); SerialM.println(value);
@@ -7775,6 +7915,9 @@ void loop() {
       snapToIntegralFrameRate();
       break;
     }
+    case ':':
+      externalClockGenSyncInOutRate();
+    break;
     default:
       Serial.print(F("unknown command "));
       Serial.println(typeOneCommand, HEX);
@@ -7938,7 +8081,7 @@ void loop() {
   {
     if (rto->applyPresetDoneStage == 1) 
     {
-      //Serial.println("2nd chance");
+      // 2nd chance
       GBS::DAC_RGBS_PWDNZ::write(1); // 2nd chance
       if (!uopt->wantOutputComponent) 
       {
@@ -7949,19 +8092,24 @@ void loop() {
         updateClampPosition();
         GBS::SP_NO_CLAMP_REG::write(0); // 5_57 0
       }
+
+      // sync clocks now
+      externalClockGenSyncInOutRate();
       rto->applyPresetDoneStage = 0;
-      //printInfo();
     }
   }
   else if (rto->applyPresetDoneStage == 1 && (rto->continousStableCounter > 35))
   {
-    //Serial.println("3rd chance");
+    // 3rd chance
     GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC // 3rd chance
-    rto->applyPresetDoneStage = 0; // timeout
     if (!uopt->wantOutputComponent) 
     {
       GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out // 3rd chance
     }
+
+    // sync clocks now
+    externalClockGenSyncInOutRate();
+    rto->applyPresetDoneStage = 0; // timeout
   }
   
   if (rto->applyPresetDoneStage == 10)
@@ -8028,6 +8176,12 @@ void loop() {
         Serial.println(F("power good"));
         delay(350); // i've seen the MTV230 go on briefly on GBS power cycle
         startWire();
+        {
+          // run some dummy commands to init I2C
+          GBS::SP_SOG_MODE::read(); GBS::SP_SOG_MODE::read();
+          writeOneByte(0xF0, 0); writeOneByte(0x00, 0); // update cached segment
+          GBS::STATUS_00::read();
+        }
         rto->syncWatcherEnabled = true;
         rto->boardHasPower = true;
         delay(100);
