@@ -313,8 +313,8 @@ void externalClockGenResetClock() {
   }
   Si.setFreq(0, rto->freqExtClockGen);
 
-  SerialM.print(F("clock gen reset: ")); 
-  SerialM.println(rto->freqExtClockGen);
+  //SerialM.print(F("clock gen reset: ")); 
+  //SerialM.println(rto->freqExtClockGen);
 }
 
 void externalClockGenSyncInOutRate() {
@@ -647,6 +647,11 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
 }
 
 void activeFrameTimeLockInitialSteps() {
+  // skip if using external clock gen
+  if (rto->extClockGenDetected) {
+    SerialM.println(F("Active FrameTime Lock not necessary with external clock gen installed"));
+    return;
+  }
   // skip when out mode = bypass
   if (rto->presetID != 0x21 && rto->presetID != 0x22) {
     SerialM.print(F("Active FrameTime Lock enabled, disable if display unstable or stays blank! Method: "));
@@ -2625,7 +2630,10 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
   int diffHTotal = bestHTotal - orig_htotal;
   uint16_t diffHTotalUnsigned = abs(diffHTotal);
-  if (diffHTotalUnsigned < 1 && !rto->forceRetime) {
+
+  if (((diffHTotalUnsigned == 0) || (rto->extClockGenDetected && diffHTotalUnsigned == 1)) && // all this
+    !rto->forceRetime)                                                                        // and that
+  {
     if (!uopt->enableFrameTimeLock) { // FTL can double throw this when it resets to adjust
       float sfr = getSourceFieldRate(0);
       delay(0); // wifi
@@ -2636,11 +2644,7 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
       if (ofr < 1.0f) {
         delay(1); ofr = getOutputFrameRate();  // retry
       }
-      SerialM.print(F("HTotal Adjust: "));
-      if (diffHTotal >= 0) {
-        SerialM.print(" "); // formatting to align with negative value readouts
-      }
-      SerialM.print(diffHTotal);
+      SerialM.print(F("HTotal Adjust (skipped)"));
       SerialM.print(F(", source Hz: "));
       SerialM.print(sfr, 3); // prec. 3
       SerialM.print(F(", output Hz: "));
@@ -2649,10 +2653,12 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
     }
     return true; // nothing to do
   }
+
   if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() == 1) {
     // source is 50Hz, preset has to stay at 60Hz: return
     return true;
   }
+
   boolean isLargeDiff = (diffHTotalUnsigned > (orig_htotal * 0.06f)) ? true : false; // typical diff: 1802 to 1794 (=8)
 
   if (isLargeDiff && (getVideoMode() == 8 || rto->videoStandardInput == 14)) {
@@ -3608,7 +3614,8 @@ void doPostPresetLoadSteps() {
   else if (rto->presetID == 0x02 || rto->presetID == 0x12)  SerialM.print(F("1280x1024"));
   else if (rto->presetID == 0x03 || rto->presetID == 0x13)  SerialM.print(F("1280x720"));
   else if (rto->presetID == 0x05 || rto->presetID == 0x15)  SerialM.print(F("1920x1080"));
-  else if (rto->presetID == 0x04 || rto->presetID == 0x14)  SerialM.print(F("640x480"));
+  else if (rto->presetID == 0x04                         )  SerialM.print(F("720x480"));
+  else if (rto->presetID == 0x14                         )  SerialM.print(F("768x576"));
   else                                                      SerialM.print(F("bypass"));
 
   if (isCustomPreset) {
@@ -4908,7 +4915,8 @@ void bypassModeSwitch_RGBHV() {
 void runAutoGain()
 {
   static unsigned long lastTimeAutoGain = millis();
-  uint8_t limit_found = 0;
+  uint8_t limit_found = 0, greenValue = 0;
+  uint8_t loopCeiling = 0;
   uint8_t status00reg = GBS::STATUS_00::read(); // confirm no mode changes happened
 
   //GBS::DEC_TEST_SEL::write(5);
@@ -4923,37 +4931,30 @@ void runAutoGain()
   //  }
   //}
 
-  GBS::DEC_TEST_SEL::write(1); // luma and G channel
-  uint8_t loopCeiling;
   if ((millis() - lastTimeAutoGain) < 30000) {
-    loopCeiling = 121;
+    loopCeiling = 61;
   }
   else {
-    loopCeiling = 6;
+    loopCeiling = 8;
   }
 
   for (uint8_t i = 0; i < loopCeiling; i++) {
-    if (i % 40 == 0) delay(1);
-    limit_found = 0;
-    uint8_t greenValue = GBS::TEST_BUS_2F::read() & 0x7f;
-    uint8_t blueValue = GBS::TEST_BUS_2E::read() & 0x7f;
-    if ((greenValue >= 0x7b && greenValue <= 0x7f) || (blueValue >= 0x7b && blueValue <= 0x7f)) {
-      for (uint8_t a = 0; a < 2; a++) { // check below: if (limit_found == 2)
-        delayMicroseconds(64);
-        greenValue = GBS::TEST_BUS_2F::read() & 0x7f;
-        blueValue = GBS::TEST_BUS_2E::read() & 0x7f;
-        if ((greenValue >= 0x7c && greenValue <= 0x7f) || (blueValue >= 0x7c && blueValue <= 0x7f)) {
-          if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
-            limit_found++;
-            // 240p test suite (SNES ver): display vertical lines (hor. line test)
-            //Serial.print("g: "); Serial.println(greenValue);
-            //Serial.print("b: "); Serial.println(blueValue);
-            //Serial.print("--"); Serial.println();
-          }
-          else
-            return;
-        }
+    if (i % 20 == 0) {
+      handleWiFi(0);
+      limit_found = 0;
+    }
+    greenValue = GBS::TEST_BUS_2F::read();
+    
+    if (greenValue == 0x7f) {
+      if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
+        limit_found++;
+        // 240p test suite (SNES ver): display vertical lines (hor. line test)
+        //Serial.print("g: "); Serial.println(greenValue, HEX);
+        //Serial.print("--"); Serial.println();
       }
+      else
+        return;
+      
       if (limit_found == 2) {
         limit_found = 0;
         uint8_t level = GBS::ADC_GGCTRL::read();
@@ -4968,7 +4969,7 @@ void runAutoGain()
           adco->b_gain = GBS::ADC_BGCTRL::read();
 
           printInfo();
-          delay(1); // let it settle a little
+          delay(2); // let it settle a little
           lastTimeAutoGain = millis();
         }
       }
@@ -6947,7 +6948,6 @@ void updateWebSocketData() {
 
 void handleWiFi(boolean instant) {
   static unsigned long lastTimePing = millis();
-  yield();
   if (rto->webServerEnabled && rto->webServerStarted) {
     MDNS.update();
     persWM.handleWiFi(); // if connected, returns instantly. otherwise it reconnects or opens AP
@@ -6980,18 +6980,17 @@ void loop() {
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastTimeSourceCheck = 500; // 500 to start right away (after setup it will be 2790ms when we get here)
   static unsigned long lastTimeInterruptClear = millis();
+
 #ifdef HAVE_BUTTONS
   static unsigned long lastButton = micros();
-#endif
 
-  handleWiFi(0); // ESP8266 check, WiFi + OTA updates, checks for server enabled + started
-
-#ifdef HAVE_BUTTONS
   if (micros() - lastButton > buttonPollInterval) {
     lastButton = micros();
     handleButtons();
   }
 #endif
+
+  handleWiFi(0); // WiFi + OTA + WS + MDNS, checks for server enabled + started
 
   // is there a command from Terminal or web ui?
   // Serial takes precedence
@@ -7309,7 +7308,7 @@ void loop() {
     }
     break;
     case 'a':
-      SerialM.print(F("HTotal++: ")); SerialM.println(GBS::VDS_HSYNC_RST::read());
+      SerialM.print(F("HTotal++: ")); SerialM.println(GBS::VDS_HSYNC_RST::read() + 1);
       if (GBS::VDS_HSYNC_RST::read() < 4095) {
         if (uopt->enableFrameTimeLock) {
           // syncLastCorrection != 0 check is included
@@ -7319,7 +7318,7 @@ void loop() {
       }
     break;
     case 'A':
-      SerialM.print(F("HTotal--: ")); SerialM.println(GBS::VDS_HSYNC_RST::read());
+      SerialM.print(F("HTotal--: ")); SerialM.println(GBS::VDS_HSYNC_RST::read() - 1);
       if (GBS::VDS_HSYNC_RST::read() > 0) {
         if (uopt->enableFrameTimeLock) {
           // syncLastCorrection != 0 check is included
@@ -7904,6 +7903,18 @@ void loop() {
     case ':':
       externalClockGenSyncInOutRate();
     break;
+    case ';':
+      externalClockGenResetClock();
+      if (rto->extClockGenDetected) {
+        rto->extClockGenDetected = 0;
+        Serial.println(F("ext clock gen bypass"));
+      }
+      else {
+        rto->extClockGenDetected = 1;
+        Serial.println(F("ext clock gen active"));
+        externalClockGenSyncInOutRate();
+      }
+    break;
     default:
       Serial.print(F("unknown command "));
       Serial.println(typeOneCommand, HEX);
@@ -7934,33 +7945,35 @@ void loop() {
   }
 
   // run FrameTimeLock if enabled
-  if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false && rto->autoBestHtotalEnabled && 
-    rto->syncWatcherEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval
-    && rto->continousStableCounter > 20 && rto->noSyncCounter == 0) {
+  if (rto->extClockGenDetected == false) {
+    if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false && rto->autoBestHtotalEnabled &&
+      rto->syncWatcherEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval
+      && rto->continousStableCounter > 20 && rto->noSyncCounter == 0) {
 
-    uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
-    uint16_t pllad = GBS::PLLAD_MD::read();
-    if (((htotal > (pllad - 3)) && (htotal < (pllad + 3)))) {
-      uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
-      if (debug_backup != 0x0) {
-        GBS::TEST_BUS_SEL::write(0x0);
-      }
-      //unsigned long startTime = millis();
-      if (!FrameSync::run(uopt->frameTimeLockMethod)) {
-        if (rto->syncLockFailIgnore-- == 0) {
-          FrameSync::reset(uopt->frameTimeLockMethod); // in case run() failed because we lost sync signal
+      uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+      uint16_t pllad = GBS::PLLAD_MD::read();
+      if (((htotal > (pllad - 3)) && (htotal < (pllad + 3)))) {
+        uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
+        if (debug_backup != 0x0) {
+          GBS::TEST_BUS_SEL::write(0x0);
+        }
+        //unsigned long startTime = millis();
+        if (!FrameSync::run(uopt->frameTimeLockMethod)) {
+          if (rto->syncLockFailIgnore-- == 0) {
+            FrameSync::reset(uopt->frameTimeLockMethod); // in case run() failed because we lost sync signal
+          }
+        }
+        else if (rto->syncLockFailIgnore > 0) {
+          rto->syncLockFailIgnore = 16;
+        }
+        //Serial.println(millis() - startTime);
+
+        if (debug_backup != 0x0) {
+          GBS::TEST_BUS_SEL::write(debug_backup);
         }
       }
-      else if (rto->syncLockFailIgnore > 0) {
-        rto->syncLockFailIgnore = 16;
-      }
-      //Serial.println(millis() - startTime);
-
-      if (debug_backup != 0x0) {
-        GBS::TEST_BUS_SEL::write(debug_backup);
-      }
+      lastVsyncLock = millis();
     }
-    lastVsyncLock = millis();
   }
 
   if (rto->syncWatcherEnabled && rto->boardHasPower) {
@@ -7994,7 +8007,7 @@ void loop() {
     // auto adc gain
     if (uopt->enableAutoGain == 1 && !rto->sourceDisconnected
       && rto->videoStandardInput > 0 && rto->clampPositionIsSet
-      && rto->noSyncCounter == 0 && rto->continousStableCounter > 120
+      && rto->noSyncCounter == 0 && rto->continousStableCounter > 90
       && rto->boardHasPower)
     {
       uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
@@ -8004,6 +8017,7 @@ void loop() {
         debugPinBackup = GBS::PAD_BOUT_EN::read();
         debugRegBackup = GBS::TEST_BUS_SEL::read();
         GBS::PAD_BOUT_EN::write(0); // disable output to pin for test
+        GBS::DEC_TEST_SEL::write(1); // luma and G channel
         GBS::TEST_BUS_SEL::write(0xb); // decimation
         if (GBS::STATUS_INT_SOG_BAD::read() == 0) {
           runAutoGain();
@@ -8245,7 +8259,9 @@ void handleType2Command(char argument) {
     saveUserPrefs();
     if (uopt->enableFrameTimeLock) { SerialM.println(F("FTL on")); }
     else { SerialM.println(F("FTL off")); }
-    FrameSync::reset(uopt->frameTimeLockMethod);
+    if (!rto->extClockGenDetected) {
+      FrameSync::reset(uopt->frameTimeLockMethod);
+    }
     if (uopt->enableFrameTimeLock) {
       activeFrameTimeLockInitialSteps();
     }
@@ -8347,7 +8363,7 @@ void handleType2Command(char argument) {
     //uint8_t backup = uopt->presetPreference;
     if (argument == 'f') uopt->presetPreference = 0; // 1280x960
     if (argument == 'g') uopt->presetPreference = 3; // 1280x720
-    if (argument == 'h') uopt->presetPreference = 1; // 640x480
+    if (argument == 'h') uopt->presetPreference = 1; // 720x480/768x576
     if (argument == 'p') uopt->presetPreference = 4; // 1280x1024
     if (argument == 's') uopt->presetPreference = 5; // 1920x1080
     //rto->videoStandardInput = 0; // force hard reset  // update: why? it conflicts with early init
@@ -8360,7 +8376,9 @@ void handleType2Command(char argument) {
   break;
   case 'i':
     // toggle active frametime lock method
-    FrameSync::reset(uopt->frameTimeLockMethod);
+    if (!rto->extClockGenDetected) {
+      FrameSync::reset(uopt->frameTimeLockMethod);
+    }
     if (uopt->frameTimeLockMethod == 0) {
       uopt->frameTimeLockMethod = 1;
     }
@@ -8953,8 +8971,10 @@ void savePresetToSPIFFS() {
       disableScanlines();
     }
 
-    if (uopt->enableFrameTimeLock && FrameSync::getSyncLastCorrection() != 0) {
-      FrameSync::reset(uopt->frameTimeLockMethod);
+    if (!rto->extClockGenDetected) {
+      if (uopt->enableFrameTimeLock && FrameSync::getSyncLastCorrection() != 0) {
+        FrameSync::reset(uopt->frameTimeLockMethod);
+      }
     }
 
     for (int i = 0; i <= 5; i++) {

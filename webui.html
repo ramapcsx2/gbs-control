@@ -172,12 +172,12 @@
                 document.getElementById("display").innerHTML =
                 '<p>Choose an output resolution from these presets. Your selection will also be used for startup.</p>' +
                 '<p>1280x960 is recommended for NTSC sources, 1280x1024 for PAL.</p>' +
-                '<p>If either of these presets is selected, the best one for the source will be used. This can be changed in the Preferences tab.</p>' +
+                '<p>If the "Matched Presets" option is active, the choice between the two is automatic. This can be changed in the Preferences tab.</p>' +
                 '<button class="button preset" type="button" id="1" onclick="loadUser(\'f\')">1280x960</button>' +
                 '<button class="button preset" type="button" id="2" onclick="loadUser(\'p\')">1280x1024</button>' +
                 '<button class="button preset" type="button" id="3" onclick="loadUser(\'g\')">1280x720</button>' +
                 '<button class="button preset" type="button" id="5" onclick="loadUser(\'s\')">1920x1080</button>' +
-                '<button class="button preset" type="button" id="4" onclick="loadUser(\'h\')">640x480</button>' +
+                '<button class="button preset" type="button" id="4" onclick="loadUser(\'h\')">720x480 / 768x576</button>' +
                 '<button class="button preset" type="button" id="8" onclick="loadDoc(\'K\')">Source Pass-through</button>' +
                 '<br><br><br>' +
                 '<p>If you want to save your customizations, first select a slot for your new preset, then save to or load from that slot.</p>' +
@@ -221,7 +221,7 @@
                 '<p>Scanlines only work with 240p sources at this time.</p>' +
                 '<p>The 6-Tap LPF output filter should be enabled, unless you notice jailbar effects.</p>' +
                 '<p>The Step Response filter sharpens color edges. It works best with 256px and 320px wide sources.</p>' +
-                '<button class="button option scanlines" type="button" onclick="loadUser(\'7\')">Scanlines</button>' +
+                '<button class="button option scanlines" type="button" onclick="loadUser(\'7\')">Scanlines (240p only)</button>' +
                 '<button class="button option vdsLineFilter" type="button" onclick="loadUser(\'m\')">Line Filter</button>' +
                 '<button class="button option peaking" type="button" onclick="loadDoc(\'f\')">Peaking</button>' +
                 '<button class="button option step" type="button" onclick="loadDoc(\'V\')">Step Response</button>' +
