@@ -307,54 +307,113 @@ SerialMirror SerialM;
 #endif
 
 void externalClockGenResetClock() {
-  rto->freqExtClockGen = 27000000;
   if (!rto->extClockGenDetected) {
     return;
   }
-  Si.setFreq(0, rto->freqExtClockGen);
 
-  //SerialM.print(F("clock gen reset: ")); 
-  //SerialM.println(rto->freqExtClockGen);
+  uint8_t activeDisplayClock = GBS::PLL648_CONTROL_01::read();
+
+  if (activeDisplayClock == 0x45) rto->freqExtClockGen = 54000000;
+  else if (activeDisplayClock == 0x55) rto->freqExtClockGen = 64800000;
+  else if (activeDisplayClock == 0x65) rto->freqExtClockGen = 81000000;
+  else if (activeDisplayClock == 0x85) rto->freqExtClockGen = 108000000;
+  else if (activeDisplayClock == 0x95) rto->freqExtClockGen = 129600000;
+  else if (activeDisplayClock == 0xa5) rto->freqExtClockGen = 162000000;
+  else if (activeDisplayClock == 0x35) rto->freqExtClockGen = 81000000;   // clock unused
+  else if (activeDisplayClock == 0)    rto->freqExtClockGen = 81000000;   // no preset loaded
+  else if (!rto->outModeHdBypass) {
+    SerialM.print(F("preset display clock: 0x"));
+    SerialM.println(activeDisplayClock, HEX);
+  }
+
+  // problem: around 108MHz the library seems to double the clock
+  // maybe there are regs to check for this and resetPLL
+  if (rto->freqExtClockGen == 108000000) {
+    Si.setFreq(0, 87000000); delay(1);  // quick fix
+  }
+
+  Si.setFreq(0, rto->freqExtClockGen);
+  GBS::PAD_CKIN_ENZ::write(0);  // 0 = clock input enable (pin40)
+
+  SerialM.print(F("clock gen reset: ")); 
+  SerialM.println(rto->freqExtClockGen);
 }
 
 void externalClockGenSyncInOutRate() {
-  if (!rto->extClockGenDetected) {
+  if (!rto->extClockGenDetected) { 
+    return; 
+  }
+  if (GBS::PAD_CKIN_ENZ::read() != 0) { 
+    return; 
+  }
+  if (rto->outModeHdBypass) {
+    return;
+  }
+  if (GBS::PLL648_CONTROL_01::read() != 0x75) {
     return;
   }
 
   double sfr = getSourceFieldRate(0);
-  if (sfr < 40.0f || sfr > 125.0f) {
+  if (sfr < 47.0f || sfr > 86.0f) {
+    SerialM.print(F("sync skipped sfr wrong: "));
+    SerialM.println(sfr);
     return;
   }
 
   double ofr = getOutputFrameRate();
-  if (sfr < 40.0f || sfr > 125.0f) {
+  if (ofr < 47.0f || ofr > 86.0f) {
+    SerialM.print(F("sync skipped ofr wrong: "));
+    SerialM.println(ofr);
     return;
   }
 
-  SerialM.print(F("clock gen: ")); SerialM.print(rto->freqExtClockGen);
+  uint32_t old = rto->freqExtClockGen;
+  uint32_t current = rto->freqExtClockGen;
+
   rto->freqExtClockGen = (sfr / ofr) * rto->freqExtClockGen;
 
-  if (rto->freqExtClockGen < 24000000 || rto->freqExtClockGen > 30000000) {
-    rto->freqExtClockGen = 27000000;
-    return;
+  if (current > rto->freqExtClockGen) {
+    if ((current - rto->freqExtClockGen) < 750000) {
+      while (current > rto->freqExtClockGen) {
+        current -= 500;
+        Si.setFreq(0, current);
+        handleWiFi(0);
+        delay(1);
+      }
+    }
   }
-
+  else if (current < rto->freqExtClockGen) {
+    if ((rto->freqExtClockGen - current) < 750000) {
+      while (current < rto->freqExtClockGen) {
+        current += 500;
+        Si.setFreq(0, current);
+        handleWiFi(0);
+        delay(1);
+      }
+    }
+  }
+  delay(2);
   Si.setFreq(0, rto->freqExtClockGen);
-  delay(4);
+  delay(2);
 
+  int32_t diff = rto->freqExtClockGen - old;
+  
+  SerialM.print(F("clock gen: ")); SerialM.print(old);
   SerialM.print(F(" > ")); SerialM.print(rto->freqExtClockGen);
-  SerialM.print(F(" source Hz: ")); SerialM.print(sfr, 5);
+  SerialM.print(F(" (diff: ")); SerialM.print(diff);
+  SerialM.print(F(") source Hz: ")); SerialM.print(sfr, 5);
   SerialM.print(F(" new out Hz: ")); SerialM.println(getOutputFrameRate(), 5);
   delay(1);
 }
 
 void externalClockGenInitialize() {
-  rto->freqExtClockGen = 27000000;
+  // MHz: 27, 32.4, 40.5, 54, 64.8, 81, 108, 129.6, 162
+  rto->freqExtClockGen = 108000000;
   if (!rto->extClockGenDetected) {
     return;
   }
   Si.init(25000000L); // many Si5351 boards come with 25MHz crystal; 27000000L for one with 27MHz
+  Si.setPower(0, SIOUT_6mA);
   Si.setFreq(0, rto->freqExtClockGen);
   Si.enable(0);
 }
@@ -492,7 +551,6 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
   //GBS::DAC_RGBS_PWDNZ::write(0);    // no DAC
   //GBS::SFTRST_MEM_FF_RSTZ::write(0);  // stop mem fifos
 
-  externalClockGenResetClock();
   FrameSync::cleanup();
 
   // should only be possible if previously was in RGBHV bypass, then hit a manual preset switch
@@ -730,7 +788,7 @@ void setResetParameters() {
   GBS::IF_VB_ST::write(0);
   GBS::IF_VB_SP::write(2);
 
-  externalClockGenResetClock();
+  // could stop ext clock gen output here?
   FrameSync::cleanup();
 
   GBS::OUT_SYNC_CNTRL::write(0);          // no H / V sync out to PAD
@@ -750,7 +808,7 @@ void setResetParameters() {
   GBS::GPIO_CONTROL_01::write(0x00);      // all GPIO outputs disabled
   GBS::DAC_RGBS_PWDNZ::write(0);          // disable DAC (output)
   GBS::PLL648_CONTROL_01::write(0x00);    // VCLK(1/2/4) display clock // needs valid for debug bus
-  GBS::PAD_CKIN_ENZ::write(1);            // 1 = clock input disable (pin40)
+  GBS::PAD_CKIN_ENZ::write(0);            // 0 = clock input enable (pin40)
   GBS::PAD_CKOUT_ENZ::write(1);           // clock output disable
   GBS::IF_SEL_ADC_SYNC::write(1);         // ! 1_28 2
   GBS::PLLAD_VCORST::write(1);            // reset = 1
@@ -2747,20 +2805,20 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   uint16_t h_sync_stop_position = GBS::VDS_HS_SP::read();
 
   // fix over / underflows
-  if (h_blank_display_start_position > (bestHTotal - 8)) {
+  if (h_blank_display_start_position > (bestHTotal - 8) || isLargeDiff) {
     // typically happens when scaling Hz up (60 to 70)
     //Serial.println("overflow h_blank_display_start_position");
-    h_blank_display_start_position = bestHTotal - 8;
+    h_blank_display_start_position = bestHTotal * 0.936f;
   }
-  if (h_blank_display_stop_position > bestHTotal) {
+  if (h_blank_display_stop_position > bestHTotal || isLargeDiff) {
     //Serial.println("overflow h_blank_display_stop_position");
     h_blank_display_stop_position = bestHTotal * 0.178f;
   }
-  if ((h_blank_memory_start_position > bestHTotal) || (h_blank_memory_start_position > h_blank_display_start_position)) {
+  if ((h_blank_memory_start_position > bestHTotal) || (h_blank_memory_start_position > h_blank_display_start_position) || isLargeDiff) {
     //Serial.println("overflow h_blank_memory_start_position");
     h_blank_memory_start_position = h_blank_display_start_position * 0.971f;
   }
-  if (h_blank_memory_stop_position > bestHTotal) {
+  if (h_blank_memory_stop_position > bestHTotal || isLargeDiff) {
     //Serial.println("overflow h_blank_memory_stop_position");
     h_blank_memory_stop_position = h_blank_display_stop_position * 0.64f;
   }
@@ -2776,6 +2834,19 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
     if (h_sync_stop_position >= h_blank_display_stop_position) {
       h_sync_stop_position = h_blank_display_stop_position * 0.8f;
       h_sync_start_position = 4;  //
+    }
+  }
+
+  // just fix HS
+  if (isLargeDiff) {
+    if (h_sync_start_position > h_sync_stop_position && (h_sync_start_position < (bestHTotal / 2))) { // is neg HSync
+      h_sync_stop_position = 4;
+      // stop = at least start, then a bit outwards
+      h_sync_start_position = 16 + (h_blank_display_stop_position * 0.3f);
+    }
+    else {
+      h_sync_start_position = 4;
+      h_sync_stop_position = 16 + (h_blank_display_stop_position * 0.3f);
     }
   }
 
@@ -2880,11 +2951,21 @@ double getSourceFieldRate(boolean useSPBus) {
   }
 
   delay(1); // wifi
-  uint32_t fieldTimeTicks = FrameSync::getPulseTicks();
-
   double retVal = 0;
+
+  uint32_t fieldTimeTicks = FrameSync::getPulseTicks();
+  if (fieldTimeTicks == 0) {
+    // try again
+    fieldTimeTicks = FrameSync::getPulseTicks();
+  }
+
   if (fieldTimeTicks > 0) {
     retVal = esp8266_clock_freq / (double)fieldTimeTicks;
+    if (retVal < 47.0f || retVal > 86.0f) {
+      // try again
+      fieldTimeTicks = FrameSync::getPulseTicks();
+      retVal = esp8266_clock_freq / (double)fieldTimeTicks;
+    }
   }
   
   GBS::TEST_BUS_SEL::write(testBusSelBackup);
@@ -2905,11 +2986,21 @@ double getOutputFrameRate() {
   if (testBusSelBackup != 2) GBS::TEST_BUS_SEL::write(2); // 0x4d = 0x22 VDS test
 
   delay(1); // wifi
-  uint32_t fieldTimeTicks = FrameSync::getPulseTicks();
-
   double retVal = 0;
+
+  uint32_t fieldTimeTicks = FrameSync::getPulseTicks();
+  if (fieldTimeTicks == 0) {
+    // try again
+    fieldTimeTicks = FrameSync::getPulseTicks();
+  }
+
   if (fieldTimeTicks > 0) {
     retVal = esp8266_clock_freq / (double)fieldTimeTicks;
+    if (retVal < 47.0f || retVal > 86.0f) {
+      // try again
+      fieldTimeTicks = FrameSync::getPulseTicks();
+      retVal = esp8266_clock_freq / (double)fieldTimeTicks;
+    }
   }
 
   GBS::TEST_BUS_SEL::write(testBusSelBackup);
@@ -2972,7 +3063,7 @@ void doPostPresetLoadSteps() {
   
   GBS::ADC_UNUSED_64::write(0); GBS::ADC_UNUSED_65::write(0); // clear temp storage
   GBS::ADC_UNUSED_66::write(0); GBS::ADC_UNUSED_67::write(0); // clear temp storage
-  GBS::PAD_CKIN_ENZ::write(1);                                // 1 = clock input disable (pin40)
+  GBS::PAD_CKIN_ENZ::write(0);                                // 0 = clock input enable (pin40)
 
   prepareSyncProcessor(); // todo: handle modes 14 and 15 better, now that they support scaling
   GBS::SP_H_PROTECT::write(0);
@@ -3286,10 +3377,19 @@ void doPostPresetLoadSteps() {
     {
       GBS::MADPT_Y_DELAY_UV_DELAY::write(1); // 2_17 : 1
     }
+
     // get OSR
     if (GBS::DEC1_BYPS::read() && GBS::DEC2_BYPS::read())  { rto->osr = 1; }
     else if (GBS::DEC1_BYPS::read() && !GBS::DEC2_BYPS::read()) { rto->osr = 2; }
     else { rto->osr = 4; }
+
+    // if using ext clock, switch to stored internal clock here first (switch back later)
+    if (GBS::PLL648_CONTROL_01::read() == 0x75 && GBS::GBS_PRESET_DISPLAY_CLOCK::read() != 0) {
+      GBS::PLL648_CONTROL_01::write(GBS::GBS_PRESET_DISPLAY_CLOCK::read());
+    }
+    else if (GBS::GBS_PRESET_DISPLAY_CLOCK::read() == 0) {
+      SerialM.println(F("no stored display clock to use!"));
+    }
   }
 
   if (rto->presetIsPalForce60) {
@@ -3376,6 +3476,9 @@ void doPostPresetLoadSteps() {
   else { 
     GBS::VDS_UV_STEP_BYPS::write(1); 
   }
+
+  // transfer preset's display clock to ext. gen
+  externalClockGenResetClock();
 
   //unfreezeVideo();
   Menu::init();
@@ -3609,7 +3712,7 @@ void doPostPresetLoadSteps() {
     activeFrameTimeLockInitialSteps();
   }
 
-  SerialM.print(F("post preset done: ")); 
+  SerialM.print(F("\npost preset done: ")); 
   if (rto->presetID == 0x01 || rto->presetID == 0x11)       SerialM.print(F("1280x960"));
   else if (rto->presetID == 0x02 || rto->presetID == 0x12)  SerialM.print(F("1280x1024"));
   else if (rto->presetID == 0x03 || rto->presetID == 0x13)  SerialM.print(F("1280x720"));
@@ -5466,25 +5569,29 @@ void runSyncWatcher()
             delay(30);
           }
         }
+        rto->noSyncCounter++;
         lastSyncDrop = millis(); // restart timer
       }
     }
 
-    if (rto->noSyncCounter == 3) {
+    if (rto->noSyncCounter == 4) {
       GBS::SP_H_CST_ST::write(0x10);
       GBS::SP_H_CST_SP::write(0x100);
       //GBS::SP_H_PROTECT::write(1);  // at noSyncCounter = 32 will alternate on / off
       if (videoStandardInputIsPalNtscSd()) {
         // this can early detect mode changes (before updateSpDynamic resets all)
-        //GBS::SP_H_PULSE_IGNOR::write(2);
         GBS::SP_PRE_COAST::write(9);
         GBS::SP_POST_COAST::write(9);
+        // new: test SD<>EDTV changes
+        GBS::SP_H_PULSE_IGNOR::write(GBS::SP_H_PULSE_IGNOR::read() / 2);
       }
       rto->coastPositionIsSet = 0;
+      rto->noSyncCounter++;
     }
 
     if (rto->noSyncCounter == 16) {
       nudgeMD(); delay(40);
+      rto->noSyncCounter++;
     }
 
     if (rto->noSyncCounter % 23 == 0) {
@@ -5805,9 +5912,13 @@ void runSyncWatcher()
                   disableScanlines();
                 }
                 enableMotionAdaptDeinterlace();
-                if (uopt->enableFrameTimeLock) {
-                  FrameSync::reset(uopt->frameTimeLockMethod);
-                  GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);
+                VPERIOD_IF = GBS::VPERIOD_IF::read();
+                if (VPERIOD_IF % 2 == 0) { // if still the same
+                  if (uopt->enableFrameTimeLock) {
+                    FrameSync::reset(uopt->frameTimeLockMethod);
+                    GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);
+                  }
+                  externalClockGenSyncInOutRate();
                 }
                 preventScanlines = 1;
               }
@@ -5821,10 +5932,14 @@ void runSyncWatcher()
             {
               if (uopt->deintMode == 0 && rto->motionAdaptiveDeinterlaceActive) {
                 disableMotionAdaptDeinterlace();
-                if (uopt->enableFrameTimeLock) {
-                  FrameSync::reset(uopt->frameTimeLockMethod);
-                  GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);
-                  lastVsyncLock = millis();
+                VPERIOD_IF = GBS::VPERIOD_IF::read();
+                if (VPERIOD_IF % 2 == 1) { // if still the same
+                  if (uopt->enableFrameTimeLock) {
+                    FrameSync::reset(uopt->frameTimeLockMethod);
+                    GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);
+                    lastVsyncLock = millis();
+                  }
+                  externalClockGenSyncInOutRate();
                 }
               }
               filteredLineCountMotionAdaptiveOff = 0;
@@ -7314,6 +7429,7 @@ void loop() {
           // syncLastCorrection != 0 check is included
           FrameSync::reset(uopt->frameTimeLockMethod);
         }
+        rto->forceRetime = 1;
         applyBestHTotal(GBS::VDS_HSYNC_RST::read() + 1);
       }
     break;
@@ -7324,6 +7440,7 @@ void loop() {
           // syncLastCorrection != 0 check is included
           FrameSync::reset(uopt->frameTimeLockMethod);
         }
+        rto->forceRetime = 1;
         applyBestHTotal(GBS::VDS_HSYNC_RST::read() - 1);
       }
     break;
@@ -7762,13 +7879,10 @@ void loop() {
           Serial.print(F("old freqExtClockGen: ")); Serial.println((uint32_t)rto->freqExtClockGen);
           rto->freqExtClockGen = Serial.parseInt();
           // safety range: 1 - 250 MHz
-          if (rto->freqExtClockGen > 1000000 && rto->freqExtClockGen < 250000000) {
+          if (rto->freqExtClockGen >= 1000000 && rto->freqExtClockGen <= 250000000) {
             Si.setFreq(0, rto->freqExtClockGen);
             rto->clampPositionIsSet = 0;
             rto->coastPositionIsSet = 0;
-          }
-          else {
-            rto->freqExtClockGen = 27000000;
           }
           Serial.print(F("set freqExtClockGen: ")); Serial.println((uint32_t)rto->freqExtClockGen);
         }
@@ -8093,8 +8207,18 @@ void loop() {
         GBS::SP_NO_CLAMP_REG::write(0); // 5_57 0
       }
 
-      // sync clocks now
-      externalClockGenSyncInOutRate();
+      if (rto->extClockGenDetected) {
+        // switch to ext clock
+        if (!rto->outModeHdBypass) {
+          if (GBS::PLL648_CONTROL_01::read() != 0x35 && GBS::PLL648_CONTROL_01::read() != 0x75) {
+            // first store original in an option byte in 1_2D
+            GBS::GBS_PRESET_DISPLAY_CLOCK::write(GBS::PLL648_CONTROL_01::read());
+            GBS::PLL648_CONTROL_01::write(0x75);
+          }
+        }
+        // sync clocks now
+        externalClockGenSyncInOutRate();
+      }
       rto->applyPresetDoneStage = 0;
     }
   }

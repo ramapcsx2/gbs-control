@@ -24,14 +24,16 @@ volatile uint32_t stopTime, startTime;
 
 void ICACHE_RAM_ATTR risingEdgeISR_measure() {
   noInterrupts();
-  stopTime = ESP.getCycleCount();
+  //stopTime = ESP.getCycleCount();
+  __asm__ __volatile__("rsr %0,ccount":"=a"(stopTime));
   detachInterrupt(DEBUG_IN_PIN);
   interrupts();
 }
 
 void ICACHE_RAM_ATTR risingEdgeISR_prepare() {
   noInterrupts();
-  startTime = ESP.getCycleCount();
+  //startTime = ESP.getCycleCount();
+  __asm__ __volatile__("rsr %0,ccount":"=a"(startTime));
   detachInterrupt(DEBUG_IN_PIN);
   attachInterrupt(DEBUG_IN_PIN, risingEdgeISR_measure, RISING);
   interrupts();
