@@ -59,7 +59,8 @@ private:
   // Sample vsync start and stop times from debug pin.
   static bool vsyncOutputSample(uint32_t *start, uint32_t *stop) {
     startTime = 0; stopTime = 0;
-    ESP.wdtDisable();
+    yield(); ESP.wdtDisable();
+
     attachInterrupt(DEBUG_IN_PIN, risingEdgeISR_prepare, RISING);
     // typical: 300000 at 80MHz, 600000 at 160MHz
     for (uint32_t i = 0; i < 3000000; i++)
@@ -246,7 +247,8 @@ public:
   // Sample vsync start and stop times from debug pin.
   static bool vsyncInputSample(uint32_t *start, uint32_t *stop) {
     startTime = 0; stopTime = 0;
-    ESP.wdtDisable();
+    yield(); ESP.wdtDisable();
+
     attachInterrupt(DEBUG_IN_PIN, risingEdgeISR_prepare, RISING);
     // typical: 300000 at 80MHz, 600000 at 160MHz
     for (uint32_t i = 0; i < 3000000; i++)

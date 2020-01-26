@@ -160,7 +160,7 @@ typedef MenuManager<GBS, MenuAttrs> Menu;
 // runTimeOptions holds system variables
 struct runTimeOptions {
   uint32_t freqExtClockGen;
-  uint16_t noSyncCounter;
+  uint16_t noSyncCounter;     // is always at least 1 when checking value in syncwatcher
   uint8_t presetVlineShift;
   uint8_t videoStandardInput; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 480p NTSC, 4 576p PAL
   uint8_t phaseSP;
@@ -378,7 +378,6 @@ void externalClockGenSyncInOutRate() {
         current -= 500;
         Si.setFreq(0, current);
         handleWiFi(0);
-        delay(1);
       }
     }
   }
@@ -388,13 +387,11 @@ void externalClockGenSyncInOutRate() {
         current += 500;
         Si.setFreq(0, current);
         handleWiFi(0);
-        delay(1);
       }
     }
   }
-  delay(2);
+
   Si.setFreq(0, rto->freqExtClockGen);
-  delay(2);
 
   int32_t diff = rto->freqExtClockGen - old;
   
@@ -408,14 +405,14 @@ void externalClockGenSyncInOutRate() {
 
 void externalClockGenInitialize() {
   // MHz: 27, 32.4, 40.5, 54, 64.8, 81, 108, 129.6, 162
-  rto->freqExtClockGen = 108000000;
+  rto->freqExtClockGen = 81000000;
   if (!rto->extClockGenDetected) {
     return;
   }
   Si.init(25000000L); // many Si5351 boards come with 25MHz crystal; 27000000L for one with 27MHz
   Si.setPower(0, SIOUT_6mA);
   Si.setFreq(0, rto->freqExtClockGen);
-  Si.enable(0);
+  Si.disable(0);
 }
 
 void externalClockGenDetectPresence() {
@@ -2694,20 +2691,19 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   {
     if (!uopt->enableFrameTimeLock) { // FTL can double throw this when it resets to adjust
       float sfr = getSourceFieldRate(0);
-      delay(0); // wifi
+      yield(); // wifi
       float ofr = getOutputFrameRate();
       if (sfr < 1.0f) {
-        delay(1); sfr = getSourceFieldRate(0);  // retry
+        sfr = getSourceFieldRate(0);  // retry
       }
       if (ofr < 1.0f) {
-        delay(1); ofr = getOutputFrameRate();  // retry
+        ofr = getOutputFrameRate();  // retry
       }
       SerialM.print(F("HTotal Adjust (skipped)"));
       SerialM.print(F(", source Hz: "));
       SerialM.print(sfr, 3); // prec. 3
       SerialM.print(F(", output Hz: "));
       SerialM.println(ofr, 3); // prec. 3
-      delay(0);
     }
     return true; // nothing to do
   }
@@ -2884,8 +2880,6 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
     GBS::VDS_HS_SP::write(h_sync_stop_position);
   }
 
-  delay(2); // wifi
-
   boolean print = 1;
   if (uopt->enableFrameTimeLock) {
     if ((GBS::GBS_RUNTIME_FTL_ADJUSTED::read() == 1) && !rto->forceRetime) {
@@ -2902,10 +2896,10 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
     delay(0);
     float ofr = getOutputFrameRate();
     if (sfr < 1.0f) {
-      delay(1); sfr = getSourceFieldRate(0);  // retry
+      sfr = getSourceFieldRate(0);  // retry
     }
     if (ofr < 1.0f) {
-      delay(1); ofr = getOutputFrameRate();  // retry
+      ofr = getOutputFrameRate();  // retry
     }
     SerialM.print(F("HTotal Adjust: "));
     if (diffHTotal >= 0) {
@@ -2916,7 +2910,6 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
     SerialM.print(sfr, 3); // prec. 3
     SerialM.print(F(", output Hz: "));
     SerialM.println(ofr, 3); // prec. 3
-    delay(0);
   }
 
   return true;
@@ -2950,7 +2943,6 @@ double getSourceFieldRate(boolean useSPBus) {
     if (testBusSelBackup != 0) GBS::TEST_BUS_SEL::write(0); // needs decimation + if
   }
 
-  delay(1); // wifi
   double retVal = 0;
 
   uint32_t fieldTimeTicks = FrameSync::getPulseTicks();
@@ -2985,7 +2977,6 @@ double getOutputFrameRate() {
 
   if (testBusSelBackup != 2) GBS::TEST_BUS_SEL::write(2); // 0x4d = 0x22 VDS test
 
-  delay(1); // wifi
   double retVal = 0;
 
   uint32_t fieldTimeTicks = FrameSync::getPulseTicks();
@@ -3026,7 +3017,8 @@ uint32_t getPllRate() {
     if (spBusSelBackup != 0x09) GBS::TEST_BUS_SP_SEL::write(0x09);
   }
   GBS::PAD_BOUT_EN::write(1); // enable output to pin for test
-  delay(1); // BOUT signal and wifi
+  yield(); // BOUT signal and wifi
+  delayMicroseconds(200);
   uint32_t ticks = FrameSync::getPulseTicks();
 
   // restore
@@ -3383,7 +3375,7 @@ void doPostPresetLoadSteps() {
     else if (GBS::DEC1_BYPS::read() && !GBS::DEC2_BYPS::read()) { rto->osr = 2; }
     else { rto->osr = 4; }
 
-    // if using ext clock, switch to stored internal clock here first (switch back later)
+    // always start with internal clock active first
     if (GBS::PLL648_CONTROL_01::read() == 0x75 && GBS::GBS_PRESET_DISPLAY_CLOCK::read() != 0) {
       GBS::PLL648_CONTROL_01::write(GBS::GBS_PRESET_DISPLAY_CLOCK::read());
     }
@@ -5535,7 +5527,8 @@ void runSyncWatcher()
     rto->continousStableCounter = 0;
     lastVsyncLock = millis(); // best reset this
     if (rto->noSyncCounter == 1) {
-      return; // do nothing
+      freezeVideo();
+      return; // do nothing else
     }
 
     rto->phaseIsSet = 0;
@@ -5562,14 +5555,11 @@ void runSyncWatcher()
         }
 
         // if sog is lowest, adjust up
-        if (videoStandardInputIsPalNtscSd()) {
-          if (rto->currentLevelSOG <= 1) {
-            rto->currentLevelSOG += 1;
-            setAndUpdateSogLevel(rto->currentLevelSOG);
-            delay(30);
-          }
+        if (rto->currentLevelSOG <= 1 && videoStandardInputIsPalNtscSd()) {
+          rto->currentLevelSOG += 1;
+          setAndUpdateSogLevel(rto->currentLevelSOG);
+          delay(30);
         }
-        rto->noSyncCounter++;
         lastSyncDrop = millis(); // restart timer
       }
     }
@@ -5583,22 +5573,22 @@ void runSyncWatcher()
         GBS::SP_PRE_COAST::write(9);
         GBS::SP_POST_COAST::write(9);
         // new: test SD<>EDTV changes
-        GBS::SP_H_PULSE_IGNOR::write(GBS::SP_H_PULSE_IGNOR::read() / 2);
+        uint8_t ignore = GBS::SP_H_PULSE_IGNOR::read();
+        if (ignore >= 0x33) {
+          GBS::SP_H_PULSE_IGNOR::write(ignore / 2);
+        }
       }
       rto->coastPositionIsSet = 0;
-      rto->noSyncCounter++;
     }
 
     if (rto->noSyncCounter == 16) {
-      nudgeMD(); delay(40);
-      rto->noSyncCounter++;
+      nudgeMD();
     }
 
     if (rto->noSyncCounter % 23 == 0) {
       // the * check needs to be first (go before auto sog level) to support SD > HDTV detection
       SerialM.print("*");
       updateSpDynamic(1);
-      rto->noSyncCounter++;
     }
 
     if (rto->noSyncCounter % 27 == 0) {
@@ -5613,7 +5603,6 @@ void runSyncWatcher()
     if (rto->inputIsYpBpR && (rto->noSyncCounter == 28)) {
       GBS::SP_NO_CLAMP_REG::write(1); // unlock clamp
       rto->clampPositionIsSet = false;
-      rto->noSyncCounter++;
     }
 
     if (rto->syncTypeCsync) {
@@ -5681,7 +5670,6 @@ void runSyncWatcher()
       delay(8);
       resetModeDetect();
       delay(8);
-      rto->noSyncCounter++;
     }
 
     // long no signal time, check other input
@@ -5703,7 +5691,6 @@ void runSyncWatcher()
         if (GBS::ADC_INPUT_SEL::read() == 1) { GBS::ADC_INPUT_SEL::write(0); }
         else { GBS::ADC_INPUT_SEL::write(1); }
       }
-      rto->noSyncCounter++;
     }
 
     newVideoModeCounter = 0;
@@ -5902,10 +5889,13 @@ void runSyncWatcher()
               }
             }
           }
-          if (VPERIOD_IF % 2 == 0) { // ie v:524, even counts > enable
+
+          if (VPERIOD_IF == 522 || VPERIOD_IF == 524 || VPERIOD_IF == 526 || 
+              VPERIOD_IF == 622 || VPERIOD_IF == 624 || VPERIOD_IF == 626) 
+          { // ie v:524, even counts > enable
             filteredLineCountMotionAdaptiveOn++;
             filteredLineCountMotionAdaptiveOff = 0;
-            if (filteredLineCountMotionAdaptiveOn >= 3) // at least >= 3
+            if (filteredLineCountMotionAdaptiveOn >= 2) // at least >= 2
             {
               if (uopt->deintMode == 0 && !rto->motionAdaptiveDeinterlaceActive) {
                 if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
@@ -5925,10 +5915,12 @@ void runSyncWatcher()
               filteredLineCountMotionAdaptiveOn = 0;
             }
           }
-          else if (VPERIOD_IF % 2 == 1) { // ie v:523, uneven counts > disable
+          else if (VPERIOD_IF == 521 || VPERIOD_IF == 523 || VPERIOD_IF == 525 || 
+                   VPERIOD_IF == 623 || VPERIOD_IF == 625 || VPERIOD_IF == 627) 
+          { // ie v:523, uneven counts > disable
             filteredLineCountMotionAdaptiveOff++;
             filteredLineCountMotionAdaptiveOn = 0;
-            if (filteredLineCountMotionAdaptiveOff >= 3) // at least >= 3
+            if (filteredLineCountMotionAdaptiveOff >= 2) // at least >= 2
             {
               if (uopt->deintMode == 0 && rto->motionAdaptiveDeinterlaceActive) {
                 disableMotionAdaptDeinterlace();
@@ -6626,12 +6618,10 @@ void setup() {
   // start web services as early in boot as possible
   WiFi.hostname(device_hostname_partial); // was _full
 
-  // worst case startup time for ext clock gen: 10ms
-  // library may change i2c clock or pins, so restart
   startWire();
-  externalClockGenDetectPresence();
-  externalClockGenInitialize(); // sets rto->extClockGenDetected
-  startWire();
+  // run some dummy commands to init I2C to GBS and cached segments
+  GBS::SP_SOG_MODE::read(); writeOneByte(0xF0, 0); writeOneByte(0x00, 0);
+  GBS::STATUS_00::read();
 
   if (rto->webServerEnabled) {
     rto->allowUpdatesOTA = false; // need to initialize for handleWiFi()
@@ -6710,13 +6700,6 @@ void setup() {
 
   //Serial.setDebugOutput(true); // if you want simple wifi debug info
 
-  // if i2c established and chip running, issue software reset now
-  // run some dummy commands to init I2C to GBS and cached segments
-  GBS::SP_SOG_MODE::read(); writeOneByte(0xF0, 0); writeOneByte(0x00, 0);
-  GBS::STATUS_00::read();
-  GBS::RESET_CONTROL_0x46::write(0); GBS::RESET_CONTROL_0x47::write(0);
-  GBS::PLLAD_VCORST::write(1); GBS::PLLAD_PDZ::write(0);  // AD PLL off
-
   // delay 1 of 2
   unsigned long initDelay = millis();
   // upped from < 500 to < 1500, allows more time for wifi and GBS startup
@@ -6724,6 +6707,10 @@ void setup() {
     handleWiFi(0);
     delay(1);
   }
+
+  // if i2c established and chip running, issue software reset now
+  GBS::RESET_CONTROL_0x46::write(0); GBS::RESET_CONTROL_0x47::write(0);
+  GBS::PLLAD_VCORST::write(1); GBS::PLLAD_PDZ::write(0);  // AD PLL off
 
   // file system (web page, custom presets, ect)
   if (!SPIFFS.begin()) {
@@ -6793,8 +6780,12 @@ void setup() {
       f.close();
     }
   }
-  
-  // dummy commands
+
+  GBS::PAD_CKIN_ENZ::write(1);  // disable to prevent startup spike damage
+  externalClockGenDetectPresence();
+  externalClockGenInitialize(); // sets rto->extClockGenDetected
+  // library may change i2c clock or pins, so restart
+  startWire();
   GBS::STATUS_00::read(); GBS::STATUS_00::read(); GBS::STATUS_00::read();
 
   // delay 2 of 2
@@ -7074,7 +7065,6 @@ void handleWiFi(boolean instant) {
     if (((millis() - lastTimePing) > 973) || instant) {
       if ((webSocket.connectedClients(false) > 0) || instant) { // true = with compliant ping
         updateWebSocketData();
-        delay(1);
       }
       lastTimePing = millis();
     }
@@ -8213,6 +8203,8 @@ void loop() {
           if (GBS::PLL648_CONTROL_01::read() != 0x35 && GBS::PLL648_CONTROL_01::read() != 0x75) {
             // first store original in an option byte in 1_2D
             GBS::GBS_PRESET_DISPLAY_CLOCK::write(GBS::PLL648_CONTROL_01::read());
+            // enable and switch input
+            Si.enable(0); delayMicroseconds(800);
             GBS::PLL648_CONTROL_01::write(0x75);
           }
         }
