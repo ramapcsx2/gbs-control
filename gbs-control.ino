@@ -672,6 +672,9 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
           //if (index == 324) { // s5_04 reset(0) for ADC REF init
           //  bank[x] = 0x00;
           //}
+          if (index == 352) { // s5_20 always force to 0x02 (only SP_SOG_P_ATO)
+            bank[x] = 0x02;
+          }
           if (index == 375) { // s5_37
             if (videoStandardInputIsPalNtscSd()) {
               bank[x] = 0x6b;
@@ -3058,6 +3061,47 @@ void doPostPresetLoadSteps() {
   GBS::PAD_CKIN_ENZ::write(0);                                // 0 = clock input enable (pin40)
 
   prepareSyncProcessor(); // todo: handle modes 14 and 15 better, now that they support scaling
+  if (rto->videoStandardInput == 14) {
+    // copy of code in bypassModeSwitch_RGBHV
+    if (rto->syncTypeCsync == false)
+    {
+      GBS::SP_SOG_SRC_SEL::write(0);  // 5_20 0 | 0: from ADC 1: from hs // use ADC and turn it off = no SOG
+      GBS::ADC_SOGEN::write(1); // 5_02 0 ADC SOG // having it 0 drags down the SOG (hsync) input; = 1: need to supress SOG decoding
+      GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
+      GBS::SP_SOG_MODE::write(0); // 5_56 bit 0 // 0: normal, 1: SOG
+      GBS::SP_NO_COAST_REG::write(1); // vblank coasting off
+      GBS::SP_PRE_COAST::write(0);
+      GBS::SP_POST_COAST::write(0);
+      GBS::SP_H_PULSE_IGNOR::write(0xff); // cancel out SOG decoding
+      GBS::SP_SYNC_BYPS::write(0);    // external H+V sync for decimator (+ sync out) | 1 to mirror in sync, 0 to output processed sync
+      GBS::SP_HS_POL_ATO::write(1);   // 5_55 4 auto polarity for retiming
+      GBS::SP_VS_POL_ATO::write(1);   // 5_55 6
+      GBS::SP_HS_LOOP_SEL::write(1);  // 5_57_6 | 0 enables retiming on SP | 1 to bypass input to HDBYPASS
+      GBS::SP_H_PROTECT::write(0);    // 5_3e 4 disable for H/V
+      rto->phaseADC = 16;
+      rto->phaseSP = 8;
+    }
+    else
+    {
+      // todo: SOG SRC can be ADC or HS input pin. HS requires TTL level, ADC can use lower levels
+      // HS seems to have issues at low PLL speeds
+      // maybe add detection whether ADC Sync is needed
+      GBS::SP_SOG_SRC_SEL::write(0); // 5_20 0 | 0: from ADC 1: hs is sog source
+      GBS::SP_EXT_SYNC_SEL::write(1); // disconnect HV input
+      GBS::ADC_SOGEN::write(1); // 5_02 0 ADC SOG
+      GBS::SP_SOG_MODE::write(1); // apparently needs to be off for HS input (on for ADC)
+      GBS::SP_NO_COAST_REG::write(0); // vblank coasting on
+      GBS::SP_PRE_COAST::write(4);  // 5_38, > 4 can be seen with clamp invert on the lower lines
+      GBS::SP_POST_COAST::write(7);
+      GBS::SP_SYNC_BYPS::write(0); // use regular sync for decimator (and sync out) path
+      GBS::SP_HS_LOOP_SEL::write(1); // 5_57_6 | 0 enables retiming on SP | 1 to bypass input to HDBYPASS
+      GBS::SP_H_PROTECT::write(1); // 5_3e 4 enable for SOG
+      rto->currentLevelSOG = 24;
+      rto->phaseADC = 16;
+      rto->phaseSP = 8;
+    }
+  }
+
   GBS::SP_H_PROTECT::write(0);
   GBS::SP_COAST_INV_REG::write(0); // just in case
   if (!rto->outModeHdBypass && GBS::GBS_OPTION_SCALING_RGBHV::read() == 0) {
@@ -3750,10 +3794,18 @@ void doPostPresetLoadSteps() {
 }
 
 void applyPresets(uint8_t result) {
-  // if RGBHV scaling and invoked through web ui for preset change
+  // if RGBHV scaling and invoked through web ui or custom preset
+  // need to know syncTypeCsync
   if (result == 14) {
-    bypassModeSwitch_RGBHV();
-    return;
+    if (GBS::STATUS_SYNC_PROC_HSACT::read() == 1) {
+      rto->inputIsYpBpR = 0;
+      if (GBS::STATUS_SYNC_PROC_VSACT::read() == 0) {
+        rto->syncTypeCsync = 1;
+      }
+      else {
+        rto->syncTypeCsync = 0;
+      }
+    }
   }
   
   boolean waitExtra = 0;
@@ -3820,7 +3872,7 @@ void applyPresets(uint8_t result) {
     }
   }
 
-  if (result == 1 || result == 3 || result == 8 || result == 9) {
+  if (result == 1 || result == 3 || result == 8 || result == 9 || result == 14) {
     if (uopt->presetPreference == 0) {
       writeProgramArrayNew(ntsc_240p, false);
     }
@@ -5937,6 +5989,9 @@ void runSyncWatcher()
               filteredLineCountMotionAdaptiveOff = 0;
             }
           }
+          else {
+            filteredLineCountMotionAdaptiveOn = filteredLineCountMotionAdaptiveOff = 0;
+          }
 
           VPERIOD_IF_OLD = VPERIOD_IF; // part of glitch filter
 
@@ -6017,23 +6072,30 @@ void runSyncWatcher()
           float sourceRate = getSourceFieldRate(1);
           Serial.println(sourceRate);
 
-          if (sourceLines < 280) {
-            // this is "NTSC like?" check, seen 277 lines in "512x512 interlaced (emucrt)"
-            rto->videoStandardInput = 1;
+          // todo: this hack is hard to understand when looking at applypreset and mode is suddenly 1,2 or 3
+          if (uopt->presetPreference == 2) {
+            // custom preset defined, try to load (set mode = 14 here early)
+            rto->videoStandardInput = 14;
           }
-          else if (sourceLines < 380) {
-            // this is "PAL like?" check, seen vt:369 (MDA mode)
-            rto->videoStandardInput = 2;
-          }
-          else if (sourceRate > 44.0f && sourceRate < 53.8f) {
-            // not low res but PAL = "EDTV"
-            rto->videoStandardInput = 4;
-            needPostAdjust = 1;
-          }
-          else {  // sourceRate > 53.8f
-            // "60Hz EDTV"
-            rto->videoStandardInput = 3;
-            needPostAdjust = 1;
+          else {
+            if (sourceLines < 280) {
+              // this is "NTSC like?" check, seen 277 lines in "512x512 interlaced (emucrt)"
+              rto->videoStandardInput = 1;
+            }
+            else if (sourceLines < 380) {
+              // this is "PAL like?" check, seen vt:369 (MDA mode)
+              rto->videoStandardInput = 2;
+            }
+            else if (sourceRate > 44.0f && sourceRate < 53.8f) {
+              // not low res but PAL = "EDTV"
+              rto->videoStandardInput = 4;
+              needPostAdjust = 1;
+            }
+            else {  // sourceRate > 53.8f
+              // "60Hz EDTV"
+              rto->videoStandardInput = 3;
+              needPostAdjust = 1;
+            }
           }
 
           if (uopt->presetPreference == 10) {
@@ -6044,6 +6106,7 @@ void runSyncWatcher()
           applyPresets(rto->videoStandardInput);
 
           GBS::GBS_OPTION_SCALING_RGBHV::write(1);
+          GBS::IF_INI_ST::write(16);            // fixes pal(at least) interlace
           GBS::SP_SOG_P_ATO::write(1);          // 5_20 1 auto SOG polarity (now "hpw" should never be close to "ht")
 
           GBS::SP_SDCS_VSST_REG_L::write(2); // 5_3f
@@ -6103,6 +6166,7 @@ void runSyncWatcher()
       }
       // if currently in scaling RGB/HV, check for "SD" < > "EDTV" style source changes
       else if ((sourceLines <= 535 && sourceLines != 0) && rto->videoStandardInput == 14) {
+        // todo: custom presets?
         if (sourceLines < 280 && activePresetLineCount > 280) {
           rto->videoStandardInput = 1;
         }
@@ -6140,6 +6204,7 @@ void runSyncWatcher()
             applyPresets(rto->videoStandardInput);
 
             GBS::GBS_OPTION_SCALING_RGBHV::write(1);
+            GBS::IF_INI_ST::write(16);         // fixes pal(at least) interlace
             GBS::SP_SOG_P_ATO::write(1);       // 5_20 1 auto SOG polarity
 
             // adjust vposition
@@ -6601,6 +6666,10 @@ void loadDefaultUserOptions() {
   uopt->wantFullHeight = 1;     // #16
   uopt->enableCalibrationADC = 1;  // #17
 }
+
+//RF_PRE_INIT() {
+//  system_phy_set_powerup_option(3);  // full RFCAL at boot
+//}
 
 //void preinit() {
 //  //system_phy_set_powerup_option(3); // 0 = default, use init byte; 3 = full calibr. each boot, extra 200ms
@@ -8964,7 +9033,7 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
     result[2] = f.read();
 
     f.close();
-    if ((uint8_t)(result[2] - '0') < 10) {
+    if ((uint8_t)(result[2] - '0') < 10) {  // # of slots
       slot = result[2]; // otherwise not stored on spiffs
     }
   }
@@ -8998,6 +9067,9 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
   }
   else if (forVideoMode == 8) {
     f = SPIFFS.open("/preset_medium_res." + String(slot), "r");
+  }
+  else if (forVideoMode == 14) {
+    f = SPIFFS.open("/preset_vga_upscale." + String(slot), "r");
   }
   else if (forVideoMode == 0) {
     f = SPIFFS.open("/preset_unknown." + String(slot), "r");
@@ -9070,6 +9142,9 @@ void savePresetToSPIFFS() {
   }
   else if (rto->videoStandardInput == 8) {
     f = SPIFFS.open("/preset_medium_res." + String(slot), "w");
+  }
+  else if (rto->videoStandardInput == 14) {
+    f = SPIFFS.open("/preset_vga_upscale." + String(slot), "w");
   }
   else if (rto->videoStandardInput == 0) {
     f = SPIFFS.open("/preset_unknown." + String(slot), "w");
