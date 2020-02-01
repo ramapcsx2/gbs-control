@@ -3584,6 +3584,17 @@ void doPostPresetLoadSteps() {
     GBS::PAD_SYNC_OUT_ENZ::write(0);  // sync out
   }
 
+  // late adjustments that require some delay time first
+  if (!isCustomPreset) {
+    if (videoStandardInputIsPalNtscSd() && !rto->outModeHdBypass) {
+      // SNES has less total lines and a slight offset (only relevant in 60Hz)
+      if (GBS::VPERIOD_IF::read() == 523) {
+        GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 4);
+        GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 4);
+      }
+    }
+  }
+
   // new, might be useful (3_6D - 3_72)
   GBS::VDS_EXT_HB_ST::write(GBS::VDS_DIS_HB_ST::read());
   GBS::VDS_EXT_HB_SP::write(GBS::VDS_DIS_HB_SP::read());
