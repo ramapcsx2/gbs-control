@@ -398,7 +398,7 @@ void externalClockGenSyncInOutRate() {
   SerialM.print(F("clock gen: ")); SerialM.print(old);
   SerialM.print(F(" > ")); SerialM.print(rto->freqExtClockGen);
   SerialM.print(F(" (diff: ")); SerialM.print(diff);
-  SerialM.print(F(") source Hz: ")); SerialM.print(sfr, 5);
+  SerialM.print(F(") \nsource Hz: ")); SerialM.print(sfr, 5);
   SerialM.print(F(" new out Hz: ")); SerialM.println(getOutputFrameRate(), 5);
   delay(1);
 }
@@ -2693,20 +2693,26 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
     !rto->forceRetime)                                                                        // and that
   {
     if (!uopt->enableFrameTimeLock) { // FTL can double throw this when it resets to adjust
-      float sfr = getSourceFieldRate(0);
-      yield(); // wifi
-      float ofr = getOutputFrameRate();
-      if (sfr < 1.0f) {
-        sfr = getSourceFieldRate(0);  // retry
-      }
-      if (ofr < 1.0f) {
-        ofr = getOutputFrameRate();  // retry
-      }
       SerialM.print(F("HTotal Adjust (skipped)"));
-      SerialM.print(F(", source Hz: "));
-      SerialM.print(sfr, 3); // prec. 3
-      SerialM.print(F(", output Hz: "));
-      SerialM.println(ofr, 3); // prec. 3
+
+      if (!rto->extClockGenDetected) {
+        float sfr = getSourceFieldRate(0);
+        yield(); // wifi
+        float ofr = getOutputFrameRate();
+        if (sfr < 1.0f) {
+          sfr = getSourceFieldRate(0);  // retry
+        }
+        if (ofr < 1.0f) {
+          ofr = getOutputFrameRate();  // retry
+        }
+        SerialM.print(F(", source Hz: "));
+        SerialM.print(sfr, 3); // prec. 3
+        SerialM.print(F(", output Hz: "));
+        SerialM.println(ofr, 3); // prec. 3
+      }
+      else {
+        SerialM.println();
+      }
     }
     return true; // nothing to do
   }
@@ -2895,24 +2901,30 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   rto->forceRetime = false;
 
   if (print) {
-    float sfr = getSourceFieldRate(0);
-    delay(0);
-    float ofr = getOutputFrameRate();
-    if (sfr < 1.0f) {
-      sfr = getSourceFieldRate(0);  // retry
-    }
-    if (ofr < 1.0f) {
-      ofr = getOutputFrameRate();  // retry
-    }
     SerialM.print(F("HTotal Adjust: "));
     if (diffHTotal >= 0) {
       SerialM.print(" "); // formatting to align with negative value readouts
     }
     SerialM.print(diffHTotal);
-    SerialM.print(F(", source Hz: "));
-    SerialM.print(sfr, 3); // prec. 3
-    SerialM.print(F(", output Hz: "));
-    SerialM.println(ofr, 3); // prec. 3
+
+    if (!rto->extClockGenDetected) {
+      float sfr = getSourceFieldRate(0);
+      delay(0);
+      float ofr = getOutputFrameRate();
+      if (sfr < 1.0f) {
+        sfr = getSourceFieldRate(0);  // retry
+      }
+      if (ofr < 1.0f) {
+        ofr = getOutputFrameRate();  // retry
+      }
+      SerialM.print(F(", source Hz: "));
+      SerialM.print(sfr, 3); // prec. 3
+      SerialM.print(F(", output Hz: "));
+      SerialM.println(ofr, 3); // prec. 3
+    }
+    else {
+      SerialM.println();
+    }
   }
 
   return true;
@@ -3765,7 +3777,7 @@ void doPostPresetLoadSteps() {
     activeFrameTimeLockInitialSteps();
   }
 
-  SerialM.print(F("\npost preset done: ")); 
+  SerialM.print(F("\npreset applied: ")); 
   if (rto->presetID == 0x01 || rto->presetID == 0x11)       SerialM.print(F("1280x960"));
   else if (rto->presetID == 0x02 || rto->presetID == 0x12)  SerialM.print(F("1280x1024"));
   else if (rto->presetID == 0x03 || rto->presetID == 0x13)  SerialM.print(F("1280x720"));
@@ -3805,9 +3817,13 @@ void doPostPresetLoadSteps() {
     else                    SerialM.print(F("RGB Bypass (HV Sync)"));
   }
   else if (rto->videoStandardInput == 0)  SerialM.print(F("!should not go here!"));
+
+  if (uopt->presetPreference == 5 && 
+    (rto->videoStandardInput == 1 || rto->videoStandardInput == 3)) 
+    SerialM.print(F("(set your TV aspect ratio to 16:9!)"));
+
   // presetPreference = 2 may fail to load (missing) preset file and arrive here with defaults
-  //if (uopt->presetPreference == 2) SerialM.println(F("(custom)"));
-  SerialM.println();
+  SerialM.println("\n");
 }
 
 void applyPresets(uint8_t result) {
@@ -6839,7 +6855,7 @@ void setup() {
       if (uopt->enableFrameTimeLock > 1) uopt->enableFrameTimeLock = 0;
 
       uopt->presetSlot = (uint8_t)(f.read() - '0');
-      if (uopt->presetSlot > 5) uopt->presetSlot = 1;
+      if (uopt->presetSlot > 9) uopt->presetSlot = 1;
 
       uopt->frameTimeLockMethod = (uint8_t)(f.read() - '0');
       if (uopt->frameTimeLockMethod > 1) uopt->frameTimeLockMethod = 0;
@@ -7118,6 +7134,18 @@ void updateWebSocketData() {
         break;
       case 5:
         toSend[2] = '5';
+        break;
+      case 6:
+        toSend[2] = '6';
+        break;
+      case 7:
+        toSend[2] = '7';
+        break;
+      case 8:
+        toSend[2] = '8';
+        break;
+      case 9:
+        toSend[2] = '9';
         break;
       default:
         toSend[2] = '1';
@@ -8537,6 +8565,26 @@ void handleType2Command(char argument) {
     uopt->presetPreference = 2;
     saveUserPrefs();
     break;
+  case 'G':
+    uopt->presetSlot = 6;
+    uopt->presetPreference = 2; // custom
+    saveUserPrefs();
+    break;
+  case 'H':
+    uopt->presetSlot = 7;
+    uopt->presetPreference = 2;
+    saveUserPrefs();
+    break;
+  case 'I':
+    uopt->presetSlot = 8;
+    uopt->presetPreference = 2;
+    saveUserPrefs();
+    break;
+  case 'J':
+    uopt->presetSlot = 9;
+    uopt->presetPreference = 2;
+    saveUserPrefs();
+    break;
   case 'e': // print files on spiffs
   {
     Dir dir = SPIFFS.openDir("/");
@@ -9071,7 +9119,7 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
     result[2] = f.read();
 
     f.close();
-    if ((uint8_t)(result[2] - '0') < 10) {  // # of slots
+    if ((uint8_t)(result[2] - '0') <= 9) {  // # of slots
       slot = result[2]; // otherwise not stored on spiffs
     }
   }
