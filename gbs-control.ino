@@ -2959,7 +2959,9 @@ double getSourceFieldRate(boolean useSPBus) {
     if (retVal < 47.0f || retVal > 86.0f) {
       // try again
       fieldTimeTicks = FrameSync::getPulseTicks();
-      retVal = esp8266_clock_freq / (double)fieldTimeTicks;
+      if (fieldTimeTicks > 0) {
+        retVal = esp8266_clock_freq / (double)fieldTimeTicks;
+      }
     }
   }
   
@@ -2993,7 +2995,9 @@ double getOutputFrameRate() {
     if (retVal < 47.0f || retVal > 86.0f) {
       // try again
       fieldTimeTicks = FrameSync::getPulseTicks();
-      retVal = esp8266_clock_freq / (double)fieldTimeTicks;
+      if (fieldTimeTicks > 0) {
+        retVal = esp8266_clock_freq / (double)fieldTimeTicks;
+      }
     }
   }
 
@@ -3230,8 +3234,8 @@ void doPostPresetLoadSteps() {
           GBS::VDS_VSCALE::write(455);
           GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read());  // full = 1125 of 1125
           GBS::VDS_DIS_VB_SP::write(42);
-          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 26);
-          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 26);
+          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 30);
+          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 30);
           SerialM.println(F("full height"));
         }
       }
@@ -3794,6 +3798,11 @@ void doPostPresetLoadSteps() {
 }
 
 void applyPresets(uint8_t result) {
+  if (!rto->boardHasPower) {
+    SerialM.println(F("GBS board not responding!"));
+    return;
+  }
+
   // if RGBHV scaling and invoked through web ui or custom preset
   // need to know syncTypeCsync
   if (result == 14) {
@@ -3832,7 +3841,7 @@ void applyPresets(uint8_t result) {
 
   if (result == 0) {
     SerialM.println(F("Source format not properly recognized, using fallback preset!"));
-    result = 3; // override to 480p 60
+    result = 3; // in case of success: override to 480p60
     GBS::ADC_INPUT_SEL::write(1); // RGB
     delay(100);
     if (GBS::STATUS_SYNC_PROC_HSACT::read() == 1) {
@@ -3854,14 +3863,19 @@ void applyPresets(uint8_t result) {
         rto->syncWatcherEnabled = 1;
       }
       else {
+        // found nothing at all, switch to RGB input and turn off syncwatcher
         GBS::ADC_INPUT_SEL::write(1); // RGB
-        rto->syncWatcherEnabled = 0;  // got no signal at all
+        writeProgramArrayNew(ntsc_240p, false);
+        rto->videoStandardInput = 3;  // override to 480p60
+        doPostPresetLoadSteps();
+        GBS::SP_CLAMP_MANUAL::write(1);
+        rto->syncWatcherEnabled = 0;
+        rto->videoStandardInput = 0;
+        typeOneCommand = 'D'; // enable debug view
+        
+        return;
       }
     }
-    //rto->videoStandardInput = 0; // mark as "no sync" for syncwatcher
-    //inputAndSyncDetect();
-    //delay(300);
-    //return;
   }
 
   if (uopt->PalForce60 == 1) {
@@ -4625,6 +4639,11 @@ void updateClampPosition() {
 // 2431 for psx, 2437 for MD
 // in this mode, sampling clock is free to choose
 void setOutModeHdBypass() {
+  if (!rto->boardHasPower) {
+    SerialM.println(F("GBS board not responding!"));
+    return;
+  }
+
   rto->autoBestHtotalEnabled = false;   // disable while in this mode
   rto->outModeHdBypass = 1;             // skips waiting at end of doPostPresetLoadSteps
 
@@ -4906,6 +4925,11 @@ void setOutModeHdBypass() {
 }
 
 void bypassModeSwitch_RGBHV() {
+  if (!rto->boardHasPower) {
+    SerialM.println(F("GBS board not responding!"));
+    return;
+  }
+
   GBS::DAC_RGBS_PWDNZ::write(0);    // disable DAC
   GBS::PAD_SYNC_OUT_ENZ::write(1);  // disable sync out
   
