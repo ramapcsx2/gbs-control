@@ -3496,13 +3496,15 @@ void doPostPresetLoadSteps() {
   if (uopt->wantPeaking) { GBS::VDS_PK_Y_H_BYPS::write(0); }
   else { GBS::VDS_PK_Y_H_BYPS::write(1); }
 
-  if (uopt->wantTap6) { GBS::VDS_TAP6_BYPS::write(0); }
+  // unused now
+  GBS::VDS_TAP6_BYPS::write(0);
+  /*if (uopt->wantTap6) { GBS::VDS_TAP6_BYPS::write(0); }
   else { 
     GBS::VDS_TAP6_BYPS::write(1);
     if (!isCustomPreset) {
       GBS::MADPT_Y_DELAY_UV_DELAY::write(GBS::MADPT_Y_DELAY_UV_DELAY::read() + 1);
     }
-  }
+  }*/
 
   if (uopt->wantStepResponse) {
     // step response requested, but exclude 1080p60 preset
@@ -6680,7 +6682,7 @@ void loadDefaultUserOptions() {
   uopt->wantScanlines = 0;
   uopt->wantOutputComponent = 0;
   uopt->deintMode = 0;
-  uopt->wantVdsLineFilter = 1;
+  uopt->wantVdsLineFilter = 0;
   uopt->wantPeaking = 1;
   uopt->preferScalingRgbhv = 1;
   uopt->wantTap6 = 1;
@@ -6844,7 +6846,7 @@ void setup() {
       if (uopt->deintMode > 2) uopt->deintMode = 0;
       
       uopt->wantVdsLineFilter = (uint8_t)(f.read() - '0');
-      if (uopt->wantVdsLineFilter > 1) uopt->wantVdsLineFilter = 1;
+      if (uopt->wantVdsLineFilter > 1) uopt->wantVdsLineFilter = 0;
 
       uopt->wantPeaking = (uint8_t)(f.read() - '0');
       if (uopt->wantPeaking > 1) uopt->wantPeaking = 1;
@@ -8480,9 +8482,9 @@ void handleType2Command(char argument) {
     break;
   case '7':
     uopt->wantScanlines = !uopt->wantScanlines;
-    SerialM.print(F("scanlines "));
+    SerialM.print(F("scanlines: "));
     if (uopt->wantScanlines) {
-      SerialM.println("on");
+      SerialM.print(F("on (Line Filter recommended)"));
     }
     else {
       disableScanlines();
@@ -8632,7 +8634,7 @@ void handleType2Command(char argument) {
   }
   break;
   case 'm':
-    SerialM.print(F("line filter "));
+    SerialM.print(F("Line Filter: "));
     if (uopt->wantVdsLineFilter) {
       uopt->wantVdsLineFilter = 0;
       GBS::VDS_D_RAM_BYPS::write(1);
@@ -8749,7 +8751,8 @@ void handleType2Command(char argument) {
     SerialM.println(F("Deinterlacer: Motion Adaptive"));
   break;
   case 't':
-    SerialM.print("6-tap: ");
+    // unused now
+    SerialM.print(F("6-tap: "));
     if (uopt->wantTap6 == 0)
     {
       uopt->wantTap6 = 1;

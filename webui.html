@@ -217,15 +217,12 @@
             }
             function content3() {
                 document.getElementById("display").innerHTML =
-                '<p>The Line Filter and Peaking options are recommended, the others are optional.</p>' +
-                '<p>Scanlines only work with 240p sources at this time.</p>' +
-                '<p>The 6-Tap LPF output filter should be enabled, unless you notice jailbar effects.</p>' +
-                '<p>The Step Response filter sharpens color edges. It works best with 256px and 320px wide sources.</p>' +
+                '<p>Scanlines only work with 240p sources. They look best with the Line Filter enabled.</p>' +
+                '<p>Peaking and Step Response are subtle sharpening filters and recommended.</p>' +
                 '<button class="button option scanlines" type="button" onclick="loadUser(\'7\')">Scanlines (240p only)</button>' +
                 '<button class="button option vdsLineFilter" type="button" onclick="loadUser(\'m\')">Line Filter</button>' +
                 '<button class="button option peaking" type="button" onclick="loadDoc(\'f\')">Peaking</button>' +
-                '<button class="button option step" type="button" onclick="loadDoc(\'V\')">Step Response</button>' +
-                '<button class="button option tap6" type="button" onclick="loadUser(\'t\')">6-Tap LPF</button>';
+                '<button class="button option step" type="button" onclick="loadDoc(\'V\')">Step Response</button>';
             }
             function content5() {
                 document.getElementById("display").innerHTML =
