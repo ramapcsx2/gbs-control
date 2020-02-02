@@ -2493,6 +2493,10 @@ void setIfHblankParameters() {
       GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() + 32);
       GBS::IF_LINE_SP::write(GBS::IF_LINE_SP::read() + 32);
     }
+    if (rto->presetID == 0x15) {
+      GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() + 20);
+      GBS::IF_LINE_SP::write(GBS::IF_LINE_SP::read() + 20);
+    }
 
     if (GBS::IF_LD_RAM_BYPS::read()) {
       // no LD = EDTV or similar
@@ -2506,10 +2510,12 @@ void setIfHblankParameters() {
       GBS::IF_HB_ST2::write((uint16_t)((float)pll_divider * 0.4550f) & 0xfffe);       // 1_18
 
       if (GBS::IF_HB_ST2::read() >= 0x420) {
-        GBS::IF_HB_ST2::write(0x420);  // limit (fifo?) (0x420 = 1056)
+        // limit (fifo?) (0x420 = 1056) (might be 0x424 instead)
+        // limit doesn't apply to EDTV modes, where 1_18 typically = 0x4B0
+        GBS::IF_HB_ST2::write(0x420);  
       }
 
-      if (rto->presetID == 0x05) {
+      if (rto->presetID == 0x05 || rto->presetID == 0x15) {
         // override 1_1a for 1080p manually for now (pll_divider alone isn't correct :/)
         GBS::IF_HB_SP2::write(0x2A);
       }
@@ -3206,7 +3212,7 @@ void doPostPresetLoadSteps() {
 
     GBS::VDS_PK_LB_CORE::write(0);    // 3_44 0-3 // 1 for anti source jailbars
     GBS::VDS_PK_LH_CORE::write(0);    // 3_46 0-3 // 1 for anti source jailbars
-    if (rto->presetID == 0x05) {
+    if (rto->presetID == 0x05 || rto->presetID == 0x15) {
       GBS::VDS_PK_LB_GAIN::write(0x16); // 3_45 // peaking HF
       GBS::VDS_PK_LH_GAIN::write(0x0A); // 3_47
     }
@@ -3246,8 +3252,8 @@ void doPostPresetLoadSteps() {
           GBS::VDS_VSCALE::write(455);
           GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read());  // full = 1125 of 1125
           GBS::VDS_DIS_VB_SP::write(42);
-          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 30);
-          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 30);
+          GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + 22);
+          GBS::IF_VB_ST::write(GBS::IF_VB_ST::read() + 22);
           SerialM.println(F("full height"));
         }
       }
@@ -3340,7 +3346,8 @@ void doPostPresetLoadSteps() {
       GBS::IF_HB_ST::write(0x30); // 1_10
       if (rto->presetID == 0x15) 
       { // out 1080p
-        GBS::IF_HB_SP2::write(0x88);  // 1_1a
+        GBS::IF_HB_ST2::write(0x4B0); // 1_18
+        GBS::IF_HB_SP2::write(0xB8);  // 1_1a
       }
       else if (rto->presetID == 0x13) 
       { // out 720p
@@ -3519,8 +3526,8 @@ void doPostPresetLoadSteps() {
   }*/
 
   if (uopt->wantStepResponse) {
-    // step response requested, but exclude 1080p60 preset
-    if (rto->presetID != 0x05) {
+    // step response requested, but exclude 1080p presets
+    if (rto->presetID != 0x05 && rto->presetID != 0x15) {
       GBS::VDS_UV_STEP_BYPS::write(0);
     }
     else {
@@ -3818,10 +3825,9 @@ void doPostPresetLoadSteps() {
   }
   else if (rto->videoStandardInput == 0)  SerialM.print(F("!should not go here!"));
 
-  if (uopt->presetPreference == 5 && 
-    (rto->videoStandardInput == 1 || rto->videoStandardInput == 3)) 
+  if (rto->presetID == 0x05 || rto->presetID == 0x15) {
     SerialM.print(F("(set your TV aspect ratio to 16:9!)"));
-
+  }
   // presetPreference = 2 may fail to load (missing) preset file and arrive here with defaults
   SerialM.println("\n");
 }
@@ -4467,7 +4473,7 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck) {
       GBS::SP_PRE_COAST::write(9);
       GBS::SP_POST_COAST::write(18); // of 1124 input lines
       GBS::SP_DLT_REG::write(0x70);
-      GBS::SP_H_PULSE_IGNOR::write(0x04); // was 2 ps2 up to 0x06
+      GBS::SP_H_PULSE_IGNOR::write(0x0A); // was 2 ps2 up to 0x06 // new test, ps2 needs above 0x08 with 5_35=0x70
     }
     else if (rto->videoStandardInput >= 13) { // 13, 14 and 15 (was just 13 and 15)
       if (rto->syncTypeCsync == false)
@@ -8523,7 +8529,7 @@ void handleType2Command(char argument) {
     uopt->wantScanlines = !uopt->wantScanlines;
     SerialM.print(F("scanlines: "));
     if (uopt->wantScanlines) {
-      SerialM.print(F("on (Line Filter recommended)"));
+      SerialM.println(F("on (Line Filter recommended)"));
     }
     else {
       disableScanlines();
