@@ -1450,7 +1450,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
           }
 
           if (hsyncActive) {
-            SerialM.println(F("HSync: present"));
+            SerialM.print(F("HSync: present"));
             // The HSync and SOG pins are setup to detect CSync, if present 
             // (SOG mode on, coasting setup, debug bus setup, etc)
             // SP_H_PROTECT is needed for CSync with a VS source present as well
@@ -1467,17 +1467,23 @@ uint8_t detectAndSwitchToActiveInput() { // if any
               if (sfr > 40.0f) decodeSuccess++; // properly decoded vsync from 40 to xx Hz
             }
 
-            if (decodeSuccess >= 2) { rto->syncTypeCsync = true; }
-            else { rto->syncTypeCsync = false; }
+            if (decodeSuccess >= 2) { 
+              SerialM.println(F(" (with CSync)"));
+              rto->syncTypeCsync = true; 
+            }
+            else { 
+              SerialM.println();
+              rto->syncTypeCsync = false; 
+            }
 
-            // check for 25khz, all regular SOG modes first
+            // check for 25khz, all regular SOG modes first // update: only check for mode 8
             // if source is HS+VS, can't detect via MD unit, need to set 5_11=0x92 and look at vt: counter
             for (uint8_t i = 0; i < 8; i++) {
               //printInfo();
               uint8_t innerVideoMode = getVideoMode();
-              if (innerVideoMode > 0 && innerVideoMode != 8) {
+              /*if (innerVideoMode > 0 && innerVideoMode != 8) {
                 return 1;
-              }
+              }*/
               if (innerVideoMode == 8) {
                 setAndUpdateSogLevel(rto->currentLevelSOG);
                 rto->medResLineCount = GBS::MD_HD1250P_CNTRL::read();
@@ -3320,6 +3326,7 @@ void doPostPresetLoadSteps() {
       setCsVsStart(16); // ntsc
       setCsVsStop(13);  //
       GBS::IF_HB_ST::write(30);       // 1_10; magic number
+      GBS::IF_HBIN_ST::write(0x20);   // 1_24
       GBS::IF_HBIN_SP::write(0x60);   // 1_26
       if (rto->presetID == 0x5) 
       { // out 1080p
@@ -3334,12 +3341,10 @@ void doPostPresetLoadSteps() {
       else if (rto->presetID == 0x2) 
       { // out x1024
         GBS::IF_HB_SP2::write(0x84);  // 1_1a
-        GBS::IF_HBIN_ST::write(0x20); // 1_24
       }
       else if (rto->presetID == 0x1) 
       { // out x960
         GBS::IF_HB_SP2::write(0x84);  // 1_1a
-        GBS::IF_HBIN_ST::write(0x20); // 1_24
       }
       else if (rto->presetID == 0x4)
       { // out x480
@@ -3834,7 +3839,6 @@ void doPostPresetLoadSteps() {
   else if (rto->videoStandardInput == 14) {
     if (rto->syncTypeCsync) SerialM.print(F("scaling RGB (CSync)"));
     else                    SerialM.print(F("scaling RGB (HV Sync)"));
-    SerialM.print(F("\nNote: scaling RGB is still in development"));
   }
   else if (rto->videoStandardInput == 15) {
     if (rto->syncTypeCsync) SerialM.print(F("RGB Bypass (CSync)"));
@@ -3844,6 +3848,9 @@ void doPostPresetLoadSteps() {
 
   if (rto->presetID == 0x05 || rto->presetID == 0x15) {
     SerialM.print(F("(set your TV aspect ratio to 16:9!)"));
+  }
+  if (rto->videoStandardInput == 14) {
+    SerialM.print(F("\nNote: scaling RGB is still in development"));
   }
   // presetPreference = 2 may fail to load (missing) preset file and arrive here with defaults
   SerialM.println("\n");
@@ -6211,6 +6218,21 @@ void runSyncWatcher()
           }
           delay(300);
 
+          if (rto->extClockGenDetected) {
+            // switch to ext clock
+            if (!rto->outModeHdBypass) {
+              if (GBS::PLL648_CONTROL_01::read() != 0x35 && GBS::PLL648_CONTROL_01::read() != 0x75) {
+                // first store original in an option byte in 1_2D
+                GBS::GBS_PRESET_DISPLAY_CLOCK::write(GBS::PLL648_CONTROL_01::read());
+                // enable and switch input
+                Si.enable(0); delayMicroseconds(800);
+                GBS::PLL648_CONTROL_01::write(0x75);
+              }
+            }
+            // sync clocks now
+            externalClockGenSyncInOutRate();
+          }
+
           // note: this is all duplicated below. unify!
           if (needPostAdjust) {
             // base preset was "3" / no line doubling
@@ -6309,6 +6331,21 @@ void runSyncWatcher()
               GBS::SP_H_PROTECT::write(1);      // some modes require this (or invert SOG)
             }
             delay(300);
+
+            if (rto->extClockGenDetected) {
+              // switch to ext clock
+              if (!rto->outModeHdBypass) {
+                if (GBS::PLL648_CONTROL_01::read() != 0x35 && GBS::PLL648_CONTROL_01::read() != 0x75) {
+                  // first store original in an option byte in 1_2D
+                  GBS::GBS_PRESET_DISPLAY_CLOCK::write(GBS::PLL648_CONTROL_01::read());
+                  // enable and switch input
+                  Si.enable(0); delayMicroseconds(800);
+                  GBS::PLL648_CONTROL_01::write(0x75);
+                }
+              }
+              // sync clocks now
+              externalClockGenSyncInOutRate();
+            }
 
             // note: this is all duplicated above. unify!
             if (needPostAdjust) {
@@ -7769,8 +7806,19 @@ void loop() {
     }
     break;
     case '6':
-      if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4) {
-        shiftHorizontalRight(); // use VDS mem move for EDTV presets
+      if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 ||
+        rto->videoStandardInput == 8 || rto->videoStandardInput == 14) {
+        //shiftHorizontalRight(); // use VDS mem move for EDTV presets
+        if (GBS::IF_HB_SP2::read() >= 4)
+          GBS::IF_HB_SP2::write(GBS::IF_HB_SP2::read() - 4);  // 1_1a
+        else
+          GBS::IF_HB_SP2::write(GBS::IF_HSYNC_RST::read() - 0x30);
+        if (GBS::IF_HB_ST2::read() >= 4)
+          GBS::IF_HB_ST2::write(GBS::IF_HB_ST2::read() - 4);  // 1_18
+        else
+          GBS::IF_HB_ST2::write(GBS::IF_HSYNC_RST::read() - 0x30);
+        SerialM.print(F("IF_HB_ST2: ")); SerialM.print(GBS::IF_HB_ST2::read(), HEX);
+        SerialM.print(F(" IF_HB_SP2: ")); SerialM.println(GBS::IF_HB_SP2::read(), HEX);
       }
       else {
         if (GBS::IF_HBIN_SP::read() >= 10) {                            // IF_HBIN_SP: min 2
@@ -7786,8 +7834,19 @@ void loop() {
       }
     break;
     case '7':
-      if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4) {
-        shiftHorizontalLeft();
+      if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 || 
+          rto->videoStandardInput == 8 || rto->videoStandardInput == 14) {
+        //shiftHorizontalLeft();  // use VDS mem move for EDTV presets
+        if (GBS::IF_HB_SP2::read() < (GBS::IF_HSYNC_RST::read() - 0x30))
+          GBS::IF_HB_SP2::write(GBS::IF_HB_SP2::read() + 4);  // 1_1a
+        else 
+          GBS::IF_HB_SP2::write(0);
+        if (GBS::IF_HB_ST2::read() < (GBS::IF_HSYNC_RST::read() - 0x30))
+          GBS::IF_HB_ST2::write(GBS::IF_HB_ST2::read() + 4);  // 1_18
+        else
+          GBS::IF_HB_ST2::write(0);
+        SerialM.print(F("IF_HB_ST2: ")); SerialM.print(GBS::IF_HB_ST2::read(), HEX);
+        SerialM.print(F(" IF_HB_SP2: ")); SerialM.println(GBS::IF_HB_SP2::read(), HEX);
       }
       else {
         if (GBS::IF_HBIN_SP::read() < 0x150) {                        // (arbitrary) max limit
@@ -8354,7 +8413,7 @@ void loop() {
         GBS::SP_NO_CLAMP_REG::write(0); // 5_57 0
       }
 
-      if (rto->extClockGenDetected) {
+      if (rto->extClockGenDetected && rto->videoStandardInput != 14) {
         // switch to ext clock
         if (!rto->outModeHdBypass) {
           if (GBS::PLL648_CONTROL_01::read() != 0x35 && GBS::PLL648_CONTROL_01::read() != 0x75) {
@@ -8512,12 +8571,15 @@ void handleType2Command(char argument) {
     break;
   case '3':  // load custom preset
   {
-    //const uint8_t* preset = loadPresetFromSPIFFS(rto->videoStandardInput); // load for current video mode
     uopt->presetPreference = 2; // custom
-    //writeProgramArrayNew(preset, false);
-    //doPostPresetLoadSteps();
-    //uopt->presetPreference = 2; // custom
-    applyPresets(rto->videoStandardInput);
+    if (rto->videoStandardInput == 14) {
+      // vga upscale path: let synwatcher handle it
+      rto->videoStandardInput = 15;
+    }
+    else {
+      // normal path
+      applyPresets(rto->videoStandardInput);
+    }
     saveUserPrefs();
   }
   break;
@@ -8659,10 +8721,16 @@ void handleType2Command(char argument) {
     if (argument == 'h') uopt->presetPreference = 1; // 720x480/768x576
     if (argument == 'p') uopt->presetPreference = 4; // 1280x1024
     if (argument == 's') uopt->presetPreference = 5; // 1920x1080
-    //rto->videoStandardInput = 0; // force hard reset  // update: why? it conflicts with early init
 
     rto->useHdmiSyncFix = 1;  // disables sync out when programming preset
-    applyPresets(videoMode);
+    if (rto->videoStandardInput == 14) {
+      // vga upscale path: let synwatcher handle it
+      rto->videoStandardInput = 15;
+    }
+    else {
+      // normal path
+      applyPresets(videoMode);
+    }
     saveUserPrefs();
     //uopt->presetPreference = backup;
   }
