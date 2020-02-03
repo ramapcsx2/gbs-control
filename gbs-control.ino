@@ -375,7 +375,7 @@ void externalClockGenSyncInOutRate() {
   if (current > rto->freqExtClockGen) {
     if ((current - rto->freqExtClockGen) < 750000) {
       while (current > rto->freqExtClockGen) {
-        current -= 500;
+        current -= 1000;
         Si.setFreq(0, current);
         handleWiFi(0);
       }
@@ -384,7 +384,7 @@ void externalClockGenSyncInOutRate() {
   else if (current < rto->freqExtClockGen) {
     if ((rto->freqExtClockGen - current) < 750000) {
       while (current < rto->freqExtClockGen) {
-        current += 500;
+        current += 1000;
         Si.setFreq(0, current);
         handleWiFi(0);
       }
@@ -590,15 +590,15 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
           else if (j == 0 && x == 7) {
             bank[x] = reset47;
           }
-          //else if (j == 0 && x == 9) {
-          //  // keep sync output off
-          //  if (rto->useHdmiSyncFix) {
-          //    bank[x] = pgm_read_byte(programArray + index) | (1 << 2);
-          //  }
-          //  else {
-          //    bank[x] = pgm_read_byte(programArray + index);
-          //  }
-          //}
+          else if (j == 0 && x == 9) {
+            // keep sync output off
+            if (rto->useHdmiSyncFix) {
+              bank[x] = pgm_read_byte(programArray + index) | (1 << 2);
+            }
+            else {
+              bank[x] = pgm_read_byte(programArray + index);
+            }
+          }
           else {
             // use preset values
             bank[x] = pgm_read_byte(programArray + index);
@@ -636,6 +636,14 @@ void writeProgramArrayNew(const uint8_t* programArray, boolean skipMDSection)
     case 3:
       for (int j = 0; j <= 7; j++) { // 8 times
         copyBank(bank, programArray, &index);
+        //if (rto->useHdmiSyncFix) {
+        //  if (j == 0) {
+        //    bank[0] = bank[0] | (1 << 0); // 3_00 0 sync lock
+        //  }
+        //  if (j == 1) {
+        //    bank[10] = bank[10] | (1 << 4); // 3_1a 4 frame lock
+        //  }
+        //}
         writeBytes(j * 16, bank, 16);
       }
       // blank out VDS PIP registers, otherwise they can end up uninitialized
@@ -3265,7 +3273,7 @@ void doPostPresetLoadSteps() {
 
       GBS::ADC_FLTR::write(3);            // 5_03 4/5 ADC filter 3=40, 2=70, 1=110, 0=150 Mhz
       GBS::PLLAD_KS::write(2);            // 5_16
-      setOverSampleRatio(2, true);        // prepare only = true
+      setOverSampleRatio(4, true);        // prepare only = true
       GBS::IF_SEL_WEN::write(0);          // 1_02 0; 0 for SD, 1 for EDTV
       if (rto->inputIsYpBpR) {            // todo: check other videoStandardInput in component vs rgb
         GBS::IF_HS_TAP11_BYPS::write(0);  // 1_02 4 Tap11 LPF bypass in YUV444to422 
@@ -3546,13 +3554,9 @@ void doPostPresetLoadSteps() {
   FrameSync::cleanup();
   rto->syncLockFailIgnore = 16;
 
-  // undo eventual rto->useHdmiSyncFix
+  // undo eventual rto->useHdmiSyncFix (not using this method atm)
   GBS::VDS_SYNC_EN::write(0);
   GBS::VDS_FLOCK_EN::write(0);
-
-  if (rto->useHdmiSyncFix) {
-    GBS::PAD_SYNC_OUT_ENZ::write(1);  // no sync out
-  }
 
   if (!rto->outModeHdBypass && rto->autoBestHtotalEnabled &&
     GBS::GBS_OPTION_SCALING_RGBHV::read() == 0 && !avoidAutoBest &&
@@ -3562,7 +3566,13 @@ void doPostPresetLoadSteps() {
     updateCoastPosition(0);
     delay(1);
     resetInterruptNoHsyncBadBit(); resetInterruptSogBadBit();
-    delay(80);  // minimum delay without random failures: TBD
+    delay(2);
+    // works reliably now on my test HDMI dongle
+    if (rto->useHdmiSyncFix && !uopt->wantOutputComponent) {
+      GBS::PAD_SYNC_OUT_ENZ::write(0);  // sync out
+    }
+    delay(78);  // minimum delay without random failures: TBD
+
     for (uint8_t i = 0; i < 4; i++) {
       if (GBS::STATUS_INT_SOG_BAD::read() == 1) {
         optimizeSogLevel();
@@ -3593,12 +3603,19 @@ void doPostPresetLoadSteps() {
   }
   else {
     // scaling rgbhv, HD modes, no autobesthtotal
-    delay(30);
+    delay(2);
+    // works reliably now on my test HDMI dongle
+    if (rto->useHdmiSyncFix && !uopt->wantOutputComponent) {
+      GBS::PAD_SYNC_OUT_ENZ::write(0);  // sync out
+    }
+    delay(28);
     updateCoastPosition(0);
     updateClampPosition();
   }
+
   //SerialM.print("pp time: "); SerialM.println(millis() - postLoadTimer);
 
+  // make sure
   if (rto->useHdmiSyncFix && !uopt->wantOutputComponent) {
     GBS::PAD_SYNC_OUT_ENZ::write(0);  // sync out
   }
@@ -3854,12 +3871,12 @@ void applyPresets(uint8_t result) {
   
   boolean waitExtra = 0;
   if (rto->outModeHdBypass || rto->videoStandardInput == 15 || rto->videoStandardInput == 0) {
+    waitExtra = 1;
     if (result <= 4 || result == 14 || result == 8 || result == 9) {
       GBS::SFTRST_IF_RSTZ::write(1); // early init
       GBS::SFTRST_VDS_RSTZ::write(1);
       GBS::SFTRST_DEC_RSTZ::write(1);
     }
-    waitExtra = 1;
   }
   rto->presetIsPalForce60 = 0;        // the default
   rto->outModeHdBypass = 0;           // the default at this stage
@@ -4346,7 +4363,7 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck) {
   
   uint8_t vidModeReadout = getVideoMode();
   if (vidModeReadout == 0) {
-    delay(1); vidModeReadout = getVideoMode();
+    vidModeReadout = getVideoMode();
   }
 
   if (rto->videoStandardInput == 0 && vidModeReadout == 0) {
