@@ -3207,7 +3207,7 @@ void doPostPresetLoadSteps() {
       GBS::IF_LD_RAM_BYPS::write(1);    // 1_0c 0 no LD, do this before setIfHblankParameters
     }
 
-    setIfHblankParameters();              // 1_0e, 1_18, 1_1a
+    //setIfHblankParameters();              // 1_0e, 1_18, 1_1a
     GBS::IF_INI_ST::write(0);             // 16.08.19: don't calculate, use fixed to 0
     // the following sets a field offset that eliminates 240p content forced to 480i flicker
     //GBS::IF_INI_ST::write(GBS::PLLAD_MD::read() * 0.4261f);  // upper: * 0.4282f  lower: 0.424f
@@ -3330,21 +3330,24 @@ void doPostPresetLoadSteps() {
       GBS::IF_HBIN_SP::write(0x60);   // 1_26
       if (rto->presetID == 0x5) 
       { // out 1080p
-        GBS::IF_HB_ST2::write(0x4B0); // 1_18
         GBS::IF_HB_SP2::write(0xB0);  // 1_1a
+        GBS::IF_HB_ST2::write(0x4BC); // 1_18
       }
       else if (rto->presetID == 0x3) 
       { // out 720p
         GBS::VDS_VSCALE::write(683);  // same as base preset
-        GBS::IF_HB_SP2::write(0x8A);  // 1_1a
+        GBS::IF_HB_ST2::write(0x478); // 1_18
+        GBS::IF_HB_SP2::write(0x84);  // 1_1a
       }
       else if (rto->presetID == 0x2) 
       { // out x1024
         GBS::IF_HB_SP2::write(0x84);  // 1_1a
+        GBS::IF_HB_ST2::write(0x478); // 1_18
       }
       else if (rto->presetID == 0x1) 
       { // out x960
         GBS::IF_HB_SP2::write(0x84);  // 1_1a
+        GBS::IF_HB_ST2::write(0x478); // 1_18
       }
       else if (rto->presetID == 0x4)
       { // out x480
@@ -3359,27 +3362,30 @@ void doPostPresetLoadSteps() {
       GBS::IF_HB_ST::write(0x30); // 1_10
       if (rto->presetID == 0x15) 
       { // out 1080p
-        GBS::IF_HB_ST2::write(0x4B0); // 1_18
-        GBS::IF_HB_SP2::write(0xB8);  // 1_1a
+        GBS::IF_HB_ST2::write(0x4C0); // 1_18
+        GBS::IF_HB_SP2::write(0xC8);  // 1_1a
       }
       else if (rto->presetID == 0x13) 
       { // out 720p
-        GBS::IF_HB_SP2::write(0x8C);  // 1_1a
+        GBS::IF_HB_ST2::write(0x478); // 1_18
+        GBS::IF_HB_SP2::write(0x88);  // 1_1a
       }
       else if (rto->presetID == 0x12) 
       { // out x1024
         // VDS_VB_SP -= 12 used to shift pic up, but seems not necessary anymore
         //GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - 12);
-        GBS::IF_HB_SP2::write(0x8C);  // 1_1a
+        GBS::IF_HB_ST2::write(0x454); // 1_18
+        GBS::IF_HB_SP2::write(0x88);  // 1_1a
       }
       else if (rto->presetID == 0x11) 
       { // out x960
+        GBS::IF_HB_ST2::write(0x454); // 1_18
         GBS::IF_HB_SP2::write(0x88);  // 1_1a
       }
       else if (rto->presetID == 0x14)
       { // out x576
-        GBS::IF_HB_ST2::write(0x470); // 1_18
-        GBS::IF_HB_SP2::write(0xA0);  // 1_1a
+        GBS::IF_HB_ST2::write(0x478); // 1_18
+        GBS::IF_HB_SP2::write(0x90);  // 1_1a
       }
     }
     else if (rto->videoStandardInput == 5) 
@@ -3571,12 +3577,12 @@ void doPostPresetLoadSteps() {
     updateCoastPosition(0);
     delay(1);
     resetInterruptNoHsyncBadBit(); resetInterruptSogBadBit();
-    delay(2);
+    delay(10);
     // works reliably now on my test HDMI dongle
     if (rto->useHdmiSyncFix && !uopt->wantOutputComponent) {
       GBS::PAD_SYNC_OUT_ENZ::write(0);  // sync out
     }
-    delay(78);  // minimum delay without random failures: TBD
+    delay(70);  // minimum delay without random failures: TBD
 
     for (uint8_t i = 0; i < 4; i++) {
       if (GBS::STATUS_INT_SOG_BAD::read() == 1) {
@@ -3608,12 +3614,12 @@ void doPostPresetLoadSteps() {
   }
   else {
     // scaling rgbhv, HD modes, no autobesthtotal
-    delay(2);
+    delay(10);
     // works reliably now on my test HDMI dongle
     if (rto->useHdmiSyncFix && !uopt->wantOutputComponent) {
       GBS::PAD_SYNC_OUT_ENZ::write(0);  // sync out
     }
-    delay(28);
+    delay(20);
     updateCoastPosition(0);
     updateClampPosition();
   }
@@ -4387,7 +4393,7 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck) {
       GBS::SP_DLT_REG::write(0x30); // 5_35
     }
     else if ((rto->noSyncCounter % 16) > 8 && rto->noSyncCounter != 0) {
-      GBS::SP_DLT_REG::write(0xC0);
+      GBS::SP_DLT_REG::write(0xC0); // may want to use lower, around 0x70
     }
     else {
       GBS::SP_DLT_REG::write(0x30);
@@ -4497,7 +4503,9 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck) {
       GBS::SP_PRE_COAST::write(9);
       GBS::SP_POST_COAST::write(18); // of 1124 input lines
       GBS::SP_DLT_REG::write(0x70);
-      GBS::SP_H_PULSE_IGNOR::write(0x0A); // was 2 ps2 up to 0x06 // new test, ps2 needs above 0x08 with 5_35=0x70
+      // ps2 up to 0x06 
+      // new test shows ps2 alternating between okay and not okay at 0x0a with 5_35=0x70
+      GBS::SP_H_PULSE_IGNOR::write(0x06);
     }
     else if (rto->videoStandardInput >= 13) { // 13, 14 and 15 (was just 13 and 15)
       if (rto->syncTypeCsync == false)
@@ -5699,7 +5707,7 @@ void runSyncWatcher()
       }
     }
 
-    if (rto->noSyncCounter == 4) {
+    if (rto->noSyncCounter == 8) {
       GBS::SP_H_CST_ST::write(0x10);
       GBS::SP_H_CST_SP::write(0x100);
       //GBS::SP_H_PROTECT::write(1);  // at noSyncCounter = 32 will alternate on / off
@@ -5716,17 +5724,13 @@ void runSyncWatcher()
       rto->coastPositionIsSet = 0;
     }
 
-    if (rto->noSyncCounter == 16) {
-      nudgeMD();
-    }
-
-    if (rto->noSyncCounter % 23 == 0) {
+    if (rto->noSyncCounter % 27 == 0) {
       // the * check needs to be first (go before auto sog level) to support SD > HDTV detection
       SerialM.print("*");
       updateSpDynamic(1);
     }
 
-    if (rto->noSyncCounter % 27 == 0) {
+    if (rto->noSyncCounter % 32 == 0) {
       if (GBS::STATUS_SYNC_PROC_HSACT::read() == 1) {
         unfreezeVideo();
       }
@@ -5735,13 +5739,17 @@ void runSyncWatcher()
       }
     }
 
-    if (rto->inputIsYpBpR && (rto->noSyncCounter == 28)) {
+    if (rto->inputIsYpBpR && (rto->noSyncCounter == 34)) {
       GBS::SP_NO_CLAMP_REG::write(1); // unlock clamp
       rto->clampPositionIsSet = false;
     }
 
+    if (rto->noSyncCounter == 38) {
+      nudgeMD();
+    }
+
     if (rto->syncTypeCsync) {
-      if (rto->noSyncCounter > 31) {
+      if (rto->noSyncCounter > 47) {
         if (rto->noSyncCounter % 16 == 0) {
           GBS::SP_H_PROTECT::write(!GBS::SP_H_PROTECT::read());
         }
@@ -7574,10 +7582,12 @@ void loop() {
       uint16_t pll_divider = GBS::PLLAD_MD::read();
       pll_divider += 1;
       GBS::PLLAD_MD::write(pll_divider);
+      GBS::IF_HSYNC_RST::write((pll_divider / 2));
+      GBS::IF_LINE_SP::write(((pll_divider / 2) + 1) + 0x40);
       SerialM.print(F("PLL div: ")); SerialM.print(pll_divider, HEX);
       SerialM.print(" "); SerialM.println(pll_divider);
       // set IF before latching
-      setIfHblankParameters();
+      //setIfHblankParameters();
       latchPLLAD();
       delay(1);
       //applyBestHTotal(GBS::VDS_HSYNC_RST::read());
@@ -7806,21 +7816,7 @@ void loop() {
     }
     break;
     case '6':
-      if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 ||
-        rto->videoStandardInput == 8 || rto->videoStandardInput == 14) {
-        //shiftHorizontalRight(); // use VDS mem move for EDTV presets
-        if (GBS::IF_HB_SP2::read() >= 4)
-          GBS::IF_HB_SP2::write(GBS::IF_HB_SP2::read() - 4);  // 1_1a
-        else
-          GBS::IF_HB_SP2::write(GBS::IF_HSYNC_RST::read() - 0x30);
-        if (GBS::IF_HB_ST2::read() >= 4)
-          GBS::IF_HB_ST2::write(GBS::IF_HB_ST2::read() - 4);  // 1_18
-        else
-          GBS::IF_HB_ST2::write(GBS::IF_HSYNC_RST::read() - 0x30);
-        SerialM.print(F("IF_HB_ST2: ")); SerialM.print(GBS::IF_HB_ST2::read(), HEX);
-        SerialM.print(F(" IF_HB_SP2: ")); SerialM.println(GBS::IF_HB_SP2::read(), HEX);
-      }
-      else {
+      if (videoStandardInputIsPalNtscSd() && !rto->outModeHdBypass) {
         if (GBS::IF_HBIN_SP::read() >= 10) {                            // IF_HBIN_SP: min 2
           GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() - 8);          // canvas move right
           if ((GBS::IF_HSYNC_RST::read() - 4) > ((GBS::PLLAD_MD::read() >> 1) + 5)) {
@@ -7832,14 +7828,32 @@ void loop() {
           SerialM.println("limit");
         }
       }
-    break;
+      else if (!rto->outModeHdBypass) {
+        if (GBS::IF_HB_SP2::read() >= 4)
+          GBS::IF_HB_SP2::write(GBS::IF_HB_SP2::read() - 4);  // 1_1a
+        else
+          GBS::IF_HB_SP2::write(GBS::IF_HSYNC_RST::read() - 0x30);
+        if (GBS::IF_HB_ST2::read() >= 4)
+          GBS::IF_HB_ST2::write(GBS::IF_HB_ST2::read() - 4);  // 1_18
+        else
+          GBS::IF_HB_ST2::write(GBS::IF_HSYNC_RST::read() - 0x30);
+        SerialM.print(F("IF_HB_ST2: ")); SerialM.print(GBS::IF_HB_ST2::read(), HEX);
+        SerialM.print(F(" IF_HB_SP2: ")); SerialM.println(GBS::IF_HB_SP2::read(), HEX);
+      }
+      break;
     case '7':
-      if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 || 
-          rto->videoStandardInput == 8 || rto->videoStandardInput == 14) {
-        //shiftHorizontalLeft();  // use VDS mem move for EDTV presets
+      if (videoStandardInputIsPalNtscSd() && !rto->outModeHdBypass) {
+        if (GBS::IF_HBIN_SP::read() < 0x150) {                        // (arbitrary) max limit
+          GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() + 8);        // canvas move left
+        }
+        else {
+          SerialM.println("limit");
+        }
+      }
+      else if (!rto->outModeHdBypass) {
         if (GBS::IF_HB_SP2::read() < (GBS::IF_HSYNC_RST::read() - 0x30))
           GBS::IF_HB_SP2::write(GBS::IF_HB_SP2::read() + 4);  // 1_1a
-        else 
+        else
           GBS::IF_HB_SP2::write(0);
         if (GBS::IF_HB_ST2::read() < (GBS::IF_HSYNC_RST::read() - 0x30))
           GBS::IF_HB_ST2::write(GBS::IF_HB_ST2::read() + 4);  // 1_18
@@ -7848,19 +7862,7 @@ void loop() {
         SerialM.print(F("IF_HB_ST2: ")); SerialM.print(GBS::IF_HB_ST2::read(), HEX);
         SerialM.print(F(" IF_HB_SP2: ")); SerialM.println(GBS::IF_HB_SP2::read(), HEX);
       }
-      else {
-        if (GBS::IF_HBIN_SP::read() < 0x150) {                        // (arbitrary) max limit
-          GBS::IF_HBIN_SP::write(GBS::IF_HBIN_SP::read() + 8);        // canvas move left
-          if (GBS::IF_HBIN_SP::read() >= 0xAA) {                      // at some point (arbitrary, but avoid right border cutoff)
-            GBS::IF_HSYNC_RST::write(GBS::IF_HSYNC_RST::read() + 4);  // extend 1_0e
-            GBS::IF_LINE_SP::write(GBS::IF_LINE_SP::read() + 4);      // and 1_22 to go with it
-          }
-        }
-        else {
-          SerialM.println("limit");
-        }
-      }
-    break;
+      break;
     case '8':
       //SerialM.println("invert sync");
       invertHS(); invertVS();
