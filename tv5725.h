@@ -309,6 +309,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x02, 0x0B, 0,  7> MADPT_Y_MI_OFFSET;
     typedef UReg<0x02, 0x0C, 4,  1> MADPT_MI_1BIT_BYPS;
     typedef UReg<0x02, 0x0C, 5,  1> MADPT_MI_1BIT_FRAME2_EN;
+    typedef UReg<0x02, 0x16, 5,  1> MADPT_MO_ADP_UV_EN;
     typedef UReg<0x02, 0x16, 6,  1> MADPT_VT_FILTER_CNTRL;
     typedef UReg<0x02, 0x16, 7,  1> MAPDT_VT_SEL_PRGV;
     typedef UReg<0x02, 0x17, 0,  8> MADPT_Y_DELAY_UV_DELAY; // convenience
@@ -334,6 +335,7 @@ class TV5725 : public tw::SegmentedSlave<Addr, detail::TVAttrs> {
     typedef UReg<0x02, 0x3a, 3,  1> MADPT_EN_STILL_FOR_NRD;
     typedef UReg<0x02, 0x3a, 5,  2> MADPT_MI_1BIT_DLY;
     typedef UReg<0x02, 0x3a, 7,  1> MADPT_UV_MI_DET_BYPS;
+    typedef UReg<0x02, 0x3b, 0,  7> MADPT_UV_MI_OFFSET;
 
     // VDS Registers
     typedef UReg<0x03, 0x00, 0,  1> VDS_SYNC_EN;

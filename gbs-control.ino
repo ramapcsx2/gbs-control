@@ -223,6 +223,7 @@ struct userOptions {
   uint8_t wantStepResponse;
   uint8_t wantFullHeight;
   uint8_t enableCalibrationADC;
+  uint8_t scanlineStrength;
 } uopts;
 struct userOptions *uopt = &uopts;
 
@@ -5228,16 +5229,25 @@ void enableScanlines() {
     //delay(10);
     //GBS::RFF_ENABLE::write(0); //GBS::WFF_ENABLE::write(0);
 
-    GBS::MADPT_PD_RAM_BYPS::write(0);
+    // following lines set up UV deinterlacer (on top of normal Y)
+    //GBS::MADPT_UVDLY_PD_SP::write(0);     // 2_39 0..3
+    //GBS::MADPT_UVDLY_PD_ST::write(0);     // 2_39 4..7
+    //GBS::MADPT_EN_UV_DEINT::write(1);     // 2_3a 0
+    //GBS::MADPT_UV_MI_DET_BYPS::write(1);  // 2_3a 7 enables 2_3b adjust
+    //GBS::MADPT_UV_MI_OFFSET::write(0x40); // 2_3b 0x40 for mix, 0x00 to test
+    //GBS::MADPT_MO_ADP_UV_EN::write(1);    // 2_16 5 (try to do this some other way?)
+
+    GBS::DIAG_BOB_PLDY_RAM_BYPS::write(0); // 2_00 7 enabled, looks better
+    GBS::MADPT_PD_RAM_BYPS::write(0);   // 2_24 2
     GBS::RFF_YUV_DEINTERLACE::write(1); // scanline fix 2
     GBS::MADPT_Y_MI_DET_BYPS::write(1); // make sure, so that mixing works
     //GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 0x30); // more luma gain
-    GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 3);
-    GBS::VDS_WLEV_GAIN::write(0x14);
-    GBS::VDS_W_LEV_BYPS::write(0); // brightness test
-    GBS::MADPT_VIIR_COEF::write(0x14); // set up VIIR filter 2_27
-    GBS::MADPT_Y_MI_OFFSET::write(0x28); // 2_0b offset (mixing factor here)
-    GBS::MADPT_VIIR_BYPS::write(0); // enable VIIR 
+    GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 4);
+    GBS::VDS_WLEV_GAIN::write(0x08);  // 3_58
+    GBS::VDS_W_LEV_BYPS::write(0); // brightness
+    GBS::MADPT_VIIR_COEF::write(0x08); // 2_27 VIIR filter strength
+    GBS::MADPT_Y_MI_OFFSET::write(uopt->scanlineStrength); // 2_0b offset (mixing factor here)
+    GBS::MADPT_VIIR_BYPS::write(0); // 2_26 6 VIIR line fifo // 1 = off
     GBS::RFF_LINE_FLIP::write(1); // clears potential garbage in rff buffer
 
     GBS::MAPDT_VT_SEL_PRGV::write(0);
@@ -5250,11 +5260,21 @@ void disableScanlines() {
   if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) {
     //SerialM.println("disableScanlines())");
     GBS::MAPDT_VT_SEL_PRGV::write(1);
+
+    //// following lines set up UV deinterlacer (on top of normal Y)
+    //GBS::MADPT_UVDLY_PD_SP::write(4); // 2_39 0..3
+    //GBS::MADPT_UVDLY_PD_ST::write(4); // 2_39 4..77
+    //GBS::MADPT_EN_UV_DEINT::write(0);     // 2_3a 0
+    //GBS::MADPT_UV_MI_DET_BYPS::write(0);  // 2_3a 7 enables 2_3b adjust
+    //GBS::MADPT_UV_MI_OFFSET::write(4);    // 2_3b
+    //GBS::MADPT_MO_ADP_UV_EN::write(0);    // 2_16 5
+
+    GBS::DIAG_BOB_PLDY_RAM_BYPS::write(1); // 2_00 7
+    GBS::VDS_W_LEV_BYPS::write(1); // brightness
     //GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 0x30);
-    GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() - 3);
-    GBS::VDS_W_LEV_BYPS::write(1); // brightness test
+    GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() - 4);
     GBS::MADPT_Y_MI_OFFSET::write(0xff); // 2_0b offset 0xff disables mixing
-    GBS::MADPT_VIIR_BYPS::write(1); // disable VIIR
+    GBS::MADPT_VIIR_BYPS::write(1); // 2_26 6 disable VIIR
     GBS::MADPT_PD_RAM_BYPS::write(1);
     GBS::RFF_LINE_FLIP::write(0); // back to default
 
@@ -6786,6 +6806,7 @@ void loadDefaultUserOptions() {
   uopt->wantStepResponse = 1;   // #15
   uopt->wantFullHeight = 1;     // #16
   uopt->enableCalibrationADC = 1;  // #17
+  uopt->scanlineStrength = 0x30;  // #18
 }
 
 //RF_PRE_INIT() {
@@ -6966,6 +6987,9 @@ void setup() {
 
       uopt->enableCalibrationADC = (uint8_t)(f.read() - '0'); // #17
       if (uopt->enableCalibrationADC > 1) uopt->enableCalibrationADC = 1;
+
+      uopt->scanlineStrength = (uint8_t)(f.read() - '0'); // #18
+      if (uopt->scanlineStrength > 0x60) uopt->enableCalibrationADC = 0x30;
 
       f.close();
     }
@@ -8989,6 +9013,21 @@ void handleType2Command(char argument) {
       GBS::CAPTURE_ENABLE::write(1);
     }
     break;
+  case 'K':
+    // scanline strength
+    if (uopt->scanlineStrength >= 0x10) {
+      uopt->scanlineStrength -= 0x10;
+    }
+    else {
+      uopt->scanlineStrength = 0x50;
+    }
+    if (rto->scanlinesEnabled) {
+      GBS::MADPT_Y_MI_OFFSET::write(uopt->scanlineStrength);
+    }
+    saveUserPrefs();
+    SerialM.print(F("Scanline Strength: ")); 
+    SerialM.println(uopt->scanlineStrength, HEX);
+    break;
   default:
     break;
   }
@@ -9419,6 +9458,7 @@ void saveUserPrefs() {
   f.write(uopt->wantStepResponse + '0');  // #15
   f.write(uopt->wantFullHeight + '0');    // #16
   f.write(uopt->enableCalibrationADC + '0');    // #17
+  f.write(uopt->scanlineStrength + '0');    // #18
 
   f.close();
 }
