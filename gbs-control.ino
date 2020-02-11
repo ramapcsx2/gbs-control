@@ -314,7 +314,8 @@ void externalClockGenResetClock() {
 
   uint8_t activeDisplayClock = GBS::PLL648_CONTROL_01::read();
 
-  if (activeDisplayClock == 0x45) rto->freqExtClockGen = 54000000;
+  if      (activeDisplayClock == 0x25) rto->freqExtClockGen = 40500000;
+  else if (activeDisplayClock == 0x45) rto->freqExtClockGen = 54000000;
   else if (activeDisplayClock == 0x55) rto->freqExtClockGen = 64800000;
   else if (activeDisplayClock == 0x65) rto->freqExtClockGen = 81000000;
   else if (activeDisplayClock == 0x85) rto->freqExtClockGen = 108000000;
@@ -5242,7 +5243,7 @@ void enableScanlines() {
     GBS::RFF_YUV_DEINTERLACE::write(1); // scanline fix 2
     GBS::MADPT_Y_MI_DET_BYPS::write(1); // make sure, so that mixing works
     //GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 0x30); // more luma gain
-    GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 4);
+    //GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 4);
     GBS::VDS_WLEV_GAIN::write(0x08);  // 3_58
     GBS::VDS_W_LEV_BYPS::write(0); // brightness
     GBS::MADPT_VIIR_COEF::write(0x08); // 2_27 VIIR filter strength
@@ -5272,7 +5273,7 @@ void disableScanlines() {
     GBS::DIAG_BOB_PLDY_RAM_BYPS::write(1); // 2_00 7
     GBS::VDS_W_LEV_BYPS::write(1); // brightness
     //GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 0x30);
-    GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() - 4);
+    //GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() - 4);
     GBS::MADPT_Y_MI_OFFSET::write(0xff); // 2_0b offset 0xff disables mixing
     GBS::MADPT_VIIR_BYPS::write(1); // 2_26 6 disable VIIR
     GBS::MADPT_PD_RAM_BYPS::write(1);
@@ -6032,7 +6033,10 @@ void runSyncWatcher()
         !rto->outModeHdBypass && rto->noSyncCounter == 0)
       {
         // deinterlacer and scanline code
+        static uint8_t timingAdjustDelay = 0;
+        static uint8_t oddEvenWhenArmed = 0;
         boolean preventScanlines = 0;
+
         if (rto->deinterlaceAutoEnabled) {
           uint16_t VPERIOD_IF = GBS::VPERIOD_IF::read();
           static uint8_t filteredLineCountMotionAdaptiveOn = 0, filteredLineCountMotionAdaptiveOff = 0;
@@ -6043,12 +6047,10 @@ void runSyncWatcher()
             preventScanlines = 1;
             filteredLineCountMotionAdaptiveOn = 0;
             filteredLineCountMotionAdaptiveOff = 0;
-            if (uopt->enableFrameTimeLock) {
+            if (uopt->enableFrameTimeLock || rto->extClockGenDetected) {
               if (uopt->deintMode == 1) { // using bob
-                //FrameSync::resetWithoutRecalculation();
-                FrameSync::reset(uopt->frameTimeLockMethod);
-                GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);  // store that this is runtime adjust
-                lastVsyncLock = millis();
+                timingAdjustDelay = 6;   // arm timer (always)
+                oddEvenWhenArmed = VPERIOD_IF % 2;
               }
             }
           }
@@ -6065,13 +6067,12 @@ void runSyncWatcher()
                   disableScanlines();
                 }
                 enableMotionAdaptDeinterlace();
-                VPERIOD_IF = GBS::VPERIOD_IF::read();
-                if (VPERIOD_IF % 2 == 0) { // if still the same
-                  if (uopt->enableFrameTimeLock) {
-                    FrameSync::reset(uopt->frameTimeLockMethod);
-                    GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);
-                  }
-                  externalClockGenSyncInOutRate();
+                if (timingAdjustDelay == 0) {
+                  timingAdjustDelay = 6; // arm timer only if it's not already armed
+                  oddEvenWhenArmed = VPERIOD_IF % 2;
+                }
+                else {
+                  timingAdjustDelay = 0;    // cancel timer
                 }
                 preventScanlines = 1;
               }
@@ -6087,14 +6088,12 @@ void runSyncWatcher()
             {
               if (uopt->deintMode == 0 && rto->motionAdaptiveDeinterlaceActive) {
                 disableMotionAdaptDeinterlace();
-                VPERIOD_IF = GBS::VPERIOD_IF::read();
-                if (VPERIOD_IF % 2 == 1) { // if still the same
-                  if (uopt->enableFrameTimeLock) {
-                    FrameSync::reset(uopt->frameTimeLockMethod);
-                    GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);
-                    lastVsyncLock = millis();
-                  }
-                  externalClockGenSyncInOutRate();
+                if (timingAdjustDelay == 0) {
+                  timingAdjustDelay = 6;   // arm timer only if it's not already armed
+                  oddEvenWhenArmed = VPERIOD_IF % 2;
+                }
+                else {
+                  timingAdjustDelay = 0;    // cancel timer
                 }
               }
               filteredLineCountMotionAdaptiveOff = 0;
@@ -6119,6 +6118,29 @@ void runSyncWatcher()
             else if (!uopt->wantScanlines && rto->scanlinesEnabled) {
               disableScanlines();
             }
+          }
+
+          // timing adjust after a few stable cycles
+          // should arrive here with either odd or even VPERIOD_IF
+          /*if (timingAdjustDelay != 0) {
+            Serial.print(timingAdjustDelay); Serial.print(" ");
+          }*/
+          if (timingAdjustDelay != 0) {
+            if ((VPERIOD_IF % 2) == oddEvenWhenArmed) {
+              timingAdjustDelay--;
+              if (timingAdjustDelay == 0) {
+                if (uopt->enableFrameTimeLock) {
+                  FrameSync::reset(uopt->frameTimeLockMethod);
+                  GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);
+                  delay(10);
+                  lastVsyncLock = millis();
+                }
+                externalClockGenSyncInOutRate();
+              }
+            }
+            /*else {
+              Serial.println("!!!");
+            }*/
           }
         }
 
