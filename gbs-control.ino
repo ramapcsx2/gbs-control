@@ -5,9 +5,11 @@
 #include "ntsc_1280x720.h"
 #include "ntsc_1280x1024.h"
 #include "ntsc_1920x1080.h"
+#include "ntsc_downscale.h"
 #include "pal_1280x720.h"
 #include "pal_1280x1024.h"
 #include "pal_1920x1080.h"
+#include "pal_downscale.h"
 #include "presetMdSection.h"
 #include "presetDeinterlacerSection.h"
 #include "presetHdBypassSection.h"
@@ -206,7 +208,9 @@ struct runTimeOptions *rto = &rtos;
 
 // userOptions holds user preferences / customizations
 struct userOptions {
-  uint8_t presetPreference; // 0 - normal, 1 - x480/x576, 2 - customized, 3 - 1280x720, 4 - 1280x1024, 5 - 1920x1080, 10 - bypass
+  // 0 - normal, 1 - x480/x576, 2 - customized, 3 - 1280x720, 4 - 1280x1024, 5 - 1920x1080,
+  // 6 - downscale, 10 - bypass
+  uint8_t presetPreference;
   uint8_t presetSlot;
   uint8_t enableFrameTimeLock;
   uint8_t frameTimeLockMethod;
@@ -332,6 +336,10 @@ void externalClockGenResetClock() {
   // maybe there are regs to check for this and resetPLL
   if (rto->freqExtClockGen == 108000000) {
     Si.setFreq(0, 87000000); delay(1);  // quick fix
+  }
+  // same thing it seems at 40500000
+  if (rto->freqExtClockGen == 40500000) {
+    Si.setFreq(0, 48500000); delay(1);  // quick fix
   }
 
   Si.setFreq(0, rto->freqExtClockGen);
@@ -3202,6 +3210,10 @@ void doPostPresetLoadSteps() {
   rto->sourceDisconnected = false; // this must be true if we reached here (no syncwatcher operation)
   rto->boardHasPower = true; //same
 
+  if (rto->presetID == 0x06 || rto->presetID == 0x16) {
+    isCustomPreset = 0; // override so it applies section 2 deinterlacer settings
+  }
+
   if (!isCustomPreset) {
     if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 || 
       rto->videoStandardInput == 8 || rto->videoStandardInput == 9) 
@@ -3289,6 +3301,34 @@ void doPostPresetLoadSteps() {
         GBS::VDS_V_DELAY::write(0);       // 3_24 2 
         GBS::VDS_Y_DELAY::write(3);       // 3_24 4/5 delays
       }
+
+      // downscale preset: source is SD
+      if (rto->presetID == 0x06 || rto->presetID == 0x16) {
+        setCsVsStart(2); // or 3, 0
+        setCsVsStop(0);  // fixes field position
+        GBS::IF_VS_SEL::write(1);               // 1_00 5 // turn off VHS sync feature
+        GBS::IF_VS_FLIP::write(0);              // 1_01 0
+        GBS::IF_LD_RAM_BYPS::write(0);          // 1_0c 0
+        GBS::IF_HS_DEC_FACTOR::write(1);        // 1_0b 4
+        GBS::IF_LD_SEL_PROV::write(0);          // 1_0b 7
+        GBS::IF_HB_ST::write(2);                // 1_10 deinterlace offset
+        GBS::MADPT_Y_VSCALE_BYPS::write(0);     // 2_02 6
+        GBS::MADPT_UV_VSCALE_BYPS::write(0);    // 2_02 7
+        GBS::MADPT_PD_RAM_BYPS::write(0);       // 2_24 2 one line fifo for line phase adjust
+        GBS::MADPT_VSCALE_DEC_FACTOR::write(1); // 2_31 0..1
+        GBS::MADPT_SEL_PHASE_INI::write(0);     // 2_31 2 disable for SD (check 240p content)
+        if (rto->videoStandardInput == 1) {
+          GBS::IF_HB_ST2::write(0x490);         // 1_18
+          GBS::IF_HB_SP2::write(0x80);          // 1_1a
+          GBS::IF_HB_SP::write(0x4A);           // 1_12 deinterlace offset, green bar
+          GBS::IF_HBIN_SP::write(0xD0);         // 1_26
+        }
+        else if (rto->videoStandardInput == 2) {
+          GBS::IF_HB_SP2::write(0x74);          // 1_1a
+          GBS::IF_HB_SP::write(0x50);           // 1_12 deinterlace offset, green bar
+          GBS::IF_HBIN_SP::write(0xD0);         // 1_26
+        }
+      }
     }
     if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 || 
       rto->videoStandardInput == 8 || rto->videoStandardInput == 9)
@@ -3299,8 +3339,11 @@ void doPostPresetLoadSteps() {
       GBS::ADC_FLTR::write(3);          // 5_03 4/5
       GBS::PLLAD_KS::write(1);          // 5_16
 
-      setCsVsStart(14); // pal
-      setCsVsStop(11);  //
+      if (rto->presetID != 0x06 && rto->presetID != 0x16) {
+        setCsVsStart(14); // pal // hm
+        setCsVsStop(11);  // probably setting these for modes 8,9
+        GBS::IF_HB_SP::write(0);        // 1_12 deinterlace offset, fixes colors (downscale needs diff)
+      }
       setOverSampleRatio(2, true);      // with KS = 1 for modes 3, 4, 8
       GBS::IF_HS_DEC_FACTOR::write(0);  // 1_0b 4+5
       GBS::IF_LD_SEL_PROV::write(1);    // 1_0b 7
@@ -3309,7 +3352,6 @@ void doPostPresetLoadSteps() {
       GBS::IF_HS_SEL_LPF::write(0);     // 1_02 1   0 = use interpolator not lpf for EDTV
       GBS::IF_HS_TAP11_BYPS::write(0);  // 1_02 4 filter
       GBS::IF_HS_Y_PDELAY::write(3);    // 1_02 5+6 delays (ps2 test on one board clearly says 3, not 2)
-      GBS::IF_HB_SP::write(0);          // 1_12 deinterlace offset, fixes colors
       GBS::VDS_V_DELAY::write(1);       // 3_24 2 // new 24.07.2019 : 1, also set 2_17 to 1
       GBS::MADPT_Y_DELAY_UV_DELAY::write(1); // 2_17 : 1
       GBS::VDS_Y_DELAY::write(3);       // 3_24 4/5 delays (ps2 test saying 3 for 1_02 goes with 3 here)
@@ -3322,8 +3364,18 @@ void doPostPresetLoadSteps() {
           }
         }
       }
+
+      // downscale preset: source is EDTV
+      if (rto->presetID == 0x06 || rto->presetID == 0x16) {
+        GBS::MADPT_Y_VSCALE_BYPS::write(0);     // 2_02 6
+        GBS::MADPT_UV_VSCALE_BYPS::write(0);    // 2_02 7
+        GBS::MADPT_PD_RAM_BYPS::write(0);       // 2_24 2 one line fifo for line phase adjust
+        GBS::MADPT_VSCALE_DEC_FACTOR::write(1); // 2_31 0..1
+        GBS::MADPT_SEL_PHASE_INI::write(1);     // 2_31 2 enable
+        GBS::MADPT_SEL_PHASE_INI::write(0);     // 2_31 2 disable
+      }
     }
-    if (rto->videoStandardInput == 3) 
+    if (rto->videoStandardInput == 3 && rto->presetID != 0x06)
     { // ED YUV 60
       setCsVsStart(16); // ntsc
       setCsVsStop(13);  //
@@ -3357,7 +3409,7 @@ void doPostPresetLoadSteps() {
         GBS::IF_HB_SP2::write(0x90);  // 1_1a
       }
     }
-    else if (rto->videoStandardInput == 4) 
+    else if (rto->videoStandardInput == 4 && rto->presetID != 0x16)
     { // ED YUV 50
       GBS::IF_HBIN_SP::write(0x40); // 1_26 was 0x80 test: ps2 videomodetester 576p mode
       GBS::IF_HBIN_ST::write(0x20); // 1_24, odd but need to set this here (blue bar)
@@ -3433,6 +3485,10 @@ void doPostPresetLoadSteps() {
         GBS::VDS_VSCALE::write(400);
       }
     }
+  }
+
+  if (rto->presetID == 0x06 || rto->presetID == 0x16) {
+    isCustomPreset = GBS::GBS_PRESET_CUSTOM::read(); // override back
   }
 
   resetDebugPort();
@@ -3674,7 +3730,6 @@ void doPostPresetLoadSteps() {
 
     // 4 segment 
     GBS::CAP_SAFE_GUARD_EN::write(0); // 4_21_5 // does more harm than good
-    GBS::MADPT_PD_RAM_BYPS::write(1); // 2_24_2 vertical scale down line buffer bypass (not the vds one, the internal one for reduction)
     // memory timings, anti noise
     GBS::PB_CUT_REFRESH::write(1);  // helps with PLL=ICLK mode artefacting
     GBS::RFF_LREQ_CUT::write(0);    // was in motionadaptive toggle function but on, off seems nicer
@@ -3696,9 +3751,11 @@ void doPostPresetLoadSteps() {
 
   setAndUpdateSogLevel(rto->currentLevelSOG); // use this to cycle SP / ADPLL latches
   
-  // IF_VS_SEL = 1 for SD/HD SP mode in HD mode (5_3e 1)
-  GBS::IF_VS_SEL::write(0); // 0 = "VCR" IF sync, requires VS_FLIP to be on, more stable?
-  GBS::IF_VS_FLIP::write(1);
+  if (rto->presetID != 0x06 && rto->presetID != 0x16) {
+    // IF_VS_SEL = 1 for SD/HD SP mode in HD mode (5_3e 1)
+    GBS::IF_VS_SEL::write(0); // 0 = "VCR" IF sync, requires VS_FLIP to be on, more stable?
+    GBS::IF_VS_FLIP::write(1);
+  }
 
   GBS::SP_CLP_SRC_SEL::write(0); // 0: 27Mhz clock; 1: pixel clock
   GBS::SP_CS_CLP_ST::write(32); GBS::SP_CS_CLP_SP::write(48); // same as reset parameters
@@ -3819,6 +3876,7 @@ void doPostPresetLoadSteps() {
   else if (rto->presetID == 0x02 || rto->presetID == 0x12)  SerialM.print(F("1280x1024"));
   else if (rto->presetID == 0x03 || rto->presetID == 0x13)  SerialM.print(F("1280x720"));
   else if (rto->presetID == 0x05 || rto->presetID == 0x15)  SerialM.print(F("1920x1080"));
+  else if (rto->presetID == 0x06 || rto->presetID == 0x16)  SerialM.print(F("downscale"));
   else if (rto->presetID == 0x04                         )  SerialM.print(F("720x480"));
   else if (rto->presetID == 0x14                         )  SerialM.print(F("768x576"));
   else                                                      SerialM.print(F("bypass"));
@@ -3981,6 +4039,9 @@ void applyPresets(uint8_t result) {
     else if (uopt->presetPreference == 5) {
       writeProgramArrayNew(ntsc_1920x1080, false);
     }
+    else if (uopt->presetPreference == 6) {
+      writeProgramArrayNew(ntsc_downscale, false);
+    }
   }
   else if (result == 2 || result == 4) {
     if (uopt->presetPreference == 0) {
@@ -4009,6 +4070,9 @@ void applyPresets(uint8_t result) {
 #endif
     else if (uopt->presetPreference == 5) {
       writeProgramArrayNew(pal_1920x1080, false);
+    }
+    else if (uopt->presetPreference == 6) {
+      writeProgramArrayNew(pal_downscale, false);
     }
   }
   else if (result == 5 || result == 6 || result == 7 || result == 13) {
@@ -7221,6 +7285,10 @@ void updateWebSocketData() {
       case 0x15:
         toSend[1] = '5';
         break;
+      case 0x06:
+      case 0x16:
+        toSend[1] = '6';
+        break;
       case 0x09: // custom
         toSend[1] = '9';
         break;
@@ -8756,6 +8824,7 @@ void handleType2Command(char argument) {
   case 'h':
   case 'p':
   case 's':
+  case 'L':
   {
     // load preset via webui
     uint8_t videoMode = getVideoMode();
@@ -8763,12 +8832,12 @@ void handleType2Command(char argument) {
       videoMode = rto->videoStandardInput; // last known good as fallback
     //else videoMode stays 0 and we'll apply via some assumptions
 
-    //uint8_t backup = uopt->presetPreference;
     if (argument == 'f') uopt->presetPreference = 0; // 1280x960
     if (argument == 'g') uopt->presetPreference = 3; // 1280x720
     if (argument == 'h') uopt->presetPreference = 1; // 720x480/768x576
     if (argument == 'p') uopt->presetPreference = 4; // 1280x1024
     if (argument == 's') uopt->presetPreference = 5; // 1920x1080
+    if (argument == 'L') uopt->presetPreference = 6; // downscale
 
     rto->useHdmiSyncFix = 1;  // disables sync out when programming preset
     if (rto->videoStandardInput == 14) {
@@ -8780,7 +8849,6 @@ void handleType2Command(char argument) {
       applyPresets(videoMode);
     }
     saveUserPrefs();
-    //uopt->presetPreference = backup;
   }
   break;
   case 'i':
