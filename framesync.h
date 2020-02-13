@@ -15,12 +15,15 @@
 // no define for DEBUG_IN_PIN
 #endif
 
+#include <ESP8266WiFi.h>
+
 // FS_DEBUG:      full verbose debug over serial
 // FS_DEBUG_LED:  just blink LED (off = adjust phase, on = normal phase)
 //#define FS_DEBUG
 //#define FS_DEBUG_LED
 
 volatile uint32_t stopTime, startTime;
+volatile uint32_t armed;
 
 void ICACHE_RAM_ATTR risingEdgeISR_measure() {
   noInterrupts();
@@ -35,6 +38,7 @@ void ICACHE_RAM_ATTR risingEdgeISR_prepare() {
   //startTime = ESP.getCycleCount();
   __asm__ __volatile__("rsr %0,ccount":"=a"(startTime));
   detachInterrupt(DEBUG_IN_PIN);
+  armed = 1;
   attachInterrupt(DEBUG_IN_PIN, risingEdgeISR_measure, RISING);
   interrupts();
 }
@@ -58,13 +62,18 @@ private:
 
   // Sample vsync start and stop times from debug pin.
   static bool vsyncOutputSample(uint32_t *start, uint32_t *stop) {
-    startTime = 0; stopTime = 0;
+    startTime = 0; stopTime = 0; armed = 0;
     yield(); ESP.wdtDisable();
 
     attachInterrupt(DEBUG_IN_PIN, risingEdgeISR_prepare, RISING);
     // typical: 300000 at 80MHz, 600000 at 160MHz
     for (uint32_t i = 0; i < 3000000; i++)
     {
+      if (armed) {
+        armed = 0;
+        delay(7);
+        WiFi.setSleepMode(WIFI_LIGHT_SLEEP);
+      }
       if (stopTime > 0) {
         break;
       }
@@ -72,6 +81,7 @@ private:
     *start = startTime;
     *stop = stopTime;
     ESP.wdtEnable(0);
+    WiFi.setSleepMode(WIFI_NONE_SLEEP);
 
     if ((*start >= *stop) || *stop == 0 || *start == 0) {
       // ESP.getCycleCount() overflow oder no pulse, just fail this round
@@ -246,13 +256,18 @@ public:
 
   // Sample vsync start and stop times from debug pin.
   static bool vsyncInputSample(uint32_t *start, uint32_t *stop) {
-    startTime = 0; stopTime = 0;
+    startTime = 0; stopTime = 0; armed = 0;
     yield(); ESP.wdtDisable();
 
     attachInterrupt(DEBUG_IN_PIN, risingEdgeISR_prepare, RISING);
     // typical: 300000 at 80MHz, 600000 at 160MHz
     for (uint32_t i = 0; i < 3000000; i++)
     {
+      if (armed) {
+        armed = 0;
+        delay(7);
+        WiFi.setSleepMode(WIFI_LIGHT_SLEEP);
+      }
       if (stopTime > 0) {
         break;
       }
@@ -260,6 +275,7 @@ public:
     *start = startTime;
     *stop = stopTime;
     ESP.wdtEnable(0);
+    WiFi.setSleepMode(WIFI_NONE_SLEEP);
 
     if ((*start >= *stop) || *stop == 0 || *start == 0) {
       // ESP.getCycleCount() overflow oder no pulse, just fail this round

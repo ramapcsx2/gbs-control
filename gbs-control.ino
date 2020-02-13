@@ -363,14 +363,14 @@ void externalClockGenSyncInOutRate() {
     return;
   }
 
-  double sfr = getSourceFieldRate(0);
+  float sfr = getSourceFieldRate(0);
   if (sfr < 47.0f || sfr > 86.0f) {
     SerialM.print(F("sync skipped sfr wrong: "));
     SerialM.println(sfr);
     return;
   }
 
-  double ofr = getOutputFrameRate();
+  float ofr = getOutputFrameRate();
   if (ofr < 47.0f || ofr > 86.0f) {
     SerialM.print(F("sync skipped ofr wrong: "));
     SerialM.println(ofr);
@@ -405,11 +405,11 @@ void externalClockGenSyncInOutRate() {
 
   int32_t diff = rto->freqExtClockGen - old;
   
-  SerialM.print(F("clock gen: ")); SerialM.print(old);
-  SerialM.print(F(" > ")); SerialM.print(rto->freqExtClockGen);
-  SerialM.print(F(" (diff: ")); SerialM.print(diff);
-  SerialM.print(F(") \nsource Hz: ")); SerialM.print(sfr, 5);
-  SerialM.print(F(" new out Hz: ")); SerialM.println(getOutputFrameRate(), 5);
+  SerialM.print(F("source Hz: ")); SerialM.print(sfr, 5);
+  SerialM.print(F(" new out: ")); SerialM.print(getOutputFrameRate(), 5);
+  SerialM.print(F(" clock: ")); SerialM.print(rto->freqExtClockGen);
+  SerialM.print(F(" (")); SerialM.print(diff >= 0 ? "+" : ""); SerialM.print(diff);
+  SerialM.println(F(")"));
   delay(1);
 }
 
@@ -2960,7 +2960,7 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   return true;
 }
 
-double getSourceFieldRate(boolean useSPBus) {
+float getSourceFieldRate(boolean useSPBus) {
   double esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
   uint8_t testBusSelBackup =  GBS::TEST_BUS_SEL::read();
   uint8_t spBusSelBackup =    GBS::TEST_BUS_SP_SEL::read();
@@ -2988,7 +2988,7 @@ double getSourceFieldRate(boolean useSPBus) {
     if (testBusSelBackup != 0) GBS::TEST_BUS_SEL::write(0); // needs decimation + if
   }
 
-  double retVal = 0;
+  float retVal = 0;
 
   uint32_t fieldTimeTicks = FrameSync::getPulseTicks();
   if (fieldTimeTicks == 0) {
@@ -3015,7 +3015,7 @@ double getSourceFieldRate(boolean useSPBus) {
   return retVal;
 }
 
-double getOutputFrameRate() {
+float getOutputFrameRate() {
   double esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
   uint8_t testBusSelBackup = GBS::TEST_BUS_SEL::read();
   uint8_t debugPinBackup = GBS::PAD_BOUT_EN::read();
@@ -3024,7 +3024,7 @@ double getOutputFrameRate() {
 
   if (testBusSelBackup != 2) GBS::TEST_BUS_SEL::write(2); // 0x4d = 0x22 VDS test
 
-  double retVal = 0;
+  float retVal = 0;
 
   uint32_t fieldTimeTicks = FrameSync::getPulseTicks();
   if (fieldTimeTicks == 0) {
@@ -6113,7 +6113,7 @@ void runSyncWatcher()
             filteredLineCountMotionAdaptiveOff = 0;
             if (uopt->enableFrameTimeLock || rto->extClockGenDetected) {
               if (uopt->deintMode == 1) { // using bob
-                timingAdjustDelay = 6;   // arm timer (always)
+                timingAdjustDelay = 11;   // arm timer (always)
                 oddEvenWhenArmed = VPERIOD_IF % 2;
               }
             }
@@ -6132,7 +6132,7 @@ void runSyncWatcher()
                 }
                 enableMotionAdaptDeinterlace();
                 if (timingAdjustDelay == 0) {
-                  timingAdjustDelay = 6; // arm timer only if it's not already armed
+                  timingAdjustDelay = 11; // arm timer only if it's not already armed
                   oddEvenWhenArmed = VPERIOD_IF % 2;
                 }
                 else {
@@ -6153,7 +6153,7 @@ void runSyncWatcher()
               if (uopt->deintMode == 0 && rto->motionAdaptiveDeinterlaceActive) {
                 disableMotionAdaptDeinterlace();
                 if (timingAdjustDelay == 0) {
-                  timingAdjustDelay = 6;   // arm timer only if it's not already armed
+                  timingAdjustDelay = 11;   // arm timer only if it's not already armed
                   oddEvenWhenArmed = VPERIOD_IF % 2;
                 }
                 else {
@@ -8350,6 +8350,12 @@ void loop() {
         Serial.println(F("ext clock gen active"));
         externalClockGenSyncInOutRate();
       }
+      //{
+      //  float bla = 0;
+      //  double esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
+      //  bla = esp8266_clock_freq / (double)FrameSync::getPulseTicks();
+      //  Serial.println(bla, 5);
+      //}
     break;
     default:
       Serial.print(F("unknown command "));
