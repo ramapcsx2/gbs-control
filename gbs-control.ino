@@ -1471,6 +1471,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
             for (int i = 0; i < 3; i++)
             {
               // no success if: no signal at all (returns 0.0f), no embedded VSync (returns ~18.5f)
+              // todo: this takes a while with no csync present
               rto->syncTypeCsync = 1; // temporary for test
               float sfr = getSourceFieldRate(1);
               rto->syncTypeCsync = 0; // undo
@@ -1479,7 +1480,9 @@ uint8_t detectAndSwitchToActiveInput() { // if any
 
             if (decodeSuccess >= 2) { 
               SerialM.println(F(" (with CSync)"));
-              rto->syncTypeCsync = true; 
+              GBS::SP_PRE_COAST::write(0x10); // increase from 9 to 16 (EGA 364)
+              delay(40);
+              rto->syncTypeCsync = true;
             }
             else { 
               SerialM.println();
@@ -1487,24 +1490,22 @@ uint8_t detectAndSwitchToActiveInput() { // if any
             }
 
             // check for 25khz, all regular SOG modes first // update: only check for mode 8
+            // MD reg for medium res starts at 0x2C and needs 16 loops to ramp to max of 0x3C (vt 360 .. 496)
             // if source is HS+VS, can't detect via MD unit, need to set 5_11=0x92 and look at vt: counter
-            for (uint8_t i = 0; i < 8; i++) {
+            for (uint8_t i = 0; i < 16; i++) {
               //printInfo();
               uint8_t innerVideoMode = getVideoMode();
-              /*if (innerVideoMode > 0 && innerVideoMode != 8) {
-                return 1;
-              }*/
               if (innerVideoMode == 8) {
                 setAndUpdateSogLevel(rto->currentLevelSOG);
                 rto->medResLineCount = GBS::MD_HD1250P_CNTRL::read();
-                SerialM.println(F("25khz mixed rgbs"));
+                SerialM.println(F("med res"));
 
                 return 1;
               }
               // update 25khz detection 
               GBS::MD_HD1250P_CNTRL::write(GBS::MD_HD1250P_CNTRL::read() + 1);
               //Serial.println(GBS::MD_HD1250P_CNTRL::read(), HEX);
-              delay(10);
+              delay(30);
             }
 
             rto->videoStandardInput = 15;
@@ -1552,7 +1553,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
               rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 13;
               setAndUpdateSogLevel(rto->currentLevelSOG);
               rto->medResLineCount = GBS::MD_HD1250P_CNTRL::read();
-              SerialM.println(F("25khz pure rgbs"));
+              SerialM.println(F("med res"));
               return 1;
             }
 
@@ -3462,6 +3463,17 @@ void doPostPresetLoadSteps() {
     else if (rto->videoStandardInput == 8)
     { // 25khz
       // todo: this mode for HV sync
+      uint32_t pllRate = 0;
+      for (int i = 0; i < 8; i++) {
+        pllRate += getPllRate();
+      }
+      pllRate /= 8;
+      SerialM.print(F("(H-PLL) rate: ")); SerialM.println(pllRate);
+      if (pllRate > 200) {            // is PLL even working?
+        if (pllRate < 1800) {         // rate very low?
+          GBS::PLLAD_FS::write(0);    // then low gain
+        }
+      }
       GBS::PLLAD_ICP::write(6);     // all 25khz submodes have more lines than NTSC
       GBS::ADC_FLTR::write(1);      // 5_03
       GBS::IF_HB_ST::write(30);     // 1_10; magic number
@@ -6685,13 +6697,15 @@ void runSyncWatcher()
           latchPLLAD();
           delay(2);
           setOverSampleRatio(4, false);  // false = do apply // will auto decrease to max possible factor
-          SerialM.print(F("(H-PLL) state: ")); SerialM.println(rto->HPLLState);
+          SerialM.print(F("(H-PLL) rate: ")); SerialM.print(currentPllRate);
+          SerialM.print(F(" state: ")); SerialM.println(rto->HPLLState);
           delay(100);
         }
       }
       else if (rto->videoStandardInput == 14) {
         if (oldHPLLState != rto->HPLLState) {
-          SerialM.print(F("(H-PLL) state: ")); SerialM.println(rto->HPLLState);
+          SerialM.print(F("(H-PLL) rate: ")); SerialM.print(currentPllRate);
+          SerialM.print(F(" state (no change): ")); SerialM.println(rto->HPLLState);
           // need to manage HPLL state change somehow
 
           //FrameSync::reset(uopt->frameTimeLockMethod);
