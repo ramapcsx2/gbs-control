@@ -1,7 +1,7 @@
 # gbs-control
 
-This project provides an alternative control software for Tvia Trueview5725 based upscalers / video converter boards.  
-Gbscontrol provides a complete replacement of the original solution, offering many improvements:
+Gbscontrol is an alternative firmware for Tvia Trueview5725 based upscalers / video converter boards.  
+Its growing list of features includes:   
 - very low lag
 - sharp and defined upscaling, comparing well to other -expensive- units
 - no synchronization loss switching 240p/480i (output runs independent from input, sync to display never drops)
@@ -18,8 +18,6 @@ Sources can be connected via RGB/HV (VGA), RGBS (game consoles, SCART) or Compon
 Various variations are supported, such as the PlayStation 2's VGA modes that run over Component cables.
 
 Gbscontrol is a continuation of previous work by dooklink, mybook4, Ian Stedman and others.  
-It uses the Arduino development platform, targeting the popular Espressif ESP8266 microcontroller.  
-https://github.com/esp8266/Arduino
 
 Head over to the wiki for the setup guide to learn how to build and use it!  
 https://github.com/ramapcsx2/gbs-control/wiki/Build-the-Hardware
@@ -28,7 +26,6 @@ Development threads:
 https://shmups.system11.org/viewtopic.php?f=6&t=52172   
 https://circuit-board.de/forum/index.php/Thread/15601-GBS-8220-Custom-Firmware-in-Arbeit/   
 
-Previous work:  
-https://github.com/dooklink/gbs-control  
-https://github.com/mybook4/DigisparkSketches/tree/master/GBS_Control  
-https://ianstedman.wordpress.com/  
+If you like gbscontrol, you can now <a class="bmc-button" target="_blank" href="https://www.buymeacoffee.com/ramapcsx2"><img src="https://cdn.buymeacoffee.com/buttons/bmc-new-btn-logo.svg" alt="Buy me a coffee">buy me a coffee</a>.   
+Cheers! :)   
+
