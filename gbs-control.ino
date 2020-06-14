@@ -4023,7 +4023,7 @@ void applyPresets(uint8_t result) {
     }
   }
 
-  if (result == 1 || result == 3 || result == 8 || result == 9 || result == 14) {
+  if (result == 1 || result == 8 || result == 9 || result == 14) {
     if (uopt->presetPreference == 0) {
       writeProgramArrayNew(ntsc_240p, false);
     }
@@ -4055,7 +4055,7 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(ntsc_downscale, false);
     }
   }
-  else if (result == 2 || result == 4) {
+  else if (result == 2) {
     if (uopt->presetPreference == 0) {
       if (uopt->matchPresetSource) {
         SerialM.println(F("matched preset override > 1280x1024"));
@@ -4087,7 +4087,7 @@ void applyPresets(uint8_t result) {
       writeProgramArrayNew(pal_downscale, false);
     }
   }
-  else if (result == 5 || result == 6 || result == 7 || result == 13) {
+  else if (result == 3 || result == 4 || result == 5 || result == 6 || result == 7 || result == 13) {
     // use bypass mode for these HD sources
     rto->videoStandardInput = result;
     setOutModeHdBypass();
