@@ -4495,7 +4495,7 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck) {
 
   if (rto->videoStandardInput != 0) {
     if (rto->videoStandardInput <= 2) { // SD interlaced
-      GBS::SP_PRE_COAST::write(7);
+      GBS::SP_PRE_COAST::write(8);
       GBS::SP_POST_COAST::write(3);
       GBS::SP_DLT_REG::write(0xC0);      // old: 0x140 works better than 0x130 with psx
       GBS::SP_H_TIMER_VAL::write(0x28);   // 5_33
