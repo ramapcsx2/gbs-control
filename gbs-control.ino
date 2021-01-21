@@ -9231,7 +9231,7 @@ void startWebserver()
 
   server.on("/wifi/connect", HTTP_POST, [](AsyncWebServerRequest* request) {
     AsyncWebServerResponse* response =
-      request->beginResponse(200, "text/plain", "connecting...");
+      request->beginResponse(200, "text/html", "<html><head><meta name='viewport' content='viewport-fit=cover, user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1'/></head><body style='position: relative; background-color:#202020; color:#00c0fb;'><h3 style='position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);'>connecting...<h3><script>setInterval(function(){window.location='/';},5000);</script></body>");
     request->send(response);
 
     if (request->arg("n").length()) { // n holds ssid
