@@ -1,0 +1,19 @@
+{
+  "short_name": "GBSControl",
+  "name": "GBSControl",
+  "lang": "en",
+  "description": "GBSControl Remote",
+  "background_color": "#00c0fb",
+  "theme_color": "#00c0fb",
+  "dir": "ltr",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": "false",
+  "icons": [
+    {
+      "src": "${icon1024}",
+      "type": "image/png",
+      "sizes": "1024x1024"
+    }
+  ]
+}

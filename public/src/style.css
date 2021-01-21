@@ -1,0 +1,491 @@
+/* latin */
+@font-face {
+  font-family: "Oswald";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(data:font/woff2;base64,${oswald}) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
+/* fallback */
+@font-face {
+  font-family: "Material Icons";
+  font-style: normal;
+  font-weight: 400;
+  src: url(data:font/woff2;base64,${material}) format("woff2");
+}
+
+html,
+body {
+  height: 100%;
+  touch-action: manipulation;
+  width: 100%;
+}
+
+body {
+  background-color: #202020;
+  font-family: "Oswald", sans-serif;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+  width: 100%;
+}
+
+* {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.container {
+  display: inline-block;
+  height: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 414px;
+  overflow: hidden;
+  position: relative;
+  text-align: center;
+  width: 100%;
+}
+
+.scroll {
+  height: calc(100% - 54px);
+  margin-bottom: 148px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.scroll::-webkit-scrollbar {
+  width: 2px;
+}
+
+.scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll::-webkit-scrollbar-thumb {
+  background-color: #00c0fb;
+  border-radius: 20px;
+}
+
+.menu {
+  border-top: 1px solid rgba(0, 192, 251, 0.4);
+  bottom: 0;
+  box-sizing: border-box;
+  color: #00c0fb;
+  height: 54px;
+  padding: 8px 0 8px 0;
+  position: absolute;
+  text-align: center;
+  width: 100%;
+}
+
+.menu--logo {
+  border-right: 1px solid #00c0fb;
+  display: none;
+  margin: auto;
+  margin-left: 8px;
+  margin-right: 2px;
+  margin-top: 7px;
+  padding-right: 6px;
+  width: 57px;
+}
+
+.btn {
+  appearance: none;
+  background-color: #292929;
+  border-radius: 4px;
+  border: 1px dashed rgba(0, 192, 251, 0.2);
+  color: rgba(0, 192, 251, 0.6);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 300;
+  margin: 0 0 8px 0;
+  outline: 0;
+  overflow: hidden;
+  padding: 4px 8px;
+  text-overflow: ellipsis;
+  transition: all 0.2s linear;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.btn[disabled] {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.btn[active],
+.btn:hover {
+  border: 1px solid #00c0fb;
+  box-shadow: inset 0 0 6px 4px rgba(0, 192, 251, 0.2),
+    0 0 6px 4px rgba(0, 192, 251, 0.2);
+  color: #00c0fb;
+}
+
+.btn.secondary {
+  border: 1px dashed rgba(234, 182, 56, 0.3);
+  color: rgba(234, 182, 56, 0.7);
+}
+
+.btn.secondary[active],
+.btn.secondary:hover {
+  background-color: rgba(234, 182, 56, 0.7);
+  box-shadow: inset 0 0 6px 4px rgba(234, 182, 56, 0.2),
+    0 0 6px 8px rgba(234, 182, 56, 0.2);
+  color: black;
+  transform: scale(0.98);
+}
+
+.btn.-block,
+.btn.secondary.-block {
+  width: auto;
+}
+
+.btn[name]:before {
+  content: attr(name);
+}
+
+.menu .btn {
+  width: 48px;
+}
+
+.pressets .btn {
+  height: 88px;
+  margin: 0 0 4px 0;
+  padding: 6px;
+  text-align: right;
+  vertical-align: top;
+  white-space: initial;
+  width: 92px;
+}
+
+.resolution .btn,
+.resolution-down .btn {
+  height: 68px;
+  margin: 0;
+  padding: 6px;
+  text-align: right;
+  vertical-align: top;
+  white-space: initial;
+  width: 54px;
+}
+
+.resolution-down .btn {
+  height: 48px;
+  line-height: 14px;
+}
+
+.controls .btn,
+.filters .btn,
+.system .btn {
+  height: 68px;
+  margin: 0;
+  padding: 6px;
+  text-align: right;
+  vertical-align: top;
+  white-space: initial;
+  width: 88px;
+}
+
+.controls-dektop .btn {
+  height: 48px;
+  margin: 0;
+  padding: 6px;
+  text-align: right;
+  vertical-align: top;
+  white-space: initial;
+  width: 48px;
+}
+
+.small-buttons .btn {
+  min-width: 60px;
+  width: auto;
+}
+
+.commands .btn {
+  min-width: 140px;
+}
+
+.btn.restart {
+  width: 270px;
+}
+
+.btn.freeze {
+  width: 282px;
+}
+
+.btn.small {
+  font-size: 12px;
+}
+
+.btn.direction {
+  display: inline-block;
+  height: 76px;
+  margin-right: 8px;
+  pointer-events: none;
+  width: 72px;
+}
+
+.fieldset {
+  border-radius: 4px;
+  border: 1px solid rgba(0, 192, 251, 0.1);
+  box-sizing: border-box;
+  color: #00c0fb;
+  font-size: 15px;
+  margin: 8px;
+  padding: 8px 8px 16px 8px;
+  position: relative;
+}
+
+.fieldset legend {
+  display: inline-block !important;
+  font-size: 18px;
+  position: relative;
+  text-align: left;
+  vertical-align: top;
+}
+
+.fieldset legend::after {
+  color: #eab638;
+  content: "help_center";
+  cursor: pointer;
+  font-family: "Material Icons";
+  font-size: 24px;
+  position: relative;
+  top: 8px;
+}
+
+.hide-help .fieldset legend::after {
+  color: #606060;
+}
+
+.fieldset legend div {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.fieldset-output {
+  height: calc(100vh - 74px);
+}
+
+.fieldset-output legend::after {
+  display: none;
+}
+
+table {
+  width: 100%;
+}
+
+table td {
+  color: #aaa;
+  text-align: left;
+}
+
+table td[toggle-switch] {
+  cursor: pointer;
+}
+
+table tr[active] td {
+  color: #00c0fb;
+}
+
+table tr td.settings-title {
+  color: #eab638;
+}
+
+table tr[active] td.settings-title {
+  color: #eab638;
+}
+
+table td em {
+  color: #aaa;
+  display: block;
+  display: none;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 16px;
+  margin-bottom: 16px;
+  margin-top: 4px;
+}
+
+table .material-icons {
+  font-size: 32px;
+}
+
+.text-small {
+  color: #888;
+  display: block;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0 0 8px 0;
+}
+
+.hide-help .text-small {
+  display: none;
+}
+
+.keyboard {
+  display: inline-block;
+  vertical-align: top;
+}
+
+.toaster {
+  color: red;
+  position: absolute;
+  right: 18px;
+  top: 10px;
+  z-index: 1;
+}
+
+.mb-16 {
+  margin-bottom: 16px;
+}
+
+.pl-16 {
+  padding-left: 16px;
+}
+
+.material-icons {
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  direction: ltr;
+  display: inline-block;
+  font-family: "Material Icons";
+  font-size: 24px;
+  font-style: normal;
+  font-weight: normal;
+  letter-spacing: normal;
+  line-height: 1;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+}
+
+.controls {
+  display: block;
+}
+
+.controls-desktop {
+  display: none;
+}
+
+.output {
+  position: relative;
+}
+
+.output .clear {
+  padding: 8px;
+  position: absolute;
+  right: 34px;
+  top: 30px;
+  width: auto;
+}
+
+.output textarea {
+  background-color: black;
+  border-radius: 8px;
+  border: 5px solid black;
+  box-sizing: border-box;
+  color: white;
+  height: 100%;
+  margin-left: 8px;
+  outline: 0;
+  padding: 16px;
+  resize: none;
+  scrollbar-color: #00c0fb black;
+  scrollbar-width: thin;
+  width: calc(100% - 18px);
+}
+.output textarea::-webkit-scrollbar {
+  border-radius: 20px;
+  width: 20px;
+}
+
+.output textarea::-webkit-scrollbar-track {
+  background-color: black;
+  border-radius: 20px;
+}
+
+.output textarea::-webkit-scrollbar-thumb {
+  background-color: #00c0fb;
+  border-radius: 20px;
+  border: 7px solid black;
+}
+
+.blink_me {
+  animation: blinker 0.5s linear infinite;
+}
+
+@keyframes blinker {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (min-width: 415px) {
+  .menu {
+    border-bottom: 1px solid rgba(0, 192, 251, 0.4);
+    bottom: initial;
+    position: relative;
+    top: 0;
+  }
+
+  .menu--logo {
+    display: inline-block;
+  }
+
+  .controls {
+    display: none;
+  }
+
+  .controls-desktop {
+    display: block;
+  }
+
+  .logo {
+    display: inline-block;
+  }
+
+  .output {
+    background-color: #303030;
+    height: 100vh;
+    left: 414px;
+    position: fixed;
+    top: 0px;
+    width: calc(100vw - 414px);
+    z-index: 1;
+  }
+
+  .menu {
+    bottom: initial;
+    position: relative;
+    top: 0;
+  }
+
+  .scroll,
+  .menu {
+    border-right: 1px solid rgba(0, 192, 251, 0.4);
+  }
+
+  .menu button {
+    margin: 2px;
+  }
+
+  .fieldset-output {
+    height: calc(100vh - 16px);
+  }
+
+  .commands .btn {
+    min-width: 88px;
+  }
+}
