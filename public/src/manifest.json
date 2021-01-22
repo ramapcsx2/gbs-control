@@ -3,7 +3,7 @@
   "name": "GBSControl",
   "lang": "en",
   "description": "GBSControl Remote",
-  "background_color": "#00c0fb",
+  "background_color": "#202020",
   "theme_color": "#00c0fb",
   "dir": "ltr",
   "display": "standalone",
