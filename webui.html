@@ -1080,9 +1080,9 @@ table .material-icons {
                   </p>
                 </td>
                 <td
-                  ws-action="w"
+                  ws-user="w"
                   class="material-icons"
-                  toggle-switch="adcAutoGain"
+                  toggle-switch="enableCalibrationADC"
                 >
                   toggle_off
                 </td>
@@ -1471,7 +1471,6 @@ var createWebSocket = function () {
         }
         else {
             var presetId = GBSControl.buttonMapping[e.data[1]];
-            console.log("presetID", presetId, e.data[1]);
             var presetEl = document.getElementById(presetId);
             var activePresetButton = presetEl ? presetEl.getAttribute("id") : null;
             if (activePresetButton) {

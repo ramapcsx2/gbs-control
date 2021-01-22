@@ -166,7 +166,6 @@ const createWebSocket = () => {
       }
     } else {
       const presetId = GBSControl.buttonMapping[e.data[1]];
-      console.log("presetID", presetId, e.data[1]);
       const presetEl = document.getElementById(presetId);
       const activePresetButton = presetEl ? presetEl.getAttribute("id") : null;
       if (activePresetButton) {

@@ -589,9 +589,9 @@
                   </p>
                 </td>
                 <td
-                  ws-action="w"
+                  ws-user="w"
                   class="material-icons"
-                  toggle-switch="adcAutoGain"
+                  toggle-switch="enableCalibrationADC"
                 >
                   toggle_off
                 </td>
