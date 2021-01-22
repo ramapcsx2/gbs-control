@@ -816,7 +816,7 @@
               <div class="material-icons">code</div>
               <div>Output</div>
             </legend>
-            <button class="btn clear material-icons">delete_outline</button>
+            <div class="clear-container"><button class="btn clear material-icons mr-8">delete_outline</button></div>
             <textarea id="outputTextArea"></textarea>
           </fieldset>
         </div>

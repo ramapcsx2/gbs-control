@@ -351,6 +351,10 @@ table .material-icons {
   margin-bottom: 16px;
 }
 
+.mr-8 {
+  margin-right: 8px;
+}
+
 .pl-16 {
   padding-left: 16px;
 }
@@ -383,21 +387,20 @@ table .material-icons {
   position: relative;
 }
 
-.output .clear {
-  padding: 8px;
-  position: absolute;
-  right: 34px;
-  top: 30px;
-  width: auto;
+.output .clear-container {
+  width: 100%;
+  display: block;
+  text-align: right;
 }
 
 .output textarea {
+  appearance: none;
   background-color: black;
   border-radius: 8px;
   border: 5px solid black;
   box-sizing: border-box;
   color: white;
-  height: 100%;
+  height: calc(100vh - 178px);
   margin-left: 8px;
   outline: 0;
   padding: 16px;
