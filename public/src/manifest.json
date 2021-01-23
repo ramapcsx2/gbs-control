@@ -8,7 +8,7 @@
   "dir": "ltr",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "prefer_related_applications": "false",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "${icon1024}",
