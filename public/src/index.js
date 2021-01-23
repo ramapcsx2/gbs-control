@@ -21,20 +21,14 @@ var GBSStorage = {
     }
 };
 var GBSControl = {
-    controlKeysMobileMode: "move",
-    serverIP: "",
-    webSocketServerUrl: "",
-    theTerminal: null,
-    ws: null,
-    wsNoSuccessConnectingCounter: 0,
-    wsConnectCounter: 0,
-    isWsActive: false,
-    wsTimeout: 0,
-    queuedText: "",
-    dataQueued: 0,
-    wsCheckTimer: 0,
-    updateTerminalTimer: 0,
-    timeOutWs: 0,
+    ui: {
+        presetButtonList: null,
+        slotButtonList: null,
+        terminal: null,
+        toggleList: null,
+        toggleSwichList: null,
+        webSocketConnectionWarning: null
+    },
     buttonMapping: {
         1: "button1280x960",
         2: "button1280x1024",
@@ -54,6 +48,7 @@ var GBSControl = {
         18: "slot8",
         19: "slot9"
     },
+    controlKeysMobileMode: "move",
     controlKeysMobile: {
         move: {
             type: "loadDoc",
@@ -76,14 +71,21 @@ var GBSControl = {
             right: "A",
             down: "D"
         }
-    }
+    },
+    dataQueued: 0,
+    isWsActive: false,
+    queuedText: "",
+    serverIP: "",
+    timeOutWs: 0,
+    updateTerminalTimer: 0,
+    webSocketServerUrl: "",
+    ws: null,
+    wsCheckTimer: 0,
+    wsConnectCounter: 0,
+    wsNoSuccessConnectingCounter: 0,
+    wsTimeout: 0
 };
-var toggleButtonsFor = function (id) { return function (button, _index, _array) {
-    button.removeAttribute("active");
-    if (button.getAttribute("id") === id) {
-        button.setAttribute("active", "");
-    }
-}; };
+/** services */
 var checkWebSocketServer = function () {
     if (!GBSControl.isWsActive) {
         if (GBSControl.ws) {
@@ -114,7 +116,7 @@ var timeOutWs = function () {
         GBSControl.ws.close();
     }
     GBSControl.isWsActive = false;
-    document.getElementById("overlayNoWs").style.display = "block"; /*show*/
+    displayWifiWarning(true);
 };
 var createWebSocket = function () {
     if (GBSControl.ws && checkReadyState()) {
@@ -123,53 +125,51 @@ var createWebSocket = function () {
     GBSControl.wsNoSuccessConnectingCounter = 0;
     GBSControl.ws = new WebSocket(GBSControl.webSocketServerUrl, ["arduino"]);
     GBSControl.ws.onopen = function () {
-        GBSControl.wsConnectCounter++;
         console.log("ws onopen");
-        GBSControl.isWsActive = true;
-        document.getElementById("overlayNoWs").style.display = "none"; /*hide*/
+        displayWifiWarning(false);
+        GBSControl.wsConnectCounter++;
+        clearTimeout(GBSControl.wsTimeout);
         GBSControl.wsTimeout = setTimeout(timeOutWs, 6000);
+        GBSControl.isWsActive = true;
         GBSControl.wsNoSuccessConnectingCounter = 0;
-        /*theTerminal.value += 'ws' + wsConnectCounter + ' connected\n';
-                          theTerminal.scrollTop = theTerminal.scrollHeight;*/
     };
     GBSControl.ws.onclose = function () {
         console.log("ws.onclose");
         clearTimeout(GBSControl.wsTimeout);
         GBSControl.isWsActive = false;
     };
-    GBSControl.ws.onmessage = function (e) {
+    GBSControl.ws.onmessage = function (message) {
         clearTimeout(GBSControl.wsTimeout);
         GBSControl.wsTimeout = setTimeout(timeOutWs, 2700);
         GBSControl.isWsActive = true;
-        if (e.data[0] != "#") {
-            GBSControl.queuedText += e.data;
-            GBSControl.dataQueued += e.data.length;
-            /*console.log(queuedText);
-                                console.log(dataQueued);*/
+        var _a = message.data, messageDataAt0 = _a[0], messageDataAt1 = _a[1], messageDataAt2 = _a[2], messageDataAt3 = _a[3], messageDataAt4 = _a[4], messageDataAt5 = _a[5];
+        if (messageDataAt0 != "#") {
+            GBSControl.queuedText += message.data;
+            GBSControl.dataQueued += message.data.length;
             if (GBSControl.dataQueued >= 70000) {
-                GBSControl.theTerminal.value = "";
+                GBSControl.ui.terminal.value = "";
                 GBSControl.dataQueued = 0;
             }
         }
         else {
-            var presetId = GBSControl.buttonMapping[e.data[1]];
-            var presetEl = document.getElementById(presetId);
-            var activePresetButton = presetEl ? presetEl.getAttribute("id") : null;
+            var presetId = GBSControl.buttonMapping[messageDataAt1];
+            var presetEl = document.querySelector("[gbs-element-ref=\"" + presetId + "\"]");
+            var activePresetButton = presetEl
+                ? presetEl.getAttribute("gbs-element-ref")
+                : null;
             if (activePresetButton) {
-                var presetButtonList = toArray(document.querySelectorAll("[role='presset']"));
-                presetButtonList.forEach(toggleButtonsFor(activePresetButton));
+                GBSControl.ui.presetButtonList.forEach(toggleButtonActive(activePresetButton));
             }
-            var slotId = GBSControl.buttonMapping["1" + e.data[2]];
-            var activeSlotButton = document.getElementById(slotId);
+            var slotId = GBSControl.buttonMapping["1" + messageDataAt2];
+            var activeSlotButton = document.querySelector("[gbs-element-ref=\"" + slotId + "\"]");
             if (activeSlotButton) {
-                var slotButtonList = toArray(document.querySelectorAll('[role="slot"]'));
-                slotButtonList.forEach(toggleButtonsFor(slotId));
+                GBSControl.ui.slotButtonList.forEach(toggleButtonActive(slotId));
             }
-            if (e.data[3] && e.data[4] && e.data[5]) {
-                var optionByte0_1 = e.data[3].charCodeAt(0);
-                var optionByte1_1 = e.data[4].charCodeAt(0);
-                var optionByte2_1 = e.data[5].charCodeAt(0);
-                var optionButtonList = __spreadArrays(toArray(document.querySelectorAll("[toggle]")), toArray(document.querySelectorAll("[toggle-switch]")));
+            if (messageDataAt3 && messageDataAt4 && messageDataAt5) {
+                var optionByte0_1 = messageDataAt3.charCodeAt(0);
+                var optionByte1_1 = messageDataAt4.charCodeAt(0);
+                var optionByte2_1 = messageDataAt5.charCodeAt(0);
+                var optionButtonList = __spreadArrays(toArray(GBSControl.ui.toggleList), toArray(GBSControl.ui.toggleSwichList));
                 var toggleMethod_1 = function (button, mode) {
                     if (button.tagName === "TD") {
                         button.innerText = mode ? "toggle_on" : "toggle_off";
@@ -183,8 +183,8 @@ var createWebSocket = function () {
                     }
                 };
                 optionButtonList.forEach(function (button) {
-                    var toggleData = button.getAttribute("toggle") ||
-                        button.getAttribute("toggle-switch");
+                    var toggleData = button.getAttribute("gbs-toggle") ||
+                        button.getAttribute("gbs-toggle-switch");
                     switch (toggleData) {
                         case "adcAutoGain":
                             toggleMethod_1(button, (optionByte0_1 & 0x01) == 0x01);
@@ -270,15 +270,6 @@ var checkReadyState = function () {
         return true;
     }
 };
-var updateTerminal = function () {
-    if (GBSControl.queuedText.length > 0) {
-        requestAnimationFrame(function () {
-            GBSControl.theTerminal.value += GBSControl.queuedText;
-            GBSControl.theTerminal.scrollTop = GBSControl.theTerminal.scrollHeight;
-            GBSControl.queuedText = "";
-        });
-    }
-};
 var loadDoc = function (link) {
     var xhttp = new XMLHttpRequest();
     xhttp.open("GET", "http://" + GBSControl.serverIP + "/sc?" + link + "&nocache=" + new Date().getTime(), true);
@@ -290,52 +281,45 @@ var loadUser = function (link) {
     xhttp.send();
     if (link == "a" || link == "1") {
         GBSControl.isWsActive = false;
-        GBSControl.theTerminal.value += " Restart\n";
-        GBSControl.theTerminal.scrollTop = GBSControl.theTerminal.scrollHeight;
+        GBSControl.ui.terminal.value += "\nRestart\n";
+        GBSControl.ui.terminal.scrollTop = GBSControl.ui.terminal.scrollHeight;
     }
 };
-var initializeMenuButtons = function () {
-    var menuButtons = toArray(document.querySelector(".menu").querySelectorAll("button"));
-    var sections = toArray(document.querySelectorAll("section"));
-    var scroll = document.querySelector(".scroll");
-    menuButtons.forEach(function (e) {
-        return e.addEventListener("click", function () {
-            var section = this.getAttribute("section");
-            sections.forEach(function (e) { return e.setAttribute("hidden", ""); });
-            document
-                .querySelector("section[name=\"" + section + "\"]")
-                .removeAttribute("hidden");
-            menuButtons.forEach(function (b) { return b.removeAttribute("active"); });
-            this.setAttribute("active", "");
-            scroll.scrollTo(0, 1);
+/** helpers */
+var toggleButtonActive = function (id) { return function (button, _index, _array) {
+    button.removeAttribute("active");
+    if (button.getAttribute("gbs-element-ref") === id) {
+        button.setAttribute("active", "");
+    }
+}; };
+var displayWifiWarning = function (mode) {
+    GBSControl.ui.webSocketConnectionWarning.style.display = mode
+        ? "block"
+        : "none";
+};
+var updateTerminal = function () {
+    if (GBSControl.queuedText.length > 0) {
+        requestAnimationFrame(function () {
+            GBSControl.ui.terminal.value += GBSControl.queuedText;
+            GBSControl.ui.terminal.scrollTop = GBSControl.ui.terminal.scrollHeight;
+            GBSControl.queuedText = "";
         });
-    });
+    }
 };
-var initializeUserButtons = function () {
-    var userButtons = toArray(document.querySelectorAll("[ws-user]"));
-    userButtons.forEach(function (e) {
-        return e.addEventListener("click", function () {
-            var wsUser = this.getAttribute("ws-user");
-            loadUser(wsUser);
-        });
-    });
+var savePresset = function () {
+    var currentSlot = document.querySelector('[role="slot"][active]');
+    if (!currentSlot) {
+        return;
+    }
+    var key = currentSlot.getAttribute("gbs-element-ref");
+    var currentName = prompt("Assign a slot name", GBSStorage.read(key) || key);
+    GBSStorage.write(key, currentName);
+    currentSlot.setAttribute("name", currentName);
+    loadUser("4");
 };
-var initializeActionButtons = function () {
-    var actionButtons = toArray(document.querySelectorAll("[ws-action]"));
-    actionButtons.forEach(function (e) {
-        return e.addEventListener("click", function () {
-            var wsAction = this.getAttribute("ws-action");
-            loadDoc(wsAction);
-        });
-    });
-};
-var initializeClearButton = function () {
-    document.querySelector(".clear").addEventListener("click", function () {
-        GBSControl.theTerminal.value = "";
-    });
-};
+/** button click management */
 var controlClick = function (control) { return function () {
-    var controlKey = control.getAttribute("controls-key");
+    var controlKey = control.getAttribute("gbs-control-key");
     var target = GBSControl.controlKeysMobile[GBSControl.controlKeysMobileMode];
     switch (target.type) {
         case "loadDoc":
@@ -349,76 +333,87 @@ var controlClick = function (control) { return function () {
 var controlMouseDown = function (control) { return function () {
     var click = controlClick(control);
     click();
+    clearInterval(control["__interval"]);
     control["__interval"] = setInterval(click, 300);
 }; };
 var controlMouseUp = function (control) { return function () {
     clearInterval(control["__interval"]);
 }; };
-var gainClick = function (control) { return function () {
-    var gainKey = control.getAttribute("gain-key");
-    switch (gainKey) {
-        case "+":
-            loadUser("n");
-            break;
-        case "-":
-            loadUser("o");
-            break;
-    }
-}; };
-var gainMouseDown = function (control) { return function () {
-    var click = gainClick(control);
-    click();
-    control["__interval"] = setInterval(click, 300);
-}; };
-var gainMouseUp = function (control) { return function () {
-    clearInterval(control["__interval"]);
-}; };
-var initializeControlMobileKeys = function () {
-    document.querySelectorAll("[controls]").forEach(function (control) {
+/** inits */
+var initMenuButtons = function () {
+    var menuButtons = toArray(document.querySelector(".menu").querySelectorAll("button"));
+    var sections = toArray(document.querySelectorAll("section"));
+    var scroll = document.querySelector(".scroll");
+    menuButtons.forEach(function (button) {
+        return button.addEventListener("click", function () {
+            var section = this.getAttribute("gbs-section");
+            sections.forEach(function (section) { return section.setAttribute("hidden", ""); });
+            document
+                .querySelector("section[name=\"" + section + "\"]")
+                .removeAttribute("hidden");
+            menuButtons.forEach(function (btn) { return btn.removeAttribute("active"); });
+            this.setAttribute("active", "");
+            scroll.scrollTo(0, 1);
+        });
+    });
+};
+var initGBSButtons = function () {
+    var buttons = toArray(document.querySelectorAll("[gbs-click]"));
+    buttons.forEach(function (button) {
+        var clickMode = button.getAttribute("gbs-click");
+        if (clickMode === "normal") {
+            button.addEventListener("click", function () {
+                var message = this.getAttribute("gbs-message");
+                var messageType = this.getAttribute("gbs-message-type");
+                var action = messageType === "user" ? loadUser : loadDoc;
+                action(message);
+            });
+        }
+        if (clickMode === "repeat") {
+            var callback_1 = function () {
+                var message = button.getAttribute("gbs-message");
+                var messageType = button.getAttribute("gbs-message-type");
+                var action = messageType === "user" ? loadUser : loadDoc;
+                action(message);
+            };
+            button.addEventListener(!("ontouchstart" in window) ? "mousedown" : "touchstart", function () {
+                callback_1();
+                clearInterval(button["__interval"]);
+                button["__interval"] = setInterval(callback_1, 300);
+            });
+            button.addEventListener(!("ontouchstart" in window) ? "mouseup" : "touchend", function () {
+                clearInterval(button["__interval"]);
+            });
+        }
+    });
+};
+var initClearButton = function () {
+    document.querySelector(".clear").addEventListener("click", function () {
+        GBSControl.ui.terminal.value = "";
+    });
+};
+var initControlMobileKeys = function () {
+    var controls = document.querySelectorAll("[gbs-control-target]");
+    var controlsKeys = document.querySelectorAll("[gbs-control-key]");
+    controls.forEach(function (control) {
         control.addEventListener("click", function () {
-            document.querySelectorAll("[controls]").forEach(function (control) {
+            controls.forEach(function (control) {
                 control.removeAttribute("active");
             });
-            GBSControl.controlKeysMobileMode = control.getAttribute("controls");
+            GBSControl.controlKeysMobileMode = control.getAttribute("gbs-control-target");
             control.setAttribute("active", "");
         });
     });
-    document.querySelectorAll("[controls-key]").forEach(function (control) {
-        !("ontouchstart" in window) &&
-            control.addEventListener("mousedown", controlMouseDown(control));
-        "ontouchstart" in window &&
-            control.addEventListener("touchstart", controlMouseDown(control));
-        !("ontouchstart" in window) &&
-            control.addEventListener("mouseup", controlMouseUp(control));
-        "ontouchstart" in window &&
-            control.addEventListener("touchend", controlMouseUp(control));
+    controlsKeys.forEach(function (control) {
+        control.addEventListener(!("ontouchstart" in window) ? "mousedown" : "touchstart", controlMouseDown(control));
+        control.addEventListener(!("ontouchstart" in window) ? "mouseup" : "touchend", controlMouseUp(control));
     });
-};
-var initializeGainKeys = function () {
-    document.querySelectorAll("[gain-key]").forEach(function (control) {
-        !("ontouchstart" in window) &&
-            control.addEventListener("mousedown", gainMouseDown(control));
-        "ontouchstart" in window &&
-            control.addEventListener("touchstart", gainMouseDown(control));
-        !("ontouchstart" in window) &&
-            control.addEventListener("mouseup", gainMouseUp(control));
-        "ontouchstart" in window &&
-            control.addEventListener("touchend", gainMouseUp(control));
-    });
-};
-var savePresset = function () {
-    var currentSlot = document.querySelector('[role="slot"][active]');
-    var key = currentSlot.getAttribute("id");
-    var currentName = prompt("Assign a slot name", GBSStorage.read(key) || key);
-    GBSStorage.write(key, currentName);
-    currentSlot.setAttribute("name", currentName);
-    loadUser("4");
 };
 var initSlotNames = function () {
     for (var i = 1; i < 10; i++) {
         var slot = "slot" + i;
         document
-            .getElementById(slot)
+            .querySelector("[gbs-element-ref=\"" + slot + "\"]")
             .setAttribute("name", GBSStorage.read(slot) || slot);
     }
 };
@@ -429,23 +424,7 @@ var initLegendHelpers = function () {
         });
     });
 };
-var initialize = function () {
-    var ip = location.hostname;
-    GBSControl.serverIP = ip;
-    GBSControl.webSocketServerUrl = "ws://" + ip + ":81/";
-    initializeMenuButtons();
-    initializeUserButtons();
-    initializeActionButtons();
-    initializeClearButton();
-    initializeControlMobileKeys();
-    initializeGainKeys();
-    initSlotNames();
-    initLegendHelpers();
-    GBSControl.theTerminal = document.getElementById("outputTextArea");
-    GBSControl.ws = null;
-    createWebSocket();
-    GBSControl.wsCheckTimer = setInterval(checkWebSocketServer, 500);
-    GBSControl.updateTerminalTimer = setInterval(updateTerminal, 50);
+var initUnloadListener = function () {
     window.addEventListener("unload", function (event) {
         clearInterval(GBSControl.wsCheckTimer);
         if (GBSControl.ws) {
@@ -456,4 +435,34 @@ var initialize = function () {
         console.log("unload");
     });
 };
-initialize();
+var initUI = function () {
+    GBSControl.ui.terminal = document.getElementById("outputTextArea");
+    GBSControl.ui.webSocketConnectionWarning = document.getElementById("websocketWarning");
+    GBSControl.ui.presetButtonList = toArray(document.querySelectorAll("[role='presset']"));
+    GBSControl.ui.slotButtonList = toArray(document.querySelectorAll('[role="slot"]'));
+    GBSControl.ui.toggleList = document.querySelectorAll("[gbs-toggle]");
+    GBSControl.ui.toggleSwichList = document.querySelectorAll("[gbs-toggle-switch]");
+    initMenuButtons();
+    // initUserButtons();
+    // initActionButtons();
+    initGBSButtons();
+    initClearButton();
+    initControlMobileKeys();
+    // initGainKeys();
+    initSlotNames();
+    initLegendHelpers();
+    initUnloadListener();
+};
+var createIntervalChecks = function () {
+    GBSControl.wsCheckTimer = setInterval(checkWebSocketServer, 500);
+    GBSControl.updateTerminalTimer = setInterval(updateTerminal, 50);
+};
+var main = function () {
+    var ip = location.hostname;
+    GBSControl.serverIP = ip;
+    GBSControl.webSocketServerUrl = "ws://" + ip + ":81/";
+    initUI();
+    createWebSocket();
+    createIntervalChecks();
+};
+main();

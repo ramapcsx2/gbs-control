@@ -3,16 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <title>GBS-Control</title>
-    <link
-      rel="manifest"
-      href="${manifest}"
-    />
-    <style>${styles}</style>
+    <link rel="manifest" href="${manifest}" />
+    <style>
+      ${styles}
+    </style>
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <link
-      rel="apple-touch-icon"
-      href="${icon1024}"
-    />
+    <link rel="apple-touch-icon" href="${icon1024}" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta
       name="viewport"
@@ -74,18 +70,22 @@
             </text>
           </g>
         </svg>
-        <button section="pressets" class="btn material-icons" active>
+        <button gbs-section="pressets" class="btn material-icons" active>
           input
         </button>
-        <button section="control" class="btn material-icons">
+        <button gbs-section="control" class="btn material-icons">
           control_camera
         </button>
-        <button section="filters" class="btn material-icons">blur_on</button>
-        <button section="preferences" class="btn material-icons">tune</button>
-        <button section="developer" class="btn material-icons">
+        <button gbs-section="filters" class="btn material-icons">
+          blur_on
+        </button>
+        <button gbs-section="preferences" class="btn material-icons">
+          tune
+        </button>
+        <button gbs-section="developer" class="btn material-icons">
           developer_mode
         </button>
-        <button section="system" class="btn material-icons">
+        <button gbs-section="system" class="btn material-icons">
           dynamic_form
         </button>
       </div>
@@ -100,22 +100,28 @@
             <div class="row">
               <button
                 class="btn"
-                ws-user="b"
-                id="slot1"
+                gbs-message="b"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="slot1"
                 role="slot"
                 name="slot 1"
               ></button>
               <button
                 class="btn"
-                ws-user="c"
-                id="slot2"
+                gbs-message="c"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="slot2"
                 role="slot"
                 name="slot 2"
               ></button>
               <button
                 class="btn"
-                ws-user="d"
-                id="slot3"
+                gbs-message="d"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="slot3"
                 role="slot"
                 name="slot 3"
               ></button>
@@ -123,22 +129,28 @@
             <div class="row">
               <button
                 class="btn"
-                ws-user="j"
-                id="slot4"
+                gbs-message="j"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="slot4"
                 role="slot"
                 name="slot 4"
               ></button>
               <button
                 class="btn"
-                ws-user="k"
-                id="slot5"
+                gbs-message="k"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="slot5"
                 role="slot"
                 name="slot 5"
               ></button>
               <button
                 class="btn"
-                ws-user="G"
-                id="slot6"
+                gbs-message="G"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="slot6"
                 role="slot"
                 name="slot 6"
               ></button>
@@ -146,22 +158,28 @@
             <div class="row mb-16">
               <button
                 class="btn"
-                ws-user="H"
-                id="slot7"
+                gbs-message="H"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="slot7"
                 role="slot"
                 name="slot 7"
               ></button>
               <button
                 class="btn"
-                ws-user="I"
-                id="slot8"
+                gbs-message="I"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="slot8"
                 role="slot"
                 name="slot 8"
               ></button>
               <button
                 class="btn"
-                ws-user="J"
-                id="slot9"
+                gbs-message="J"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="slot9"
                 role="slot"
                 name="slot 9"
               ></button>
@@ -169,8 +187,10 @@
 
             <button
               class="btn secondary"
-              ws-user="3"
-              id="buttonLoadCustomPreset"
+              gbs-message="3"
+              gbs-message-type="user"
+              gbs-click="normal"
+              gbs-element-ref="buttonLoadCustomPreset"
               role="presset"
             >
               <div class="material-icons">play_arrow</div>
@@ -199,40 +219,50 @@
                 <div class="mb-16 resolution">
                   <button
                     class="btn"
-                    ws-user="s"
-                    id="button1920x1080"
+                    gbs-message="s"
+                    gbs-message-type="user"
+                    gbs-click="normal"
+                    gbs-element-ref="button1920x1080"
                     role="presset"
                   >
                     1920 x1080
                   </button>
                   <button
                     class="btn"
-                    ws-user="p"
-                    id="button1280x1024"
+                    gbs-message="p"
+                    gbs-message-type="user"
+                    gbs-click="normal"
+                    gbs-element-ref="button1280x1024"
                     role="presset"
                   >
                     1280 x1024
                   </button>
                   <button
                     class="btn"
-                    ws-user="f"
-                    id="button1280x960"
+                    gbs-message="f"
+                    gbs-message-type="user"
+                    gbs-click="normal"
+                    gbs-element-ref="button1280x960"
                     role="presset"
                   >
                     1280 x960
                   </button>
                   <button
                     class="btn"
-                    ws-user="g"
-                    id="button1280x720"
+                    gbs-message="g"
+                    gbs-message-type="user"
+                    gbs-click="normal"
+                    gbs-element-ref="button1280x720"
                     role="presset"
                   >
                     1280 x720
                   </button>
                   <button
                     class="btn small"
-                    ws-user="h"
-                    id="button720x480"
+                    gbs-message="h"
+                    gbs-message-type="user"
+                    gbs-click="normal"
+                    gbs-element-ref="button720x480"
                     role="presset"
                   >
                     720x480 768x576
@@ -240,18 +270,22 @@
                 </div>
                 <div class="resolution-down">
                   <button
-                    ws-user="L"
+                    gbs-message="L"
+                    gbs-message-type="user"
+                    gbs-click="normal"
                     class="btn secondary -block"
-                    id="button15kHzScaleDown"
+                    gbs-element-ref="button15kHzScaleDown"
                     role="presset"
                   >
                     15kHz
                     <div>DownScale</div>
                   </button>
                   <button
-                    ws-user="K"
+                    gbs-message="K"
+                    gbs-message-type="action"
+                    gbs-click="normal"
                     class="btn secondary -block"
-                    id="buttonSourcePassThrough"
+                    gbs-element-ref="buttonSourcePassThrough"
                     role="presset"
                   >
                     Source
@@ -277,16 +311,19 @@
               <div>
                 <button
                   class="btn material-icons secondary"
-                  controls-key="left"
+                  gbs-control-key="left"
                 >
                   keyboard_arrow_left
                 </button>
-                <button class="btn material-icons secondary" controls-key="up">
+                <button
+                  class="btn material-icons secondary"
+                  gbs-control-key="up"
+                >
                   keyboard_arrow_up
                 </button>
                 <button
                   class="btn material-icons secondary"
-                  controls-key="right"
+                  gbs-control-key="right"
                 >
                   keyboard_arrow_right
                 </button>
@@ -295,22 +332,22 @@
                 <button class="btn material-icons" disabled>south_west</button>
                 <button
                   class="btn material-icons secondary"
-                  controls-key="down"
+                  gbs-control-key="down"
                 >
                   keyboard_arrow_down
                 </button>
                 <button class="btn material-icons" disabled>south_east</button>
               </div>
               <div>
-                <button class="btn" controls="move" active>
+                <button class="btn" gbs-control-target="move" active>
                   <div class="material-icons">open_with</div>
                   <div>move</div>
                 </button>
-                <button class="btn" controls="scale">
+                <button class="btn" gbs-control-target="scale">
                   <div class="material-icons">zoom_out_map</div>
                   <div>scale</div>
                 </button>
-                <button class="btn" controls="borders">
+                <button class="btn" gbs-control-target="borders">
                   <div class="material-icons">crop_free</div>
                   <div>borders</div>
                 </button>
@@ -330,13 +367,28 @@
               </button>
               <div class="keyboard">
                 <div>
-                  <button ws-action="7" class="btn material-icons secondary">
+                  <button
+                    gbs-message="7"
+                    gbs-message-type="action"
+                    gbs-click="repeat"
+                    class="btn material-icons secondary"
+                  >
                     keyboard_arrow_left
                   </button>
-                  <button ws-action="*" class="btn material-icons secondary">
+                  <button
+                    gbs-message="*"
+                    gbs-message-type="action"
+                    gbs-click="repeat"
+                    class="btn material-icons secondary"
+                  >
                     keyboard_arrow_up
                   </button>
-                  <button ws-action="6" class="btn material-icons secondary">
+                  <button
+                    gbs-message="6"
+                    gbs-message-type="action"
+                    gbs-click="repeat"
+                    class="btn material-icons secondary"
+                  >
                     keyboard_arrow_right
                   </button>
                 </div>
@@ -345,7 +397,12 @@
                   <button class="btn material-icons" disabled>
                     south_west
                   </button>
-                  <button ws-action="/" class="btn material-icons secondary">
+                  <button
+                    gbs-message="/"
+                    gbs-message-type="action"
+                    gbs-click="repeat"
+                    class="btn material-icons secondary"
+                  >
                     keyboard_arrow_down
                   </button>
                   <button class="btn material-icons" disabled>
@@ -361,13 +418,28 @@
               </button>
               <div class="keyboard">
                 <div>
-                  <button ws-action="h" class="btn material-icons secondary">
+                  <button
+                    gbs-message="h"
+                    gbs-message-type="action"
+                    gbs-click="repeat"
+                    class="btn material-icons secondary"
+                  >
                     keyboard_arrow_left
                   </button>
-                  <button ws-action="4" class="btn material-icons secondary">
+                  <button
+                    gbs-message="4"
+                    gbs-message-type="action"
+                    gbs-click="repeat"
+                    class="btn material-icons secondary"
+                  >
                     keyboard_arrow_up
                   </button>
-                  <button ws-action="z" class="btn material-icons secondary">
+                  <button
+                    gbs-message="z"
+                    gbs-message-type="action"
+                    gbs-click="repeat"
+                    class="btn material-icons secondary"
+                  >
                     keyboard_arrow_right
                   </button>
                 </div>
@@ -376,7 +448,12 @@
                   <button class="btn material-icons" disabled>
                     south_west
                   </button>
-                  <button ws-action="5" class="btn material-icons secondary">
+                  <button
+                    gbs-message="5"
+                    gbs-message-type="action"
+                    gbs-click="repeat"
+                    class="btn material-icons secondary"
+                  >
                     keyboard_arrow_down
                   </button>
                   <button class="btn material-icons" disabled>
@@ -392,13 +469,28 @@
               </button>
               <div class="keyboard">
                 <div>
-                  <button ws-user="B" class="btn material-icons secondary">
+                  <button
+                    gbs-message="B"
+                    gbs-message-type="user"
+                    gbs-click="repeat"
+                    class="btn material-icons secondary"
+                  >
                     keyboard_arrow_left
                   </button>
-                  <button ws-user="C" class="btn material-icons secondary">
+                  <button
+                    gbs-message="C"
+                    gbs-message-type="user"
+                    gbs-click="repeat"
+                    class="btn material-icons secondary"
+                  >
                     keyboard_arrow_up
                   </button>
-                  <button ws-user="A" class="btn material-icons secondary">
+                  <button
+                    gbs-message="A"
+                    gbs-message-type="user"
+                    gbs-click="repeat"
+                    class="btn material-icons secondary"
+                  >
                     keyboard_arrow_right
                   </button>
                 </div>
@@ -407,7 +499,12 @@
                   <button class="btn material-icons" disabled>
                     south_west
                   </button>
-                  <button ws-user="D" class="btn material-icons secondary">
+                  <button
+                    gbs-message="D"
+                    gbs-message-type="user"
+                    gbs-click="repeat"
+                    class="btn material-icons secondary"
+                  >
                     keyboard_arrow_down
                   </button>
                   <button class="btn material-icons" disabled>
@@ -427,15 +524,31 @@
             </legend>
 
             <div class="fixed-width mb-16">
-              <button class="btn" gain-key="+">
-                <div class="material-icons">add_circle_outline</div>
-                <div>gain</div>
-              </button>
-              <button class="btn" gain-key="-">
+              <button
+                gbs-message="o"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="btn"
+              >
                 <div class="material-icons">remove_circle_outline</div>
                 <div>gain</div>
               </button>
-              <button ws-action="T" toggle="adcAutoGain" class="btn secondary">
+              <button
+                gbs-message="n"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="btn"
+              >
+                <div class="material-icons">add_circle_outline</div>
+                <div>gain</div>
+              </button>
+              <button
+                gbs-message="T"
+                gbs-message-type="action"
+                gbs-click="normal"
+                gbs-toggle="adcAutoGain"
+                class="btn secondary"
+              >
                 <div class="material-icons">brightness_auto</div>
                 <div>Auto Gain</div>
               </button>
@@ -451,28 +564,53 @@
             </legend>
             <div class="fixed-width mb-16">
               <div class="mb-16">
-                <button ws-user="7" toggle="scanlines" class="btn secondary">
+                <button
+                  gbs-message="7"
+                  gbs-message-type="user"
+                  gbs-click="normal"
+                  gbs-toggle="scanlines"
+                  class="btn secondary"
+                >
                   <div class="material-icons">line_weight</div>
                   <div>scanlines</div>
                 </button>
-                <button ws-user="K" class="btn">
+                <button
+                  gbs-message="K"
+                  gbs-message-type="user"
+                  gbs-click="normal"
+                  class="btn"
+                >
                   <div class="material-icons">line_weight</div>
                   <div>strength</div>
                 </button>
                 <button
-                  ws-user="m"
-                  toggle="vdsLineFilter"
+                  gbs-message="m"
+                  gbs-message-type="user"
+                  gbs-click="normal"
+                  gbs-toggle="vdsLineFilter"
                   class="btn secondary"
                 >
                   <div class="material-icons">texture</div>
                   <div>line filter</div>
                 </button>
               </div>
-              <button ws-action="f" toggle="peaking" class="btn secondary">
+              <button
+                gbs-message="f"
+                gbs-message-type="action"
+                gbs-click="normal"
+                gbs-toggle="peaking"
+                class="btn secondary"
+              >
                 <div class="material-icons">blur_linear</div>
                 <div>peaking</div>
               </button>
-              <button ws-action="V" toggle="step" class="btn secondary">
+              <button
+                gbs-message="V"
+                gbs-message-type="action"
+                gbs-click="normal"
+                gbs-toggle="step"
+                class="btn secondary"
+              >
                 <div class="material-icons">texture</div>
                 <div>step response</div>
               </button>
@@ -501,9 +639,11 @@
                   </p>
                 </td>
                 <td
-                  ws-action="Z"
+                  gbs-message="Z"
+                  gbs-message-type="action"
+                  gbs-click="normal"
                   class="material-icons"
-                  toggle-switch="matched"
+                  gbs-toggle-switch="matched"
                 >
                   toggle_off
                 </td>
@@ -519,9 +659,11 @@
                   </p>
                 </td>
                 <td
-                  ws-user="v"
+                  gbs-message="v"
+                  gbs-message-type="user"
+                  gbs-click="normal"
                   class="material-icons"
-                  toggle-switch="fullHeight"
+                  gbs-toggle-switch="fullHeight"
                 >
                   toggle_off
                 </td>
@@ -537,9 +679,11 @@
                   </p>
                 </td>
                 <td
-                  ws-user="x"
+                  gbs-message="x"
+                  gbs-message-type="user"
+                  gbs-click="normal"
                   class="material-icons"
-                  toggle-switch="preferScalingRgbhv"
+                  gbs-toggle-switch="preferScalingRgbhv"
                 >
                   toggle_off
                 </td>
@@ -554,9 +698,11 @@
                   </p>
                 </td>
                 <td
-                  ws-user="L"
+                  gbs-message="L"
+                  gbs-message-type="action"
+                  gbs-click="normal"
                   class="material-icons"
-                  toggle-switch="wantOutputComponent"
+                  gbs-toggle-switch="wantOutputComponent"
                 >
                   toggle_off
                 </td>
@@ -572,9 +718,11 @@
                   </p>
                 </td>
                 <td
-                  ws-action="0"
+                  gbs-message="0"
+                  gbs-message-type="action"
+                  gbs-click="normal"
                   class="material-icons"
-                  toggle-switch="palForce60"
+                  gbs-toggle-switch="palForce60"
                 >
                   toggle_off
                 </td>
@@ -589,9 +737,11 @@
                   </p>
                 </td>
                 <td
-                  ws-user="w"
+                  gbs-message="w"
+                  gbs-message-type="user"
+                  gbs-click="normal"
                   class="material-icons"
-                  toggle-switch="enableCalibrationADC"
+                  gbs-toggle-switch="enableCalibrationADC"
                 >
                   toggle_off
                 </td>
@@ -615,15 +765,23 @@
                 <td class="pl-16">FrameTime Lock</td>
                 <td
                   class="material-icons"
-                  ws-user="5"
-                  toggle-switch="frameTimeLock"
+                  gbs-message="5"
+                  gbs-message-type="user"
+                  gbs-click="normal"
+                  gbs-toggle-switch="frameTimeLock"
                 >
                   toggle_off
                 </td>
               </tr>
               <tr>
                 <td class="pl-16">Switch Lock Method</td>
-                <td class="material-icons" ws-user="i" style="cursor: pointer">
+                <td
+                  class="material-icons"
+                  gbs-message="i"
+                  gbs-message-type="user"
+                  gbs-click="normal"
+                  style="cursor: pointer"
+                >
                   swap_horiz
                 </td>
               </tr>
@@ -648,16 +806,24 @@
               </tr>
               <tr>
                 <td class="pl-16">Motion Adaptive</td>
-                <td ws-user="r" class="material-icons" toggle-switch="bob">
+                <td
+                  gbs-message="r"
+                  gbs-message-type="user"
+                  gbs-click="normal"
+                  class="material-icons"
+                  gbs-toggle-switch="bob"
+                >
                   toggle_off
                 </td>
               </tr>
               <tr>
                 <td class="pl-16">Bob</td>
                 <td
-                  ws-user="q"
+                  gbs-message="q"
+                  gbs-message-type="user"
+                  gbs-click="normal"
                   class="material-icons"
-                  toggle-switch="motionAdaptive"
+                  gbs-toggle-switch="motionAdaptive"
                 >
                   toggle_off
                 </td>
@@ -674,30 +840,60 @@
             </legend>
             <div class="small-buttons">
               <p class="text-small">Move Picture (memory blank, HS)</p>
-              <button ws-action="-" class="btn secondary">
+              <button
+                gbs-message="-"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn secondary"
+              >
                 <div class="material-icons">keyboard_arrow_left</div>
                 <div>Left</div>
               </button>
-              <button ws-action="+" class="btn secondary">
+              <button
+                gbs-message="+"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn secondary"
+              >
                 <div class="material-icons">keyboard_arrow_right</div>
                 <div>Right</div>
               </button>
-              <button ws-action="1" class="btn secondary">
+              <button
+                gbs-message="1"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn secondary"
+              >
                 <div class="material-icons">keyboard_arrow_left</div>
                 <div>HS Left</div>
               </button>
-              <button ws-action="0" class="btn secondary">
+              <button
+                gbs-message="0"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn secondary"
+              >
                 <div class="material-icons">keyboard_arrow_right</div>
                 <div>HS Right</div>
               </button>
             </div>
             <div class="commands">
               <p class="text-small">Information</p>
-              <button ws-action="i" class="btn">
+              <button
+                gbs-message="i"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">info</div>
                 <div>Print Infos</div>
               </button>
-              <button ws-action="," class="btn">
+              <button
+                gbs-message=","
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">alarm</div>
                 <div>Get Video Timings</div>
               </button>
@@ -705,77 +901,162 @@
 
             <div>
               <p class="text-small">Commands</p>
-              <button ws-user="F" class="btn freeze mb-16">
+              <button
+                gbs-message="F"
+                gbs-message-type="user"
+                gbs-click="normal"
+                class="btn freeze mb-16"
+              >
                 <div class="material-icons">add_a_photo</div>
                 <div>Freeze Capture</div>
               </button>
             </div>
 
             <div class="commands">
-              <button ws-action="F" class="btn">
+              <button
+                gbs-message="F"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">wb_sunny</div>
                 <div>ADC Filter</div>
               </button>
-              <button ws-user="l" class="btn">
+              <button
+                gbs-message="l"
+                gbs-message-type="user"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">memory</div>
                 <div>Cycle SDRAM</div>
               </button>
-              <button ws-action="D" class="btn">
+              <button
+                gbs-message="D"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">bug_report</div>
                 <div>Debug View</div>
               </button>
-              <button ws-action="c" class="btn">
+              <button
+                gbs-message="c"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">system_update_alt</div>
                 <div>Enable OTA</div>
               </button>
-              <button ws-action="a" class="btn">
+              <button
+                gbs-message="a"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">add_circle_outline</div>
                 <div>HTotal++</div>
               </button>
-              <button ws-action="A" class="btn">
+              <button
+                gbs-message="A"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">remove_circle_outline</div>
                 <div>HTotal--</div>
               </button>
-              <button ws-action="." class="btn secondary">
+              <button
+                gbs-message="."
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn secondary"
+              >
                 <div class="material-icons">sync_problem</div>
                 <div>Resync HTotal</div>
               </button>
-              <button ws-action="n" class="btn">
+              <button
+                gbs-message="n"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">calculate</div>
                 <div>PLL divider++</div>
               </button>
-              <button ws-action="8" class="btn">
+              <button
+                gbs-message="8"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">invert_colors</div>
                 <div>Invert Sync</div>
               </button>
-              <button ws-action="m" class="btn">
+              <button
+                gbs-message="m"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">devices_other</div>
                 <div>SyncWatcher</div>
               </button>
 
-              <button ws-action="l" class="btn secondary">
+              <button
+                gbs-message="l"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn secondary"
+              >
                 <div class="material-icons">settings_backup_restore</div>
                 <div>SyncProcessor</div>
               </button>
-              <button ws-action="o" class="btn">
+              <button
+                gbs-message="o"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">insights</div>
                 <div>Oversampling</div>
               </button>
-              <button ws-action="S" class="btn">
+              <button
+                gbs-message="S"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">settings_input_hdmi</div>
                 <div>60/50Hz HDMI</div>
               </button>
 
-              <button ws-user="E" class="btn">
+              <button
+                gbs-message="E"
+                gbs-message-type="user"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">bug_report</div>
                 <div>IF Auto Offset</div>
               </button>
-              <button ws-user="z" class="btn">
+              <button
+                gbs-message="z"
+                gbs-message-type="user"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">format_align_justify</div>
                 <div>SOG Level--</div>
               </button>
 
-              <button ws-action="q" class="btn secondary">
+              <button
+                gbs-message="q"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="btn secondary"
+              >
                 <div class="material-icons">model_training</div>
                 <div>Reset Chip</div>
               </button>
@@ -794,16 +1075,31 @@
                 <div class="material-icons">wifi</div>
                 <div>Connect</div>
               </button>
-              <button ws-user="e" class="btn">
+              <button
+                gbs-message="e"
+                gbs-message-type="user"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">list</div>
                 <div>List Options</div>
               </button>
-              <button ws-user="a" class="btn">
+              <button
+                gbs-message="a"
+                gbs-message-type="user"
+                gbs-click="normal"
+                class="btn"
+              >
                 <div class="material-icons">settings_backup_restore</div>
                 <div>Restart</div>
               </button>
             </div>
-            <button ws-user="1" class="btn secondary restart">
+            <button
+              gbs-message="1"
+              gbs-message-type="user"
+              gbs-click="normal"
+              class="btn secondary restart"
+            >
               <div class="material-icons">offline_bolt</div>
               <div>Reset Defaults + Restart</div>
             </button>
@@ -816,15 +1112,21 @@
               <div class="material-icons">code</div>
               <div>Output</div>
             </legend>
-            <div class="clear-container"><button class="btn clear material-icons mr-8">delete_outline</button></div>
+            <div class="clear-container">
+              <button class="btn clear material-icons mr-8">
+                delete_outline
+              </button>
+            </div>
             <textarea id="outputTextArea"></textarea>
           </fieldset>
         </div>
       </div>
     </div>
-    <div class="toaster" id="overlayNoWs">
+    <div class="toaster" id="websocketWarning">
       <div class="material-icons blink_me">signal_wifi_off</div>
     </div>
-    <script>${js}</script>
+    <script>
+      ${js}
+    </script>
   </body>
 </html>
