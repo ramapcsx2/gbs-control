@@ -291,7 +291,8 @@ table td {
   text-align: left;
 }
 
-table td[toggle-switch] {
+table td[toggle-switch],
+table td.material-icons {
   cursor: pointer;
 }
 
