@@ -12,7 +12,7 @@ const uint8_t presetDeinterlacerSection[] PROGMEM = {
 0x0, // s2_A
 0x0, // s2_B
 0xF, // s2_C
-0x4, // s2_D
+0x4, // s2_D  // low thd: psx: gamera2000 + driver
 0x7F, // s2_E
 0x14, // s2_F
 0x18, // s2_10
