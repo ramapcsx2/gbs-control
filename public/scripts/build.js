@@ -11,6 +11,9 @@ const oswald = fs
 const material = fs
   .readFileSync("./../assets/fonts/material.woff2")
   .toString("base64");
+const favicon = fs
+  .readFileSync("./../assets/icons/gbsc-logo.png")
+  .toString("base64");
 
 const css = fs
   .readFileSync("./../src/style.css", "utf-8")
@@ -26,6 +29,7 @@ fs.writeFileSync(
   html
     .replace("${styles}", css)
     .replace("${js}", js)
+    .replace("${favicon}", `data:image/png;base64,${favicon}`)
     .replace(
       "${manifest}",
       `data:application/json;base64,${Buffer.from(manifest).toString("base64")}`
