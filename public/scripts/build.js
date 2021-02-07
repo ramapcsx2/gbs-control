@@ -3,7 +3,7 @@ const html = fs.readFileSync("./../src/index.html.tpl", "utf-8");
 const js = fs.readFileSync("./../src/index.js", "utf-8");
 
 const icon1024 = fs
-  .readFileSync("./../assets/icons/icon-1024.png")
+  .readFileSync("./../assets/icons/icon-1024-maskable.png")
   .toString("base64");
 const oswald = fs
   .readFileSync("./../assets/fonts/oswald.woff2")
@@ -22,7 +22,7 @@ const css = fs
 
 const manifest = fs
   .readFileSync("./../src/manifest.json", "utf-8")
-  .replace("${icon1024}", `data:image/png;base64,${icon1024}`);
+  .replace(/\$\{icon1024\}/g, `data:image/png;base64,${icon1024}`);
 
 fs.writeFileSync(
   "./../../webui.html",
