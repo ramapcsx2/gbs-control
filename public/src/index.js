@@ -497,6 +497,7 @@ const updateDeveloperMode = (developerMode) => {
     else {
         el.setAttribute("hidden", "");
         GBSControl.ui.developerSwitch.removeAttribute("active");
+        document.body.classList.add("gbs-output-hide");
     }
     GBSControl.ui.developerSwitch.querySelector(".gbs-icon").innerText = developerMode ? "toggle_on" : "toggle_off";
 };

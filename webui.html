@@ -96,7 +96,6 @@ body {
   max-width: 414px;
   overflow: hidden;
   position: relative;
-  text-align: center;
   width: 100%;
 }
 
@@ -138,6 +137,7 @@ body {
   overflow: hidden;
   padding: 4px 8px;
   position: relative;
+  text-align: right;
   text-overflow: ellipsis;
   transition: all 0.2s linear;
   user-select: none;
@@ -1598,6 +1598,12 @@ section[name="alert"] {
               <div>Developer</div>
             </legend>
             <div class="gbs-flex gbs-margin__bottom--16">
+              <button class="gbs-button" gbs-output-toggle>
+                <div class="gbs-icon">code</div>
+                <div>Toggle Console</div>
+              </button>
+            </div>
+            <div class="gbs-flex gbs-margin__bottom--16">
               <button
                 gbs-message="-"
                 gbs-message-type="action"
@@ -1654,8 +1660,6 @@ section[name="alert"] {
                 <div class="gbs-icon">info</div>
                 <div>Print Infos</div>
               </button>
-            </div>
-            <div class="gbs-flex">
               <button
                 gbs-message=","
                 gbs-message-type="action"
@@ -1664,10 +1668,6 @@ section[name="alert"] {
               >
                 <div class="gbs-icon">alarm</div>
                 <div>Get Video Timings</div>
-              </button>
-              <button class="gbs-button" gbs-output-toggle>
-                <div class="gbs-icon">code</div>
-                <div>Toggle Console</div>
               </button>
             </div>
 
@@ -2526,6 +2526,7 @@ const updateDeveloperMode = (developerMode) => {
     else {
         el.setAttribute("hidden", "");
         GBSControl.ui.developerSwitch.removeAttribute("active");
+        document.body.classList.add("gbs-output-hide");
     }
     GBSControl.ui.developerSwitch.querySelector(".gbs-icon").innerText = developerMode ? "toggle_on" : "toggle_off";
 };
