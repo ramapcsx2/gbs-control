@@ -9222,16 +9222,6 @@ void startWebserver()
     }
   });
 
-  server.on("/slot/clean", HTTP_GET, [](AsyncWebServerRequest *request) {
-    bool result = false;
-
-    if (ESP.getFreeHeap() > 10000) {
-      result = SPIFFS.remove(SLOTS_FILE);
-    }
-
-    request->send(200, "application/json", result ? "true":"false");
-  });
-
   server.on("/slot/set", HTTP_GET, [](AsyncWebServerRequest *request) {
     bool result = false;
 
