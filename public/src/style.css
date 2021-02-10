@@ -166,6 +166,7 @@ body {
 .gbs-button__menu {
   margin: 2px;
   width: 100%;
+  text-align: center;
 }
 
 .gbs-button__preset {
