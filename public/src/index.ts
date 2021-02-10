@@ -606,6 +606,7 @@ const updateDeveloperMode = (developerMode: boolean) => {
   } else {
     el.setAttribute("hidden", "");
     GBSControl.ui.developerSwitch.removeAttribute("active");
+    document.body.classList.add("gbs-output-hide");
   }
 
   GBSControl.ui.developerSwitch.querySelector(
