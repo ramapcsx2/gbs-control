@@ -1220,7 +1220,7 @@
           <fieldset class="gbs-fieldset">
             <legend class="gbs-fieldset__legend">
               <div class="gbs-icon">sd_card</div>
-              <div>Backup</div>
+              <div>Backup [intended for same device]</div>
             </legend>
             <div class="gbs-flex">
               <button
