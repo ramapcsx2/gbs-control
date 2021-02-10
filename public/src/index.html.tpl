@@ -8,6 +8,7 @@
       ${styles}
     </style>
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="icon" type="image/png" href="${favicon}" />
     <link rel="apple-touch-icon" href="${icon1024}" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta
@@ -15,15 +16,14 @@
       content="viewport-fit=cover, user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1"
     />
   </head>
-  <body tabindex="0" class="hide-help">
-    <div class="container">
-      <div class="menu">
+  <body tabindex="0" class="gbs-help-hide gbs-output-hide">
+    <div class="gbs-container">
+      <div class="gbs-menu">
         <svg
           version="1.0"
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0,0,284,99"
-          width="75"
-          class="menu--logo"
+          class="gbs-menu__logo"
         >
           <path
             fill-rule="evenodd"
@@ -70,299 +70,427 @@
             </text>
           </g>
         </svg>
-        <button gbs-section="pressets" class="btn material-icons" active>
+        <button
+          gbs-section="pressets"
+          class="gbs-button gbs-button__menu gbs-icon"
+          active
+        >
           input
         </button>
-        <button gbs-section="control" class="btn material-icons">
+        <button
+          gbs-section="control"
+          class="gbs-button gbs-button__menu gbs-icon"
+        >
           control_camera
         </button>
-        <button gbs-section="filters" class="btn material-icons">
+        <button
+          gbs-section="filters"
+          class="gbs-button gbs-button__menu gbs-icon"
+        >
           blur_on
         </button>
-        <button gbs-section="preferences" class="btn material-icons">
+        <button
+          gbs-section="preferences"
+          class="gbs-button gbs-button__menu gbs-icon"
+        >
           tune
         </button>
-        <button gbs-section="developer" class="btn material-icons">
+        <button
+          gbs-section="developer"
+          class="gbs-button gbs-button__menu gbs-icon"
+          hidden
+        >
           developer_mode
         </button>
-        <button gbs-section="system" class="btn material-icons">
-          dynamic_form
+        <button
+          gbs-section="system"
+          class="gbs-button gbs-button__menu gbs-icon"
+        >
+          bolt
         </button>
       </div>
-      <div class="scroll">
+      <div class="gbs-scroll">
         <section name="pressets">
-          <fieldset class="fieldset pressets">
-            <legend>
-              <div class="material-icons">input</div>
+          <fieldset class="gbs-fieldset" style="padding: 8px 2px">
+            <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
+              <div class="gbs-icon">aspect_ratio</div>
+              <div>Resolution</div>
+            </legend>
+            <!-- prettier-ignore -->
+            <ul class="gbs-help">
+              <li>Choose an output resolution from these presets.</li>
+              <li>Your selection will also be used for startup. 1280x960 is recommended for NTSC sources, 1280x1024 for PAL.
+              </li>
+              <li>Use the "Matched Presets" option to switch between the two automatically (Preferences tab)
+              </li>
+            </ul>
+            <div class="gbs-resolution">
+              <button
+                class="gbs-button gbs-button__resolution"
+                gbs-message="s"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="button1920x1080"
+                gbs-role="preset"
+              >
+                1920 <span>x1080</span>
+              </button>
+              <button
+                class="gbs-button gbs-button__resolution"
+                gbs-message="p"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="button1280x1024"
+                gbs-role="preset"
+              >
+                1280 <span>x1024</span>
+              </button>
+              <button
+                class="gbs-button gbs-button__resolution"
+                gbs-message="f"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="button1280x960"
+                gbs-role="preset"
+              >
+                1280 <span>x960</span>
+              </button>
+              <button
+                class="gbs-button gbs-button__resolution"
+                gbs-message="g"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="button1280x720"
+                gbs-role="preset"
+              >
+                1280 <span>x720</span>
+              </button>
+              <button
+                class="gbs-button gbs-button__resolution"
+                gbs-message="h"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="button720x480"
+                gbs-role="preset"
+              >
+                480i 576i
+              </button>
+              <button
+                gbs-message="L"
+                gbs-message-type="user"
+                gbs-click="normal"
+                class="gbs-button gbs-button__resolution gbs-button__resolution--center gbs-button__secondary"
+                gbs-element-ref="button15kHzScaleDown"
+                gbs-role="preset"
+              >
+                <div class="gbs-icon">tv</div>
+                <div>15hz</div>
+              </button>
+              <button
+                gbs-message="K"
+                gbs-message-type="action"
+                gbs-click="normal"
+                class="gbs-button gbs-button__resolution gbs-button__resolution--center gbs-button__secondary"
+                gbs-element-ref="buttonSourcePassThrough"
+                gbs-role="preset"
+              >
+                <div class="gbs-icon">swap_calls</div>
+                <div class="gbs-button__resolution--pass-through">
+                  Pass Throught
+                </div>
+              </button>
+            </div>
+          </fieldset>
+          <fieldset class="gbs-fieldset pressets">
+            <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
+              <div class="gbs-icon">input</div>
               <div>Presets</div>
             </legend>
-
-            <div class="row">
+            <!-- prettier-ignore -->
+            <ul class="gbs-help">
+              <li>If you want to save your customizations, first select a slot for your new preset, then save to or load from that slot.</li>
+              <li>Selecting a slot also makes it the new startup preset.</li>
+            </ul>
+            <div class="gbs-pressets" gbs-slot-html></div>
+            <div class="gbs-flex">
               <button
-                class="btn"
-                gbs-message="b"
-                gbs-message-type="user"
-                gbs-click="normal"
-                gbs-element-ref="slot1"
-                role="slot"
-                name="slot 1"
-              ></button>
+                class="gbs-button gbs-button__control-action"
+                active
+                gbs-element-ref="buttonLoadCustomPreset"
+                gbs-role="preset"
+                onclick="loadPresset()"
+              >
+                <div class="gbs-icon">play_arrow</div>
+                <div>load presset</div>
+              </button>
               <button
-                class="btn"
-                gbs-message="c"
-                gbs-message-type="user"
-                gbs-click="normal"
-                gbs-element-ref="slot2"
-                role="slot"
-                name="slot 2"
-              ></button>
-              <button
-                class="btn"
-                gbs-message="d"
-                gbs-message-type="user"
-                gbs-click="normal"
-                gbs-element-ref="slot3"
-                role="slot"
-                name="slot 3"
-              ></button>
+                class="gbs-button gbs-button__control-action gbs-button__secondary"
+                onclick="savePresset()"
+                active
+              >
+                <div class="gbs-icon">fiber_manual_record</div>
+                <div>save presset</div>
+              </button>
             </div>
-            <div class="row">
-              <button
-                class="btn"
-                gbs-message="j"
-                gbs-message-type="user"
-                gbs-click="normal"
-                gbs-element-ref="slot4"
-                role="slot"
-                name="slot 4"
-              ></button>
-              <button
-                class="btn"
-                gbs-message="k"
-                gbs-message-type="user"
-                gbs-click="normal"
-                gbs-element-ref="slot5"
-                role="slot"
-                name="slot 5"
-              ></button>
-              <button
-                class="btn"
-                gbs-message="G"
-                gbs-message-type="user"
-                gbs-click="normal"
-                gbs-element-ref="slot6"
-                role="slot"
-                name="slot 6"
-              ></button>
-            </div>
-            <div class="row mb-16">
-              <button
-                class="btn"
-                gbs-message="H"
-                gbs-message-type="user"
-                gbs-click="normal"
-                gbs-element-ref="slot7"
-                role="slot"
-                name="slot 7"
-              ></button>
-              <button
-                class="btn"
-                gbs-message="I"
-                gbs-message-type="user"
-                gbs-click="normal"
-                gbs-element-ref="slot8"
-                role="slot"
-                name="slot 8"
-              ></button>
-              <button
-                class="btn"
-                gbs-message="J"
-                gbs-message-type="user"
-                gbs-click="normal"
-                gbs-element-ref="slot9"
-                role="slot"
-                name="slot 9"
-              ></button>
-            </div>
-
-            <button
-              class="btn secondary"
-              gbs-message="3"
-              gbs-message-type="user"
-              gbs-click="normal"
-              gbs-element-ref="buttonLoadCustomPreset"
-              role="presset"
-            >
-              <div class="material-icons">play_arrow</div>
-              <div>load presset</div>
-            </button>
-            <button class="btn secondary" onclick="savePresset()">
-              <div class="material-icons">fiber_manual_record</div>
-              <div>save presset</div>
-            </button>
-            <p class="text-small">
-              If you want to save your customizations, first select a slot for
-              your new preset, then save to or load from that slot. Selecting a
-              slot also makes it the new startup preset.
-            </p>
           </fieldset>
         </section>
 
         <section name="control" hidden>
-          <fieldset class="fieldset">
-            <legend>
-              <div class="material-icons">tv</div>
-              <div>Resolution</div>
+          <fieldset class="gbs-fieldset">
+            <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
+              <div class="gbs-icon">wb_sunny</div>
+              <div>ADC Gain (brightness)</div>
             </legend>
-            <div class="fixed-width mb-16">
-              <div>
-                <div class="mb-16 resolution">
-                  <button
-                    class="btn"
-                    gbs-message="s"
-                    gbs-message-type="user"
-                    gbs-click="normal"
-                    gbs-element-ref="button1920x1080"
-                    role="presset"
-                  >
-                    1920 x1080
-                  </button>
-                  <button
-                    class="btn"
-                    gbs-message="p"
-                    gbs-message-type="user"
-                    gbs-click="normal"
-                    gbs-element-ref="button1280x1024"
-                    role="presset"
-                  >
-                    1280 x1024
-                  </button>
-                  <button
-                    class="btn"
-                    gbs-message="f"
-                    gbs-message-type="user"
-                    gbs-click="normal"
-                    gbs-element-ref="button1280x960"
-                    role="presset"
-                  >
-                    1280 x960
-                  </button>
-                  <button
-                    class="btn"
-                    gbs-message="g"
-                    gbs-message-type="user"
-                    gbs-click="normal"
-                    gbs-element-ref="button1280x720"
-                    role="presset"
-                  >
-                    1280 x720
-                  </button>
-                  <button
-                    class="btn small"
-                    gbs-message="h"
-                    gbs-message-type="user"
-                    gbs-click="normal"
-                    gbs-element-ref="button720x480"
-                    role="presset"
-                  >
-                    720x480 768x576
-                  </button>
-                </div>
-                <div class="resolution-down">
-                  <button
-                    gbs-message="L"
-                    gbs-message-type="user"
-                    gbs-click="normal"
-                    class="btn secondary -block"
-                    gbs-element-ref="button15kHzScaleDown"
-                    role="presset"
-                  >
-                    15kHz
-                    <div>DownScale</div>
-                  </button>
-                  <button
-                    gbs-message="K"
-                    gbs-message-type="action"
-                    gbs-click="normal"
-                    class="btn secondary -block"
-                    gbs-element-ref="buttonSourcePassThrough"
-                    role="presset"
-                  >
-                    Source
-                    <div>Pass-through</div>
-                  </button>
-                </div>
-              </div>
-            </div>
-            <p class="text-small">
-              Choose an output resolution from these presets. Your selection
-              will also be used for startup. 1280x960 is recommended for NTSC
-              sources, 1280x1024 for PAL. Use the "Matched Presets" option to
-              switch between the two automatically (Preferences tab)
-            </p>
-          </fieldset>
-
-          <fieldset class="fieldset controls">
-            <legend>
-              <div class="material-icons">control_camera</div>
-              <div>Picture Control</div>
-            </legend>
-            <div class="fixed-width">
-              <div>
-                <button
-                  class="btn material-icons secondary"
-                  gbs-control-key="left"
-                >
-                  keyboard_arrow_left
-                </button>
-                <button
-                  class="btn material-icons secondary"
-                  gbs-control-key="up"
-                >
-                  keyboard_arrow_up
-                </button>
-                <button
-                  class="btn material-icons secondary"
-                  gbs-control-key="right"
-                >
-                  keyboard_arrow_right
-                </button>
-              </div>
-              <div class="mb-16">
-                <button class="btn material-icons" disabled>south_west</button>
-                <button
-                  class="btn material-icons secondary"
-                  gbs-control-key="down"
-                >
-                  keyboard_arrow_down
-                </button>
-                <button class="btn material-icons" disabled>south_east</button>
-              </div>
-              <div>
-                <button class="btn" gbs-control-target="move" active>
-                  <div class="material-icons">open_with</div>
-                  <div>move</div>
-                </button>
-                <button class="btn" gbs-control-target="scale">
-                  <div class="material-icons">zoom_out_map</div>
-                  <div>scale</div>
-                </button>
-                <button class="btn" gbs-control-target="borders">
-                  <div class="material-icons">crop_free</div>
-                  <div>borders</div>
-                </button>
-              </div>
+            <!-- prettier-ignore -->
+            <ul class="gbs-help">
+              <li>Gain +/- adjusts the gain for the currently loaded preset.</li>
+            </ul>
+            <div class="gbs-flex gbs-margin__bottom--16">
+              <button
+                gbs-message="o"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control"
+              >
+                <div class="gbs-icon">remove_circle_outline</div>
+                <div>gain</div>
+              </button>
+              <button
+                gbs-message="n"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control"
+              >
+                <div class="gbs-icon">add_circle_outline</div>
+                <div>gain</div>
+              </button>
+              <button
+                gbs-message="T"
+                gbs-message-type="action"
+                gbs-click="normal"
+                gbs-toggle="adcAutoGain"
+                class="gbs-button gbs-button__control gbs-button__secondary"
+              >
+                <div class="gbs-icon">brightness_auto</div>
+                <div>Auto Gain</div>
+              </button>
             </div>
           </fieldset>
-
-          <fieldset class="fieldset controls-desktop">
-            <legend>
-              <div class="material-icons">control_camera</div>
+          <fieldset class="gbs-fieldset gbs-controls">
+            <legend class="gbs-fieldset__legend">
+              <div class="gbs-icon">control_camera</div>
               <div>Picture Control</div>
             </legend>
-            <div class="fixed-width">
-              <button active class="btn direction">
-                <div class="material-icons">open_with</div>
+            <div class="gbs-flex">
+              <button
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+                gbs-control-key="left"
+              >
+                keyboard_arrow_left
+              </button>
+              <button
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+                gbs-control-key="up"
+              >
+                keyboard_arrow_up
+              </button>
+              <button
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+                gbs-control-key="right"
+              >
+                keyboard_arrow_right
+              </button>
+            </div>
+            <div class="gbs-flex gbs-margin__bottom--16">
+              <button class="gbs-button gbs-button__control gbs-icon" disabled>
+                south_west
+              </button>
+              <button
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+                gbs-control-key="down"
+              >
+                keyboard_arrow_down
+              </button>
+              <button class="gbs-button gbs-button__control gbs-icon" disabled>
+                south_east
+              </button>
+            </div>
+            <div class="gbs-flex">
+              <button
+                class="gbs-button gbs-button__control"
+                gbs-control-target="move"
+                active
+              >
+                <div class="gbs-icon">open_with</div>
+                <div>move</div>
+              </button>
+              <button
+                class="gbs-button gbs-button__control"
+                gbs-control-target="scale"
+              >
+                <div class="gbs-icon">zoom_out_map</div>
+                <div>scale</div>
+              </button>
+              <button
+                class="gbs-button gbs-button__control"
+                gbs-control-target="borders"
+              >
+                <div class="gbs-icon">crop_free</div>
+                <div>borders</div>
+              </button>
+            </div>
+          </fieldset>
+          <fieldset class="gbs-fieldset gbs-controls__desktop">
+            <legend class="gbs-fieldset__legend">
+              <div class="gbs-icon">control_camera</div>
+              <div>Picture Control</div>
+            </legend>
+            <div class="gbs-flex">
+              <button
+                gbs-message="7"
+                gbs-message-type="action"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+              >
+                keyboard_arrow_left
+              </button>
+              <button
+                gbs-message="*"
+                gbs-message-type="action"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+              >
+                keyboard_arrow_up
+              </button>
+              <button
+                gbs-message="6"
+                gbs-message-type="action"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+              >
+                keyboard_arrow_right
+              </button>
+            </div>
+            <div class="gbs-flex gbs-margin__bottom--16">
+              <button class="gbs-button gbs-button__control" active>
+                <div class="gbs-icon">open_with</div>
+                <div>move</div>
+              </button>
+              <button
+                gbs-message="/"
+                gbs-message-type="action"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+              >
+                keyboard_arrow_down
+              </button>
+              <button class="gbs-button gbs-button__control gbs-icon" disabled>
+                south_east
+              </button>
+            </div>
+
+            <div class="gbs-flex">
+              <button
+                gbs-message="h"
+                gbs-message-type="action"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+              >
+                keyboard_arrow_left
+              </button>
+              <button
+                gbs-message="4"
+                gbs-message-type="action"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+              >
+                keyboard_arrow_up
+              </button>
+              <button
+                gbs-message="z"
+                gbs-message-type="action"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+              >
+                keyboard_arrow_right
+              </button>
+            </div>
+
+            <div class="gbs-flex gbs-margin__bottom--16">
+              <button class="gbs-button gbs-button__control" active>
+                <div class="gbs-icon">zoom_out_map</div>
+                <div>scale</div>
+              </button>
+              <button
+                gbs-message="5"
+                gbs-message-type="action"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+              >
+                keyboard_arrow_down
+              </button>
+              <button class="gbs-button gbs-button__control gbs-icon" disabled>
+                south_east
+              </button>
+            </div>
+            <div class="gbs-flex">
+              <button
+                gbs-message="B"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+              >
+                keyboard_arrow_left
+              </button>
+              <button
+                gbs-message="C"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+              >
+                keyboard_arrow_up
+              </button>
+              <button
+                gbs-message="A"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+              >
+                keyboard_arrow_right
+              </button>
+            </div>
+
+            <div class="gbs-flex gbs-margin__bottom--16">
+              <button
+                class="gbs-button gbs-button__control"
+                gbs-control-target="borders"
+                active
+              >
+                <div class="gbs-icon">crop_free</div>
+                <div>borders</div>
+              </button>
+              <button
+                gbs-message="D"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control gbs-icon gbs-button__secondary"
+              >
+                keyboard_arrow_down
+              </button>
+              <button class="gbs-button gbs-button__control gbs-icon" disabled>
+                south_east
+              </button>
+            </div>
+          </fieldset>
+
+          <!-- <fieldset class="gbs-fieldset controls-desktop">
+            <legend class="gbs-fieldset__legend">
+              <div class="gbs-icon">control_camera</div>
+              <div>Picture Control</div>
+            </legend>
+            <div class="">
+              <button active class="gbs-button direction">
+                <div class="gbs-icon">open_with</div>
                 <div>move</div>
               </button>
               <div class="keyboard">
@@ -371,7 +499,7 @@
                     gbs-message="7"
                     gbs-message-type="action"
                     gbs-click="repeat"
-                    class="btn material-icons secondary"
+                    class="gbs-button gbs-icon gbs-button__secondary"
                   >
                     keyboard_arrow_left
                   </button>
@@ -379,7 +507,7 @@
                     gbs-message="*"
                     gbs-message-type="action"
                     gbs-click="repeat"
-                    class="btn material-icons secondary"
+                    class="gbs-button gbs-icon gbs-button__secondary"
                   >
                     keyboard_arrow_up
                   </button>
@@ -387,33 +515,33 @@
                     gbs-message="6"
                     gbs-message-type="action"
                     gbs-click="repeat"
-                    class="btn material-icons secondary"
+                    class="gbs-button gbs-icon gbs-button__secondary"
                   >
                     keyboard_arrow_right
                   </button>
                 </div>
 
-                <div class="mb-16">
-                  <button class="btn material-icons" disabled>
+                <div class="gbs-margin__bottom--16">
+                  <button class="gbs-button gbs-icon" disabled>
                     south_west
                   </button>
                   <button
                     gbs-message="/"
                     gbs-message-type="action"
                     gbs-click="repeat"
-                    class="btn material-icons secondary"
+                    class="gbs-button gbs-icon gbs-button__secondary"
                   >
                     keyboard_arrow_down
                   </button>
-                  <button class="btn material-icons" disabled>
+                  <button class="gbs-button gbs-icon" disabled>
                     south_east
                   </button>
                 </div>
               </div>
             </div>
-            <div class="fixed-width">
-              <button class="btn direction" active>
-                <div class="material-icons">zoom_out_map</div>
+            <div class="">
+              <button class="gbs-button direction" active>
+                <div class="gbs-icon">zoom_out_map</div>
                 <div>scale</div>
               </button>
               <div class="keyboard">
@@ -422,7 +550,7 @@
                     gbs-message="h"
                     gbs-message-type="action"
                     gbs-click="repeat"
-                    class="btn material-icons secondary"
+                    class="gbs-button gbs-icon gbs-button__secondary"
                   >
                     keyboard_arrow_left
                   </button>
@@ -430,7 +558,7 @@
                     gbs-message="4"
                     gbs-message-type="action"
                     gbs-click="repeat"
-                    class="btn material-icons secondary"
+                    class="gbs-button gbs-icon gbs-button__secondary"
                   >
                     keyboard_arrow_up
                   </button>
@@ -438,33 +566,33 @@
                     gbs-message="z"
                     gbs-message-type="action"
                     gbs-click="repeat"
-                    class="btn material-icons secondary"
+                    class="gbs-button gbs-icon gbs-button__secondary"
                   >
                     keyboard_arrow_right
                   </button>
                 </div>
 
-                <div class="mb-16">
-                  <button class="btn material-icons" disabled>
+                <div class="gbs-margin__bottom--16">
+                  <button class="gbs-button gbs-icon" disabled>
                     south_west
                   </button>
                   <button
                     gbs-message="5"
                     gbs-message-type="action"
                     gbs-click="repeat"
-                    class="btn material-icons secondary"
+                    class="gbs-button gbs-icon gbs-button__secondary"
                   >
                     keyboard_arrow_down
                   </button>
-                  <button class="btn material-icons" disabled>
+                  <button class="gbs-button gbs-icon" disabled>
                     south_east
                   </button>
                 </div>
               </div>
             </div>
-            <div class="fixed-width">
-              <button class="btn direction" active>
-                <div class="material-icons">crop_free</div>
+            <div class="">
+              <button class="gbs-button direction" active>
+                <div class="gbs-icon">crop_free</div>
                 <div>borders</div>
               </button>
               <div class="keyboard">
@@ -473,7 +601,7 @@
                     gbs-message="B"
                     gbs-message-type="user"
                     gbs-click="repeat"
-                    class="btn material-icons secondary"
+                    class="gbs-button gbs-icon gbs-button__secondary"
                   >
                     keyboard_arrow_left
                   </button>
@@ -481,7 +609,7 @@
                     gbs-message="C"
                     gbs-message-type="user"
                     gbs-click="repeat"
-                    class="btn material-icons secondary"
+                    class="gbs-button gbs-icon gbs-button__secondary"
                   >
                     keyboard_arrow_up
                   </button>
@@ -489,160 +617,123 @@
                     gbs-message="A"
                     gbs-message-type="user"
                     gbs-click="repeat"
-                    class="btn material-icons secondary"
+                    class="gbs-button gbs-icon gbs-button__secondary"
                   >
                     keyboard_arrow_right
                   </button>
                 </div>
 
-                <div class="mb-16">
-                  <button class="btn material-icons" disabled>
+                <div class="gbs-margin__bottom--16">
+                  <button class="gbs-button gbs-icon" disabled>
                     south_west
                   </button>
                   <button
                     gbs-message="D"
                     gbs-message-type="user"
                     gbs-click="repeat"
-                    class="btn material-icons secondary"
+                    class="gbs-button gbs-icon gbs-button__secondary"
                   >
                     keyboard_arrow_down
                   </button>
-                  <button class="btn material-icons" disabled>
+                  <button class="gbs-button gbs-icon" disabled>
                     south_east
                   </button>
                 </div>
               </div>
             </div>
-          </fieldset>
+          </fieldset> -->
         </section>
 
         <section name="filters" hidden>
-          <fieldset class="fieldset filters">
-            <legend>
-              <div class="material-icons">wb_sunny</div>
-              <div>ADC Gain (brightness)</div>
-            </legend>
-
-            <div class="fixed-width mb-16">
-              <button
-                gbs-message="o"
-                gbs-message-type="user"
-                gbs-click="repeat"
-                class="btn"
-              >
-                <div class="material-icons">remove_circle_outline</div>
-                <div>gain</div>
-              </button>
-              <button
-                gbs-message="n"
-                gbs-message-type="user"
-                gbs-click="repeat"
-                class="btn"
-              >
-                <div class="material-icons">add_circle_outline</div>
-                <div>gain</div>
-              </button>
-              <button
-                gbs-message="T"
-                gbs-message-type="action"
-                gbs-click="normal"
-                gbs-toggle="adcAutoGain"
-                class="btn secondary"
-              >
-                <div class="material-icons">brightness_auto</div>
-                <div>Auto Gain</div>
-              </button>
-            </div>
-            <p class="text-small">
-              Gain +/- adjusts the gain for the currently loaded preset.
-            </p>
-          </fieldset>
-          <fieldset class="fieldset filters">
-            <legend>
-              <div class="material-icons">blur_on</div>
+          <fieldset class="gbs-fieldset filters">
+            <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
+              <div class="gbs-icon">blur_on</div>
               <div>Filters</div>
             </legend>
-            <div class="fixed-width mb-16">
-              <div class="mb-16">
+            <ul class="gbs-help">
+              <!-- prettier-ignore -->
+              <li>Scanlines only work with 240p sources. They look best with the Line Filter enabled.</li>
+              <!-- prettier-ignore -->
+              <li>Peaking and Step Response are subtle sharpening filters and recommended.</li>
+            </ul>
+            <div class="gbs-margin__bottom--16">
+              <div class="gbs-flex gbs-margin__bottom--16">
                 <button
                   gbs-message="7"
                   gbs-message-type="user"
                   gbs-click="normal"
                   gbs-toggle="scanlines"
-                  class="btn secondary"
+                  class="gbs-button gbs-button__control gbs-button__secondary"
                 >
-                  <div class="material-icons">line_weight</div>
+                  <div class="gbs-icon">gradient</div>
                   <div>scanlines</div>
                 </button>
                 <button
                   gbs-message="K"
                   gbs-message-type="user"
                   gbs-click="normal"
-                  class="btn"
+                  class="gbs-button gbs-button__control"
                 >
-                  <div class="material-icons">line_weight</div>
-                  <div>strength</div>
+                  <div class="gbs-icon">gradientbolt</div>
+                  <div>strongness</div>
                 </button>
                 <button
                   gbs-message="m"
                   gbs-message-type="user"
                   gbs-click="normal"
                   gbs-toggle="vdsLineFilter"
-                  class="btn secondary"
+                  class="gbs-button gbs-button__control gbs-button__secondary"
                 >
-                  <div class="material-icons">texture</div>
+                  <div class="gbs-icon">power_input</div>
                   <div>line filter</div>
                 </button>
               </div>
-              <button
-                gbs-message="f"
-                gbs-message-type="action"
-                gbs-click="normal"
-                gbs-toggle="peaking"
-                class="btn secondary"
-              >
-                <div class="material-icons">blur_linear</div>
-                <div>peaking</div>
-              </button>
-              <button
-                gbs-message="V"
-                gbs-message-type="action"
-                gbs-click="normal"
-                gbs-toggle="step"
-                class="btn secondary"
-              >
-                <div class="material-icons">texture</div>
-                <div>step response</div>
-              </button>
+              <div class="gbs-flex">
+                <button
+                  gbs-message="f"
+                  gbs-message-type="action"
+                  gbs-click="normal"
+                  gbs-toggle="peaking"
+                  class="gbs-button gbs-button__control gbs-button__secondary"
+                >
+                  <div class="gbs-icon">blur_linear</div>
+                  <div>peaking</div>
+                </button>
+                <button
+                  gbs-message="V"
+                  gbs-message-type="action"
+                  gbs-click="normal"
+                  gbs-toggle="step"
+                  class="gbs-button gbs-button__control gbs-button__secondary"
+                >
+                  <div class="gbs-icon">grain</div>
+                  <div>step response</div>
+                </button>
+              </div>
             </div>
-            <p class="text-small">
-              Scanlines only work with 240p sources. They look best with the
-              Line Filter enabled. Peaking and Step Response are subtle
-              sharpening filters and recommended.
-            </p>
           </fieldset>
         </section>
 
         <section name="preferences" hidden>
-          <fieldset class="fieldset">
-            <legend>
-              <div class="material-icons">tune</div>
+          <fieldset class="gbs-fieldset">
+            <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
+              <div class="gbs-icon">tune</div>
               <div>Settings</div>
             </legend>
-            <table>
+            <table class="gbs-preferences">
               <tr>
                 <td>
                   Matched Presets
-                  <p class="text-small">
-                    If enabled, default to 1280x960 for NTSC 60 and 1280x1024
-                    for PAL 50 (does not apply for 720p / 1080p presets).
-                  </p>
+                  <ul class="gbs-help">
+                    <!-- prettier-ignore -->
+                    <li>If enabled, default to 1280x960 for NTSC 60 and 1280x1024 for PAL 50 (does not apply for 720p / 1080p presets).</li>
+                  </ul>
                 </td>
                 <td
                   gbs-message="Z"
                   gbs-message-type="action"
                   gbs-click="normal"
-                  class="material-icons"
+                  class="gbs-icon"
                   gbs-toggle-switch="matched"
                 >
                   toggle_off
@@ -651,18 +742,18 @@
               <tr>
                 <td>
                   Full Height
-                  <p class="text-small">
-                    Some presets default to not using the entire vertical output
-                    resolution, leaving some lines black. With Full Height
-                    enabled, these presets will instead scale to fill more of
-                    the screen height. (This currently only affects 1920 x 1080)
-                  </p>
+                  <!-- prettier-ignore -->
+                  <ul class="gbs-help">
+                    <li>Some presets default to not using the entire vertical output resolution, leaving some lines black.</li>
+                    <li>With Full Height enabled, these presets will instead scale to fill more of the screen height.</li>
+                    <li>(This currently only affects 1920 x 1080)</li>
+                  </ul>
                 </td>
                 <td
                   gbs-message="v"
                   gbs-message-type="user"
                   gbs-click="normal"
-                  class="material-icons"
+                  class="gbs-icon"
                   gbs-toggle-switch="fullHeight"
                 >
                   toggle_off
@@ -671,18 +762,20 @@
               <tr>
                 <td>
                   Low Res: Use Upscaling
-                  <p class="text-small">
-                    Some presets default to not using the entire vertical output
-                    resolution, leaving some lines black. With Full Height
-                    enabled, these presets will instead scale to fill more of
-                    the screen height. (This currently only affects 1920 x 1080)
-                  </p>
+                  <!-- prettier-ignore -->
+                  <ul class="gbs-help">
+                    <li>Low Resolution VGA input: Pass-through or Upscale</li>
+                    <li>Low resolution sources can be either passed on directly or get upscaled.</li>
+                    <li>Upscaling may have some border / scaling issues, but is more compatible with displays.</li>
+                    <li>Also, refresh rates other than 60Hz are not well supported yet.</li>
+                    <li>"Low resolution" is currently set at below or equal to 640x480 (525 active lines).</li>
+                  </ul>
                 </td>
                 <td
                   gbs-message="x"
                   gbs-message-type="user"
                   gbs-click="normal"
-                  class="material-icons"
+                  class="gbs-icon"
                   gbs-toggle-switch="preferScalingRgbhv"
                 >
                   toggle_off
@@ -691,17 +784,17 @@
               <tr>
                 <td>
                   RGBHV/Component Toggle
-                  <p class="text-small">
-                    The default output mode is RGBHV, suitable for use with VGA
-                    cables or HDMI converters. An experimental YPbPr mode can
-                    also be selected. Compatibility is still spotty.
-                  </p>
+                  <!-- prettier-ignore -->
+                  <ul class="gbs-help">
+                    <li>The default output mode is RGBHV, suitable for use with VGA cables or HDMI converters.</li>
+                    <li>An experimental YPbPr mode can also be selected. Compatibility is still spotty.</li>
+                  </ul>
                 </td>
                 <td
                   gbs-message="L"
                   gbs-message-type="action"
                   gbs-click="normal"
-                  class="material-icons"
+                  class="gbs-icon"
                   gbs-toggle-switch="wantOutputComponent"
                 >
                   toggle_off
@@ -709,19 +802,19 @@
               </tr>
               <tr>
                 <td>
-                  Force PAL 60Hz
-                  <p class="text-small">
-                    Output Frame Rate: Force PAL 50Hz to 60Hz If your TV does
-                    not support 50Hz sources (displaying unknown format, no
-                    matter the preset), try this option. The frame rate will not
-                    be as smooth. Reboot required.
-                  </p>
+                  Output Frame Rate: Force PAL 50Hz to 60Hz
+                  <!-- prettier-ignore -->
+                  <ul class="gbs-help">
+                    <li>If your TV does not support 50Hz sources (displaying unknown format, no matter the preset), try this option.
+                    </li>
+                    <li>The frame rate will not be as smooth. Reboot required.</li>
+                  </ul>
                 </td>
                 <td
                   gbs-message="0"
                   gbs-message-type="action"
                   gbs-click="normal"
-                  class="material-icons"
+                  class="gbs-icon"
                   gbs-toggle-switch="palForce60"
                 >
                   toggle_off
@@ -730,41 +823,36 @@
               <tr>
                 <td>
                   ADC calibration
-                  <p class="text-small">
-                    ADC auto offset calibration Gbscontrol calibrates the ADC
-                    offsets on startup. In case of color shift problems, try
-                    disabling this function.
-                  </p>
+                  <!-- prettier-ignore -->
+                  <ul class="gbs-help">
+                    <li>Gbscontrol calibrates the ADC offsets on startup.</li>
+                    <li>In case of color shift problems, try disabling this function.</li>
+                  </ul>
                 </td>
                 <td
                   gbs-message="w"
                   gbs-message-type="user"
                   gbs-click="normal"
-                  class="material-icons"
+                  class="gbs-icon"
                   gbs-toggle-switch="enableCalibrationADC"
                 >
                   toggle_off
                 </td>
               </tr>
               <tr>
-                <td colspan="2" class="settings-title">
+                <td colspan="2" class="gbs-preferences__child">
                   Active FrameTime Lock
-                  <div class="text-small">
-                    <p>
-                      This option keeps the input and output timings aligned,
-                      fixing the horizontal tear line that can appear sometimes.
-                    </p>
-                    <p>
-                      Two methods are available. Try switching methods if your
-                      display goes blank.
-                    </p>
-                  </div>
+                  <!-- prettier-ignore -->
+                  <ul class="gbs-help">
+                    <li>This option keeps the input and output timings aligned, fixing the horizontal tear line that can appear sometimes.</li>
+                    <li>Two methods are available. Try switching methods if your display goes blank.</li>
+                  </ul>
                 </td>
               </tr>
               <tr>
-                <td class="pl-16">FrameTime Lock</td>
+                <td class="gbs-padding__left-16">FrameTime Lock</td>
                 <td
-                  class="material-icons"
+                  class="gbs-icon"
                   gbs-message="5"
                   gbs-message-type="user"
                   gbs-click="normal"
@@ -774,9 +862,9 @@
                 </td>
               </tr>
               <tr>
-                <td class="pl-16">Switch Lock Method</td>
+                <td class="gbs-padding__left-16">Switch Lock Method</td>
                 <td
-                  class="material-icons"
+                  class="gbs-icon"
                   gbs-message="i"
                   gbs-message-type="user"
                   gbs-click="normal"
@@ -786,221 +874,246 @@
                 </td>
               </tr>
               <tr>
-                <td colspan="2" class="settings-title">
+                <td colspan="2" class="gbs-preferences__child">
                   Deinterlace Method
-                  <div class="text-small">
-                    <p>
-                      Gbscontrol detects interlaced content and automatically
-                      toggles deinterlacing.
-                    </p>
-                    - Bob Method: essentially no deinterlacing, no added lag but
-                    flickers<br />
-                    - Motion Adaptive: removes flicker, adds 1 frame of lag and
-                    shows some artefacts in moving details
-                    <p>
-                      If possible, configure the source for progressive output.
-                      Otherwise, using Motion Adaptive is recommended.
-                    </p>
-                  </div>
+                  <!-- prettier-ignore -->
+                  <ul class="gbs-help">
+                    <li>Gbscontrol detects interlaced content and automatically toggles deinterlacing.</li>
+                    <li>Bob Method: essentially no deinterlacing, no added lag but flickers</li>
+                    <li>Motion Adaptive: removes flicker, adds 1 frame of lag and shows some artefacts in moving details</li>
+                    <li>If possible, configure the source for progressive output. Otherwise, using Motion Adaptive is recommended.</li>
+                  </ul>
                 </td>
               </tr>
               <tr>
-                <td class="pl-16">Motion Adaptive</td>
+                <td class="gbs-padding__left-16">Motion Adaptive</td>
                 <td
                   gbs-message="r"
                   gbs-message-type="user"
                   gbs-click="normal"
-                  class="material-icons"
+                  class="gbs-icon"
                   gbs-toggle-switch="bob"
                 >
                   toggle_off
                 </td>
               </tr>
               <tr>
-                <td class="pl-16">Bob</td>
+                <td class="gbs-padding__left-16">Bob</td>
                 <td
                   gbs-message="q"
                   gbs-message-type="user"
                   gbs-click="normal"
-                  class="material-icons"
+                  class="gbs-icon"
                   gbs-toggle-switch="motionAdaptive"
                 >
                   toggle_off
                 </td>
+              </tr>
+              <tr gbs-dev-switch>
+                <td>
+                  Enable Developer Mode
+                  <!-- prettier-ignore -->
+                  <ul class="gbs-help">
+                    <li>Enables the developer menu which contains various debugging tools</li>
+                  </ul>
+                </td>
+                <td class="gbs-icon">toggle_off</td>
+              </tr>
+              <tr gbs-slot-custom-filters>
+                <td>
+                  Enable custom slot filters
+                  <!-- prettier-ignore -->
+                  <ul class="gbs-help">
+                    <li>When enabled, saved slots recover it owns filter preferences.</li>
+                    <li>When disabled, saved slots maintain current filter settings.</li>
+                  </ul>
+                </td>
+                <td class="gbs-icon">toggle_off</td>
               </tr>
             </table>
           </fieldset>
         </section>
 
         <section name="developer" hidden>
-          <fieldset class="fieldset">
-            <legend>
-              <div class="material-icons">input</div>
+          <fieldset class="gbs-fieldset">
+            <legend class="gbs-fieldset__legend">
+              <div class="gbs-icon">input</div>
               <div>Developer</div>
             </legend>
-            <div class="small-buttons">
-              <p class="text-small">Move Picture (memory blank, HS)</p>
+            <div class="gbs-flex gbs-margin__bottom--16">
               <button
                 gbs-message="-"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn secondary"
+                class="gbs-button gbs-button__secondary"
               >
-                <div class="material-icons">keyboard_arrow_left</div>
-                <div>Left</div>
+                <div class="gbs-icon">keyboard_arrow_left</div>
+                <div>MEM Left</div>
               </button>
               <button
                 gbs-message="+"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn secondary"
+                class="gbs-button gbs-button__secondary"
               >
-                <div class="material-icons">keyboard_arrow_right</div>
-                <div>Right</div>
+                <div class="gbs-icon">keyboard_arrow_right</div>
+                <div>MEM Right</div>
               </button>
               <button
                 gbs-message="1"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn secondary"
+                class="gbs-button gbs-button__secondary"
               >
-                <div class="material-icons">keyboard_arrow_left</div>
+                <div class="gbs-icon">keyboard_arrow_left</div>
                 <div>HS Left</div>
               </button>
               <button
                 gbs-message="0"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn secondary"
+                class="gbs-button gbs-button__secondary"
               >
-                <div class="material-icons">keyboard_arrow_right</div>
+                <div class="gbs-icon">keyboard_arrow_right</div>
                 <div>HS Right</div>
               </button>
             </div>
-            <div class="commands">
-              <p class="text-small">Information</p>
+            <div class="gbs-flex">
+              <button
+                gbs-message="e"
+                gbs-message-type="user"
+                gbs-click="normal"
+                class="gbs-button"
+              >
+                <div class="gbs-icon">list</div>
+                <div>List Options</div>
+              </button>
               <button
                 gbs-message="i"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button"
               >
-                <div class="material-icons">info</div>
+                <div class="gbs-icon">info</div>
                 <div>Print Infos</div>
               </button>
+            </div>
+            <div class="gbs-flex">
               <button
                 gbs-message=","
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button"
               >
-                <div class="material-icons">alarm</div>
+                <div class="gbs-icon">alarm</div>
                 <div>Get Video Timings</div>
+              </button>
+              <button class="gbs-button" gbs-output-toggle>
+                <div class="gbs-icon">code</div>
+                <div>Toggle Console</div>
               </button>
             </div>
 
-            <div>
-              <p class="text-small">Commands</p>
+            <div class="gbs-flex">
               <button
                 gbs-message="F"
                 gbs-message-type="user"
                 gbs-click="normal"
-                class="btn freeze mb-16"
+                class="gbs-button gbs-margin__bottom--16"
               >
-                <div class="material-icons">add_a_photo</div>
+                <div class="gbs-icon">add_a_photo</div>
                 <div>Freeze Capture</div>
               </button>
             </div>
 
-            <div class="commands">
+            <div class="gbs-flex">
               <button
                 gbs-message="F"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button"
               >
-                <div class="material-icons">wb_sunny</div>
+                <div class="gbs-icon">wb_sunny</div>
                 <div>ADC Filter</div>
               </button>
               <button
                 gbs-message="l"
                 gbs-message-type="user"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button"
               >
-                <div class="material-icons">memory</div>
+                <div class="gbs-icon">memory</div>
                 <div>Cycle SDRAM</div>
               </button>
+            </div>
+            <div class="gbs-flex">
               <button
                 gbs-message="D"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button"
               >
-                <div class="material-icons">bug_report</div>
+                <div class="gbs-icon">bug_report</div>
                 <div>Debug View</div>
               </button>
-              <button
-                gbs-message="c"
-                gbs-message-type="action"
-                gbs-click="normal"
-                class="btn"
-              >
-                <div class="material-icons">system_update_alt</div>
-                <div>Enable OTA</div>
-              </button>
+            </div>
+            <div class="gbs-flex">
               <button
                 gbs-message="a"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button"
               >
-                <div class="material-icons">add_circle_outline</div>
+                <div class="gbs-icon">add_circle_outline</div>
                 <div>HTotal++</div>
               </button>
               <button
                 gbs-message="A"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button"
               >
-                <div class="material-icons">remove_circle_outline</div>
+                <div class="gbs-icon">remove_circle_outline</div>
                 <div>HTotal--</div>
               </button>
               <button
                 gbs-message="."
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn secondary"
+                class="gbs-button gbs-button__secondary"
               >
-                <div class="material-icons">sync_problem</div>
+                <div class="gbs-icon">sync_problem</div>
                 <div>Resync HTotal</div>
               </button>
+            </div>
+            <div class="gbs-flex">
               <button
                 gbs-message="n"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button"
               >
-                <div class="material-icons">calculate</div>
+                <div class="gbs-icon">calculate</div>
                 <div>PLL divider++</div>
               </button>
               <button
                 gbs-message="8"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button"
               >
-                <div class="material-icons">invert_colors</div>
+                <div class="gbs-icon">invert_colors</div>
                 <div>Invert Sync</div>
               </button>
+            </div>
+            <div class="gbs-flex">
               <button
                 gbs-message="m"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button"
               >
-                <div class="material-icons">devices_other</div>
+                <div class="gbs-icon">devices_other</div>
                 <div>SyncWatcher</div>
               </button>
 
@@ -1008,27 +1121,29 @@
                 gbs-message="l"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn secondary"
+                class="gbs-button gbs-button__secondary"
               >
-                <div class="material-icons">settings_backup_restore</div>
+                <div class="gbs-icon">settings_backup_restore</div>
                 <div>SyncProcessor</div>
               </button>
+            </div>
+            <div class="gbs-flex">
               <button
                 gbs-message="o"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button"
               >
-                <div class="material-icons">insights</div>
+                <div class="gbs-icon">insights</div>
                 <div>Oversampling</div>
               </button>
               <button
                 gbs-message="S"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button"
               >
-                <div class="material-icons">settings_input_hdmi</div>
+                <div class="gbs-icon">settings_input_hdmi</div>
                 <div>60/50Hz HDMI</div>
               </button>
 
@@ -1036,18 +1151,20 @@
                 gbs-message="E"
                 gbs-message-type="user"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button"
               >
-                <div class="material-icons">bug_report</div>
+                <div class="gbs-icon">bug_report</div>
                 <div>IF Auto Offset</div>
               </button>
+            </div>
+            <div class="gbs-flex">
               <button
                 gbs-message="z"
                 gbs-message-type="user"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button"
               >
-                <div class="material-icons">format_align_justify</div>
+                <div class="gbs-icon">format_align_justify</div>
                 <div>SOG Level--</div>
               </button>
 
@@ -1055,9 +1172,9 @@
                 gbs-message="q"
                 gbs-message-type="action"
                 gbs-click="normal"
-                class="btn secondary"
+                class="gbs-button gbs-button__secondary"
               >
-                <div class="material-icons">model_training</div>
+                <div class="gbs-icon">model_training</div>
                 <div>Reset Chip</div>
               </button>
             </div>
@@ -1065,65 +1182,192 @@
         </section>
 
         <section name="system" hidden>
-          <fieldset class="fieldset system">
-            <legend>
-              <div class="material-icons">input</div>
+          <fieldset class="gbs-fieldset">
+            <legend class="gbs-fieldset__legend">
+              <div class="gbs-icon">bolt</div>
               <div>System</div>
             </legend>
-            <div class="mb-16">
-              <button class="btn" onclick="window.location.href='/wifi.htm'">
-                <div class="material-icons">wifi</div>
-                <div>Connect</div>
-              </button>
+            <div class="gbs-flex">
               <button
-                gbs-message="e"
-                gbs-message-type="user"
+                gbs-message="c"
+                gbs-message-type="action"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button gbs-button__control"
               >
-                <div class="material-icons">list</div>
-                <div>List Options</div>
+                <div class="gbs-icon">system_update_alt</div>
+                <div>Enable OTA</div>
               </button>
               <button
                 gbs-message="a"
                 gbs-message-type="user"
                 gbs-click="normal"
-                class="btn"
+                class="gbs-button gbs-button__control"
               >
-                <div class="material-icons">settings_backup_restore</div>
+                <div class="gbs-icon">settings_backup_restore</div>
                 <div>Restart</div>
               </button>
-            </div>
-            <button
-              gbs-message="1"
-              gbs-message-type="user"
-              gbs-click="normal"
-              class="btn secondary restart"
-            >
-              <div class="material-icons">offline_bolt</div>
-              <div>Reset Defaults + Restart</div>
-            </button>
-          </fieldset>
-        </section>
-
-        <div class="output">
-          <fieldset class="fieldset fieldset-output">
-            <legend>
-              <div class="material-icons">code</div>
-              <div>Output</div>
-            </legend>
-            <div class="clear-container">
-              <button class="btn clear material-icons mr-8">
-                delete_outline
+              <button
+                gbs-message="1"
+                gbs-message-type="user"
+                gbs-click="normal"
+                class="gbs-button gbs-button__control gbs-button__secondary"
+              >
+                <div class="gbs-icon">settings_backup_restore offline_bolt</div>
+                <div>Reset Defaults</div>
               </button>
             </div>
-            <textarea id="outputTextArea"></textarea>
+          </fieldset>
+          <fieldset class="gbs-fieldset">
+            <legend class="gbs-fieldset__legend">
+              <div class="gbs-icon">sd_card</div>
+              <div>Backup</div>
+            </legend>
+            <div class="gbs-flex">
+              <button
+                class="gbs-button gbs-button__control gbs-button__secondary gbs-backup-button"
+              >
+                <div class="gbs-icon">cloud_download</div>
+                <div gbs-progress gbs-progress-backup>Backup</div>
+              </button>
+              <button
+                class="gbs-button gbs-button__control gbs-button__secondary"
+              >
+                <div class="gbs-icon">cloud_upload</div>
+                <input type="file" class="gbs-backup-input" />
+                <div gbs-progress gbs-progress-restore>Restore</div>
+              </button>
+            </div>
+          </fieldset>
+          <fieldset class="gbs-fieldset">
+            <legend class="gbs-fieldset__legend">
+              <div class="gbs-icon">wifi</div>
+              <div>WIFI</div>
+            </legend>
+
+            <div class="gbs-flex gbs-margin__bottom--16">
+              <button class="gbs-button gbs-button__control" gbs-wifi-ap>
+                <div class="gbs-icon">location_on</div>
+                <div>Access Point</div>
+              </button>
+              <button class="gbs-button gbs-button__control" gbs-wifi-station>
+                <div class="gbs-icon">radio</div>
+                <div gbs-wifi-station-ssid>Station</div>
+              </button>
+            </div>
+            <fieldset class="gbs-fieldset" gbs-wifi-list hidden>
+              <legend class="gbs-fieldset__legend">
+                <div class="gbs-icon">router</div>
+                <div>Select SSID</div>
+              </legend>
+              <table class="gbs-wifi__list"></table>
+            </fieldset>
+            <fieldset class="gbs-fieldset gsb-wifi__connect" hidden>
+              <legend class="gbs-fieldset__legend">
+                <div class="gbs-icon">login</div>
+                <div>Connect to SSID</div>
+              </legend>
+              <div class="gbs-flex">
+                <input
+                  class="gbs-button gbs-wifi__input"
+                  placeholder="SSID"
+                  type="text"
+                  readonly
+                  gbs-input="ssid"
+                />
+              </div>
+              <div class="gbs-flex">
+                <input
+                  class="gbs-button gbs-wifi__input"
+                  placeholder="password"
+                  type="password"
+                  gbs-input="password"
+                />
+              </div>
+              <div class="gbs-flex">
+                <button
+                  gbs-wifi-connect-button
+                  class="gbs-button gbs-button__control gbs-button__secondary"
+                >
+                  <div class="gbs-icon">network_check</div>
+                  <div>Connect</div>
+                </button>
+              </div>
+            </fieldset>
+          </fieldset>
+        </section>
+        <section name="prompt" hidden>
+          <fieldset class="gbs-fieldset">
+            <legend class="gbs-fieldset__legend">
+              <div class="gbs-icon">keyboard</div>
+              <div gbs-prompt-content>Prompt</div>
+            </legend>
+            <div class="gbs-flex gbs-margin__bottom--16">
+              <input
+                class="gbs-button"
+                type="text"
+                gbs-input="prompt-input"
+                maxlength="25"
+              />
+            </div>
+            <div class="gbs-flex">
+              <button gbs-prompt-cancel class="gbs-button gbs-button__control">
+                <div class="gbs-icon">close</div>
+                <div>CANCEL</div>
+              </button>
+              <button
+                gbs-prompt-ok
+                class="gbs-button gbs-button__control gbs-button__secondary"
+              >
+                <div class="gbs-icon">done</div>
+                <div>OK</div>
+              </button>
+            </div>
+          </fieldset>
+        </section>
+        <section name="alert" hidden>
+          <fieldset class="gbs-fieldset">
+            <legend class="gbs-fieldset__legend">
+              <div class="gbs-icon">keyboard</div>
+              <div>alert</div>
+            </legend>
+            <div
+              class="gbs-flex gbs-padding__hor-16 gbs-modal__message"
+              gbs-alert-content
+            ></div>
+            <div class="gbs-flex">
+              <button class="gbs-button gbs-button__control" disabled></button>
+              <button
+                gbs-alert-ok
+                class="gbs-button gbs-button__control gbs-button__secondary"
+              >
+                <div class="gbs-icon">done</div>
+                <div>OK</div>
+              </button>
+            </div>
+          </fieldset>
+        </section>
+        <div class="gbs-output">
+          <fieldset class="gbs-fieldset gbs-fieldset-output">
+            <legend class="gbs-fieldset__legend">
+              <div class="gbs-icon">code</div>
+              <div>Output</div>
+            </legend>
+            <div class="gbs-flex gbs-margin__bottom--16" gbs-output-clear>
+              <button class="gbs-button gbs-icon">delete_outline</button>
+            </div>
+            <div class="gbs-flex">
+              <textarea
+                id="outputTextArea"
+                class="gbs-output__textarea"
+              ></textarea>
+            </div>
           </fieldset>
         </div>
       </div>
+      <div class="gbs-loader"><img /></div>
     </div>
-    <div class="toaster" id="websocketWarning">
-      <div class="material-icons blink_me">signal_wifi_off</div>
+    <div class="gbs-wifi-warning" id="websocketWarning">
+      <div class="gbs-icon blink_me">signal_wifi_off</div>
     </div>
     <script>
       ${js}
