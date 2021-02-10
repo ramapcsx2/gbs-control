@@ -128,7 +128,6 @@ const GBSControl = {
     developerSwitch: null,
     loader: null,
     outputClear: null,
-    outputToggle: null,
     presetButtonList: null,
     progressBackup: null,
     progressRestore: null,
@@ -587,7 +586,8 @@ const serial = (funcs: (() => Promise<any>)[]) =>
 /** helpers */
 
 const toggleDeveloperMode = () => {
-  const developerMode = GBSStorage.read("developerMode");
+  const developerMode = GBSStorage.read("developerMode") || false;
+
   GBSStorage.write("developerMode", !developerMode);
   updateDeveloperMode(!developerMode);
 };
@@ -603,6 +603,7 @@ const updateDeveloperMode = (developerMode: boolean) => {
   if (developerMode) {
     el.removeAttribute("hidden");
     GBSControl.ui.developerSwitch.setAttribute("active", "");
+    document.body.classList.remove("gbs-output-hide");
   } else {
     el.setAttribute("hidden", "");
     GBSControl.ui.developerSwitch.removeAttribute("active");
@@ -687,10 +688,6 @@ const updateViewPort = () => {
     "--viewport-height",
     window.innerHeight + "px"
   );
-};
-
-const toggleSerialOutput = () => {
-  document.body.classList.toggle("gbs-output-hide");
 };
 
 const hideLoading = () => {
@@ -1169,7 +1166,6 @@ const initUIElements = () => {
     slotContainer: document.querySelector("[gbs-slot-html]"),
     backupButton: document.querySelector(".gbs-backup-button"),
     backupInput: document.querySelector(".gbs-backup-input"),
-    outputToggle: document.querySelector("[gbs-output-toggle]"),
     developerSwitch: document.querySelector("[gbs-dev-switch]"),
     customSlotFilters: document.querySelector("[gbs-slot-custom-filters]"),
     alert: document.querySelector('section[name="alert"]'),
@@ -1188,7 +1184,6 @@ const initGeneralListeners = () => {
     updateViewPort();
   });
 
-  GBSControl.ui.outputToggle.addEventListener("click", toggleSerialOutput);
   GBSControl.ui.backupInput.addEventListener("change", (event) => {
     const fileList: FileList = event.target["files"];
     readLocalFile(fileList[0]);
@@ -1269,7 +1264,6 @@ const gbsPrompt = (text: string, defaultValue = "") => {
 };
 
 const initUI = () => {
-  initDeveloperMode();
   updateCustomSlotFilters();
   initGeneralListeners();
   updateViewPort();
@@ -1280,6 +1274,7 @@ const initUI = () => {
   initClearButton();
   initControlMobileKeys();
   initUnloadListener();
+  initDeveloperMode();
 };
 
 const main = () => {
