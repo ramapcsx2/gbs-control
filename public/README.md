@@ -1,10 +1,17 @@
 # GBSControl webui
 
-A design & code minimalistic UI for the GBSControl.
+Redesigned UI for the GBSControl with added features:
+
+- 72 Named Slots avaliable
+- Slots save current filters state.
+- Slots filter state can be toggled between local/global
+- Backup / Restore system
+- Option to enable / disable developer options (hidden by default)
+- Integrated wifi management in system menu
 
 ## Building
 
 - `npm install`
 - Make changes
 - `npm run build` to generate the necesary files webui_html.h
-- Wifi connection page can be edited in src/wifi.txt and then manually change the contents of `gbs-control.ino` to change the output from `server.on("/wifi/connect"...` code to wifi.txt contents
+- Compile & upload GBSControl project in Arduino IDE
