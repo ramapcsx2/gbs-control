@@ -941,6 +941,12 @@
               <div>Developer</div>
             </legend>
             <div class="gbs-flex gbs-margin__bottom--16">
+              <button class="gbs-button" gbs-output-toggle>
+                <div class="gbs-icon">code</div>
+                <div>Toggle Console</div>
+              </button>
+            </div>
+            <div class="gbs-flex gbs-margin__bottom--16">
               <button
                 gbs-message="-"
                 gbs-message-type="action"
@@ -997,8 +1003,6 @@
                 <div class="gbs-icon">info</div>
                 <div>Print Infos</div>
               </button>
-            </div>
-            <div class="gbs-flex">
               <button
                 gbs-message=","
                 gbs-message-type="action"
@@ -1007,10 +1011,6 @@
               >
                 <div class="gbs-icon">alarm</div>
                 <div>Get Video Timings</div>
-              </button>
-              <button class="gbs-button" gbs-output-toggle>
-                <div class="gbs-icon">code</div>
-                <div>Toggle Console</div>
               </button>
             </div>
 
