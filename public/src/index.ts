@@ -769,10 +769,24 @@ const doBackup = () => {
 };
 
 const doRestore = (file: ArrayBuffer) => {
+  const { backupInput } = GBSControl.ui;
   const fileBuffer = new Uint8Array(file);
   const headerCheck = fileBuffer.slice(4, 6);
+
   if (headerCheck[0] !== 0x7b || headerCheck[1] !== 0x22) {
-    gbsAlert("Invalid Backup File");
+    backupInput.setAttribute("disabled", "");
+    gbsAlert("Invalid Backup File")
+      .then(
+        () => {
+          backupInput.removeAttribute("disabled");
+        },
+        () => {
+          backupInput.removeAttribute("disabled");
+        }
+      )
+      .catch(() => {
+        backupInput.removeAttribute("disabled");
+      });
     return;
   }
   const b0 = fileBuffer[0],
@@ -1192,6 +1206,7 @@ const initGeneralListeners = () => {
   GBSControl.ui.backupInput.addEventListener("change", (event) => {
     const fileList: FileList = event.target["files"];
     readLocalFile(fileList[0]);
+    GBSControl.ui.backupInput.value = "";
   });
 
   GBSControl.ui.backupButton.addEventListener("click", doBackup);
@@ -1224,6 +1239,21 @@ const initGeneralListeners = () => {
     GBSControl.ui.prompt.setAttribute("hidden", "");
     gbsPromptPromise.reject();
   });
+
+  GBSControl.ui.promptInput.addEventListener("keydown", (event: any) => {
+    if (event.keyCode === 13) {
+      GBSControl.ui.prompt.setAttribute("hidden", "");
+      const value = GBSControl.ui.promptInput.value;
+      if (value !== undefined || value.length > 0) {
+        gbsPromptPromise.resolve(GBSControl.ui.promptInput.value);
+      } else {
+        gbsPromptPromise.reject();
+      }
+    }
+    if (event.keyCode === 27) {
+      gbsPromptPromise.reject();
+    }
+  });
 };
 
 const initDeveloperMode = () => {
@@ -1241,13 +1271,31 @@ const gbsAlertPromise = {
   reject: null,
 };
 
+const alertKeyListener = (event: any) => {
+  console.log("key event", event.keyCode);
+  if (event.keyCode === 13) {
+    gbsAlertPromise.resolve();
+  }
+  if (event.keyCode === 27) {
+    gbsAlertPromise.reject();
+  }
+};
+
 const gbsAlert = (text: string) => {
   GBSControl.ui.alertContent.textContent = text;
   GBSControl.ui.alert.removeAttribute("hidden");
-
+  document.addEventListener("keyup", alertKeyListener);
   return new Promise((resolve, reject) => {
-    gbsAlertPromise.resolve = resolve;
-    gbsAlertPromise.reject = reject;
+    gbsAlertPromise.resolve = (e) => {
+      document.removeEventListener("keyup", alertKeyListener);
+      GBSControl.ui.alert.setAttribute("hidden", "");
+      return resolve(e);
+    };
+    gbsAlertPromise.reject = () => {
+      document.removeEventListener("keyup", alertKeyListener);
+      GBSControl.ui.alert.setAttribute("hidden", "");
+      return reject();
+    };
   });
 };
 
