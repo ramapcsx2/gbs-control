@@ -1333,8 +1333,8 @@
         <section name="alert" hidden>
           <fieldset class="gbs-fieldset">
             <legend class="gbs-fieldset__legend">
-              <div class="gbs-icon">keyboard</div>
-              <div>alert</div>
+              <div class="gbs-icon">warning</div>
+              <div>ALERT</div>
             </legend>
             <div
               class="gbs-flex gbs-padding__hor-16 gbs-modal__message"
