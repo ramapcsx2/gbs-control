@@ -1218,10 +1218,16 @@
             </div>
           </fieldset>
           <fieldset class="gbs-fieldset">
-            <legend class="gbs-fieldset__legend">
+            <legend class="gbs-fieldset__legend gbs-fieldset__legend--help"">
               <div class="gbs-icon">sd_card</div>
               <div>Backup [intended for same device]</div>
             </legend>
+            <!-- prettier-ignore -->
+            <ul class="gbs-help">
+              <li>Backup / Restore of configuration files</li>
+              <li>Backup is valid for current device only</li>
+              <!-- <li>Backup is valid between devices with the same hardware revision</li> -->
+            </ul>
             <div class="gbs-flex">
               <button
                 class="gbs-button gbs-button__control gbs-button__secondary gbs-backup-button"
@@ -1233,7 +1239,7 @@
                 class="gbs-button gbs-button__control gbs-button__secondary"
               >
                 <div class="gbs-icon">cloud_upload</div>
-                <input type="file" class="gbs-backup-input" />
+                <input type="file" class="gbs-backup-input" accept=".bin"/>
                 <div gbs-progress gbs-progress-restore>Restore</div>
               </button>
             </div>
