@@ -770,6 +770,11 @@ const doBackup = () => {
 
 const doRestore = (file: ArrayBuffer) => {
   const fileBuffer = new Uint8Array(file);
+  const headerCheck = fileBuffer.slice(4, 6);
+  if (headerCheck[0] !== 0x7b || headerCheck[1] !== 0x22) {
+    gbsAlert("Invalid Backup File");
+    return;
+  }
   const b0 = fileBuffer[0],
     b1 = fileBuffer[1],
     b2 = fileBuffer[2],
