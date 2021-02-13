@@ -105,7 +105,6 @@ const GBSControl = {
         developerSwitch: null,
         loader: null,
         outputClear: null,
-        outputToggle: null,
         presetButtonList: null,
         progressBackup: null,
         progressRestore: null,
@@ -479,7 +478,7 @@ const fetchSlotNamesAndInit = () => {
 const serial = (funcs) => funcs.reduce((promise, func) => promise.then((result) => func().then(Array.prototype.concat.bind(result))), Promise.resolve([]));
 /** helpers */
 const toggleDeveloperMode = () => {
-    const developerMode = GBSStorage.read("developerMode");
+    const developerMode = GBSStorage.read("developerMode") || false;
     GBSStorage.write("developerMode", !developerMode);
     updateDeveloperMode(!developerMode);
 };
@@ -493,6 +492,7 @@ const updateDeveloperMode = (developerMode) => {
     if (developerMode) {
         el.removeAttribute("hidden");
         GBSControl.ui.developerSwitch.setAttribute("active", "");
+        document.body.classList.remove("gbs-output-hide");
     }
     else {
         el.setAttribute("hidden", "");
@@ -547,9 +547,6 @@ const updateTerminal = () => {
 };
 const updateViewPort = () => {
     document.documentElement.style.setProperty("--viewport-height", window.innerHeight + "px");
-};
-const toggleSerialOutput = () => {
-    document.body.classList.toggle("gbs-output-hide");
 };
 const hideLoading = () => {
     GBSControl.ui.loader.setAttribute("style", "display:none");
@@ -612,7 +609,22 @@ const doBackup = () => {
     });
 };
 const doRestore = (file) => {
+    const { backupInput } = GBSControl.ui;
     const fileBuffer = new Uint8Array(file);
+    const headerCheck = fileBuffer.slice(4, 6);
+    if (headerCheck[0] !== 0x7b || headerCheck[1] !== 0x22) {
+        backupInput.setAttribute("disabled", "");
+        gbsAlert("Invalid Backup File")
+            .then(() => {
+            backupInput.removeAttribute("disabled");
+        }, () => {
+            backupInput.removeAttribute("disabled");
+        })
+            .catch(() => {
+            backupInput.removeAttribute("disabled");
+        });
+        return;
+    }
     const b0 = fileBuffer[0], b1 = fileBuffer[1], b2 = fileBuffer[2], b3 = fileBuffer[3];
     const headerSize = (b0 << 24) + (b1 << 16) + (b2 << 8) + b3;
     const headerString = Array.from(fileBuffer.slice(4, headerSize + 4))
@@ -913,7 +925,6 @@ const initUIElements = () => {
         slotContainer: document.querySelector("[gbs-slot-html]"),
         backupButton: document.querySelector(".gbs-backup-button"),
         backupInput: document.querySelector(".gbs-backup-input"),
-        outputToggle: document.querySelector("[gbs-output-toggle]"),
         developerSwitch: document.querySelector("[gbs-dev-switch]"),
         customSlotFilters: document.querySelector("[gbs-slot-custom-filters]"),
         alert: document.querySelector('section[name="alert"]'),
@@ -930,10 +941,10 @@ const initGeneralListeners = () => {
     window.addEventListener("resize", () => {
         updateViewPort();
     });
-    GBSControl.ui.outputToggle.addEventListener("click", toggleSerialOutput);
     GBSControl.ui.backupInput.addEventListener("change", (event) => {
         const fileList = event.target["files"];
         readLocalFile(fileList[0]);
+        GBSControl.ui.backupInput.value = "";
     });
     GBSControl.ui.backupButton.addEventListener("click", doBackup);
     GBSControl.ui.wifiListTable.addEventListener("click", wifiSelectSSID);
@@ -960,6 +971,21 @@ const initGeneralListeners = () => {
         GBSControl.ui.prompt.setAttribute("hidden", "");
         gbsPromptPromise.reject();
     });
+    GBSControl.ui.promptInput.addEventListener("keydown", (event) => {
+        if (event.keyCode === 13) {
+            GBSControl.ui.prompt.setAttribute("hidden", "");
+            const value = GBSControl.ui.promptInput.value;
+            if (value !== undefined || value.length > 0) {
+                gbsPromptPromise.resolve(GBSControl.ui.promptInput.value);
+            }
+            else {
+                gbsPromptPromise.reject();
+            }
+        }
+        if (event.keyCode === 27) {
+            gbsPromptPromise.reject();
+        }
+    });
 };
 const initDeveloperMode = () => {
     const devMode = GBSStorage.read("developerMode");
@@ -975,12 +1001,29 @@ const gbsAlertPromise = {
     resolve: null,
     reject: null,
 };
+const alertKeyListener = (event) => {
+    if (event.keyCode === 13) {
+        gbsAlertPromise.resolve();
+    }
+    if (event.keyCode === 27) {
+        gbsAlertPromise.reject();
+    }
+};
 const gbsAlert = (text) => {
     GBSControl.ui.alertContent.textContent = text;
     GBSControl.ui.alert.removeAttribute("hidden");
+    document.addEventListener("keyup", alertKeyListener);
     return new Promise((resolve, reject) => {
-        gbsAlertPromise.resolve = resolve;
-        gbsAlertPromise.reject = reject;
+        gbsAlertPromise.resolve = (e) => {
+            document.removeEventListener("keyup", alertKeyListener);
+            GBSControl.ui.alert.setAttribute("hidden", "");
+            return resolve(e);
+        };
+        gbsAlertPromise.reject = () => {
+            document.removeEventListener("keyup", alertKeyListener);
+            GBSControl.ui.alert.setAttribute("hidden", "");
+            return reject();
+        };
     });
 };
 const gbsPromptPromise = {
@@ -998,7 +1041,6 @@ const gbsPrompt = (text, defaultValue = "") => {
     });
 };
 const initUI = () => {
-    initDeveloperMode();
     updateCustomSlotFilters();
     initGeneralListeners();
     updateViewPort();
@@ -1009,6 +1051,7 @@ const initUI = () => {
     initClearButton();
     initControlMobileKeys();
     initUnloadListener();
+    initDeveloperMode();
 };
 const main = () => {
     const ip = location.hostname;
