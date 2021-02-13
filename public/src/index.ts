@@ -1272,7 +1272,6 @@ const gbsAlertPromise = {
 };
 
 const alertKeyListener = (event: any) => {
-  console.log("key event", event.keyCode);
   if (event.keyCode === 13) {
     gbsAlertPromise.resolve();
   }
