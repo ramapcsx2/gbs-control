@@ -184,7 +184,7 @@
                 gbs-role="preset"
               >
                 <div class="gbs-icon">tv</div>
-                <div>15hz</div>
+                <div>15KHz</div>
               </button>
               <button
                 gbs-message="K"
