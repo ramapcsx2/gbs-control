@@ -242,6 +242,25 @@ struct adcOptions {
 } adcopts;
 struct adcOptions *adco = &adcopts;
 
+// SLOTS
+#define SLOTS_FILE "/slots.bin" // the file where to store slots metadata
+#define SLOTS_TOTAL 72 // max number of slots
+
+typedef struct {
+	char name[25];
+  uint8_t presetID;
+  uint8_t scanlines;
+  uint8_t scanlinesStrength;
+  uint8_t slot;
+  uint8_t wantVdsLineFilter;
+  uint8_t wantStepResponse;
+  uint8_t wantPeaking;
+} SlotMeta;
+
+typedef struct {
+  SlotMeta slot[SLOTS_TOTAL]; // the max avaliable slots that can be encoded in a the charset[A-Za-z0-9-._~()!*:,;]
+} SlotMetaArray;
+
 char typeOneCommand; // Serial / Web Server commands
 char typeTwoCommand; // Serial / Web Server commands
 static uint8_t lastSegment = 0xFF;  // GBS segment for direct access
@@ -6891,7 +6910,7 @@ void calibrateAdcOffset()
 void loadDefaultUserOptions() {
   uopt->presetPreference = 0; // #1
   uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
-  uopt->presetSlot = 1; //
+  uopt->presetSlot = 0; //
   uopt->frameTimeLockMethod = 0; // compatibility with more displays
   uopt->enableAutoGain = 0;
   uopt->wantScanlines = 0;
@@ -7043,8 +7062,8 @@ void setup() {
       uopt->enableFrameTimeLock = (uint8_t)(f.read() - '0');
       if (uopt->enableFrameTimeLock > 1) uopt->enableFrameTimeLock = 0;
 
-      uopt->presetSlot = (uint8_t)(f.read() - '0');
-      if (uopt->presetSlot > 9) uopt->presetSlot = 1;
+      uopt->presetSlot = lowByte(f.read());
+      if (uopt->presetSlot >= SLOTS_TOTAL) uopt->presetSlot = 0;
 
       uopt->frameTimeLockMethod = (uint8_t)(f.read() - '0');
       if (uopt->frameTimeLockMethod > 1) uopt->frameTimeLockMethod = 0;
@@ -7094,6 +7113,7 @@ void setup() {
       f.close();
     }
   }
+
 
   GBS::PAD_CKIN_ENZ::write(1);  // disable to prevent startup spike damage
   externalClockGenDetectPresence();
@@ -7315,38 +7335,7 @@ void updateWebSocketData() {
         break;
       }
 
-      switch (uopt->presetSlot) {
-      case 1:
-        toSend[2] = '1';
-        break;
-      case 2:
-        toSend[2] = '2';
-        break;
-      case 3:
-        toSend[2] = '3';
-        break;
-      case 4:
-        toSend[2] = '4';
-        break;
-      case 5:
-        toSend[2] = '5';
-        break;
-      case 6:
-        toSend[2] = '6';
-        break;
-      case 7:
-        toSend[2] = '7';
-        break;
-      case 8:
-        toSend[2] = '8';
-        break;
-      case 9:
-        toSend[2] = '9';
-        break;
-      default:
-        toSend[2] = '1';
-        break;
-      }
+      toSend[2] = (char)uopt->presetSlot;
 
       // '@' = 0x40, used for "byte is present" detection; 0x80 not in ascii table
       toSend[3] = '@';
@@ -8761,51 +8750,6 @@ void handleType2Command(char argument) {
     delay(60);
     ESP.reset(); // don't use restart(), messes up websocket reconnects
     break;
-  case 'b':
-    uopt->presetSlot = 1;
-    uopt->presetPreference = 2; // custom
-    saveUserPrefs();
-    break;
-  case 'c':
-    uopt->presetSlot = 2;
-    uopt->presetPreference = 2;
-    saveUserPrefs();
-    break;
-  case 'd':
-    uopt->presetSlot = 3;
-    uopt->presetPreference = 2;
-    saveUserPrefs();
-    break;
-  case 'j':
-    uopt->presetSlot = 4;
-    uopt->presetPreference = 2;
-    saveUserPrefs();
-    break;
-  case 'k':
-    uopt->presetSlot = 5;
-    uopt->presetPreference = 2;
-    saveUserPrefs();
-    break;
-  case 'G':
-    uopt->presetSlot = 6;
-    uopt->presetPreference = 2; // custom
-    saveUserPrefs();
-    break;
-  case 'H':
-    uopt->presetSlot = 7;
-    uopt->presetPreference = 2;
-    saveUserPrefs();
-    break;
-  case 'I':
-    uopt->presetSlot = 8;
-    uopt->presetPreference = 2;
-    saveUserPrefs();
-    break;
-  case 'J':
-    uopt->presetSlot = 9;
-    uopt->presetPreference = 2;
-    saveUserPrefs();
-    break;
   case 'e': // print files on spiffs
   {
     Dir dir = SPIFFS.openDir("/");
@@ -8821,7 +8765,7 @@ void handleType2Command(char argument) {
     else {
       SerialM.print(F("preset preference = ")); SerialM.println((uint8_t)(f.read() - '0'));
       SerialM.print(F("frame time lock = ")); SerialM.println((uint8_t)(f.read() - '0'));
-      SerialM.print(F("preset slot = ")); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print(F("preset slot = ")); SerialM.println((uint8_t)(f.read()));
       SerialM.print(F("frame lock method = ")); SerialM.println((uint8_t)(f.read() - '0'));
       SerialM.print(F("auto gain = ")); SerialM.println((uint8_t)(f.read() - '0'));
       SerialM.print(F("scanlines = ")); SerialM.println((uint8_t)(f.read() - '0'));
@@ -9231,7 +9175,7 @@ void startWebserver()
 
   server.on("/wifi/connect", HTTP_POST, [](AsyncWebServerRequest* request) {
     AsyncWebServerResponse* response =
-      request->beginResponse(200, "text/plain", "connecting...");
+      request->beginResponse(200, "application/json", "true");
     request->send(response);
 
     if (request->arg("n").length()) { // n holds ssid
@@ -9248,6 +9192,216 @@ void startWebserver()
     }
 
     typeTwoCommand = 'u'; // next loop, set wifi station mode and restart device
+  });
+
+  server.on("/bin/slots.bin", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (ESP.getFreeHeap() > 10000) {
+      SlotMetaArray slotsObject;
+      File slotsBinaryFileRead = SPIFFS.open(SLOTS_FILE, "r");
+
+      if (!slotsBinaryFileRead) {
+        File slotsBinaryFileWrite = SPIFFS.open(SLOTS_FILE, "w");
+        for (int i = 0; i < SLOTS_TOTAL; i++) {
+          slotsObject.slot[i].slot = i;
+          slotsObject.slot[i].presetID = 0;
+          slotsObject.slot[i].scanlines = 0;
+          slotsObject.slot[i].scanlinesStrength = 0;
+          slotsObject.slot[i].wantVdsLineFilter = false;
+          slotsObject.slot[i].wantStepResponse = true;
+          slotsObject.slot[i].wantPeaking = true;
+          char emptySlotName[25] = "Empty                   ";
+          strncpy(slotsObject.slot[i].name, emptySlotName, 25);
+        }
+        slotsBinaryFileWrite.write((byte *)&slotsObject, sizeof(slotsObject));
+        slotsBinaryFileWrite.close();
+      } else {
+        slotsBinaryFileRead.close();
+      }
+
+      request->send(SPIFFS, "/slots.bin", "application/octet-stream");
+    }
+  });
+
+  server.on("/slot/set", HTTP_GET, [](AsyncWebServerRequest *request) {
+    bool result = false;
+
+    if (ESP.getFreeHeap() > 10000) {
+      int params = request->params();
+
+      if (params > 0) {
+        AsyncWebParameter *slotParam = request->getParam(0);
+        String slotParamValue = slotParam->value();
+        char slotValue[2];
+        slotParamValue.toCharArray(slotValue, sizeof(slotValue));
+        uopt->presetSlot = (uint8_t)slotValue[0];
+        uopt->presetPreference = 2;
+        saveUserPrefs();
+        result = true;
+      }
+    }
+
+    request->send(200, "application/json", result ? "true":"false");
+  });
+
+  server.on("/slot/save", HTTP_GET, [](AsyncWebServerRequest *request) {
+    bool result = false;
+
+    if (ESP.getFreeHeap() > 10000) {
+      int params = request->params();
+
+      if (params > 0) {
+        SlotMetaArray slotsObject;
+        File slotsBinaryFileRead = SPIFFS.open(SLOTS_FILE, "r");
+
+        if (slotsBinaryFileRead) {
+          slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
+          slotsBinaryFileRead.close();
+        } else {
+          File slotsBinaryFileWrite = SPIFFS.open(SLOTS_FILE, "w");
+
+          for (int i = 0; i < SLOTS_TOTAL; i++) {
+            slotsObject.slot[i].slot = i;
+            slotsObject.slot[i].presetID = 0;
+            slotsObject.slot[i].scanlines = 0;
+            slotsObject.slot[i].scanlinesStrength = 0;
+            slotsObject.slot[i].wantVdsLineFilter = false;
+            slotsObject.slot[i].wantStepResponse = true;
+            slotsObject.slot[i].wantPeaking = true;
+            char emptySlotName[25] = "Empty                   ";
+            strncpy(slotsObject.slot[i].name, emptySlotName, 25);
+          }
+          
+          slotsBinaryFileWrite.write((byte *)&slotsObject, sizeof(slotsObject));
+          slotsBinaryFileWrite.close();
+        }
+
+        // index param
+        AsyncWebParameter *slotIndexParam = request->getParam(0);
+        String slotIndexString = slotIndexParam->value();
+        uint8_t slotIndex = lowByte(slotIndexString.toInt());
+
+        // name param
+        AsyncWebParameter *slotNameParam = request->getParam(1);
+        String slotName = slotNameParam->value();
+
+        char emptySlotName[25] = "                        ";
+        strncpy(slotsObject.slot[slotIndex].name, emptySlotName, 25);
+
+        slotsObject.slot[slotIndex].slot = slotIndex;
+        slotName.toCharArray(slotsObject.slot[slotIndex].name, sizeof(slotsObject.slot[slotIndex].name));
+        slotsObject.slot[slotIndex].presetID = rto->presetID;
+        slotsObject.slot[slotIndex].scanlines = uopt->wantScanlines;
+        slotsObject.slot[slotIndex].scanlinesStrength = uopt->scanlineStrength;
+        slotsObject.slot[slotIndex].wantVdsLineFilter = uopt->wantVdsLineFilter;
+        slotsObject.slot[slotIndex].wantStepResponse = uopt->wantStepResponse;
+        slotsObject.slot[slotIndex].wantPeaking = uopt->wantPeaking;
+
+        File slotsBinaryOutputFile = SPIFFS.open(SLOTS_FILE, "w");
+        slotsBinaryOutputFile.write((byte *)&slotsObject, sizeof(slotsObject));
+        slotsBinaryOutputFile.close();
+
+        result = true;
+      }
+    }
+
+    request->send(200, "application/json", result ? "true" : "false");
+  });
+
+  server.on("/spiffs/upload", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "application/json", "true");
+  });
+
+  server.on("/spiffs/upload", HTTP_POST,
+    [](AsyncWebServerRequest *request) { request->send(200, "application/json", "true"); },
+    [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+      if(!index){
+        request->_tempFile = SPIFFS.open("/"+filename, "w");
+      }
+      if(len) {
+        request->_tempFile.write(data,len);
+      }
+      if(final){
+        request->_tempFile.close();
+      } 
+    }
+  );
+
+  server.on("/spiffs/download", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (ESP.getFreeHeap() > 10000) {
+      int params = request->params();
+      if (params > 0) {
+          request->send(SPIFFS, request->getParam(0)->value(),String(), true);
+      } else {
+          request->send(200, "application/json", "false");
+      }
+    } else {
+      request->send(200, "application/json", "false");
+    }
+  });
+
+  server.on("/spiffs/dir", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (ESP.getFreeHeap() > 10000) {
+      Dir dir = SPIFFS.openDir("/");
+      String output = "[";
+
+      while (dir.next()) {
+          output += "\"";
+          output += dir.fileName();
+          output += "\",";
+          delay(1); // wifi stack
+      }
+
+      output += "]";
+
+      output.replace(",]","]");
+
+      request->send(200, "application/json", output);
+      return;
+    }
+    request->send(200, "application/json", "false");
+  });
+
+  server.on("/spiffs/format", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "application/json", SPIFFS.format() ? "true":"false");
+  });
+
+  server.on("/wifi/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+    WiFiMode_t wifiMode = WiFi.getMode();
+    request->send(200, "application/json", wifiMode == WIFI_AP ? "{\"mode\":\"ap\"}":"{\"mode\":\"sta\",\"ssid\":\""+WiFi.SSID()+"\"}");
+  });
+  
+  server.on("/gbs/restore-filters", HTTP_GET, [](AsyncWebServerRequest *request) {
+
+    SlotMetaArray slotsObject;
+    File slotsBinaryFileRead = SPIFFS.open(SLOTS_FILE, "r");
+    bool result = false;
+    if (slotsBinaryFileRead) {
+      slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
+      slotsBinaryFileRead.close();
+      String slotIndexMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
+      uint8_t currentSlot = slotIndexMap.indexOf(uopt->presetSlot);
+      uopt->wantScanlines = slotsObject.slot[currentSlot].scanlines;
+
+      SerialM.print(F("slot: "));
+      SerialM.println(uopt->presetSlot);
+      SerialM.print(F("scanlines: "));
+      if (uopt->wantScanlines) {
+        SerialM.println(F("on (Line Filter recommended)"));
+      }
+      else {
+        disableScanlines();
+        SerialM.println("off");
+      }
+      saveUserPrefs();
+
+      uopt->scanlineStrength = slotsObject.slot[currentSlot].scanlinesStrength;
+      uopt->wantVdsLineFilter = slotsObject.slot[currentSlot].wantVdsLineFilter;
+      uopt->wantStepResponse = slotsObject.slot[currentSlot].wantStepResponse;
+      uopt->wantPeaking = slotsObject.slot[currentSlot].wantPeaking;
+      result = true;
+    }
+
+    request->send(200, "application/json",result ? "true":"false");
   });
 
   //webSocket.onEvent(webSocketEvent);
@@ -9349,19 +9503,19 @@ void StrClear(char *str, uint16_t length)
 const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
   static uint8_t preset[432];
   String s = "";
-  char slot = '0';
+  uint8_t slot = 0;
   File f;
 
   f = SPIFFS.open("/preferencesv2.txt", "r");
   if (f) {
     SerialM.println(F("preferencesv2.txt opened"));
-    char result[3];
+    uint8_t result[3];
     result[0] = f.read(); // todo: move file cursor manually
     result[1] = f.read();
     result[2] = f.read();
 
     f.close();
-    if ((uint8_t)(result[2] - '0') <= 9) {  // # of slots
+    if (result[2] < SLOTS_TOTAL) {  // # of slots
       slot = result[2]; // otherwise not stored on spiffs
     }
   }
@@ -9372,35 +9526,35 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
     else return ntsc_240p;
   }
 
-  SerialM.print(F("loading from preset slot ")); SerialM.print(String(slot));
+  SerialM.print(F("loading from preset slot ")); SerialM.print((char)slot);
   SerialM.print(": ");
 
   if (forVideoMode == 1) {
-    f = SPIFFS.open("/preset_ntsc." + String(slot), "r");
+    f = SPIFFS.open("/preset_ntsc." + String((char)slot), "r");
   }
   else if (forVideoMode == 2) {
-    f = SPIFFS.open("/preset_pal." + String(slot), "r");
+    f = SPIFFS.open("/preset_pal." + String((char)slot), "r");
   }
   else if (forVideoMode == 3) {
-    f = SPIFFS.open("/preset_ntsc_480p." + String(slot), "r");
+    f = SPIFFS.open("/preset_ntsc_480p." + String((char)slot), "r");
   }
   else if (forVideoMode == 4) {
-    f = SPIFFS.open("/preset_pal_576p." + String(slot), "r");
+    f = SPIFFS.open("/preset_pal_576p." + String((char)slot), "r");
   }
   else if (forVideoMode == 5) {
-    f = SPIFFS.open("/preset_ntsc_720p." + String(slot), "r");
+    f = SPIFFS.open("/preset_ntsc_720p." + String((char)slot), "r");
   }
   else if (forVideoMode == 6) {
-    f = SPIFFS.open("/preset_ntsc_1080p." + String(slot), "r");
+    f = SPIFFS.open("/preset_ntsc_1080p." + String((char)slot), "r");
   }
   else if (forVideoMode == 8) {
-    f = SPIFFS.open("/preset_medium_res." + String(slot), "r");
+    f = SPIFFS.open("/preset_medium_res." + String((char)slot), "r");
   }
   else if (forVideoMode == 14) {
-    f = SPIFFS.open("/preset_vga_upscale." + String(slot), "r");
+    f = SPIFFS.open("/preset_vga_upscale." + String((char)slot), "r");
   }
   else if (forVideoMode == 0) {
-    f = SPIFFS.open("/preset_unknown." + String(slot), "r");
+    f = SPIFFS.open("/preset_unknown." + String((char)slot), "r");
   }
 
   if (!f) {
@@ -9429,12 +9583,12 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
 void savePresetToSPIFFS() {
   uint8_t readout = 0;
   File f;
-  char slot = '1';
+  uint8_t slot = 0;
 
   // first figure out if the user has set a preferenced slot
   f = SPIFFS.open("/preferencesv2.txt", "r");
   if (f) {
-    char result[3];
+    uint8_t result[3];
     result[0] = f.read(); // todo: move file cursor manually
     result[1] = f.read();
     result[2] = f.read();
@@ -9448,34 +9602,34 @@ void savePresetToSPIFFS() {
     return;
   }
 
-  SerialM.print(F("saving to preset slot ")); SerialM.println(String(slot));
+  SerialM.print(F("saving to preset slot ")); SerialM.println(String((char)slot));
 
   if (rto->videoStandardInput == 1) {
-    f = SPIFFS.open("/preset_ntsc." + String(slot), "w");
+    f = SPIFFS.open("/preset_ntsc." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 2) {
-    f = SPIFFS.open("/preset_pal." + String(slot), "w");
+    f = SPIFFS.open("/preset_pal." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 3) {
-    f = SPIFFS.open("/preset_ntsc_480p." + String(slot), "w");
+    f = SPIFFS.open("/preset_ntsc_480p." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 4) {
-    f = SPIFFS.open("/preset_pal_576p." + String(slot), "w");
+    f = SPIFFS.open("/preset_pal_576p." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 5) {
-    f = SPIFFS.open("/preset_ntsc_720p." + String(slot), "w");
+    f = SPIFFS.open("/preset_ntsc_720p." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 6) {
-    f = SPIFFS.open("/preset_ntsc_1080p." + String(slot), "w");
+    f = SPIFFS.open("/preset_ntsc_1080p." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 8) {
-    f = SPIFFS.open("/preset_medium_res." + String(slot), "w");
+    f = SPIFFS.open("/preset_medium_res." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 14) {
-    f = SPIFFS.open("/preset_vga_upscale." + String(slot), "w");
+    f = SPIFFS.open("/preset_vga_upscale." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 0) {
-    f = SPIFFS.open("/preset_unknown." + String(slot), "w");
+    f = SPIFFS.open("/preset_unknown." + String((char)slot), "w");
   }
 
   if (!f) {
@@ -9553,7 +9707,7 @@ void saveUserPrefs() {
   }
   f.write(uopt->presetPreference + '0');  // #1
   f.write(uopt->enableFrameTimeLock + '0');
-  f.write(uopt->presetSlot + '0');
+  f.write(uopt->presetSlot);
   f.write(uopt->frameTimeLockMethod + '0');
   f.write(uopt->enableAutoGain + '0');
   f.write(uopt->wantScanlines + '0');
