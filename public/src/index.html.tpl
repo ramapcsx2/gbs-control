@@ -173,7 +173,7 @@
                 gbs-element-ref="button720x480"
                 gbs-role="preset"
               >
-                480i 576i
+                480p 576p
               </button>
               <button
                 gbs-message="L"
