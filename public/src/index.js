@@ -346,7 +346,7 @@ const loadUser = (link) => {
     return fetch(`http://${GBSControl.serverIP}/uc?${link}&nocache=${new Date().getTime()}`);
 };
 /** SLOT management */
-const savePresset = () => {
+const savePreset = () => {
     const currentSlot = document.querySelector('[gbs-role="slot"][active]');
     if (!currentSlot) {
         return;
@@ -372,7 +372,7 @@ const savePresset = () => {
     })
         .catch(() => { });
 };
-const loadPresset = () => {
+const loadPreset = () => {
     loadUser("3").then(() => {
         if (GBSStorage.read("customSlotFilters") === true) {
             setTimeout(() => {

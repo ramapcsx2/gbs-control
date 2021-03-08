@@ -360,7 +360,7 @@ body {
   display: flex;
 }
 
-.gbs-pressets {
+.gbs-presets {
   border-radius: 8px;
   display: flex;
   flex-wrap: wrap;
@@ -610,7 +610,7 @@ section[name="alert"] {
     display: block;
   }
 
-  .gbs-pressets {
+  .gbs-presets {
     height: calc(100vh - 310px);
   }
 
@@ -636,7 +636,7 @@ section[name="alert"] {
     margin-top: 32px;
   }
 
-  .gbs-output-hide .gbs-pressets {
+  .gbs-output-hide .gbs-presets {
     height: calc(100vh - 374px);
   }
 

@@ -367,7 +367,7 @@ body {
   display: flex;
 }
 
-.gbs-pressets {
+.gbs-presets {
   border-radius: 8px;
   display: flex;
   flex-wrap: wrap;
@@ -617,7 +617,7 @@ section[name="alert"] {
     display: block;
   }
 
-  .gbs-pressets {
+  .gbs-presets {
     height: calc(100vh - 310px);
   }
 
@@ -643,7 +643,7 @@ section[name="alert"] {
     margin-top: 32px;
   }
 
-  .gbs-output-hide .gbs-pressets {
+  .gbs-output-hide .gbs-presets {
     height: calc(100vh - 374px);
   }
 
@@ -729,7 +729,7 @@ section[name="alert"] {
           </g>
         </svg>
         <button
-          gbs-section="pressets"
+          gbs-section="presets"
           class="gbs-button gbs-button__menu gbs-icon"
           active
         >
@@ -768,7 +768,7 @@ section[name="alert"] {
         </button>
       </div>
       <div class="gbs-scroll">
-        <section name="pressets">
+        <section name="presets">
           <fieldset class="gbs-fieldset" style="padding: 8px 2px">
             <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
               <div class="gbs-icon">aspect_ratio</div>
@@ -859,7 +859,7 @@ section[name="alert"] {
               </button>
             </div>
           </fieldset>
-          <fieldset class="gbs-fieldset pressets">
+          <fieldset class="gbs-fieldset presets">
             <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
               <div class="gbs-icon">input</div>
               <div>Presets</div>
@@ -869,25 +869,25 @@ section[name="alert"] {
               <li>If you want to save your customizations, first select a slot for your new preset, then save to or load from that slot.</li>
               <li>Selecting a slot also makes it the new startup preset.</li>
             </ul>
-            <div class="gbs-pressets" gbs-slot-html></div>
+            <div class="gbs-presets" gbs-slot-html></div>
             <div class="gbs-flex">
               <button
                 class="gbs-button gbs-button__control-action"
                 active
                 gbs-element-ref="buttonLoadCustomPreset"
                 gbs-role="preset"
-                onclick="loadPresset()"
+                onclick="loadPreset()"
               >
                 <div class="gbs-icon">play_arrow</div>
-                <div>load presset</div>
+                <div>load preset</div>
               </button>
               <button
                 class="gbs-button gbs-button__control-action gbs-button__secondary"
-                onclick="savePresset()"
+                onclick="savePreset()"
                 active
               >
                 <div class="gbs-icon">fiber_manual_record</div>
-                <div>save presset</div>
+                <div>save preset</div>
               </button>
             </div>
           </fieldset>
@@ -1569,7 +1569,7 @@ section[name="alert"] {
               </tr>
               <tr gbs-dev-switch>
                 <td>
-                  Enable Developer Mode
+                  Developer Mode
                   <!-- prettier-ignore -->
                   <ul class="gbs-help">
                     <li>Enables the developer menu which contains various debugging tools</li>
@@ -1579,7 +1579,7 @@ section[name="alert"] {
               </tr>
               <tr gbs-slot-custom-filters>
                 <td>
-                  Enable custom slot filters
+                  Custom Slot Filters
                   <!-- prettier-ignore -->
                   <ul class="gbs-help">
                     <li>When enabled, saved slots recover it owns filter preferences.</li>
@@ -1659,7 +1659,7 @@ section[name="alert"] {
                 class="gbs-button"
               >
                 <div class="gbs-icon">info</div>
-                <div>Print Infos</div>
+                <div>Print Info</div>
               </button>
               <button
                 gbs-message=","
@@ -1905,7 +1905,7 @@ section[name="alert"] {
           <fieldset class="gbs-fieldset">
             <legend class="gbs-fieldset__legend">
               <div class="gbs-icon">wifi</div>
-              <div>WIFI</div>
+              <div>Wi-Fi</div>
             </legend>
 
             <div class="gbs-flex gbs-margin__bottom--16">
@@ -2382,7 +2382,7 @@ const loadUser = (link) => {
     return fetch(`http://${GBSControl.serverIP}/uc?${link}&nocache=${new Date().getTime()}`);
 };
 /** SLOT management */
-const savePresset = () => {
+const savePreset = () => {
     const currentSlot = document.querySelector('[gbs-role="slot"][active]');
     if (!currentSlot) {
         return;
@@ -2408,7 +2408,7 @@ const savePresset = () => {
     })
         .catch(() => { });
 };
-const loadPresset = () => {
+const loadPreset = () => {
     loadUser("3").then(() => {
         if (GBSStorage.read("customSlotFilters") === true) {
             setTimeout(() => {
