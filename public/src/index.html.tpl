@@ -196,7 +196,7 @@
               >
                 <div class="gbs-icon">swap_calls</div>
                 <div class="gbs-button__resolution--pass-through">
-                  Pass Throught
+                  Pass Through
                 </div>
               </button>
             </div>
