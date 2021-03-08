@@ -19,6 +19,9 @@ Various variations are supported, such as the PlayStation 2's VGA modes that run
 
 Gbscontrol is a continuation of previous work by dooklink, mybook4, Ian Stedman and others.  
 
+Bob from RetroRGB did an overview video on the project. This is a highly recommended watch!   
+https://www.youtube.com/watch?v=fmfR0XI5czI
+
 Head over to the wiki for the setup guide to learn how to build and use it!  
 https://github.com/ramapcsx2/gbs-control/wiki/Build-the-Hardware
 
