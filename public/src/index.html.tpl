@@ -675,7 +675,7 @@
                   class="gbs-button gbs-button__control"
                 >
                   <div class="gbs-icon">gradientbolt</div>
-                  <div>strongness</div>
+                  <div>intensity</div>
                 </button>
                 <button
                   gbs-message="m"
