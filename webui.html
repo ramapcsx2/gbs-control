@@ -476,6 +476,11 @@ body {
   animation: gbs-border-blinker 0.5s linear infinite;
 }
 
+.gbs-wifi__input--password {
+  -webkit-user-select: initial;
+  user-select: initial;
+}
+
 .gbs-wifi-warning {
   animation: gbs-blinker 0.5s linear infinite;
   color: var(--color-warning);
@@ -1941,7 +1946,7 @@ section[name="alert"] {
               </div>
               <div class="gbs-flex">
                 <input
-                  class="gbs-button gbs-wifi__input"
+                  class="gbs-button gbs-wifi__input gbs-wifi__input--password"
                   placeholder="password"
                   type="password"
                   gbs-input="password"
