@@ -418,7 +418,7 @@ const loadUser = (link: string) => {
 
 /** SLOT management */
 
-const savePresset = () => {
+const savePreset = () => {
   const currentSlot = document.querySelector('[gbs-role="slot"][active]');
 
   if (!currentSlot) {
@@ -455,7 +455,7 @@ const savePresset = () => {
     .catch(() => {});
 };
 
-const loadPresset = () => {
+const loadPreset = () => {
   loadUser("3").then(() => {
     if (GBSStorage.read("customSlotFilters") === true) {
       setTimeout(() => {

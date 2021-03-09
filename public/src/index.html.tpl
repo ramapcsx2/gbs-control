@@ -71,7 +71,7 @@
           </g>
         </svg>
         <button
-          gbs-section="pressets"
+          gbs-section="presets"
           class="gbs-button gbs-button__menu gbs-icon"
           active
         >
@@ -110,7 +110,7 @@
         </button>
       </div>
       <div class="gbs-scroll">
-        <section name="pressets">
+        <section name="presets">
           <fieldset class="gbs-fieldset" style="padding: 8px 2px">
             <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
               <div class="gbs-icon">aspect_ratio</div>
@@ -173,7 +173,7 @@
                 gbs-element-ref="button720x480"
                 gbs-role="preset"
               >
-                480i 576i
+                480p 576p
               </button>
               <button
                 gbs-message="L"
@@ -201,7 +201,7 @@
               </button>
             </div>
           </fieldset>
-          <fieldset class="gbs-fieldset pressets">
+          <fieldset class="gbs-fieldset presets">
             <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
               <div class="gbs-icon">input</div>
               <div>Presets</div>
@@ -211,25 +211,25 @@
               <li>If you want to save your customizations, first select a slot for your new preset, then save to or load from that slot.</li>
               <li>Selecting a slot also makes it the new startup preset.</li>
             </ul>
-            <div class="gbs-pressets" gbs-slot-html></div>
+            <div class="gbs-presets" gbs-slot-html></div>
             <div class="gbs-flex">
               <button
                 class="gbs-button gbs-button__control-action"
                 active
                 gbs-element-ref="buttonLoadCustomPreset"
                 gbs-role="preset"
-                onclick="loadPresset()"
+                onclick="loadPreset()"
               >
                 <div class="gbs-icon">play_arrow</div>
-                <div>load presset</div>
+                <div>load preset</div>
               </button>
               <button
                 class="gbs-button gbs-button__control-action gbs-button__secondary"
-                onclick="savePresset()"
+                onclick="savePreset()"
                 active
               >
                 <div class="gbs-icon">fiber_manual_record</div>
-                <div>save presset</div>
+                <div>save preset</div>
               </button>
             </div>
           </fieldset>
@@ -675,7 +675,7 @@
                   class="gbs-button gbs-button__control"
                 >
                   <div class="gbs-icon">gradientbolt</div>
-                  <div>strongness</div>
+                  <div>intensity</div>
                 </button>
                 <button
                   gbs-message="m"
@@ -911,7 +911,7 @@
               </tr>
               <tr gbs-dev-switch>
                 <td>
-                  Enable Developer Mode
+                  Developer Mode
                   <!-- prettier-ignore -->
                   <ul class="gbs-help">
                     <li>Enables the developer menu which contains various debugging tools</li>
@@ -921,7 +921,7 @@
               </tr>
               <tr gbs-slot-custom-filters>
                 <td>
-                  Enable custom slot filters
+                  Custom Slot Filters
                   <!-- prettier-ignore -->
                   <ul class="gbs-help">
                     <li>When enabled, saved slots recover it owns filter preferences.</li>
@@ -1001,7 +1001,7 @@
                 class="gbs-button"
               >
                 <div class="gbs-icon">info</div>
-                <div>Print Infos</div>
+                <div>Print Info</div>
               </button>
               <button
                 gbs-message=","
@@ -1247,7 +1247,7 @@
           <fieldset class="gbs-fieldset">
             <legend class="gbs-fieldset__legend">
               <div class="gbs-icon">wifi</div>
-              <div>WIFI</div>
+              <div>Wi-Fi</div>
             </legend>
 
             <div class="gbs-flex gbs-margin__bottom--16">
