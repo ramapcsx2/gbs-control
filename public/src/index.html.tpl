@@ -1283,7 +1283,7 @@
               </div>
               <div class="gbs-flex">
                 <input
-                  class="gbs-button gbs-wifi__input"
+                  class="gbs-button gbs-wifi__input gbs-wifi__input--password"
                   placeholder="password"
                   type="password"
                   gbs-input="password"
