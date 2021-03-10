@@ -15,3 +15,7 @@ Redesigned UI for the GBSControl with added features:
 - Make changes
 - `npm run build` to generate the necesary files webui_html.h
 - Compile & upload GBSControl project in Arduino IDE
+
+## Tips
+
+* Before every push do a `npm run build` to be sure bin files are updated to the latest.
