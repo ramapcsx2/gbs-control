@@ -8673,11 +8673,11 @@ void handleType2Command(char argument) {
     SerialM.print(F("pal force 60hz "));
     if (uopt->PalForce60 == 0) {
       uopt->PalForce60 = 1;
-      Serial.println("on");
+      SerialM.println("on");
     }
     else {
       uopt->PalForce60 = 0;
-      Serial.println("off");
+      SerialM.println("off");
     }
     saveUserPrefs();
     break;
