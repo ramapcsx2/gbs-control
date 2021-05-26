@@ -9715,7 +9715,8 @@ if(menuItem == 1){
     subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
-      display.drawString(40,40,"TESTING");
+      display.drawString(0,10,"1280x960");
+      display.drawString(0,30,"Loaded!");
       display.display();
     }
     if(videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
@@ -9736,7 +9737,8 @@ if(menuItem == 1){
     subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
-      display.drawString(40,40,"TESTING2");
+      display.drawString(0,10,"1280x1024");
+      display.drawString(0,30,"Loaded!");
       display.display();
     }
     if(videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
@@ -9757,7 +9759,8 @@ if(menuItem == 1){
     subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
-      display.drawString(40,40,"TESTING3");
+      display.drawString(0,10,"1280x720");
+      display.drawString(0,30,"Loaded!");
       display.display();
     }
     if(videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
@@ -9778,7 +9781,8 @@ if(menuItem == 1){
     subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
-      display.drawString(40,40,"TESTING4");
+      display.drawString(0,10,"1920x1080");
+      display.drawString(0,30,"Loaded!");
       display.display();
     }
     if(videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
@@ -9799,7 +9803,8 @@ if(menuItem == 1){
     subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
-      display.drawString(40,40,"TESTING5");
+      display.drawString(0,10,"480/576");
+      display.drawString(0,30,"Loaded!");
       display.display();
     }
     if(videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
@@ -9820,7 +9825,8 @@ if(menuItem == 1){
     subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
-      display.drawString(40,40,"TESTING6");
+      display.drawString(0,10,"Downscale");
+      display.drawString(0,30,"Loaded!");
       display.display();
     }
     if(videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
@@ -9841,7 +9847,8 @@ if(menuItem == 1){
     subsetFrame = 3;
     for(int i = 0; i<=800; i++){
       display.clear();
-      display.drawString(40,40,"TESTING7");
+      display.drawString(0,10,"Pass-Through");
+      display.drawString(0,30,"Loaded!");
       display.display();
     }
     setOutModeHdBypass();
