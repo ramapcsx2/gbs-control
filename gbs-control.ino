@@ -7473,7 +7473,7 @@ void loop() {
   static unsigned long lastTimeSourceCheck = 500; // 500 to start right away (after setup it will be 2790ms when we get here)
   static unsigned long lastTimeInterruptClear = millis();
   
-  settingsMenu();
+  OLEDMenu();
   if(encoder_pos != lastCount){
     lastCount = encoder_pos;
   }
@@ -9637,7 +9637,7 @@ void saveUserPrefs() {
 
 #endif
 
-void settingsMenu(){
+void OLEDMenu(){
   uint8_t videoMode = getVideoMode();
   byte button_nav = digitalRead(pin_switch);
   if(button_nav == LOW){
