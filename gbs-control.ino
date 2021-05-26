@@ -10190,24 +10190,7 @@ if(menuItem == 3){
       }
    }
       display.display();
-  // } else if (menuItem == 4 && subsetFrame == 2){
-  //   page = 2;
-  //   subpointerfunction();
-  //   display.clear();
-  //   display.setTextAlignment(TEXT_ALIGN_CENTER);
-  //   display.setFont(Open_Sans_Regular_35);
-  //   display.drawString(60,13,"Back");
-  //   display.display();
-  //   if(sub_pointer <= -15){
-  //     page = 1;
-  //     subsetFrame = 1;
-  //     sub_pointer = 45;
-  //     display.clear();
-  //   } else if (sub_pointer > 45){
-  //     page = 2;
-  //     subsetFrame = 2;
-  //     sub_pointer = 45;
-  //   }
+
   }
 //current setting Selection
   if(menuItem == 4){
