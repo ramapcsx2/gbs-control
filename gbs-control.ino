@@ -20,6 +20,30 @@
 #include "framesync.h"
 #include "osd.h"
 
+#incldue "SSD1306Wire.h"
+#include "fonts.h"
+#include "images.h"
+SSD1306Wire display(0x3c,D2,D1);
+const int pin_clk = 14; //D5 GPIO14
+const int pin_data = 13; //D7 GPIO13
+const int pin_switch = 0; //D3 GPIO0 pulled HIGH, else fail on boot
+
+int menuItem = 1;
+int subsetFrame = 0;
+int selectOption = 0;
+int page = 0;
+
+String menu[4] = {"Resolutions","Presets","Misc.","Current Settings"};
+String Resolutions[7] = {"1280x960","1280x1024","1280x720","1920x1080","480/576","Downscale","Pass-Through"};
+String Presets[8] = {"1","2","3","4","5","6","7","Back"};
+String Misc[4] = {"Reset GBS","Restore Factory","-----Back"};
+
+int lastCount = 0;
+volatile int encoder_pos = 0;
+volatile int main_pointer = 0;
+volatile int pointer_count = 0;
+volatile int sub_pointer = 0;
+
 #include <ESP8266WiFi.h>
 // ESPAsyncTCP and ESPAsyncWebServer libraries by me-no-dev
 // download (green "Clone or download" button) and extract to Arduino libraries folder
@@ -6917,8 +6941,39 @@ void loadDefaultUserOptions() {
 //  //system_phy_set_powerup_option(3); // 0 = default, use init byte; 3 = full calibr. each boot, extra 200ms
 //  system_phy_set_powerup_option(0);
 //}
+void ICACHE_RAM_ATTR isr (){
+  static unsigned long lastInterruptTime = 0;
+  unsigned long inturruptTime = millis();
 
+  if(inturruptTime - lastInterruptTime > 120){
+    if(!digitalRead(pin_data)){
+      encoder_pos++;
+      main_pointer+=15;
+      sub_pointer+=15;
+      pointer_count++;
+      // down = true;
+      // up = false;
+    } else{
+      encoder_pos--;
+      main_pointer-=15;
+      sub_pointer-=15;
+      pointer_count--;
+      // down = false;
+      // up = true;
+    }
+  }
+  lastInterruptTime = inturruptTime;
+}
 void setup() {
+  display.init();
+  display.flipScreenVertically();
+  
+  pinMode(pin_clk, INPUT_PULLUP);
+  pinMode(pin_data, INPUT_PULLUP);
+  pinMode(pin_switch, INPUT_PULLUP);
+  //ISR TO PIN
+  attachInterrupt(digitalPinToInterrupt(pin_clk),isr,FALLING);
+  
   rto->webServerEnabled = true;
   rto->webServerStarted = false; // make sure this is set
 
@@ -7015,10 +7070,12 @@ void setup() {
   unsigned long initDelay = millis();
   // upped from < 500 to < 1500, allows more time for wifi and GBS startup
   while (millis() - initDelay < 1500) {
+    display.drawXbm(2, 2, gbsicon_width, gbsicon_height, gbsicon_bits);
+    display.display();
     handleWiFi(0);
     delay(1);
   }
-
+  display.clear();
   // if i2c established and chip running, issue software reset now
   GBS::RESET_CONTROL_0x46::write(0); GBS::RESET_CONTROL_0x47::write(0);
   GBS::PLLAD_VCORST::write(1); GBS::PLLAD_PDZ::write(0);  // AD PLL off
@@ -7415,7 +7472,12 @@ void loop() {
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastTimeSourceCheck = 500; // 500 to start right away (after setup it will be 2790ms when we get here)
   static unsigned long lastTimeInterruptClear = millis();
-
+  
+  settingsMenu();
+  if(encoder_pos != lastCount){
+    lastCount = encoder_pos;
+  }
+  
 #ifdef HAVE_BUTTONS
   static unsigned long lastButton = micros();
 
@@ -9574,3 +9636,623 @@ void saveUserPrefs() {
 }
 
 #endif
+
+void settingsMenu(){
+  uint8_t videoMode = getVideoMode();
+  byte button_nav = digitalRead(pin_switch);
+  if(button_nav == LOW){
+    delay(350); //TODO
+    subsetFrame++;  //this button for navigating menu
+    selectOption++;
+  }
+  //main menu
+  if(page == 0){
+    pointerfunction();
+    display.clear();
+    display.setTextAlignment(TEXT_ALIGN_LEFT);
+    display.setFont(ArialMT_Plain_16);
+    display.drawString(0, main_pointer, ">");
+    display.drawString(14, 0, String(menu[0]));
+    display.drawString(14, 15, String(menu[1]));
+    display.drawString(14, 30, String(menu[2]));
+    display.drawString(14, 45, String(menu[3]));
+    display.display();
+  }
+  //cursor location on main menu
+  if (main_pointer == 0 && subsetFrame == 0){
+    pointer_count = 0;
+    menuItem = 1;
+  } if (main_pointer == 15 && subsetFrame == 0){
+      pointer_count = 0;
+      menuItem = 2;
+  }   if (main_pointer == 30 && subsetFrame == 0){
+        pointer_count = 0;
+        sub_pointer = 0;
+        menuItem = 3;
+  }     if(main_pointer == 45 && subsetFrame == 0){
+          pointer_count = 0;
+          menuItem = 4;
+        }
+
+
+  //resolution pages
+  if (menuItem == 1 && subsetFrame == 1){
+    page = 1;
+    main_pointer = 0;
+    subpointerfunction();
+    display.clear();
+    display.drawString(0, sub_pointer, ">");
+    display.drawString(14, 0, String(Resolutions[0]));
+    display.drawString(14, 15, String(Resolutions[1]));
+    display.drawString(14, 30, String(Resolutions[2]));
+    display.drawString(14, 45, String(Resolutions[3]));
+    display.display();
+  } else if (menuItem == 1 && subsetFrame == 2){
+    subpointerfunction();
+    page = 2;
+    display.clear();
+    display.drawString(0, sub_pointer, ">");
+    display.drawString(14, 0, String(Resolutions[4]));
+    display.drawString(14, 15, String(Resolutions[5]));
+    display.drawString(14, 30, String(Resolutions[6]));
+    display.drawString(14, 45, "-----Back");
+    display.display();
+    if(sub_pointer <= -15){
+      page = 1;
+      subsetFrame = 1;
+      sub_pointer = 45;
+      display.clear();
+    } else if (sub_pointer > 45){
+      page = 2;
+      subsetFrame = 2;
+      sub_pointer = 45;
+    }
+  }
+//selection
+  //1280x960
+if(menuItem == 1){
+  if(pointer_count == 0 && selectOption == 2){
+    subsetFrame = 3;
+    for(int i = 0; i <= 800; i++){
+      display.clear();
+      display.drawString(40,40,"TESTING");
+      display.display();
+    }
+    if(videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
+    videoMode = rto->videoStandardInput;
+    uopt->presetPreference = 0;
+    rto->useHdmiSyncFix = 1;
+      if(rto->videoStandardInput == 14){
+        rto->videoStandardInput = 15;
+      } else {
+        applyPresets(videoMode);
+      }
+        saveUserPrefs();
+        selectOption = 1;
+        subsetFrame = 1;
+  }
+  //1280x1024
+  if (pointer_count == 1 && selectOption == 2){
+    subsetFrame = 3;
+    for(int i = 0; i <= 800; i++){
+      display.clear();
+      display.drawString(40,40,"TESTING2");
+      display.display();
+    }
+    if(videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
+    videoMode = rto->videoStandardInput;
+    uopt->presetPreference = 4;
+    rto->useHdmiSyncFix = 1;
+      if(rto->videoStandardInput == 14){
+        rto->videoStandardInput = 15;
+      } else {
+        applyPresets(videoMode);
+      }
+        saveUserPrefs();
+        selectOption = 1;
+        subsetFrame = 1;
+  }
+  //1280x720
+  if(pointer_count == 2 && selectOption == 2){
+    subsetFrame = 3;
+    for(int i = 0; i <= 800; i++){
+      display.clear();
+      display.drawString(40,40,"TESTING3");
+      display.display();
+    }
+    if(videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
+    videoMode = rto->videoStandardInput;
+    uopt->presetPreference = 3;
+    rto->useHdmiSyncFix = 1;
+      if(rto->videoStandardInput == 14){
+        rto->videoStandardInput = 15;
+      } else {
+        applyPresets(videoMode);
+      }
+        saveUserPrefs();
+        selectOption = 1;
+        subsetFrame = 1;
+  }
+  //1920x1080
+  if(pointer_count == 3 && selectOption == 2){
+    subsetFrame = 3;
+    for(int i = 0; i <= 800; i++){
+      display.clear();
+      display.drawString(40,40,"TESTING4");
+      display.display();
+    }
+    if(videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
+    videoMode = rto->videoStandardInput;
+    uopt->presetPreference = 5;
+    rto->useHdmiSyncFix = 1;
+      if(rto->videoStandardInput == 14){
+        rto->videoStandardInput = 15;
+      } else {
+        applyPresets(videoMode);
+      }
+      saveUserPrefs();
+      selectOption = 1;
+      subsetFrame = 1;
+    }
+  //720x480
+  if(pointer_count == 4 && selectOption == 2){
+    subsetFrame = 3;
+    for(int i = 0; i <= 800; i++){
+      display.clear();
+      display.drawString(40,40,"TESTING5");
+      display.display();
+    }
+    if(videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
+    videoMode = rto->videoStandardInput;
+    uopt->presetPreference = 1;
+    rto->useHdmiSyncFix = 1;
+      if(rto->videoStandardInput == 14){
+        rto->videoStandardInput = 15;
+      } else {
+        applyPresets(videoMode);
+      }
+      saveUserPrefs();
+      selectOption = 1;
+      subsetFrame = 2;
+    }
+  //downscale
+  if(pointer_count == 5 && selectOption == 2){
+    subsetFrame = 3;
+    for(int i = 0; i <= 800; i++){
+      display.clear();
+      display.drawString(40,40,"TESTING6");
+      display.display();
+    }
+    if(videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
+    videoMode = rto->videoStandardInput;
+    uopt->presetPreference = 6;
+    rto->useHdmiSyncFix = 1;
+      if(rto->videoStandardInput == 14){
+        rto->videoStandardInput = 15;
+      } else {
+        applyPresets(videoMode);
+      }
+      saveUserPrefs();
+      selectOption = 1;
+      subsetFrame = 2;
+    }
+  //passthrough/bypass
+  if(pointer_count == 6 && selectOption == 2){
+    subsetFrame = 3;
+    for(int i = 0; i<=800; i++){
+      display.clear();
+      display.drawString(40,40,"TESTING7");
+      display.display();
+    }
+    setOutModeHdBypass();
+    uopt->presetPreference = 10;
+    if(uopt->presetPreference == 10 && rto->videoStandardInput != 15){
+      rto->autoBestHtotalEnabled = 0;
+      if(rto->applyPresetDoneStage == 11){
+        rto->applyPresetDoneStage = 1;
+      } else {
+        rto->applyPresetDoneStage = 10;
+      }
+    } else {
+      rto->applyPresetDoneStage = 1;
+    }
+    saveUserPrefs();
+    selectOption = 1;
+    subsetFrame = 2;
+  }
+  //go back
+  if (pointer_count == 7 && selectOption == 2){
+    page = 0;
+    subsetFrame = 0;
+    main_pointer = 0;
+    sub_pointer = 0;
+    selectOption = 0;
+  }
+}
+//Presets pages
+  if(menuItem == 2 && subsetFrame == 1){
+    page = 1;
+    main_pointer = 0;
+    subpointerfunction();
+    display.clear();
+    display.setTextAlignment(TEXT_ALIGN_CENTER);
+    display.setFont(Open_Sans_Regular_20);
+    display.drawString(64,-8,"Preset Slot:");
+    display.setFont(Open_Sans_Regular_35);
+    display.drawString(64,15,String(Presets[pointer_count]));
+    display.display();
+  } else if (menuItem == 2 && subsetFrame == 2){
+    page = 2;
+    subpointerfunction();
+    display.clear();
+    display.setTextAlignment(TEXT_ALIGN_CENTER);
+    display.setFont(Open_Sans_Regular_20);
+    display.drawString(64,-8,"Preset Slot:");
+    display.setFont(Open_Sans_Regular_35);
+    display.drawString(64,15,String(Presets[pointer_count]));
+    display.display();
+  }
+//Preset selection
+if(menuItem == 2){
+  if (pointer_count == 0 && selectOption == 2){
+    subsetFrame = 3;
+    uopt->presetSlot = 'A';
+    uopt->presetPreference = 2;
+    saveUserPrefs();
+    for(int i = 0; i <= 280; i++){
+      display.clear();
+      display.setFont(Open_Sans_Regular_20);                  //first array element selected
+      display.drawString(64,-8,"Preset #" + String(Presets[0]));   //set to frame that "doesnt exist"
+      display.setFont(Open_Sans_Regular_35);
+      display.drawString(64,15,"Loaded!");
+      display.display();                    //display loading conf
+    }
+    uopt->presetPreference = 2;
+    if(rto->videoStandardInput == 14){
+      rto->videoStandardInput = 15;
+    } else {
+      applyPresets(rto->videoStandardInput);
+    }
+    saveUserPrefs();
+      delay(50); //allowing "catchup"
+      selectOption = 1;  //reset select container
+      subsetFrame = 1;  //switch back to prev frame (prev screen)
+  }
+  if(pointer_count == 1 && selectOption == 2){
+    subsetFrame = 3;
+    uopt->presetSlot = 'B';
+    uopt->presetPreference = 2;
+    saveUserPrefs();
+    for(int i = 0; i<=280; i++){
+      display.clear();
+      display.setFont(Open_Sans_Regular_20);
+      display.drawString(64,-8,"Preset #" + String(Presets[1]));
+      display.setFont(Open_Sans_Regular_35);
+      display.drawString(64,15,"Loaded!");
+      display.display();
+    }
+    uopt->presetPreference = 2;
+    if(rto->videoStandardInput == 14){
+      rto->videoStandardInput = 15;
+    } else {
+      applyPresets(rto->videoStandardInput);
+    }
+    saveUserPrefs();
+      delay(50);
+      selectOption = 1;
+      subsetFrame = 1;
+  }
+  if(pointer_count == 2 && selectOption == 2){
+    subsetFrame = 3;
+    uopt->presetSlot = 'C';
+    uopt->presetPreference = 2;
+    saveUserPrefs();
+    for(int i = 0; i<=280; i++){
+        display.clear();
+        display.setFont(Open_Sans_Regular_20);
+        display.drawString(64,-8,"Preset #" + String(Presets[2]));
+        display.setFont(Open_Sans_Regular_35);
+        display.drawString(64,15,"Loaded!");
+        display.display();
+      }
+      uopt->presetPreference = 2;
+      if(rto->videoStandardInput == 14){
+        rto->videoStandardInput = 15;
+      } else {
+        applyPresets(rto->videoStandardInput);
+      }
+      saveUserPrefs();
+        delay(50);
+      selectOption = 1;
+      subsetFrame = 1;
+  }
+  if(pointer_count == 3 && selectOption == 2){
+    subsetFrame = 3;
+    uopt->presetSlot = 'D';
+    uopt->presetPreference = 2;
+    saveUserPrefs();
+      for(int i = 0; i<=280; i++){
+        display.clear();
+        display.setFont(Open_Sans_Regular_20);
+        display.drawString(64,-8,"Preset #" + String(Presets[3]));
+        display.setFont(Open_Sans_Regular_35);
+        display.drawString(64,15,"Loaded!");
+        display.display();
+      }
+      uopt->presetPreference = 2;
+      if(rto->videoStandardInput == 14){
+        rto->videoStandardInput = 15;
+      } else {
+        applyPresets(rto->videoStandardInput);
+      }
+      saveUserPrefs();
+      delay(50);
+      selectOption = 1;
+      subsetFrame = 1;
+  }
+  if(pointer_count == 4 && selectOption == 2){
+    subsetFrame = 3;
+    uopt->presetSlot = 'E';
+    uopt->presetPreference = 2;
+    saveUserPrefs();
+      for(int i = 0; i<=280; i++){
+        display.clear();
+        display.setFont(Open_Sans_Regular_20);
+        display.drawString(64,-8,"Preset #" + String(Presets[4]));
+        display.setFont(Open_Sans_Regular_35);
+        display.drawString(64,15,"Loaded!");
+        display.display();
+      }
+      uopt->presetPreference = 2;
+      if(rto->videoStandardInput == 14){
+        rto->videoStandardInput = 15;
+      } else {
+        applyPresets(rto->videoStandardInput);
+      }
+      saveUserPrefs();
+      delay(50);
+      selectOption = 1;
+      subsetFrame = 2;
+  }
+  if(pointer_count == 5 && selectOption == 2){
+    subsetFrame = 3;
+    uopt->presetSlot = 'F';
+    uopt->presetPreference = 2;
+    saveUserPrefs();
+      for(int i = 0; i<=280; i++){
+        display.clear();
+        display.setFont(Open_Sans_Regular_20);
+        display.drawString(64,-8,"Preset #" + String(Presets[5]));
+        display.setFont(Open_Sans_Regular_35);
+        display.drawString(64,15,"Loaded!");
+        display.display();
+      }
+      uopt->presetPreference = 2;
+      if(rto->videoStandardInput == 14){
+        rto->videoStandardInput = 15;
+      } else {
+        applyPresets(rto->videoStandardInput);
+      }
+        saveUserPrefs();
+        delay(50);
+      selectOption = 1;
+      subsetFrame = 2;
+  }
+  if(pointer_count == 6 && selectOption == 2){
+    subsetFrame = 3;
+    uopt->presetSlot = 'G';
+    uopt->presetPreference = 2;
+    saveUserPrefs();
+      for(int i = 0; i<=280; i++){
+        display.clear();
+        display.setFont(Open_Sans_Regular_20);
+        display.drawString(64,-8,"Preset #" + String(Presets[6]));
+        display.setFont(Open_Sans_Regular_35);
+        display.drawString(64,15,"Loaded!");
+        display.display();
+      }
+      uopt->presetPreference = 2;
+      if(rto->videoStandardInput == 14){
+        rto->videoStandardInput = 15;
+      } else {
+        applyPresets(rto->videoStandardInput);
+      }
+        saveUserPrefs();
+        delay(50);
+      selectOption = 1;
+      subsetFrame = 2;
+  }
+  if(pointer_count == 7 && selectOption == 2){
+      page = 0;
+      subsetFrame = 0;
+      main_pointer = 0;
+      sub_pointer = 0;
+      selectOption = 0;
+    }
+  }
+//Misc pages
+  if(menuItem == 3 && subsetFrame == 1){
+    page = 1;
+    main_pointer = 0;
+    subpointerfunction();
+    display.clear();
+    display.drawString(0,sub_pointer,">");
+    display.drawString(14,0,String(Misc[0]));
+    display.drawString(14,15,String(Misc[1]));
+    display.drawString(14,45,String(Misc[2]));
+    display.display();
+      if(sub_pointer <= 0){
+        sub_pointer = 0;
+      } if (sub_pointer >= 45){
+        sub_pointer = 45;
+      }
+  }
+//Misc selection
+if(menuItem == 3){
+  if(pointer_count == 0 && selectOption == 2){
+    subsetFrame = 3;
+    for (int i = 0; i<=800; i++){
+      display.clear();
+      display.drawString(0,10,"Resetting GBS");
+      display.drawString(0,30,"Please Wait...");
+      display.display();
+    }
+    webSocket.close();
+    delay(60);
+    ESP.reset();
+    selectOption = 0;
+    subsetFrame = 0;
+  }
+
+  if(pointer_count == 1 && selectOption == 2){
+    subsetFrame = 3;
+    for(int i = 0; i<=800; i++){
+      display.clear();
+      display.drawString(0,10,"Defaults Loading");
+      display.drawString(0,30,"Please Wait...");
+      display.display();
+    }
+    webSocket.close();
+    loadDefaultUserOptions();
+    saveUserPrefs();
+    delay(60);
+    ESP.reset();
+    selectOption = 1;
+    subsetFrame = 1;
+  }
+
+  if(pointer_count == 3 && selectOption == 2){
+    page = 0;
+    subsetFrame = 0;
+    main_pointer = 0;
+    sub_pointer = 0;
+    selectOption = 0;
+  }
+}
+//Current Settings pages
+  if(menuItem == 4 && subsetFrame == 1){
+    boolean vsyncActive = 0;
+    boolean hsyncActive = 0;
+    float ofr = getOutputFrameRate();
+    uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
+    rto->presetID = GBS::GBS_PRESET_ID::read();
+
+    page = 1;
+    pointer_count = 0;
+    main_pointer = 0;
+
+    subpointerfunction();
+    display.clear();
+    display.setFont(URW_Gothic_L_Book_20);
+    display.setTextAlignment(TEXT_ALIGN_LEFT);
+
+      if (rto->presetID == 0x01 || rto->presetID == 0x11){
+        display.drawString(0,0,"1280x960");
+      }
+      else if (rto->presetID == 0x02 || rto->presetID == 0x12){
+        display.drawString(0,0,"1280x1024");
+      }
+      else if (rto->presetID == 0x03 || rto->presetID == 0x13){
+        display.drawString(0,0,"1280x720");
+      }
+      else if (rto->presetID == 0x05 || rto->presetID == 0x15){
+        display.drawString(0,0,"1920x1080");
+      }
+      else if (rto->presetID == 0x06 || rto->presetID == 0x16){
+        display.drawString(0,0,"Downscale");
+      }
+      else if (rto->presetID == 0x04){
+        display.drawString(0,0,"720x480");
+      }
+      else if (rto->presetID == 0x14) {
+        display.drawString(0,0,"768x576");
+      }
+      else {
+        display.drawString(0,0,"bypass");
+      }
+
+      display.drawString(0,20,String(ofr,5) + "Hz");
+
+      if(currentInput == 1){
+        display.drawString(0,41,"RGB");
+      } else {
+        display.drawString(0,41,"YpBpR");
+      }
+
+      if(currentInput == 1){
+      vsyncActive = GBS::STATUS_SYNC_PROC_VSACT::read();
+      if(vsyncActive){
+        display.drawString(70, 41, "V");
+      hsyncActive = GBS::STATUS_SYNC_PROC_HSACT::read();
+      if(hsyncActive){
+        display.drawString(53, 41, "H");
+        }
+      }
+   }
+      display.display();
+  // } else if (menuItem == 4 && subsetFrame == 2){
+  //   page = 2;
+  //   subpointerfunction();
+  //   display.clear();
+  //   display.setTextAlignment(TEXT_ALIGN_CENTER);
+  //   display.setFont(Open_Sans_Regular_35);
+  //   display.drawString(60,13,"Back");
+  //   display.display();
+  //   if(sub_pointer <= -15){
+  //     page = 1;
+  //     subsetFrame = 1;
+  //     sub_pointer = 45;
+  //     display.clear();
+  //   } else if (sub_pointer > 45){
+  //     page = 2;
+  //     subsetFrame = 2;
+  //     sub_pointer = 45;
+  //   }
+  }
+//current setting Selection
+  if(menuItem == 4){
+    if(pointer_count >= 0 && selectOption == 2){
+      page = 0;
+      subsetFrame = 0;
+      main_pointer = 0;
+      sub_pointer = 0;
+      selectOption = 0;
+    }
+  }
+}
+
+void pointerfunction() {
+  if (main_pointer <= 0){
+    main_pointer = 0;
+  }
+    if (main_pointer >= 45){ //limits
+    main_pointer = 45;
+  }
+
+  if(pointer_count <= 0){
+    pointer_count = 0;
+  } else if (pointer_count >= 3){
+    pointer_count = 3;
+  }
+}
+void subpointerfunction(){
+  if (sub_pointer < 0){
+    sub_pointer = 0;
+    subsetFrame = 1;
+    page = 1;
+  } if (sub_pointer > 45) {  //limits to switch between the two pages
+    sub_pointer = 0;      //TODO
+    subsetFrame = 2;
+    page = 2;
+  }
+  // }   if (sub_pointer <= -15){ //TODO: replace/take out
+  //   sub_pointer = 0;
+  //   page = 1;
+  //   subsetFrame = 1;
+  // }
+  if (pointer_count <= 0){
+    pointer_count = 0;
+  } else if (pointer_count >= 7){
+    pointer_count = 7;
+  }
+}
