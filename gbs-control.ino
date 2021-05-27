@@ -6941,7 +6941,7 @@ void loadDefaultUserOptions() {
 //  //system_phy_set_powerup_option(3); // 0 = default, use init byte; 3 = full calibr. each boot, extra 200ms
 //  system_phy_set_powerup_option(0);
 //}
-void ICACHE_RAM_ATTR isr (){
+void ICACHE_RAM_ATTR isrRotaryEncoder (){
   static unsigned long lastInterruptTime = 0;
   unsigned long inturruptTime = millis();
 
@@ -6972,7 +6972,7 @@ void setup() {
   pinMode(pin_data, INPUT_PULLUP);
   pinMode(pin_switch, INPUT_PULLUP);
   //ISR TO PIN
-  attachInterrupt(digitalPinToInterrupt(pin_clk),isr,FALLING);
+  attachInterrupt(digitalPinToInterrupt(pin_clk),isrRotaryEncoder,FALLING);
   
   rto->webServerEnabled = true;
   rto->webServerStarted = false; // make sure this is set
@@ -7473,7 +7473,7 @@ void loop() {
   static unsigned long lastTimeSourceCheck = 500; // 500 to start right away (after setup it will be 2790ms when we get here)
   static unsigned long lastTimeInterruptClear = millis();
   
-  OLEDMenu();
+  settingsMenuOLED();
   if(encoder_pos != lastCount){
     lastCount = encoder_pos;
   }
@@ -9637,7 +9637,7 @@ void saveUserPrefs() {
 
 #endif
 
-void OLEDMenu(){
+void settingsMenuOLED(){
   uint8_t videoMode = getVideoMode();
   byte button_nav = digitalRead(pin_switch);
   if(button_nav == LOW){
