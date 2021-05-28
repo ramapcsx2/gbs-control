@@ -20,29 +20,31 @@
 #include "framesync.h"
 #include "osd.h"
 
-#incldue "SSD1306Wire.h"
+#include "SSD1306Wire.h"
 #include "fonts.h"
 #include "images.h"
-SSD1306Wire display(0x3c,D2,D1);
+SSD1306Wire display(0x3c, D2, D1); //declares OLED I2C pins & address
 const int pin_clk = 14; //D5 GPIO14
-const int pin_data = 13; //D7 GPIO13
-const int pin_switch = 0; //D3 GPIO0 pulled HIGH, else fail on boot
+const int pin_data = 13; //D7 input for rotary encoder "translated" ESP8266 GPIO Pins
+const int pin_switch = 0; //D3 GPIO0 pulled HIGH, else fails on boot
 
-int menuItem = 1;
-int subsetFrame = 0;
-int selectOption = 0;
-int page = 0;
 
-String menu[4] = {"Resolutions","Presets","Misc.","Current Settings"};
-String Resolutions[7] = {"1280x960","1280x1024","1280x720","1920x1080","480/576","Downscale","Pass-Through"};
-String Presets[8] = {"1","2","3","4","5","6","7","Back"};
-String Misc[4] = {"Reset GBS","Restore Factory","-----Back"};
+String oled_menu[4] = {"Resolutions","Presets","Misc.","Current Settings"};
+String oled_Resolutions[7] = {"1280x960","1280x1024","1280x720","1920x1080","480/576","Downscale","Pass-Through"};
+String oled_Presets[8] = {"1","2","3","4","5","6","7","Back"};
+String oled_Misc[4] = {"Reset GBS","Restore Factory","-----Back"};
 
-int lastCount = 0;
-volatile int encoder_pos = 0;
-volatile int main_pointer = 0;
-volatile int pointer_count = 0;
-volatile int sub_pointer = 0;
+int oled_menuItem = 1;
+int oled_subsetFrame = 0;
+int oled_selectOption = 0;
+int oled_page = 0;
+
+int oled_lastCount = 0; //keep track of prev rotary value
+volatile int oled_encoder_pos = 0;
+volatile int oled_main_pointer = 0;
+volatile int oled_pointer_count = 0;
+volatile int oled_sub_pointer = 0;
+
 
 #include <ESP8266WiFi.h>
 // ESPAsyncTCP and ESPAsyncWebServer libraries by me-no-dev
@@ -96,7 +98,7 @@ Si5351mcu Si;
 #ifdef THIS_DEVICE_MASTER
 const char* ap_ssid = "gbscontrol";
 const char* ap_password = "qqqqqqqq";
-// change device_hostname_full and device_hostname_partial to rename the device 
+// change device_hostname_full and device_hostname_partial to rename the device
 // (allows 2 or more on the same network)
 // new: only use _partial throughout, comply to standards
 const char* device_hostname_full = "gbscontrol.local";
@@ -266,6 +268,25 @@ struct adcOptions {
 } adcopts;
 struct adcOptions *adco = &adcopts;
 
+// SLOTS
+#define SLOTS_FILE "/slots.bin" // the file where to store slots metadata
+#define SLOTS_TOTAL 72 // max number of slots
+
+typedef struct {
+	char name[25];
+  uint8_t presetID;
+  uint8_t scanlines;
+  uint8_t scanlinesStrength;
+  uint8_t slot;
+  uint8_t wantVdsLineFilter;
+  uint8_t wantStepResponse;
+  uint8_t wantPeaking;
+} SlotMeta;
+
+typedef struct {
+  SlotMeta slot[SLOTS_TOTAL]; // the max avaliable slots that can be encoded in a the charset[A-Za-z0-9-._~()!*:,;]
+} SlotMetaArray;
+
 char typeOneCommand; // Serial / Web Server commands
 char typeTwoCommand; // Serial / Web Server commands
 static uint8_t lastSegment = 0xFF;  // GBS segment for direct access
@@ -369,16 +390,16 @@ void externalClockGenResetClock() {
   Si.setFreq(0, rto->freqExtClockGen);
   GBS::PAD_CKIN_ENZ::write(0);  // 0 = clock input enable (pin40)
 
-  SerialM.print(F("clock gen reset: ")); 
+  SerialM.print(F("clock gen reset: "));
   SerialM.println(rto->freqExtClockGen);
 }
 
 void externalClockGenSyncInOutRate() {
-  if (!rto->extClockGenDetected) { 
-    return; 
+  if (!rto->extClockGenDetected) {
+    return;
   }
-  if (GBS::PAD_CKIN_ENZ::read() != 0) { 
-    return; 
+  if (GBS::PAD_CKIN_ENZ::read() != 0) {
+    return;
   }
   if (rto->outModeHdBypass) {
     return;
@@ -428,7 +449,7 @@ void externalClockGenSyncInOutRate() {
   Si.setFreq(0, rto->freqExtClockGen);
 
   int32_t diff = rto->freqExtClockGen - old;
-  
+
   SerialM.print(F("source Hz: ")); SerialM.print(sfr, 5);
   SerialM.print(F(" new out: ")); SerialM.print(getOutputFrameRate(), 5);
   SerialM.print(F(" clock: ")); SerialM.print(rto->freqExtClockGen);
@@ -450,7 +471,7 @@ void externalClockGenInitialize() {
 }
 
 void externalClockGenDetectPresence() {
-  const uint8_t siAddress = 0x60; // default Si5351 address 
+  const uint8_t siAddress = 0x60; // default Si5351 address
   uint8_t retVal = 0;
 
   Wire.beginTransmission(siAddress);
@@ -879,7 +900,7 @@ void setResetParameters() {
   resetPLLAD(); // same for PLLAD
   GBS::PLL_VCORST::write(1); // reset on
   GBS::PLLAD_CONTROL_00_5x11::write(0x01); // reset on
-  resetDebugPort(); 
+  resetDebugPort();
 
   //GBS::RESET_CONTROL_0x47::write(0x16);
   GBS::RESET_CONTROL_0x46::write(0x41);     // new 23.07.19
@@ -897,7 +918,7 @@ void setResetParameters() {
 }
 
 void OutputComponentOrVGA() {
-  
+
   boolean isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
   if (uopt->wantOutputComponent) {
     SerialM.println(F("Output Format: Component"));
@@ -1323,7 +1344,7 @@ boolean optimizePhaseSP() {
 
   //Serial.println(millis() - startTime);
   //Serial.print("worstPhaseSP: "); Serial.println(worstPhaseSP);
-  
+
   /*static uint8_t lastLevelSOG = 99;
   if (lastLevelSOG != rto->currentLevelSOG) {
     SerialM.print("Phase: "); SerialM.print(rto->phaseSP);
@@ -1414,12 +1435,12 @@ void optimizeSogLevel() {
       setAndUpdateSogLevel(rto->currentLevelSOG);
       delay(8); // time for sog to settle
     }
-    else { 
+    else {
       rto->currentLevelSOG = 13;  // leave at default level
       setAndUpdateSogLevel(rto->currentLevelSOG);
       delay(8);
       break; // break and exit
-    } 
+    }
   }
 
   rto->thisSourceMaxLevelSOG = rto->currentLevelSOG;
@@ -1446,9 +1467,9 @@ uint8_t detectAndSwitchToActiveInput() { // if any
   while (millis() - timeout < 450) {
     delay(10);
     handleWiFi(0);
-    
+
     boolean stable = getStatus16SpHsStable();
-    if (stable) 
+    if (stable)
     {
       currentInput = GBS::ADC_INPUT_SEL::read();
       SerialM.print(F("Activity detected, input: "));
@@ -1464,7 +1485,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
         unsigned long timeOutStart = millis();
         // vsync test
         // 360ms good up to 5_34 SP_V_TIMER_VAL = 0x0b
-        while (!vsyncActive && ((millis() - timeOutStart) < 360)) { 
+        while (!vsyncActive && ((millis() - timeOutStart) < 360)) {
           vsyncActive = GBS::STATUS_SYNC_PROC_VSACT::read();
           handleWiFi(0); // wifi stack
           delay(1);
@@ -1485,7 +1506,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
 
           if (hsyncActive) {
             SerialM.print(F("HSync: present"));
-            // The HSync and SOG pins are setup to detect CSync, if present 
+            // The HSync and SOG pins are setup to detect CSync, if present
             // (SOG mode on, coasting setup, debug bus setup, etc)
             // SP_H_PROTECT is needed for CSync with a VS source present as well
             GBS::SP_H_PROTECT::write(1);
@@ -1502,15 +1523,15 @@ uint8_t detectAndSwitchToActiveInput() { // if any
               if (sfr > 40.0f) decodeSuccess++; // properly decoded vsync from 40 to xx Hz
             }
 
-            if (decodeSuccess >= 2) { 
+            if (decodeSuccess >= 2) {
               SerialM.println(F(" (with CSync)"));
               GBS::SP_PRE_COAST::write(0x10); // increase from 9 to 16 (EGA 364)
               delay(40);
               rto->syncTypeCsync = true;
             }
-            else { 
+            else {
               SerialM.println();
-              rto->syncTypeCsync = false; 
+              rto->syncTypeCsync = false;
             }
 
             // check for 25khz, all regular SOG modes first // update: only check for mode 8
@@ -1526,7 +1547,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
 
                 return 1;
               }
-              // update 25khz detection 
+              // update 25khz detection
               GBS::MD_HD1250P_CNTRL::write(GBS::MD_HD1250P_CNTRL::read() + 1);
               //Serial.println(GBS::MD_HD1250P_CNTRL::read(), HEX);
               delay(30);
@@ -1550,7 +1571,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
           GBS::MD_SEL_VGA60::write(0);  // EDTV60 more likely than VGA60
           uint16_t testCycle = 0;
           timeOutStart = millis();
-          while ((millis() - timeOutStart) < 6000) 
+          while ((millis() - timeOutStart) < 6000)
           {
             delay(2);
             if (getVideoMode() > 0) {
@@ -1632,7 +1653,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
 
         rto->currentLevelSOG = rto->thisSourceMaxLevelSOG = 14;
         setAndUpdateSogLevel(rto->currentLevelSOG);
-        
+
         return 2; //anyway, let later stage deal with it
       }
 
@@ -1640,7 +1661,7 @@ uint8_t detectAndSwitchToActiveInput() { // if any
       rto->currentLevelSOG = 2;
       setAndUpdateSogLevel(rto->currentLevelSOG);
     }
-    
+
     GBS::ADC_INPUT_SEL::write(!currentInput); // can only be 1 or 0
     delay(200);
 
@@ -2412,7 +2433,7 @@ void printVideoTimings() {
     SerialM.print(F("HB ST/SP     : ")); SerialM.print(GBS::VDS_HB_ST::read());
     SerialM.print(" "); SerialM.println(GBS::VDS_HB_SP::read());
     SerialM.println(F("------"));
-    // vertical 
+    // vertical
     SerialM.print(F("VT / scale   : ")); SerialM.print(GBS::VDS_VSYNC_RST::read());
     SerialM.print(" "); SerialM.println(GBS::VDS_VSCALE::read());
     SerialM.print(F("VS ST/SP     : ")); SerialM.print(GBS::VDS_VS_ST::read());
@@ -2434,7 +2455,7 @@ void printVideoTimings() {
     SerialM.print(F("HB ST/SP     : ")); SerialM.print(GBS::HD_HB_ST::read());
     SerialM.print(" "); SerialM.println(GBS::HD_HB_SP::read());
     SerialM.println(F("------"));
-    // vertical 
+    // vertical
     SerialM.print(F("VS ST/SP     : ")); SerialM.print(GBS::HD_VS_ST::read());
     SerialM.print(" "); SerialM.println(GBS::HD_VS_SP::read());
     SerialM.print(F("VB ST/SP     : ")); SerialM.print(GBS::HD_VB_ST::read());
@@ -2524,7 +2545,7 @@ void readEeprom() {
   {
     Serial.print("addr 0x"); Serial.print(i, HEX);
     Serial.print(": 0x"); readData = Wire.read();
-    Serial.println(readData, HEX); 
+    Serial.println(readData, HEX);
     //addr++;
     i++;
   }
@@ -2561,7 +2582,7 @@ void setIfHblankParameters() {
       if (GBS::IF_HB_ST2::read() >= 0x420) {
         // limit (fifo?) (0x420 = 1056) (might be 0x424 instead)
         // limit doesn't apply to EDTV modes, where 1_18 typically = 0x4B0
-        GBS::IF_HB_ST2::write(0x420);  
+        GBS::IF_HB_ST2::write(0x420);
       }
 
       if (rto->presetID == 0x05 || rto->presetID == 0x15) {
@@ -2597,8 +2618,8 @@ void fastGetBestHtotal() {
 
   uint16_t newVtotal = GBS::VDS_VSYNC_RST::read();
   double bestHtotal = 108000000 / ((double)newVtotal * inHz);  // 107840000
-  double bestHtotal50 = 108000000 / ((double)newVtotal * 50);  
-  double bestHtotal60 = 108000000 / ((double)newVtotal * 60); 
+  double bestHtotal50 = 108000000 / ((double)newVtotal * 50);
+  double bestHtotal60 = 108000000 / ((double)newVtotal * 60);
   SerialM.print("newVtotal: "); SerialM.println(newVtotal);
   // display clock probably not exact 108mhz
   SerialM.print("bestHtotal: "); SerialM.println(bestHtotal);
@@ -2611,12 +2632,12 @@ void fastGetBestHtotal() {
 }
 
 boolean runAutoBestHTotal() {
-  if (!FrameSync::ready() 
-    && rto->autoBestHtotalEnabled == true 
-    && rto->videoStandardInput > 0  
+  if (!FrameSync::ready()
+    && rto->autoBestHtotalEnabled == true
+    && rto->videoStandardInput > 0
     && rto->videoStandardInput < 15)
   {
-    
+
     //Serial.println("running");
     //unsigned long startTime = millis();
 
@@ -2739,7 +2760,7 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   if (rto->outModeHdBypass) {
     return true; // false? doesn't matter atm
   }
-  
+
   uint16_t orig_htotal = GBS::VDS_HSYNC_RST::read();
   int diffHTotal = bestHTotal - orig_htotal;
   uint16_t diffHTotalUnsigned = abs(diffHTotal);
@@ -2825,7 +2846,7 @@ boolean applyBestHTotal(uint16_t bestHTotal) {
   uint16_t h_blank_display_stop_position = GBS::VDS_DIS_HB_SP::read();
   uint16_t h_blank_memory_start_position = GBS::VDS_HB_ST::read();
   uint16_t h_blank_memory_stop_position = GBS::VDS_HB_SP::read();
- 
+
   // new 25.10.2019
   //uint16_t blankingAreaTotal = bestHTotal * 0.233f;
   //h_blank_display_start_position += (diffHTotal / 2);
@@ -3031,7 +3052,7 @@ float getSourceFieldRate(boolean useSPBus) {
       }
     }
   }
-  
+
   GBS::TEST_BUS_SEL::write(testBusSelBackup);
   GBS::PAD_BOUT_EN::write(debugPinBackup);
   if (spBusSelBackup != 0x0f) GBS::TEST_BUS_SP_SEL::write(spBusSelBackup);
@@ -3106,7 +3127,7 @@ uint32_t getPllRate() {
   if (ticks > 0) {
     retVal = esp8266_clock_freq / ticks;
   }
-  
+
   return retVal;
 }
 
@@ -3117,7 +3138,7 @@ void doPostPresetLoadSteps() {
   //GBS::DAC_RGBS_PWDNZ::write(0);    // no DAC
   //GBS::SFTRST_MEM_FF_RSTZ::write(0);  // mem fifos keep in reset
 
-  if (rto->videoStandardInput == 0) 
+  if (rto->videoStandardInput == 0)
   {
     uint8_t videoMode = getVideoMode();
     SerialM.print(F("post preset: rto->videoStandardInput 0 > "));
@@ -3126,7 +3147,7 @@ void doPostPresetLoadSteps() {
   }
   rto->presetID = GBS::GBS_PRESET_ID::read();
   boolean isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
-  
+
   GBS::ADC_UNUSED_64::write(0); GBS::ADC_UNUSED_65::write(0); // clear temp storage
   GBS::ADC_UNUSED_66::write(0); GBS::ADC_UNUSED_67::write(0); // clear temp storage
   GBS::PAD_CKIN_ENZ::write(0);                                // 0 = clock input enable (pin40)
@@ -3216,7 +3237,7 @@ void doPostPresetLoadSteps() {
   }
 
   setAndUpdateSogLevel(rto->currentLevelSOG);
-  
+
   if (!isCustomPreset) {
     setAdcParametersGainAndOffset();
   }
@@ -3240,8 +3261,8 @@ void doPostPresetLoadSteps() {
   }
 
   if (!isCustomPreset) {
-    if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 || 
-      rto->videoStandardInput == 8 || rto->videoStandardInput == 9) 
+    if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 ||
+      rto->videoStandardInput == 8 || rto->videoStandardInput == 9)
     {
       GBS::IF_LD_RAM_BYPS::write(1);    // 1_0c 0 no LD, do this before setIfHblankParameters
     }
@@ -3321,9 +3342,9 @@ void doPostPresetLoadSteps() {
       setOverSampleRatio(4, true);        // prepare only = true
       GBS::IF_SEL_WEN::write(0);          // 1_02 0; 0 for SD, 1 for EDTV
       if (rto->inputIsYpBpR) {            // todo: check other videoStandardInput in component vs rgb
-        GBS::IF_HS_TAP11_BYPS::write(0);  // 1_02 4 Tap11 LPF bypass in YUV444to422 
+        GBS::IF_HS_TAP11_BYPS::write(0);  // 1_02 4 Tap11 LPF bypass in YUV444to422
         GBS::IF_HS_Y_PDELAY::write(2);    // 1_02 5+6 delays
-        GBS::VDS_V_DELAY::write(0);       // 3_24 2 
+        GBS::VDS_V_DELAY::write(0);       // 3_24 2
         GBS::VDS_Y_DELAY::write(3);       // 3_24 4/5 delays
       }
 
@@ -3355,12 +3376,12 @@ void doPostPresetLoadSteps() {
         }
       }
     }
-    if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 || 
+    if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 ||
       rto->videoStandardInput == 8 || rto->videoStandardInput == 9)
     {
       // EDTV p-scan, need to either double adc data rate and halve vds scaling
       // or disable line doubler (better) (50 / 60Hz shared)
-      
+
       GBS::ADC_FLTR::write(3);          // 5_03 4/5
       GBS::PLLAD_KS::write(1);          // 5_16
 
@@ -3407,23 +3428,23 @@ void doPostPresetLoadSteps() {
       GBS::IF_HB_ST::write(30);       // 1_10; magic number
       GBS::IF_HBIN_ST::write(0x20);   // 1_24
       GBS::IF_HBIN_SP::write(0x60);   // 1_26
-      if (rto->presetID == 0x5) 
+      if (rto->presetID == 0x5)
       { // out 1080p
         GBS::IF_HB_SP2::write(0xB0);  // 1_1a
         GBS::IF_HB_ST2::write(0x4BC); // 1_18
       }
-      else if (rto->presetID == 0x3) 
+      else if (rto->presetID == 0x3)
       { // out 720p
         GBS::VDS_VSCALE::write(683);  // same as base preset
         GBS::IF_HB_ST2::write(0x478); // 1_18
         GBS::IF_HB_SP2::write(0x84);  // 1_1a
       }
-      else if (rto->presetID == 0x2) 
+      else if (rto->presetID == 0x2)
       { // out x1024
         GBS::IF_HB_SP2::write(0x84);  // 1_1a
         GBS::IF_HB_ST2::write(0x478); // 1_18
       }
-      else if (rto->presetID == 0x1) 
+      else if (rto->presetID == 0x1)
       { // out x960
         GBS::IF_HB_SP2::write(0x84);  // 1_1a
         GBS::IF_HB_ST2::write(0x478); // 1_18
@@ -3439,24 +3460,24 @@ void doPostPresetLoadSteps() {
       GBS::IF_HBIN_SP::write(0x40); // 1_26 was 0x80 test: ps2 videomodetester 576p mode
       GBS::IF_HBIN_ST::write(0x20); // 1_24, odd but need to set this here (blue bar)
       GBS::IF_HB_ST::write(0x30); // 1_10
-      if (rto->presetID == 0x15) 
+      if (rto->presetID == 0x15)
       { // out 1080p
         GBS::IF_HB_ST2::write(0x4C0); // 1_18
         GBS::IF_HB_SP2::write(0xC8);  // 1_1a
       }
-      else if (rto->presetID == 0x13) 
+      else if (rto->presetID == 0x13)
       { // out 720p
         GBS::IF_HB_ST2::write(0x478); // 1_18
         GBS::IF_HB_SP2::write(0x88);  // 1_1a
       }
-      else if (rto->presetID == 0x12) 
+      else if (rto->presetID == 0x12)
       { // out x1024
         // VDS_VB_SP -= 12 used to shift pic up, but seems not necessary anymore
         //GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - 12);
         GBS::IF_HB_ST2::write(0x454); // 1_18
         GBS::IF_HB_SP2::write(0x88);  // 1_1a
       }
-      else if (rto->presetID == 0x11) 
+      else if (rto->presetID == 0x11)
       { // out x960
         GBS::IF_HB_ST2::write(0x454); // 1_18
         GBS::IF_HB_SP2::write(0x88);  // 1_1a
@@ -3467,7 +3488,7 @@ void doPostPresetLoadSteps() {
         GBS::IF_HB_SP2::write(0x90);  // 1_1a
       }
     }
-    else if (rto->videoStandardInput == 5) 
+    else if (rto->videoStandardInput == 5)
     { // 720p
       GBS::ADC_FLTR::write(1);        // 5_03
       GBS::IF_PRGRSV_CNTRL::write(1); // progressive
@@ -3475,7 +3496,7 @@ void doPostPresetLoadSteps() {
       GBS::INPUT_FORMATTER_02::write(0x74);
       GBS::VDS_Y_DELAY::write(3);
     }
-    else if (rto->videoStandardInput == 6 || rto->videoStandardInput == 7) 
+    else if (rto->videoStandardInput == 6 || rto->videoStandardInput == 7)
     { // 1080i/p
       GBS::ADC_FLTR::write(1);        // 5_03
       GBS::PLLAD_KS::write(0);        // 5_16
@@ -3631,7 +3652,7 @@ void doPostPresetLoadSteps() {
   // unused now
   GBS::VDS_TAP6_BYPS::write(0);
   /*if (uopt->wantTap6) { GBS::VDS_TAP6_BYPS::write(0); }
-  else { 
+  else {
     GBS::VDS_TAP6_BYPS::write(1);
     if (!isCustomPreset) {
       GBS::MADPT_Y_DELAY_UV_DELAY::write(GBS::MADPT_Y_DELAY_UV_DELAY::read() + 1);
@@ -3647,8 +3668,8 @@ void doPostPresetLoadSteps() {
       GBS::VDS_UV_STEP_BYPS::write(1);
     }
   }
-  else { 
-    GBS::VDS_UV_STEP_BYPS::write(1); 
+  else {
+    GBS::VDS_UV_STEP_BYPS::write(1);
   }
 
   // transfer preset's display clock to ext. gen
@@ -3764,7 +3785,7 @@ void doPostPresetLoadSteps() {
     GBS::DEC_IDREG_EN::write(1); // 5_1f 7
     GBS::DEC_WEN_MODE::write(1); // 5_1e 7 // 1 keeps ADC phase consistent. around 4 lock positions vs totally random
 
-    // 4 segment 
+    // 4 segment
     GBS::CAP_SAFE_GUARD_EN::write(0); // 4_21_5 // does more harm than good
     // memory timings, anti noise
     GBS::PB_CUT_REFRESH::write(1);  // helps with PLL=ICLK mode artefacting
@@ -3786,7 +3807,7 @@ void doPostPresetLoadSteps() {
   }
 
   setAndUpdateSogLevel(rto->currentLevelSOG); // use this to cycle SP / ADPLL latches
-  
+
   if (rto->presetID != 0x06 && rto->presetID != 0x16) {
     // IF_VS_SEL = 1 for SD/HD SP mode in HD mode (5_3e 1)
     GBS::IF_VS_SEL::write(0); // 0 = "VCR" IF sync, requires VS_FLIP to be on, more stable?
@@ -3876,16 +3897,16 @@ void doPostPresetLoadSteps() {
   GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
   GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
   GBS::INTERRUPT_CONTROL_00::write(0x00);
-  
+
   OutputComponentOrVGA();
-  
+
   // presetPreference 10 means the user prefers bypass mode at startup
   // it's best to run a normal format detect > apply preset loop, then enter bypass mode
-  // this can lead to an endless loop, so applyPresetDoneStage = 10 applyPresetDoneStage = 11 
+  // this can lead to an endless loop, so applyPresetDoneStage = 10 applyPresetDoneStage = 11
   // are introduced to break out of it.
   // also need to check for mode 15
   // also make sure to turn off autoBestHtotal
-  if (uopt->presetPreference == 10 && rto->videoStandardInput != 15) 
+  if (uopt->presetPreference == 10 && rto->videoStandardInput != 15)
   {
     rto->autoBestHtotalEnabled = 0;
     if (rto->applyPresetDoneStage == 11) {
@@ -3907,7 +3928,7 @@ void doPostPresetLoadSteps() {
     activeFrameTimeLockInitialSteps();
   }
 
-  SerialM.print(F("\npreset applied: ")); 
+  SerialM.print(F("\npreset applied: "));
   if (rto->presetID == 0x01 || rto->presetID == 0x11)       SerialM.print(F("1280x960"));
   else if (rto->presetID == 0x02 || rto->presetID == 0x12)  SerialM.print(F("1280x1024"));
   else if (rto->presetID == 0x03 || rto->presetID == 0x13)  SerialM.print(F("1280x720"));
@@ -3977,7 +3998,7 @@ void applyPresets(uint8_t result) {
       }
     }
   }
-  
+
   boolean waitExtra = 0;
   if (rto->outModeHdBypass || rto->videoStandardInput == 15 || rto->videoStandardInput == 0) {
     waitExtra = 1;
@@ -3989,10 +4010,10 @@ void applyPresets(uint8_t result) {
   }
   rto->presetIsPalForce60 = 0;        // the default
   rto->outModeHdBypass = 0;           // the default at this stage
-  GBS::GBS_PRESET_CUSTOM::write(0);   // in case it is set; will get set appropriately later 
+  GBS::GBS_PRESET_CUSTOM::write(0);   // in case it is set; will get set appropriately later
 
   // carry over debug view if possible
-  if (GBS::ADC_UNUSED_62::read() != 0x00) { 
+  if (GBS::ADC_UNUSED_62::read() != 0x00) {
     // only if the preset to load isn't custom
     // (else the command will instantly disable debug view)
     if (uopt->presetPreference != 2) {
@@ -4033,7 +4054,7 @@ void applyPresets(uint8_t result) {
         rto->syncWatcherEnabled = 0;
         rto->videoStandardInput = 0;
         typeOneCommand = 'D'; // enable debug view
-        
+
         return;
       }
     }
@@ -4312,9 +4333,9 @@ boolean getSyncPresent() {
   if (debug_backup_SP != 0x0f) {
     GBS::TEST_BUS_SP_SEL::write(0x0f);
   }
-  
+
   uint16_t readout = GBS::TEST_BUS::read();
-  
+
   if (debug_backup != 0xa) {
     GBS::TEST_BUS_SEL::write(debug_backup);
   }
@@ -4352,14 +4373,14 @@ boolean getStatus16SpHsStable() {
   uint8_t status16 = GBS::STATUS_16::read();
   if ((status16 & 0x02) == 0x02)
   {
-    if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) 
+    if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
     {
-      if ((status16 & 0x01) != 0x01) 
+      if ((status16 & 0x01) != 0x01)
       {  // pal / ntsc should be sync active low
         return true;
       }
     }
-    else 
+    else
     {
       return true;  // not pal / ntsc
     }
@@ -4475,7 +4496,7 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck) {
   {
     return;
   }
-  
+
   uint8_t vidModeReadout = getVideoMode();
   if (vidModeReadout == 0) {
     vidModeReadout = getVideoMode();
@@ -4484,7 +4505,7 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck) {
   if (rto->videoStandardInput == 0 && vidModeReadout == 0) {
     if (GBS::SP_DLT_REG::read() > 0x30)
       GBS::SP_DLT_REG::write(0x30); // 5_35
-    else 
+    else
       GBS::SP_DLT_REG::write(0xC0);
     return;
   }
@@ -4605,7 +4626,7 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck) {
       GBS::SP_PRE_COAST::write(9);
       GBS::SP_POST_COAST::write(18); // of 1124 input lines
       GBS::SP_DLT_REG::write(0x70);
-      // ps2 up to 0x06 
+      // ps2 up to 0x06
       // new test shows ps2 alternating between okay and not okay at 0x0a with 5_35=0x70
       GBS::SP_H_PULSE_IGNOR::write(0x06);
     }
@@ -4658,7 +4679,7 @@ void updateCoastPosition(boolean autoCoast) {
   if (accInHlength >= 2040) {
     accInHlength = 1716;
   }
-  
+
   if (accInHlength <= 240) {
     // check for low res, low Hz > can overflow HPERIOD_IF
     if (GBS::STATUS_SYNC_PROC_VTOTAL::read() <= 322) {
@@ -4696,7 +4717,7 @@ void updateCoastPosition(boolean autoCoast) {
       //GBS::SP_H_CST_ST::write((uint16_t)(accInHlength * 0.088f)); // ~0x9a, leave some room for SNES 239 mode
       // new: with SP_H_PROTECT disabled, even SNES can be a small value. Small value greatly improves Mega Drive
       GBS::SP_H_CST_ST::write(0x10);
-      
+
       GBS::SP_H_CST_SP::write((uint16_t)(accInHlength * 0.968f));  // ~0x678
       // need a bit earlier, making 5_3e 2 more stable
       //GBS::SP_H_CST_SP::write((uint16_t)(accInHlength * 0.7383f));  // ~0x4f0, before sync
@@ -4713,7 +4734,7 @@ void updateCoastPosition(boolean autoCoast) {
 }
 
 void updateClampPosition() {
-  if ((rto->videoStandardInput == 0) || !rto->boardHasPower || rto->sourceDisconnected) 
+  if ((rto->videoStandardInput == 0) || !rto->boardHasPower || rto->sourceDisconnected)
   {
     return;
   }
@@ -4869,7 +4890,7 @@ void setOutModeHdBypass() {
   setOverSampleRatio(2, true);
   GBS::PLLAD_ICP::write(5);
   GBS::PLLAD_FS::write(1);
-  
+
   if (rto->inputIsYpBpR) {
     GBS::DEC_MATRIX_BYPS::write(1); // 5_1f 2 = 1 for YUV / 0 for RGB
     GBS::HD_MATRIX_BYPS::write(0);  // 1_30 1 / input to jacks is yuv, adc leaves it as yuv > convert to rgb for output here
@@ -4882,7 +4903,7 @@ void setOutModeHdBypass() {
     GBS::HD_MATRIX_BYPS::write(1);  // 1_30 1 / input is rgb, adc leaves it as rgb > bypass matrix
     GBS::HD_DYN_BYPS::write(1);     // bypass as well
   }
-  
+
   GBS::HD_SEL_BLK_IN::write(0);   // 0 enables HDB blank timing (1 would be DVI, not working atm)
 
   GBS::SP_SDCS_VSST_REG_H::write(0); // S5_3B
@@ -5027,7 +5048,7 @@ void setOutModeHdBypass() {
     if (rto->videoStandardInput == 13) { // odd HD mode (PS2 "VGA" over Component)
       applyRGBPatches(); // treat mostly as RGB, clamp R/B to gnd
       rto->syncTypeCsync = true; // used in loop to set clamps and SP dynamic
-      GBS::DEC_MATRIX_BYPS::write(1); // overwrite for this mode 
+      GBS::DEC_MATRIX_BYPS::write(1); // overwrite for this mode
       GBS::SP_PRE_COAST::write(4);
       GBS::SP_POST_COAST::write(4);
       GBS::SP_DLT_REG::write(0x70);
@@ -5101,7 +5122,7 @@ void bypassModeSwitch_RGBHV() {
 
   GBS::DAC_RGBS_PWDNZ::write(0);    // disable DAC
   GBS::PAD_SYNC_OUT_ENZ::write(1);  // disable sync out
-  
+
   loadHdBypassSection();
   externalClockGenResetClock();
   FrameSync::cleanup();
@@ -5124,7 +5145,7 @@ void bypassModeSwitch_RGBHV() {
   GBS::PLL648_CONTROL_01::write(0x35);
   GBS::PLL648_CONTROL_03::write(0x00); // 0_43
   GBS::PLL_LEN::write(1);              // 0_43
-  
+
   GBS::DAC_RGBS_ADC2DAC::write(1);
   GBS::OUT_SYNC_SEL::write(1);    // 0_4f 1=sync from HDBypass, 2=sync from SP, (00 = from VDS)
 
@@ -5140,7 +5161,7 @@ void bypassModeSwitch_RGBHV() {
 
   GBS::PAD_SYNC1_IN_ENZ::write(0); // filter H/V sync input1 (0 = on)
   GBS::PAD_SYNC2_IN_ENZ::write(0); // filter H/V sync input2 (0 = on)
-  
+
   GBS::SP_SOG_P_ATO::write(1);    // 5_20 1 corrects hpw readout and slightly affects sync
   if (rto->syncTypeCsync == false)
   {
@@ -5182,7 +5203,7 @@ void bypassModeSwitch_RGBHV() {
   GBS::SP_CLAMP_MANUAL::write(1);  // needs to be 1
   GBS::SP_COAST_INV_REG::write(0); // just in case
 
-  GBS::SP_DIS_SUB_COAST::write(1); // 5_3e 5 
+  GBS::SP_DIS_SUB_COAST::write(1); // 5_3e 5
   GBS::SP_HS_PROC_INV_REG::write(0); // 5_56 5
   GBS::SP_VS_PROC_INV_REG::write(0); // 5_56 6
   GBS::PLLAD_KS::write(1); // 0 - 3
@@ -5284,7 +5305,7 @@ void runAutoGain()
       limit_found = 0;
     }
     greenValue = GBS::TEST_BUS_2F::read();
-    
+
     if (greenValue == 0x7f) {
       if (getStatus16SpHsStable() && (GBS::STATUS_00::read() == status00reg)) {
         limit_found++;
@@ -5294,7 +5315,7 @@ void runAutoGain()
       }
       else
         return;
-      
+
       if (limit_found == 2) {
         limit_found = 0;
         uint8_t level = GBS::ADC_GGCTRL::read();
@@ -5556,13 +5577,13 @@ void printInfo() {
     v = VSp = ' ';
   }
 
-  //int charsToPrint = 
+  //int charsToPrint =
   sprintf(print, "h:%4u v:%4u PLL:%01u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d\n",
     hperiod, vperiod, lockCounterPrevious,
     GBS::ADC_RGCTRL::read(), GBS::ADC_GGCTRL::read(), GBS::ADC_BGCTRL::read(),
     GBS::STATUS_00::read(), GBS::STATUS_05::read(), GBS::SP_CS_0x3E::read(),
     h, HSp, v, VSp, stat0FIrq, GBS::TEST_BUS::read(), getVideoMode(),
-    GBS::STATUS_SYNC_PROC_HTOTAL::read(), GBS::STATUS_SYNC_PROC_VTOTAL::read() /*+ 1*/,   // emucrt: without +1 is correct line count 
+    GBS::STATUS_SYNC_PROC_HTOTAL::read(), GBS::STATUS_SYNC_PROC_VTOTAL::read() /*+ 1*/,   // emucrt: without +1 is correct line count
     GBS::STATUS_SYNC_PROC_HLOW_LEN::read(), rto->noSyncCounter, rto->continousStableCounter,
     rto->currentLevelSOG, wifi);
 
@@ -5606,7 +5627,7 @@ void stopWire() {
 
 void startWire() {
   Wire.begin();
-  // The i2c wire library sets pullup resistors on by default. 
+  // The i2c wire library sets pullup resistors on by default.
   // Disable these to detect/work with GBS onboard pullups
   pinMode(SCL, OUTPUT_OPEN_DRAIN);
   pinMode(SDA, OUTPUT_OPEN_DRAIN);
@@ -5690,7 +5711,7 @@ void runSyncWatcher()
             activeStableLineCount = thisStableLineCount;
             if (activeStableLineCount < 230 || activeStableLineCount > 340) {
               // only doing NTSC/PAL currently, an unusual line count probably means a format change
-              setCsVsStart(1); 
+              setCsVsStart(1);
               if (getCsVsStop() == 1) { setCsVsStop(2); }
               // MD likes to get stuck as usual
               nudgeMD();
@@ -5736,7 +5757,7 @@ void runSyncWatcher()
 
     if ((millis() - preemptiveSogWindowStart) < sogWindowLen) {
       for (uint8_t i = 0; i < 16; i++) {
-        if (GBS::STATUS_INT_SOG_BAD::read() == 1 || GBS::STATUS_SYNC_PROC_HSACT::read() == 0) 
+        if (GBS::STATUS_INT_SOG_BAD::read() == 1 || GBS::STATUS_SYNC_PROC_HSACT::read() == 0)
         {
           resetInterruptSogBadBit();
           uint16_t hlowStart = GBS::STATUS_SYNC_PROC_HLOW_LEN::read();
@@ -5785,7 +5806,7 @@ void runSyncWatcher()
     }
   }
 
-  if ((detectedVideoMode == 0 || !status16SpHsStable) && rto->videoStandardInput != 15) 
+  if ((detectedVideoMode == 0 || !status16SpHsStable) && rto->videoStandardInput != 15)
   {
     rto->noSyncCounter++;
     rto->continousStableCounter = 0;
@@ -5967,7 +5988,7 @@ void runSyncWatcher()
     rto->videoStandardInput != 15)
   {
     // before thoroughly checking for a mode change, watch format via newVideoModeCounter
-    if (newVideoModeCounter < 255) { 
+    if (newVideoModeCounter < 255) {
       newVideoModeCounter++;
       rto->continousStableCounter = 0;  // usually already 0, but occasionally not
       if (newVideoModeCounter > 1) {    // help debug a few commits worth
@@ -6058,7 +6079,7 @@ void runSyncWatcher()
   }
   else if (getStatus16SpHsStable() && detectedVideoMode != 0 && rto->videoStandardInput != 15
     && (rto->videoStandardInput == detectedVideoMode))
-  { 
+  {
     // last used mode reappeared / stable again
     if (rto->continousStableCounter < 255) {
       rto->continousStableCounter++;
@@ -6109,7 +6130,7 @@ void runSyncWatcher()
     // 5_3e 2 SP_H_COAST test
     //if (rto->continousStableCounter == 11) {
     //  if (rto->coastPositionIsSet) {
-    //    GBS::SP_H_COAST::write(1); 
+    //    GBS::SP_H_COAST::write(1);
     //  }
     //}
 
@@ -6155,8 +6176,8 @@ void runSyncWatcher()
             }
           }
 
-          if (VPERIOD_IF == 522 || VPERIOD_IF == 524 || VPERIOD_IF == 526 || 
-              VPERIOD_IF == 622 || VPERIOD_IF == 624 || VPERIOD_IF == 626) 
+          if (VPERIOD_IF == 522 || VPERIOD_IF == 524 || VPERIOD_IF == 526 ||
+              VPERIOD_IF == 622 || VPERIOD_IF == 624 || VPERIOD_IF == 626)
           { // ie v:524, even counts > enable
             filteredLineCountMotionAdaptiveOn++;
             filteredLineCountMotionAdaptiveOff = 0;
@@ -6179,8 +6200,8 @@ void runSyncWatcher()
               filteredLineCountMotionAdaptiveOn = 0;
             }
           }
-          else if (VPERIOD_IF == 521 || VPERIOD_IF == 523 || VPERIOD_IF == 525 || 
-                   VPERIOD_IF == 623 || VPERIOD_IF == 625 || VPERIOD_IF == 627) 
+          else if (VPERIOD_IF == 521 || VPERIOD_IF == 523 || VPERIOD_IF == 525 ||
+                   VPERIOD_IF == 623 || VPERIOD_IF == 625 || VPERIOD_IF == 627)
           { // ie v:523, uneven counts > disable
             filteredLineCountMotionAdaptiveOff++;
             filteredLineCountMotionAdaptiveOn = 0;
@@ -6556,7 +6577,7 @@ void runSyncWatcher()
         }
       }
     } // done preferScalingRgbhv
-    
+
     if (!uopt->preferScalingRgbhv && rto->videoStandardInput == 14) {
       // user toggled the web ui button / revert scaling rgbhv
       rto->videoStandardInput = 15;
@@ -6660,7 +6681,7 @@ void runSyncWatcher()
             delay(40);
             if (GBS::STATUS_INT_SOG_BAD::read() == 1) delay(100);
             currentPllRate = getPllRate();  // test again, guards against random spurs
-            // but don't force currentPllRate to = 0 if these inner checks fail, 
+            // but don't force currentPllRate to = 0 if these inner checks fail,
             // prevents csync <> hvsync changes
             if ((currentPllRate < (oldPllRate - 3)) || (currentPllRate > (oldPllRate + 3))) {
               oldPllRate = currentPllRate; // okay, it changed
@@ -6915,7 +6936,7 @@ void calibrateAdcOffset()
 void loadDefaultUserOptions() {
   uopt->presetPreference = 0; // #1
   uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
-  uopt->presetSlot = 1; //
+  uopt->presetSlot = 0; //
   uopt->frameTimeLockMethod = 0; // compatibility with more displays
   uopt->enableAutoGain = 0;
   uopt->wantScanlines = 0;
@@ -6947,33 +6968,34 @@ void ICACHE_RAM_ATTR isrRotaryEncoder (){
 
   if(inturruptTime - lastInterruptTime > 120){
     if(!digitalRead(pin_data)){
-      encoder_pos++;
-      main_pointer+=15;
-      sub_pointer+=15;
-      pointer_count++;
+      oled_encoder_pos++;
+      oled_main_pointer+=15;
+      oled_sub_pointer+=15;
+      oled_pointer_count++;
       // down = true;
       // up = false;
     } else{
-      encoder_pos--;
-      main_pointer-=15;
-      sub_pointer-=15;
-      pointer_count--;
+      oled_encoder_pos--;
+      oled_main_pointer-=15;
+      oled_sub_pointer-=15;
+      oled_pointer_count--;
       // down = false;
       // up = true;
     }
   }
   lastInterruptTime = inturruptTime;
 }
+
 void setup() {
-  display.init();
-  display.flipScreenVertically();
-  
+  display.init(); //initialize OLED on I2C bus
+  display.flipScreenVertically(); //correct orientation for OLED
+
   pinMode(pin_clk, INPUT_PULLUP);
   pinMode(pin_data, INPUT_PULLUP);
   pinMode(pin_switch, INPUT_PULLUP);
-  //ISR TO PIN
+  //ISR TO pin
   attachInterrupt(digitalPinToInterrupt(pin_clk),isrRotaryEncoder,FALLING);
-  
+
   rto->webServerEnabled = true;
   rto->webServerStarted = false; // make sure this is set
 
@@ -7075,7 +7097,7 @@ void setup() {
     handleWiFi(0);
     delay(1);
   }
-  display.clear();
+    display.clear();
   // if i2c established and chip running, issue software reset now
   GBS::RESET_CONTROL_0x46::write(0); GBS::RESET_CONTROL_0x47::write(0);
   GBS::PLLAD_VCORST::write(1); GBS::PLLAD_PDZ::write(0);  // AD PLL off
@@ -7100,8 +7122,8 @@ void setup() {
       uopt->enableFrameTimeLock = (uint8_t)(f.read() - '0');
       if (uopt->enableFrameTimeLock > 1) uopt->enableFrameTimeLock = 0;
 
-      uopt->presetSlot = (uint8_t)(f.read() - '0');
-      if (uopt->presetSlot > 9) uopt->presetSlot = 1;
+      uopt->presetSlot = lowByte(f.read());
+      if (uopt->presetSlot >= SLOTS_TOTAL) uopt->presetSlot = 0;
 
       uopt->frameTimeLockMethod = (uint8_t)(f.read() - '0');
       if (uopt->frameTimeLockMethod > 1) uopt->frameTimeLockMethod = 0;
@@ -7117,7 +7139,7 @@ void setup() {
 
       uopt->deintMode = (uint8_t)(f.read() - '0');
       if (uopt->deintMode > 2) uopt->deintMode = 0;
-      
+
       uopt->wantVdsLineFilter = (uint8_t)(f.read() - '0');
       if (uopt->wantVdsLineFilter > 1) uopt->wantVdsLineFilter = 0;
 
@@ -7132,7 +7154,7 @@ void setup() {
 
       uopt->PalForce60 = (uint8_t)(f.read() - '0');
       if (uopt->PalForce60 > 1) uopt->PalForce60 = 0;
-      
+
       uopt->matchPresetSource = (uint8_t)(f.read() - '0'); // #14
       if (uopt->matchPresetSource > 1) uopt->matchPresetSource = 1;
 
@@ -7151,6 +7173,7 @@ void setup() {
       f.close();
     }
   }
+
 
   GBS::PAD_CKIN_ENZ::write(1);  // disable to prevent startup spike damage
   externalClockGenDetectPresence();
@@ -7229,7 +7252,7 @@ void setup() {
     uint8_t productId = GBS::CHIP_ID_PRODUCT::read();
     uint8_t revisionId = GBS::CHIP_ID_REVISION::read();
     SerialM.print(F("Chip ID: "));
-    SerialM.print(productId,HEX); 
+    SerialM.print(productId,HEX);
     SerialM.print(" ");
     SerialM.println(revisionId,HEX);
 
@@ -7266,10 +7289,10 @@ void setup() {
   else {
     SerialM.println(F("Please check board power and cabling or restart!"));
   }
-  
+
   LEDOFF; // LED behaviour: only light LED on active sync
 
-  // some debug tools leave garbage in the serial rx buffer 
+  // some debug tools leave garbage in the serial rx buffer
   if (Serial.available()) {
     discardSerialRxData();
   }
@@ -7372,38 +7395,7 @@ void updateWebSocketData() {
         break;
       }
 
-      switch (uopt->presetSlot) {
-      case 1:
-        toSend[2] = '1';
-        break;
-      case 2:
-        toSend[2] = '2';
-        break;
-      case 3:
-        toSend[2] = '3';
-        break;
-      case 4:
-        toSend[2] = '4';
-        break;
-      case 5:
-        toSend[2] = '5';
-        break;
-      case 6:
-        toSend[2] = '6';
-        break;
-      case 7:
-        toSend[2] = '7';
-        break;
-      case 8:
-        toSend[2] = '8';
-        break;
-      case 9:
-        toSend[2] = '9';
-        break;
-      default:
-        toSend[2] = '1';
-        break;
-      }
+      toSend[2] = (char)uopt->presetSlot;
 
       // '@' = 0x40, used for "byte is present" detection; 0x80 not in ascii table
       toSend[3] = '@';
@@ -7472,12 +7464,12 @@ void loop() {
   static unsigned long lastTimeSyncWatcher = millis();
   static unsigned long lastTimeSourceCheck = 500; // 500 to start right away (after setup it will be 2790ms when we get here)
   static unsigned long lastTimeInterruptClear = millis();
-  
+
   settingsMenuOLED();
-  if(encoder_pos != lastCount){
-    lastCount = encoder_pos;
+  if(oled_encoder_pos != oled_lastCount){
+    oled_lastCount = oled_encoder_pos;
   }
-  
+
 #ifdef HAVE_BUTTONS
   static unsigned long lastButton = micros();
 
@@ -7500,7 +7492,7 @@ void loop() {
     discardSerialRxData();
     typeOneCommand = ' ';
   }
-  if (typeOneCommand != '@') 
+  if (typeOneCommand != '@')
   {
     // multistage with bad characters?
     if (inputStage > 0) {
@@ -7523,7 +7515,7 @@ void loop() {
         disableScanlines();
       }
       // pal forced 60hz: no need to revert here. let the voffset function handle it
-      
+
       if (uopt->enableFrameTimeLock && FrameSync::getSyncLastCorrection() != 0) {
         FrameSync::reset(uopt->frameTimeLockMethod);
       }
@@ -7566,7 +7558,7 @@ void loop() {
     break;
     case 'D':
       SerialM.print(F("debug view: "));
-      if (GBS::ADC_UNUSED_62::read() == 0x00) { // "remembers" debug view 
+      if (GBS::ADC_UNUSED_62::read() == 0x00) { // "remembers" debug view
         //if (uopt->wantPeaking == 0) { GBS::VDS_PK_Y_H_BYPS::write(0); } // 3_4e 0 // enable peaking but don't store
         GBS::VDS_PK_LB_GAIN::write(0x3f); // 3_45
         GBS::VDS_PK_LH_GAIN::write(0x3f); // 3_47
@@ -8184,11 +8176,11 @@ void loop() {
           char szNumbers[3];
           for (uint8_t a = 0; a <= 1; a++) {
             // ascii 0x30 to 0x39 for '0' to '9'
-            if ((Serial.peek() >= '0' && Serial.peek() <= '9') || 
-                (Serial.peek() >= 'a' && Serial.peek() <= 'f') || 
+            if ((Serial.peek() >= '0' && Serial.peek() <= '9') ||
+                (Serial.peek() >= 'a' && Serial.peek() <= 'f') ||
                 (Serial.peek() >= 'A' && Serial.peek() <= 'F'))
             {
-              szNumbers[a] = Serial.read(); 
+              szNumbers[a] = Serial.read();
             }
             else {
               szNumbers[a] = 0;  // NUL char
@@ -8202,8 +8194,8 @@ void loop() {
           SerialM.print(registerCurrent, HEX);
         }
         else if (inputStage == 3) {
-          if (Serial.peek() >= '0' && Serial.peek() <= '7') { 
-            inputToogleBit = Serial.parseInt(); 
+          if (Serial.peek() >= '0' && Serial.peek() <= '7') {
+            inputToogleBit = Serial.parseInt();
           }
           else {
             inputToogleBit = 255; // will get discarded next step
@@ -8516,8 +8508,8 @@ void loop() {
   //}
 
   // syncwatcher polls SP status. when necessary, initiates adjustments or preset changes
-  if (rto->sourceDisconnected == false && rto->syncWatcherEnabled == true 
-    && (millis() - lastTimeSyncWatcher) > 20) 
+  if (rto->sourceDisconnected == false && rto->syncWatcherEnabled == true
+    && (millis() - lastTimeSyncWatcher) > 20)
   {
     runSyncWatcher();
     lastTimeSyncWatcher = millis();
@@ -8548,8 +8540,8 @@ void loop() {
 
   // init frame sync + besthtotal routine
   if (rto->autoBestHtotalEnabled && !FrameSync::ready() && rto->syncWatcherEnabled) {
-    if (rto->continousStableCounter >= 10 && rto->coastPositionIsSet && 
-      ((millis() - lastVsyncLock) > 500)) 
+    if (rto->continousStableCounter >= 10 && rto->coastPositionIsSet &&
+      ((millis() - lastVsyncLock) > 500))
     {
       if ((rto->continousStableCounter % 5) == 0) { // 5, 10, 15, .., 255
         uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
@@ -8560,7 +8552,7 @@ void loop() {
       }
     }
   }
-  
+
   // update clamp + coast positions after preset change // do it quickly
   if ((rto->videoStandardInput <= 14 && rto->videoStandardInput != 0) &&
     rto->syncWatcherEnabled && !rto->coastPositionIsSet)
@@ -8591,22 +8583,22 @@ void loop() {
       }
     }
   }
-  
-  // later stage post preset adjustments 
+
+  // later stage post preset adjustments
   if ((rto->applyPresetDoneStage == 1) &&
     ((rto->continousStableCounter > 35 && rto->continousStableCounter < 45) || // this
       !rto->syncWatcherEnabled))                                               // or that
   {
-    if (rto->applyPresetDoneStage == 1) 
+    if (rto->applyPresetDoneStage == 1)
     {
       // 2nd chance
       GBS::DAC_RGBS_PWDNZ::write(1); // 2nd chance
-      if (!uopt->wantOutputComponent) 
+      if (!uopt->wantOutputComponent)
       {
         GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out // 2nd chance
       }
-      if (!rto->syncWatcherEnabled) 
-      { 
+      if (!rto->syncWatcherEnabled)
+      {
         updateClampPosition();
         GBS::SP_NO_CLAMP_REG::write(0); // 5_57 0
       }
@@ -8632,7 +8624,7 @@ void loop() {
   {
     // 3rd chance
     GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC // 3rd chance
-    if (!uopt->wantOutputComponent) 
+    if (!uopt->wantOutputComponent)
     {
       GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out // 3rd chance
     }
@@ -8641,7 +8633,7 @@ void loop() {
     externalClockGenSyncInOutRate();
     rto->applyPresetDoneStage = 0; // timeout
   }
-  
+
   if (rto->applyPresetDoneStage == 10)
   {
     rto->applyPresetDoneStage = 11; // set first, so we don't loop applying presets
@@ -8650,7 +8642,7 @@ void loop() {
 
   if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true && rto->boardHasPower)
   {
-    if ((millis() - lastTimeSourceCheck) >= 500) 
+    if ((millis() - lastTimeSourceCheck) >= 500)
     {
       if ( checkBoardPower() )
       {
@@ -8696,12 +8688,12 @@ void loop() {
 
   // power good now? // added syncWatcherEnabled check to enable passive mode
   // (passive mode = watching OFW without interrupting)
-  if (!rto->boardHasPower && rto->syncWatcherEnabled) 
+  if (!rto->boardHasPower && rto->syncWatcherEnabled)
   { // then check if power has come on
-    if (digitalRead(SCL) && digitalRead(SDA)) 
+    if (digitalRead(SCL) && digitalRead(SDA))
     {
       delay(50);
-      if (digitalRead(SCL) && digitalRead(SDA)) 
+      if (digitalRead(SCL) && digitalRead(SDA))
       {
         Serial.println(F("power good"));
         delay(350); // i've seen the MTV230 go on briefly on GBS power cycle
@@ -8823,51 +8815,6 @@ void handleType2Command(char argument) {
     delay(60);
     ESP.reset(); // don't use restart(), messes up websocket reconnects
     break;
-  case 'b':
-    uopt->presetSlot = 1;
-    uopt->presetPreference = 2; // custom
-    saveUserPrefs();
-    break;
-  case 'c':
-    uopt->presetSlot = 2;
-    uopt->presetPreference = 2;
-    saveUserPrefs();
-    break;
-  case 'd':
-    uopt->presetSlot = 3;
-    uopt->presetPreference = 2;
-    saveUserPrefs();
-    break;
-  case 'j':
-    uopt->presetSlot = 4;
-    uopt->presetPreference = 2;
-    saveUserPrefs();
-    break;
-  case 'k':
-    uopt->presetSlot = 5;
-    uopt->presetPreference = 2;
-    saveUserPrefs();
-    break;
-  case 'G':
-    uopt->presetSlot = 6;
-    uopt->presetPreference = 2; // custom
-    saveUserPrefs();
-    break;
-  case 'H':
-    uopt->presetSlot = 7;
-    uopt->presetPreference = 2;
-    saveUserPrefs();
-    break;
-  case 'I':
-    uopt->presetSlot = 8;
-    uopt->presetPreference = 2;
-    saveUserPrefs();
-    break;
-  case 'J':
-    uopt->presetSlot = 9;
-    uopt->presetPreference = 2;
-    saveUserPrefs();
-    break;
   case 'e': // print files on spiffs
   {
     Dir dir = SPIFFS.openDir("/");
@@ -8883,7 +8830,7 @@ void handleType2Command(char argument) {
     else {
       SerialM.print(F("preset preference = ")); SerialM.println((uint8_t)(f.read() - '0'));
       SerialM.print(F("frame time lock = ")); SerialM.println((uint8_t)(f.read() - '0'));
-      SerialM.print(F("preset slot = ")); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print(F("preset slot = ")); SerialM.println((uint8_t)(f.read()));
       SerialM.print(F("frame lock method = ")); SerialM.println((uint8_t)(f.read() - '0'));
       SerialM.print(F("auto gain = ")); SerialM.println((uint8_t)(f.read() - '0'));
       SerialM.print(F("scanlines = ")); SerialM.println((uint8_t)(f.read() - '0'));
@@ -9197,7 +9144,7 @@ void handleType2Command(char argument) {
       GBS::MADPT_Y_MI_OFFSET::write(uopt->scanlineStrength);
     }
     saveUserPrefs();
-    SerialM.print(F("Scanline Strength: ")); 
+    SerialM.print(F("Scanline Strength: "));
     SerialM.println(uopt->scanlineStrength, HEX);
     break;
   default:
@@ -9293,7 +9240,7 @@ void startWebserver()
 
   server.on("/wifi/connect", HTTP_POST, [](AsyncWebServerRequest* request) {
     AsyncWebServerResponse* response =
-      request->beginResponse(200, "text/plain", "connecting...");
+      request->beginResponse(200, "application/json", "true");
     request->send(response);
 
     if (request->arg("n").length()) { // n holds ssid
@@ -9310,6 +9257,216 @@ void startWebserver()
     }
 
     typeTwoCommand = 'u'; // next loop, set wifi station mode and restart device
+  });
+
+  server.on("/bin/slots.bin", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (ESP.getFreeHeap() > 10000) {
+      SlotMetaArray slotsObject;
+      File slotsBinaryFileRead = SPIFFS.open(SLOTS_FILE, "r");
+
+      if (!slotsBinaryFileRead) {
+        File slotsBinaryFileWrite = SPIFFS.open(SLOTS_FILE, "w");
+        for (int i = 0; i < SLOTS_TOTAL; i++) {
+          slotsObject.slot[i].slot = i;
+          slotsObject.slot[i].presetID = 0;
+          slotsObject.slot[i].scanlines = 0;
+          slotsObject.slot[i].scanlinesStrength = 0;
+          slotsObject.slot[i].wantVdsLineFilter = false;
+          slotsObject.slot[i].wantStepResponse = true;
+          slotsObject.slot[i].wantPeaking = true;
+          char emptySlotName[25] = "Empty                   ";
+          strncpy(slotsObject.slot[i].name, emptySlotName, 25);
+        }
+        slotsBinaryFileWrite.write((byte *)&slotsObject, sizeof(slotsObject));
+        slotsBinaryFileWrite.close();
+      } else {
+        slotsBinaryFileRead.close();
+      }
+
+      request->send(SPIFFS, "/slots.bin", "application/octet-stream");
+    }
+  });
+
+  server.on("/slot/set", HTTP_GET, [](AsyncWebServerRequest *request) {
+    bool result = false;
+
+    if (ESP.getFreeHeap() > 10000) {
+      int params = request->params();
+
+      if (params > 0) {
+        AsyncWebParameter *slotParam = request->getParam(0);
+        String slotParamValue = slotParam->value();
+        char slotValue[2];
+        slotParamValue.toCharArray(slotValue, sizeof(slotValue));
+        uopt->presetSlot = (uint8_t)slotValue[0];
+        uopt->presetPreference = 2;
+        saveUserPrefs();
+        result = true;
+      }
+    }
+
+    request->send(200, "application/json", result ? "true":"false");
+  });
+
+  server.on("/slot/save", HTTP_GET, [](AsyncWebServerRequest *request) {
+    bool result = false;
+
+    if (ESP.getFreeHeap() > 10000) {
+      int params = request->params();
+
+      if (params > 0) {
+        SlotMetaArray slotsObject;
+        File slotsBinaryFileRead = SPIFFS.open(SLOTS_FILE, "r");
+
+        if (slotsBinaryFileRead) {
+          slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
+          slotsBinaryFileRead.close();
+        } else {
+          File slotsBinaryFileWrite = SPIFFS.open(SLOTS_FILE, "w");
+
+          for (int i = 0; i < SLOTS_TOTAL; i++) {
+            slotsObject.slot[i].slot = i;
+            slotsObject.slot[i].presetID = 0;
+            slotsObject.slot[i].scanlines = 0;
+            slotsObject.slot[i].scanlinesStrength = 0;
+            slotsObject.slot[i].wantVdsLineFilter = false;
+            slotsObject.slot[i].wantStepResponse = true;
+            slotsObject.slot[i].wantPeaking = true;
+            char emptySlotName[25] = "Empty                   ";
+            strncpy(slotsObject.slot[i].name, emptySlotName, 25);
+          }
+
+          slotsBinaryFileWrite.write((byte *)&slotsObject, sizeof(slotsObject));
+          slotsBinaryFileWrite.close();
+        }
+
+        // index param
+        AsyncWebParameter *slotIndexParam = request->getParam(0);
+        String slotIndexString = slotIndexParam->value();
+        uint8_t slotIndex = lowByte(slotIndexString.toInt());
+
+        // name param
+        AsyncWebParameter *slotNameParam = request->getParam(1);
+        String slotName = slotNameParam->value();
+
+        char emptySlotName[25] = "                        ";
+        strncpy(slotsObject.slot[slotIndex].name, emptySlotName, 25);
+
+        slotsObject.slot[slotIndex].slot = slotIndex;
+        slotName.toCharArray(slotsObject.slot[slotIndex].name, sizeof(slotsObject.slot[slotIndex].name));
+        slotsObject.slot[slotIndex].presetID = rto->presetID;
+        slotsObject.slot[slotIndex].scanlines = uopt->wantScanlines;
+        slotsObject.slot[slotIndex].scanlinesStrength = uopt->scanlineStrength;
+        slotsObject.slot[slotIndex].wantVdsLineFilter = uopt->wantVdsLineFilter;
+        slotsObject.slot[slotIndex].wantStepResponse = uopt->wantStepResponse;
+        slotsObject.slot[slotIndex].wantPeaking = uopt->wantPeaking;
+
+        File slotsBinaryOutputFile = SPIFFS.open(SLOTS_FILE, "w");
+        slotsBinaryOutputFile.write((byte *)&slotsObject, sizeof(slotsObject));
+        slotsBinaryOutputFile.close();
+
+        result = true;
+      }
+    }
+
+    request->send(200, "application/json", result ? "true" : "false");
+  });
+
+  server.on("/spiffs/upload", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "application/json", "true");
+  });
+
+  server.on("/spiffs/upload", HTTP_POST,
+    [](AsyncWebServerRequest *request) { request->send(200, "application/json", "true"); },
+    [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+      if(!index){
+        request->_tempFile = SPIFFS.open("/"+filename, "w");
+      }
+      if(len) {
+        request->_tempFile.write(data,len);
+      }
+      if(final){
+        request->_tempFile.close();
+      }
+    }
+  );
+
+  server.on("/spiffs/download", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (ESP.getFreeHeap() > 10000) {
+      int params = request->params();
+      if (params > 0) {
+          request->send(SPIFFS, request->getParam(0)->value(),String(), true);
+      } else {
+          request->send(200, "application/json", "false");
+      }
+    } else {
+      request->send(200, "application/json", "false");
+    }
+  });
+
+  server.on("/spiffs/dir", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (ESP.getFreeHeap() > 10000) {
+      Dir dir = SPIFFS.openDir("/");
+      String output = "[";
+
+      while (dir.next()) {
+          output += "\"";
+          output += dir.fileName();
+          output += "\",";
+          delay(1); // wifi stack
+      }
+
+      output += "]";
+
+      output.replace(",]","]");
+
+      request->send(200, "application/json", output);
+      return;
+    }
+    request->send(200, "application/json", "false");
+  });
+
+  server.on("/spiffs/format", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "application/json", SPIFFS.format() ? "true":"false");
+  });
+
+  server.on("/wifi/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+    WiFiMode_t wifiMode = WiFi.getMode();
+    request->send(200, "application/json", wifiMode == WIFI_AP ? "{\"mode\":\"ap\"}":"{\"mode\":\"sta\",\"ssid\":\""+WiFi.SSID()+"\"}");
+  });
+
+  server.on("/gbs/restore-filters", HTTP_GET, [](AsyncWebServerRequest *request) {
+
+    SlotMetaArray slotsObject;
+    File slotsBinaryFileRead = SPIFFS.open(SLOTS_FILE, "r");
+    bool result = false;
+    if (slotsBinaryFileRead) {
+      slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
+      slotsBinaryFileRead.close();
+      String slotIndexMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
+      uint8_t currentSlot = slotIndexMap.indexOf(uopt->presetSlot);
+      uopt->wantScanlines = slotsObject.slot[currentSlot].scanlines;
+
+      SerialM.print(F("slot: "));
+      SerialM.println(uopt->presetSlot);
+      SerialM.print(F("scanlines: "));
+      if (uopt->wantScanlines) {
+        SerialM.println(F("on (Line Filter recommended)"));
+      }
+      else {
+        disableScanlines();
+        SerialM.println("off");
+      }
+      saveUserPrefs();
+
+      uopt->scanlineStrength = slotsObject.slot[currentSlot].scanlinesStrength;
+      uopt->wantVdsLineFilter = slotsObject.slot[currentSlot].wantVdsLineFilter;
+      uopt->wantStepResponse = slotsObject.slot[currentSlot].wantStepResponse;
+      uopt->wantPeaking = slotsObject.slot[currentSlot].wantPeaking;
+      result = true;
+    }
+
+    request->send(200, "application/json",result ? "true":"false");
   });
 
   //webSocket.onEvent(webSocketEvent);
@@ -9411,19 +9568,19 @@ void StrClear(char *str, uint16_t length)
 const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
   static uint8_t preset[432];
   String s = "";
-  char slot = '0';
+  uint8_t slot = 0;
   File f;
 
   f = SPIFFS.open("/preferencesv2.txt", "r");
   if (f) {
     SerialM.println(F("preferencesv2.txt opened"));
-    char result[3];
+    uint8_t result[3];
     result[0] = f.read(); // todo: move file cursor manually
     result[1] = f.read();
     result[2] = f.read();
 
     f.close();
-    if ((uint8_t)(result[2] - '0') <= 9) {  // # of slots
+    if (result[2] < SLOTS_TOTAL) {  // # of slots
       slot = result[2]; // otherwise not stored on spiffs
     }
   }
@@ -9434,35 +9591,35 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
     else return ntsc_240p;
   }
 
-  SerialM.print(F("loading from preset slot ")); SerialM.print(String(slot));
+  SerialM.print(F("loading from preset slot ")); SerialM.print((char)slot);
   SerialM.print(": ");
 
   if (forVideoMode == 1) {
-    f = SPIFFS.open("/preset_ntsc." + String(slot), "r");
+    f = SPIFFS.open("/preset_ntsc." + String((char)slot), "r");
   }
   else if (forVideoMode == 2) {
-    f = SPIFFS.open("/preset_pal." + String(slot), "r");
+    f = SPIFFS.open("/preset_pal." + String((char)slot), "r");
   }
   else if (forVideoMode == 3) {
-    f = SPIFFS.open("/preset_ntsc_480p." + String(slot), "r");
+    f = SPIFFS.open("/preset_ntsc_480p." + String((char)slot), "r");
   }
   else if (forVideoMode == 4) {
-    f = SPIFFS.open("/preset_pal_576p." + String(slot), "r");
+    f = SPIFFS.open("/preset_pal_576p." + String((char)slot), "r");
   }
   else if (forVideoMode == 5) {
-    f = SPIFFS.open("/preset_ntsc_720p." + String(slot), "r");
+    f = SPIFFS.open("/preset_ntsc_720p." + String((char)slot), "r");
   }
   else if (forVideoMode == 6) {
-    f = SPIFFS.open("/preset_ntsc_1080p." + String(slot), "r");
+    f = SPIFFS.open("/preset_ntsc_1080p." + String((char)slot), "r");
   }
   else if (forVideoMode == 8) {
-    f = SPIFFS.open("/preset_medium_res." + String(slot), "r");
+    f = SPIFFS.open("/preset_medium_res." + String((char)slot), "r");
   }
   else if (forVideoMode == 14) {
-    f = SPIFFS.open("/preset_vga_upscale." + String(slot), "r");
+    f = SPIFFS.open("/preset_vga_upscale." + String((char)slot), "r");
   }
   else if (forVideoMode == 0) {
-    f = SPIFFS.open("/preset_unknown." + String(slot), "r");
+    f = SPIFFS.open("/preset_unknown." + String((char)slot), "r");
   }
 
   if (!f) {
@@ -9491,12 +9648,12 @@ const uint8_t* loadPresetFromSPIFFS(byte forVideoMode) {
 void savePresetToSPIFFS() {
   uint8_t readout = 0;
   File f;
-  char slot = '1';
+  uint8_t slot = 0;
 
   // first figure out if the user has set a preferenced slot
   f = SPIFFS.open("/preferencesv2.txt", "r");
   if (f) {
-    char result[3];
+    uint8_t result[3];
     result[0] = f.read(); // todo: move file cursor manually
     result[1] = f.read();
     result[2] = f.read();
@@ -9510,34 +9667,34 @@ void savePresetToSPIFFS() {
     return;
   }
 
-  SerialM.print(F("saving to preset slot ")); SerialM.println(String(slot));
+  SerialM.print(F("saving to preset slot ")); SerialM.println(String((char)slot));
 
   if (rto->videoStandardInput == 1) {
-    f = SPIFFS.open("/preset_ntsc." + String(slot), "w");
+    f = SPIFFS.open("/preset_ntsc." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 2) {
-    f = SPIFFS.open("/preset_pal." + String(slot), "w");
+    f = SPIFFS.open("/preset_pal." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 3) {
-    f = SPIFFS.open("/preset_ntsc_480p." + String(slot), "w");
+    f = SPIFFS.open("/preset_ntsc_480p." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 4) {
-    f = SPIFFS.open("/preset_pal_576p." + String(slot), "w");
+    f = SPIFFS.open("/preset_pal_576p." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 5) {
-    f = SPIFFS.open("/preset_ntsc_720p." + String(slot), "w");
+    f = SPIFFS.open("/preset_ntsc_720p." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 6) {
-    f = SPIFFS.open("/preset_ntsc_1080p." + String(slot), "w");
+    f = SPIFFS.open("/preset_ntsc_1080p." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 8) {
-    f = SPIFFS.open("/preset_medium_res." + String(slot), "w");
+    f = SPIFFS.open("/preset_medium_res." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 14) {
-    f = SPIFFS.open("/preset_vga_upscale." + String(slot), "w");
+    f = SPIFFS.open("/preset_vga_upscale." + String((char)slot), "w");
   }
   else if (rto->videoStandardInput == 0) {
-    f = SPIFFS.open("/preset_unknown." + String(slot), "w");
+    f = SPIFFS.open("/preset_unknown." + String((char)slot), "w");
   }
 
   if (!f) {
@@ -9615,7 +9772,7 @@ void saveUserPrefs() {
   }
   f.write(uopt->presetPreference + '0');  // #1
   f.write(uopt->enableFrameTimeLock + '0');
-  f.write(uopt->presetSlot + '0');
+  f.write(uopt->presetSlot);
   f.write(uopt->frameTimeLockMethod + '0');
   f.write(uopt->enableAutoGain + '0');
   f.write(uopt->wantScanlines + '0');
@@ -9637,82 +9794,84 @@ void saveUserPrefs() {
 
 #endif
 
+
+//OLED Functionality
 void settingsMenuOLED(){
   uint8_t videoMode = getVideoMode();
   byte button_nav = digitalRead(pin_switch);
   if(button_nav == LOW){
     delay(350); //TODO
-    subsetFrame++;  //this button for navigating menu
-    selectOption++;
+    oled_subsetFrame++;  //this button for navigating menu
+    oled_selectOption++; //this "selects" your selection
   }
   //main menu
-  if(page == 0){
+  if(oled_page == 0){
     pointerfunction();
     display.clear();
     display.setTextAlignment(TEXT_ALIGN_LEFT);
     display.setFont(ArialMT_Plain_16);
-    display.drawString(0, main_pointer, ">");
-    display.drawString(14, 0, String(menu[0]));
-    display.drawString(14, 15, String(menu[1]));
-    display.drawString(14, 30, String(menu[2]));
-    display.drawString(14, 45, String(menu[3]));
+    display.drawString(0, oled_main_pointer, ">");
+    display.drawString(14, 0, String(oled_menu[0]));
+    display.drawString(14, 15, String(oled_menu[1]));
+    display.drawString(14, 30, String(oled_menu[2]));
+    display.drawString(14, 45, String(oled_menu[3]));
     display.display();
   }
   //cursor location on main menu
-  if (main_pointer == 0 && subsetFrame == 0){
-    pointer_count = 0;
-    menuItem = 1;
-  } if (main_pointer == 15 && subsetFrame == 0){
-      pointer_count = 0;
-      menuItem = 2;
-  }   if (main_pointer == 30 && subsetFrame == 0){
-        pointer_count = 0;
-        sub_pointer = 0;
-        menuItem = 3;
-  }     if(main_pointer == 45 && subsetFrame == 0){
-          pointer_count = 0;
-          menuItem = 4;
+  if (oled_main_pointer == 0 && oled_subsetFrame == 0){
+    oled_pointer_count = 0;
+    oled_menuItem = 1;
+  } if (oled_main_pointer == 15 && oled_subsetFrame == 0){
+      oled_pointer_count = 0;
+      oled_menuItem = 2;
+  }   if (oled_main_pointer == 30 && oled_subsetFrame == 0){
+        oled_pointer_count = 0;
+        oled_sub_pointer = 0;
+        oled_menuItem = 3;
+  }     if(oled_main_pointer == 45 && oled_subsetFrame == 0){
+          oled_pointer_count = 0;
+          oled_menuItem = 4;
         }
 
 
   //resolution pages
-  if (menuItem == 1 && subsetFrame == 1){
-    page = 1;
-    main_pointer = 0;
+  if (oled_menuItem == 1 && oled_subsetFrame == 1){
+    oled_page = 1;
+    oled_main_pointer = 0;
     subpointerfunction();
     display.clear();
-    display.drawString(0, sub_pointer, ">");
-    display.drawString(14, 0, String(Resolutions[0]));
-    display.drawString(14, 15, String(Resolutions[1]));
-    display.drawString(14, 30, String(Resolutions[2]));
-    display.drawString(14, 45, String(Resolutions[3]));
+    display.drawString(0, oled_sub_pointer, ">");
+    display.drawString(14, 0, String(oled_Resolutions[0]));
+    display.drawString(14, 15, String(oled_Resolutions[1]));
+    display.drawString(14, 30, String(oled_Resolutions[2]));
+    display.drawString(14, 45, String(oled_Resolutions[3]));
     display.display();
-  } else if (menuItem == 1 && subsetFrame == 2){
+  } else if (oled_menuItem == 1 && oled_subsetFrame == 2){
     subpointerfunction();
-    page = 2;
+    oled_page = 2;
     display.clear();
-    display.drawString(0, sub_pointer, ">");
-    display.drawString(14, 0, String(Resolutions[4]));
-    display.drawString(14, 15, String(Resolutions[5]));
-    display.drawString(14, 30, String(Resolutions[6]));
+    display.drawString(0, oled_sub_pointer, ">");
+    display.drawString(14, 0, String(oled_Resolutions[4]));
+    display.drawString(14, 15, String(oled_Resolutions[5]));
+    display.drawString(14, 30, String(oled_Resolutions[6]));
     display.drawString(14, 45, "-----Back");
     display.display();
-    if(sub_pointer <= -15){
-      page = 1;
-      subsetFrame = 1;
-      sub_pointer = 45;
+    if(oled_sub_pointer <= -15){
+      oled_page = 1;
+      oled_subsetFrame = 1;
+      oled_sub_pointer = 45;
       display.clear();
-    } else if (sub_pointer > 45){
-      page = 2;
-      subsetFrame = 2;
-      sub_pointer = 45;
+    } else if (oled_sub_pointer > 45){
+      oled_page = 2;
+      oled_subsetFrame = 2;
+      oled_sub_pointer = 45;
     }
   }
 //selection
   //1280x960
-if(menuItem == 1){
-  if(pointer_count == 0 && selectOption == 2){
-    subsetFrame = 3;
+if(oled_menuItem == 1){
+  if(oled_pointer_count == 0 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
       display.drawString(0,10,"1280x960");
@@ -9729,12 +9888,12 @@ if(menuItem == 1){
         applyPresets(videoMode);
       }
         saveUserPrefs();
-        selectOption = 1;
-        subsetFrame = 1;
+        oled_selectOption = 1;
+        oled_subsetFrame = 1;
   }
   //1280x1024
-  if (pointer_count == 1 && selectOption == 2){
-    subsetFrame = 3;
+  if (oled_pointer_count == 1 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
       display.drawString(0,10,"1280x1024");
@@ -9751,12 +9910,12 @@ if(menuItem == 1){
         applyPresets(videoMode);
       }
         saveUserPrefs();
-        selectOption = 1;
-        subsetFrame = 1;
+        oled_selectOption = 1;
+        oled_subsetFrame = 1;
   }
   //1280x720
-  if(pointer_count == 2 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 2 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
       display.drawString(0,10,"1280x720");
@@ -9773,12 +9932,12 @@ if(menuItem == 1){
         applyPresets(videoMode);
       }
         saveUserPrefs();
-        selectOption = 1;
-        subsetFrame = 1;
+        oled_selectOption = 1;
+        oled_subsetFrame = 1;
   }
   //1920x1080
-  if(pointer_count == 3 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 3 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
       display.drawString(0,10,"1920x1080");
@@ -9795,12 +9954,12 @@ if(menuItem == 1){
         applyPresets(videoMode);
       }
       saveUserPrefs();
-      selectOption = 1;
-      subsetFrame = 1;
+      oled_selectOption = 1;
+      oled_subsetFrame = 1;
     }
   //720x480
-  if(pointer_count == 4 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 4 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
       display.drawString(0,10,"480/576");
@@ -9817,12 +9976,12 @@ if(menuItem == 1){
         applyPresets(videoMode);
       }
       saveUserPrefs();
-      selectOption = 1;
-      subsetFrame = 2;
+      oled_selectOption = 1;
+      oled_subsetFrame = 2;
     }
   //downscale
-  if(pointer_count == 5 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 5 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
       display.drawString(0,10,"Downscale");
@@ -9839,12 +9998,12 @@ if(menuItem == 1){
         applyPresets(videoMode);
       }
       saveUserPrefs();
-      selectOption = 1;
-      subsetFrame = 2;
+      oled_selectOption = 1;
+      oled_subsetFrame = 2;
     }
   //passthrough/bypass
-  if(pointer_count == 6 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 6 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i<=800; i++){
       display.clear();
       display.drawString(0,10,"Pass-Through");
@@ -9864,52 +10023,52 @@ if(menuItem == 1){
       rto->applyPresetDoneStage = 1;
     }
     saveUserPrefs();
-    selectOption = 1;
-    subsetFrame = 2;
+    oled_selectOption = 1;
+    oled_subsetFrame = 2;
   }
   //go back
-  if (pointer_count == 7 && selectOption == 2){
-    page = 0;
-    subsetFrame = 0;
-    main_pointer = 0;
-    sub_pointer = 0;
-    selectOption = 0;
+  if (oled_pointer_count == 7 && oled_selectOption == 2){
+    oled_page = 0;
+    oled_subsetFrame = 0;
+    oled_main_pointer = 0;
+    oled_sub_pointer = 0;
+    oled_selectOption = 0;
   }
 }
 //Presets pages
-  if(menuItem == 2 && subsetFrame == 1){
-    page = 1;
-    main_pointer = 0;
+  if(oled_menuItem == 2 && oled_subsetFrame == 1){
+    oled_page = 1;
+    oled_main_pointer = 0;
     subpointerfunction();
     display.clear();
     display.setTextAlignment(TEXT_ALIGN_CENTER);
     display.setFont(Open_Sans_Regular_20);
     display.drawString(64,-8,"Preset Slot:");
     display.setFont(Open_Sans_Regular_35);
-    display.drawString(64,15,String(Presets[pointer_count]));
+    display.drawString(64,15,String(oled_Presets[oled_pointer_count]));
     display.display();
-  } else if (menuItem == 2 && subsetFrame == 2){
-    page = 2;
+  } else if (oled_menuItem == 2 && oled_subsetFrame == 2){
+    oled_page = 2;
     subpointerfunction();
     display.clear();
     display.setTextAlignment(TEXT_ALIGN_CENTER);
     display.setFont(Open_Sans_Regular_20);
     display.drawString(64,-8,"Preset Slot:");
     display.setFont(Open_Sans_Regular_35);
-    display.drawString(64,15,String(Presets[pointer_count]));
+    display.drawString(64,15,String(oled_Presets[oled_pointer_count]));
     display.display();
   }
 //Preset selection
-if(menuItem == 2){
-  if (pointer_count == 0 && selectOption == 2){
-    subsetFrame = 3;
+if(oled_menuItem == 2){
+  if (oled_pointer_count == 0 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     uopt->presetSlot = 'A';
     uopt->presetPreference = 2;
     saveUserPrefs();
     for(int i = 0; i <= 280; i++){
       display.clear();
       display.setFont(Open_Sans_Regular_20);                  //first array element selected
-      display.drawString(64,-8,"Preset #" + String(Presets[0]));   //set to frame that "doesnt exist"
+      display.drawString(64,-8,"Preset #" + String(oled_Presets[0]));   //set to frame that "doesnt exist"
       display.setFont(Open_Sans_Regular_35);
       display.drawString(64,15,"Loaded!");
       display.display();                    //display loading conf
@@ -9922,18 +10081,18 @@ if(menuItem == 2){
     }
     saveUserPrefs();
       delay(50); //allowing "catchup"
-      selectOption = 1;  //reset select container
-      subsetFrame = 1;  //switch back to prev frame (prev screen)
+      oled_selectOption = 1;  //reset select container
+      oled_subsetFrame = 1;  //switch back to prev frame (prev screen)
   }
-  if(pointer_count == 1 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 1 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     uopt->presetSlot = 'B';
     uopt->presetPreference = 2;
     saveUserPrefs();
     for(int i = 0; i<=280; i++){
       display.clear();
       display.setFont(Open_Sans_Regular_20);
-      display.drawString(64,-8,"Preset #" + String(Presets[1]));
+      display.drawString(64,-8,"Preset #" + String(oled_Presets[1]));
       display.setFont(Open_Sans_Regular_35);
       display.drawString(64,15,"Loaded!");
       display.display();
@@ -9946,18 +10105,18 @@ if(menuItem == 2){
     }
     saveUserPrefs();
       delay(50);
-      selectOption = 1;
-      subsetFrame = 1;
+      oled_selectOption = 1;
+      oled_subsetFrame = 1;
   }
-  if(pointer_count == 2 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 2 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     uopt->presetSlot = 'C';
     uopt->presetPreference = 2;
     saveUserPrefs();
     for(int i = 0; i<=280; i++){
         display.clear();
         display.setFont(Open_Sans_Regular_20);
-        display.drawString(64,-8,"Preset #" + String(Presets[2]));
+        display.drawString(64,-8,"Preset #" + String(oled_Presets[2]));
         display.setFont(Open_Sans_Regular_35);
         display.drawString(64,15,"Loaded!");
         display.display();
@@ -9970,18 +10129,18 @@ if(menuItem == 2){
       }
       saveUserPrefs();
         delay(50);
-      selectOption = 1;
-      subsetFrame = 1;
+      oled_selectOption = 1;
+      oled_subsetFrame = 1;
   }
-  if(pointer_count == 3 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 3 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     uopt->presetSlot = 'D';
     uopt->presetPreference = 2;
     saveUserPrefs();
       for(int i = 0; i<=280; i++){
         display.clear();
         display.setFont(Open_Sans_Regular_20);
-        display.drawString(64,-8,"Preset #" + String(Presets[3]));
+        display.drawString(64,-8,"Preset #" + String(oled_Presets[3]));
         display.setFont(Open_Sans_Regular_35);
         display.drawString(64,15,"Loaded!");
         display.display();
@@ -9994,18 +10153,18 @@ if(menuItem == 2){
       }
       saveUserPrefs();
       delay(50);
-      selectOption = 1;
-      subsetFrame = 1;
+      oled_selectOption = 1;
+      oled_subsetFrame = 1;
   }
-  if(pointer_count == 4 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 4 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     uopt->presetSlot = 'E';
     uopt->presetPreference = 2;
     saveUserPrefs();
       for(int i = 0; i<=280; i++){
         display.clear();
         display.setFont(Open_Sans_Regular_20);
-        display.drawString(64,-8,"Preset #" + String(Presets[4]));
+        display.drawString(64,-8,"Preset #" + String(oled_Presets[4]));
         display.setFont(Open_Sans_Regular_35);
         display.drawString(64,15,"Loaded!");
         display.display();
@@ -10017,19 +10176,19 @@ if(menuItem == 2){
         applyPresets(rto->videoStandardInput);
       }
       saveUserPrefs();
-      delay(50);
-      selectOption = 1;
-      subsetFrame = 2;
+      delay(80);
+      oled_selectOption = 1;
+      oled_subsetFrame = 2;
   }
-  if(pointer_count == 5 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 5 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     uopt->presetSlot = 'F';
     uopt->presetPreference = 2;
     saveUserPrefs();
       for(int i = 0; i<=280; i++){
         display.clear();
         display.setFont(Open_Sans_Regular_20);
-        display.drawString(64,-8,"Preset #" + String(Presets[5]));
+        display.drawString(64,-8,"Preset #" + String(oled_Presets[5]));
         display.setFont(Open_Sans_Regular_35);
         display.drawString(64,15,"Loaded!");
         display.display();
@@ -10041,19 +10200,19 @@ if(menuItem == 2){
         applyPresets(rto->videoStandardInput);
       }
         saveUserPrefs();
-        delay(50);
-      selectOption = 1;
-      subsetFrame = 2;
+        delay(80);
+      oled_selectOption = 1;
+      oled_subsetFrame = 2;
   }
-  if(pointer_count == 6 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 6 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     uopt->presetSlot = 'G';
     uopt->presetPreference = 2;
     saveUserPrefs();
       for(int i = 0; i<=280; i++){
         display.clear();
         display.setFont(Open_Sans_Regular_20);
-        display.drawString(64,-8,"Preset #" + String(Presets[6]));
+        display.drawString(64,-8,"Preset #" + String(oled_Presets[6]));
         display.setFont(Open_Sans_Regular_35);
         display.drawString(64,15,"Loaded!");
         display.display();
@@ -10066,38 +10225,38 @@ if(menuItem == 2){
       }
         saveUserPrefs();
         delay(50);
-      selectOption = 1;
-      subsetFrame = 2;
+      oled_selectOption = 1;
+      oled_subsetFrame = 2;
   }
-  if(pointer_count == 7 && selectOption == 2){
-      page = 0;
-      subsetFrame = 0;
-      main_pointer = 0;
-      sub_pointer = 0;
-      selectOption = 0;
+  if(oled_pointer_count == 7 && oled_selectOption == 2){
+      oled_page = 0;
+      oled_subsetFrame = 0;
+      oled_main_pointer = 0;
+      oled_sub_pointer = 0;
+      oled_selectOption = 0;
     }
   }
 //Misc pages
-  if(menuItem == 3 && subsetFrame == 1){
-    page = 1;
-    main_pointer = 0;
+  if(oled_menuItem == 3 && oled_subsetFrame == 1){
+    oled_page = 1;
+    oled_main_pointer = 0;
     subpointerfunction();
     display.clear();
-    display.drawString(0,sub_pointer,">");
-    display.drawString(14,0,String(Misc[0]));
-    display.drawString(14,15,String(Misc[1]));
-    display.drawString(14,45,String(Misc[2]));
+    display.drawString(0,oled_sub_pointer,">");
+    display.drawString(14,0,String(oled_Misc[0]));
+    display.drawString(14,15,String(oled_Misc[1]));
+    display.drawString(14,45,String(oled_Misc[2]));
     display.display();
-      if(sub_pointer <= 0){
-        sub_pointer = 0;
-      } if (sub_pointer >= 45){
-        sub_pointer = 45;
+      if(oled_sub_pointer <= 0){
+        oled_sub_pointer = 0;
+      } if (oled_sub_pointer >= 45){
+        oled_sub_pointer = 45;
       }
   }
 //Misc selection
-if(menuItem == 3){
-  if(pointer_count == 0 && selectOption == 2){
-    subsetFrame = 3;
+if(oled_menuItem == 3){
+  if(oled_pointer_count == 0 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for (int i = 0; i<=800; i++){
       display.clear();
       display.drawString(0,10,"Resetting GBS");
@@ -10107,12 +10266,12 @@ if(menuItem == 3){
     webSocket.close();
     delay(60);
     ESP.reset();
-    selectOption = 0;
-    subsetFrame = 0;
+    oled_selectOption = 0;
+    oled_subsetFrame = 0;
   }
 
-  if(pointer_count == 1 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 1 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i<=800; i++){
       display.clear();
       display.drawString(0,10,"Defaults Loading");
@@ -10124,29 +10283,29 @@ if(menuItem == 3){
     saveUserPrefs();
     delay(60);
     ESP.reset();
-    selectOption = 1;
-    subsetFrame = 1;
+    oled_selectOption = 1;
+    oled_subsetFrame = 1;
   }
 
-  if(pointer_count == 3 && selectOption == 2){
-    page = 0;
-    subsetFrame = 0;
-    main_pointer = 0;
-    sub_pointer = 0;
-    selectOption = 0;
+  if(oled_pointer_count == 3 && oled_selectOption == 2){
+    oled_page = 0;
+    oled_subsetFrame = 0;
+    oled_main_pointer = 0;
+    oled_sub_pointer = 0;
+    oled_selectOption = 0;
   }
 }
 //Current Settings pages
-  if(menuItem == 4 && subsetFrame == 1){
+  if(oled_menuItem == 4 && oled_subsetFrame == 1){
     boolean vsyncActive = 0;
     boolean hsyncActive = 0;
     float ofr = getOutputFrameRate();
     uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
     rto->presetID = GBS::GBS_PRESET_ID::read();
 
-    page = 1;
-    pointer_count = 0;
-    main_pointer = 0;
+    oled_page = 1;
+    oled_pointer_count = 0;
+    oled_main_pointer = 0;
 
     subpointerfunction();
     display.clear();
@@ -10196,53 +10355,52 @@ if(menuItem == 3){
         }
       }
    }
-      display.display();
-
+        display.display();
   }
 //current setting Selection
-  if(menuItem == 4){
-    if(pointer_count >= 0 && selectOption == 2){
-      page = 0;
-      subsetFrame = 0;
-      main_pointer = 0;
-      sub_pointer = 0;
-      selectOption = 0;
+  if(oled_menuItem == 4){
+    if(oled_pointer_count >= 0 && oled_selectOption == 2){
+      oled_page = 0;
+      oled_subsetFrame = 0;
+      oled_main_pointer = 0;
+      oled_sub_pointer = 0;
+      oled_selectOption = 0;
     }
   }
 }
 
 void pointerfunction() {
-  if (main_pointer <= 0){
-    main_pointer = 0;
+  if (oled_main_pointer <= 0){
+    oled_main_pointer = 0;
   }
-    if (main_pointer >= 45){ //limits
-    main_pointer = 45;
+    if (oled_main_pointer >= 45){ //limits
+    oled_main_pointer = 45;
   }
 
-  if(pointer_count <= 0){
-    pointer_count = 0;
-  } else if (pointer_count >= 3){
-    pointer_count = 3;
+  if(oled_pointer_count <= 0){
+    oled_pointer_count = 0;
+  } else if (oled_pointer_count >= 3){
+    oled_pointer_count = 3;
   }
 }
 void subpointerfunction(){
-  if (sub_pointer < 0){
-    sub_pointer = 0;
-    subsetFrame = 1;
-    page = 1;
-  } if (sub_pointer > 45) {  //limits to switch between the two pages
-    sub_pointer = 0;      //TODO
-    subsetFrame = 2;
-    page = 2;
+  if (oled_sub_pointer < 0){
+    oled_sub_pointer = 0;
+    oled_subsetFrame = 1;
+    oled_page = 1;
+  } if (oled_sub_pointer > 45) {  //limits to switch between the two pages
+    oled_sub_pointer = 0;
+    oled_subsetFrame = 2;
+    oled_page = 2;
   }
   // }   if (sub_pointer <= -15){ //TODO: replace/take out
   //   sub_pointer = 0;
   //   page = 1;
   //   subsetFrame = 1;
   // }
-  if (pointer_count <= 0){
-    pointer_count = 0;
-  } else if (pointer_count >= 7){
-    pointer_count = 7;
+  if (oled_pointer_count <= 0){
+    oled_pointer_count = 0;
+  } else if (oled_pointer_count >= 7){
+    oled_pointer_count = 7;
   }
 }
