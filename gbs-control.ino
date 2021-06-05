@@ -20,7 +20,7 @@
 #include "framesync.h"
 #include "osd.h"
 
-#incldue "SSD1306Wire.h"
+#include "SSD1306Wire.h"
 #include "fonts.h"
 #include "images.h"
 SSD1306Wire display(0x3c,D2,D1);
@@ -28,21 +28,21 @@ const int pin_clk = 14; //D5 GPIO14
 const int pin_data = 13; //D7 GPIO13
 const int pin_switch = 0; //D3 GPIO0 pulled HIGH, else fail on boot
 
-int menuItem = 1;
-int subsetFrame = 0;
-int selectOption = 0;
-int page = 0;
+String oled_menu[4] = {"Resolutions","Presets","Misc.","Current Settings"};
+String oled_Resolutions[7] = {"1280x960","1280x1024","1280x720","1920x1080","480/576","Downscale","Pass-Through"};
+String oled_Presets[8] = {"1","2","3","4","5","6","7","Back"};
+String oled_Misc[4] = {"Reset GBS","Restore Factory","-----Back"};
 
-String menu[4] = {"Resolutions","Presets","Misc.","Current Settings"};
-String Resolutions[7] = {"1280x960","1280x1024","1280x720","1920x1080","480/576","Downscale","Pass-Through"};
-String Presets[8] = {"1","2","3","4","5","6","7","Back"};
-String Misc[4] = {"Reset GBS","Restore Factory","-----Back"};
+int oled_menuItem = 1;
+int oled_subsetFrame = 0;
+int oled_selectOption = 0;
+int oled_page = 0;
 
-int lastCount = 0;
-volatile int encoder_pos = 0;
-volatile int main_pointer = 0;
-volatile int pointer_count = 0;
-volatile int sub_pointer = 0;
+int oled_lastCount = 0;
+volatile int oled_encoder_pos = 0;
+volatile int oled_main_pointer = 0;
+volatile int oled_pointer_count = 0;
+volatile int oled_sub_pointer = 0;
 
 #include <ESP8266WiFi.h>
 // ESPAsyncTCP and ESPAsyncWebServer libraries by me-no-dev
@@ -6947,17 +6947,17 @@ void ICACHE_RAM_ATTR isrRotaryEncoder (){
 
   if(inturruptTime - lastInterruptTime > 120){
     if(!digitalRead(pin_data)){
-      encoder_pos++;
-      main_pointer+=15;
-      sub_pointer+=15;
-      pointer_count++;
+      oled_encoder_pos++;
+      oled_main_pointer+=15;
+      oled_sub_pointer+=15;
+      oled_pointer_count++;
       // down = true;
       // up = false;
     } else{
-      encoder_pos--;
-      main_pointer-=15;
-      sub_pointer-=15;
-      pointer_count--;
+      oled_encoder_pos--;
+      oled_main_pointer-=15;
+      oled_sub_pointer-=15;
+      oled_pointer_count--;
       // down = false;
       // up = true;
     }
@@ -6965,8 +6965,8 @@ void ICACHE_RAM_ATTR isrRotaryEncoder (){
   lastInterruptTime = inturruptTime;
 }
 void setup() {
-  display.init();
-  display.flipScreenVertically();
+  display.init(); //initialize OLED on I2C bus
+  display.flipScreenVertically(); //orientation fix OLED
   
   pinMode(pin_clk, INPUT_PULLUP);
   pinMode(pin_data, INPUT_PULLUP);
@@ -7474,8 +7474,8 @@ void loop() {
   static unsigned long lastTimeInterruptClear = millis();
   
   settingsMenuOLED();
-  if(encoder_pos != lastCount){
-    lastCount = encoder_pos;
+  if(oled_encoder_pos != oled_lastCount){
+    oled_lastCount = oled_encoder_pos;
   }
   
 #ifdef HAVE_BUTTONS
@@ -9642,77 +9642,77 @@ void settingsMenuOLED(){
   byte button_nav = digitalRead(pin_switch);
   if(button_nav == LOW){
     delay(350); //TODO
-    subsetFrame++;  //this button for navigating menu
-    selectOption++;
+    oled_subsetFrame++;  //this button counter for navigating menu
+    oled_selectOption++;
   }
   //main menu
-  if(page == 0){
+  if(oled_page == 0){
     pointerfunction();
     display.clear();
     display.setTextAlignment(TEXT_ALIGN_LEFT);
     display.setFont(ArialMT_Plain_16);
-    display.drawString(0, main_pointer, ">");
-    display.drawString(14, 0, String(menu[0]));
-    display.drawString(14, 15, String(menu[1]));
-    display.drawString(14, 30, String(menu[2]));
-    display.drawString(14, 45, String(menu[3]));
+    display.drawString(0, oled_main_pointer, ">");
+    display.drawString(14, 0, String(oled_menu[0]));
+    display.drawString(14, 15, String(oled_menu[1]));
+    display.drawString(14, 30, String(oled_menu[2]));
+    display.drawString(14, 45, String(oled_menu[3]));
     display.display();
   }
   //cursor location on main menu
-  if (main_pointer == 0 && subsetFrame == 0){
-    pointer_count = 0;
-    menuItem = 1;
-  } if (main_pointer == 15 && subsetFrame == 0){
-      pointer_count = 0;
-      menuItem = 2;
-  }   if (main_pointer == 30 && subsetFrame == 0){
-        pointer_count = 0;
-        sub_pointer = 0;
-        menuItem = 3;
-  }     if(main_pointer == 45 && subsetFrame == 0){
-          pointer_count = 0;
-          menuItem = 4;
+  if (oled_main_pointer == 0 && oled_subsetFrame == 0){
+    oled_pointer_count = 0;
+    oled_menuItem = 1;
+  } if (oled_main_pointer == 15 && oled_subsetFrame == 0){
+      oled_pointer_count = 0;
+      oled_menuItem = 2;
+  }   if (oled_main_pointer == 30 && oled_subsetFrame == 0){
+        oled_pointer_count = 0;
+        oled_sub_pointer = 0;
+        oled_menuItem = 3;
+  }     if(oled_main_pointer == 45 && oled_subsetFrame == 0){
+          oled_pointer_count = 0;
+          oled_menuItem = 4;
         }
 
 
   //resolution pages
-  if (menuItem == 1 && subsetFrame == 1){
-    page = 1;
-    main_pointer = 0;
+  if (oled_menuItem == 1 && oled_subsetFrame == 1){
+    oled_page = 1;
+    oled_main_pointer = 0;
     subpointerfunction();
     display.clear();
-    display.drawString(0, sub_pointer, ">");
-    display.drawString(14, 0, String(Resolutions[0]));
-    display.drawString(14, 15, String(Resolutions[1]));
-    display.drawString(14, 30, String(Resolutions[2]));
-    display.drawString(14, 45, String(Resolutions[3]));
+    display.drawString(0, oled_sub_pointer, ">");
+    display.drawString(14, 0, String(oled_Resolutions[0]));
+    display.drawString(14, 15, String(oled_Resolutions[1]));
+    display.drawString(14, 30, String(oled_Resolutions[2]));
+    display.drawString(14, 45, String(oled_Resolutions[3]));
     display.display();
-  } else if (menuItem == 1 && subsetFrame == 2){
+  } else if (oled_menuItem == 1 && oled_subsetFrame == 2){
     subpointerfunction();
-    page = 2;
+    oled_page = 2;
     display.clear();
-    display.drawString(0, sub_pointer, ">");
-    display.drawString(14, 0, String(Resolutions[4]));
-    display.drawString(14, 15, String(Resolutions[5]));
-    display.drawString(14, 30, String(Resolutions[6]));
+    display.drawString(0, oled_sub_pointer, ">");
+    display.drawString(14, 0, String(oled_Resolutions[4]));
+    display.drawString(14, 15, String(oled_Resolutions[5]));
+    display.drawString(14, 30, String(oled_Resolutions[6]));
     display.drawString(14, 45, "-----Back");
     display.display();
-    if(sub_pointer <= -15){
-      page = 1;
-      subsetFrame = 1;
-      sub_pointer = 45;
+    if(oled_sub_pointer <= -15){
+      oled_page = 1;
+      oled_subsetFrame = 1;
+      oled_sub_pointer = 45;
       display.clear();
-    } else if (sub_pointer > 45){
-      page = 2;
-      subsetFrame = 2;
-      sub_pointer = 45;
+    } else if (oled_sub_pointer > 45){
+      oled_page = 2;
+      oled_subsetFrame = 2;
+      oled_sub_pointer = 45;
     }
   }
 //selection
   //1280x960
-if(menuItem == 1){
-  if(pointer_count == 0 && selectOption == 2){
-    subsetFrame = 3;
+if(oled_menuItem == 1){
+  if(oled_pointer_count == 0 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
       display.drawString(0,10,"1280x960");
@@ -9729,12 +9729,12 @@ if(menuItem == 1){
         applyPresets(videoMode);
       }
         saveUserPrefs();
-        selectOption = 1;
-        subsetFrame = 1;
+        oled_selectOption = 1;
+        oled_subsetFrame = 1;
   }
   //1280x1024
-  if (pointer_count == 1 && selectOption == 2){
-    subsetFrame = 3;
+  if (oled_pointer_count == 1 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
       display.drawString(0,10,"1280x1024");
@@ -9751,12 +9751,12 @@ if(menuItem == 1){
         applyPresets(videoMode);
       }
         saveUserPrefs();
-        selectOption = 1;
-        subsetFrame = 1;
+        oled_selectOption = 1;
+        oled_subsetFrame = 1;
   }
   //1280x720
-  if(pointer_count == 2 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 2 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
       display.drawString(0,10,"1280x720");
@@ -9773,12 +9773,12 @@ if(menuItem == 1){
         applyPresets(videoMode);
       }
         saveUserPrefs();
-        selectOption = 1;
-        subsetFrame = 1;
+        oled_selectOption = 1;
+        oled_subsetFrame = 1;
   }
   //1920x1080
-  if(pointer_count == 3 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 3 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
       display.drawString(0,10,"1920x1080");
@@ -9795,12 +9795,12 @@ if(menuItem == 1){
         applyPresets(videoMode);
       }
       saveUserPrefs();
-      selectOption = 1;
-      subsetFrame = 1;
+      oled_selectOption = 1;
+      oled_subsetFrame = 1;
     }
   //720x480
-  if(pointer_count == 4 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 4 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
       display.drawString(0,10,"480/576");
@@ -9817,12 +9817,12 @@ if(menuItem == 1){
         applyPresets(videoMode);
       }
       saveUserPrefs();
-      selectOption = 1;
-      subsetFrame = 2;
+      oled_selectOption = 1;
+      oled_subsetFrame = 2;
     }
   //downscale
-  if(pointer_count == 5 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 5 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i <= 800; i++){
       display.clear();
       display.drawString(0,10,"Downscale");
@@ -9839,12 +9839,12 @@ if(menuItem == 1){
         applyPresets(videoMode);
       }
       saveUserPrefs();
-      selectOption = 1;
-      subsetFrame = 2;
+      oled_selectOption = 1;
+      oled_subsetFrame = 2;
     }
   //passthrough/bypass
-  if(pointer_count == 6 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 6 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i<=800; i++){
       display.clear();
       display.drawString(0,10,"Pass-Through");
@@ -9864,52 +9864,52 @@ if(menuItem == 1){
       rto->applyPresetDoneStage = 1;
     }
     saveUserPrefs();
-    selectOption = 1;
-    subsetFrame = 2;
+    oled_selectOption = 1;
+    oled_subsetFrame = 2;
   }
   //go back
-  if (pointer_count == 7 && selectOption == 2){
-    page = 0;
-    subsetFrame = 0;
-    main_pointer = 0;
-    sub_pointer = 0;
-    selectOption = 0;
+  if (oled_pointer_count == 7 && oled_selectOption == 2){
+    oled_page = 0;
+    oled_subsetFrame = 0;
+    oled_main_pointer = 0;
+    oled_sub_pointer = 0;
+    oled_selectOption = 0;
   }
 }
 //Presets pages
-  if(menuItem == 2 && subsetFrame == 1){
-    page = 1;
-    main_pointer = 0;
+  if(oled_menuItem == 2 && oled_subsetFrame == 1){
+    oled_page = 1;
+    oled_main_pointer = 0;
     subpointerfunction();
     display.clear();
     display.setTextAlignment(TEXT_ALIGN_CENTER);
     display.setFont(Open_Sans_Regular_20);
     display.drawString(64,-8,"Preset Slot:");
     display.setFont(Open_Sans_Regular_35);
-    display.drawString(64,15,String(Presets[pointer_count]));
+    display.drawString(64,15,String(oled_Presets[oled_pointer_count]));
     display.display();
-  } else if (menuItem == 2 && subsetFrame == 2){
-    page = 2;
+  } else if (oled_menuItem == 2 && oled_subsetFrame == 2){
+    oled_page = 2;
     subpointerfunction();
     display.clear();
     display.setTextAlignment(TEXT_ALIGN_CENTER);
     display.setFont(Open_Sans_Regular_20);
     display.drawString(64,-8,"Preset Slot:");
     display.setFont(Open_Sans_Regular_35);
-    display.drawString(64,15,String(Presets[pointer_count]));
+    display.drawString(64,15,String(oled_Presets[oled_pointer_count]));
     display.display();
   }
 //Preset selection
-if(menuItem == 2){
-  if (pointer_count == 0 && selectOption == 2){
-    subsetFrame = 3;
+if(oled_menuItem == 2){
+  if (oled_pointer_count == 0 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     uopt->presetSlot = 'A';
     uopt->presetPreference = 2;
     saveUserPrefs();
     for(int i = 0; i <= 280; i++){
       display.clear();
       display.setFont(Open_Sans_Regular_20);                  //first array element selected
-      display.drawString(64,-8,"Preset #" + String(Presets[0]));   //set to frame that "doesnt exist"
+      display.drawString(64,-8,"Preset #" + String(oled_Presets[0]));   //set to frame that "doesnt exist"
       display.setFont(Open_Sans_Regular_35);
       display.drawString(64,15,"Loaded!");
       display.display();                    //display loading conf
@@ -9920,20 +9920,20 @@ if(menuItem == 2){
     } else {
       applyPresets(rto->videoStandardInput);
     }
-    saveUserPrefs();
+      saveUserPrefs();
       delay(50); //allowing "catchup"
-      selectOption = 1;  //reset select container
-      subsetFrame = 1;  //switch back to prev frame (prev screen)
+      oled_selectOption = 1;  //reset select container
+      oled_subsetFrame = 1;  //switch back to prev frame (prev screen)
   }
-  if(pointer_count == 1 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 1 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     uopt->presetSlot = 'B';
     uopt->presetPreference = 2;
     saveUserPrefs();
     for(int i = 0; i<=280; i++){
       display.clear();
       display.setFont(Open_Sans_Regular_20);
-      display.drawString(64,-8,"Preset #" + String(Presets[1]));
+      display.drawString(64,-8,"Preset #" + String(oled_Presets[1]));
       display.setFont(Open_Sans_Regular_35);
       display.drawString(64,15,"Loaded!");
       display.display();
@@ -9944,20 +9944,20 @@ if(menuItem == 2){
     } else {
       applyPresets(rto->videoStandardInput);
     }
-    saveUserPrefs();
+      saveUserPrefs();
       delay(50);
-      selectOption = 1;
-      subsetFrame = 1;
+      oled_selectOption = 1;
+      oled_subsetFrame = 1;
   }
-  if(pointer_count == 2 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 2 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     uopt->presetSlot = 'C';
     uopt->presetPreference = 2;
     saveUserPrefs();
     for(int i = 0; i<=280; i++){
         display.clear();
         display.setFont(Open_Sans_Regular_20);
-        display.drawString(64,-8,"Preset #" + String(Presets[2]));
+        display.drawString(64,-8,"Preset #" + String(oled_Presets[2]));
         display.setFont(Open_Sans_Regular_35);
         display.drawString(64,15,"Loaded!");
         display.display();
@@ -9968,20 +9968,20 @@ if(menuItem == 2){
       } else {
         applyPresets(rto->videoStandardInput);
       }
-      saveUserPrefs();
+        saveUserPrefs();
         delay(50);
-      selectOption = 1;
-      subsetFrame = 1;
+        oled_selectOption = 1;
+        oled_subsetFrame = 1;
   }
-  if(pointer_count == 3 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 3 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     uopt->presetSlot = 'D';
     uopt->presetPreference = 2;
     saveUserPrefs();
       for(int i = 0; i<=280; i++){
         display.clear();
         display.setFont(Open_Sans_Regular_20);
-        display.drawString(64,-8,"Preset #" + String(Presets[3]));
+        display.drawString(64,-8,"Preset #" + String(oled_Presets[3]));
         display.setFont(Open_Sans_Regular_35);
         display.drawString(64,15,"Loaded!");
         display.display();
@@ -9992,20 +9992,20 @@ if(menuItem == 2){
       } else {
         applyPresets(rto->videoStandardInput);
       }
-      saveUserPrefs();
-      delay(50);
-      selectOption = 1;
-      subsetFrame = 1;
+        saveUserPrefs();
+        delay(50);
+        oled_selectOption = 1;
+        oled_subsetFrame = 1;
   }
-  if(pointer_count == 4 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 4 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     uopt->presetSlot = 'E';
     uopt->presetPreference = 2;
     saveUserPrefs();
       for(int i = 0; i<=280; i++){
         display.clear();
         display.setFont(Open_Sans_Regular_20);
-        display.drawString(64,-8,"Preset #" + String(Presets[4]));
+        display.drawString(64,-8,"Preset #" + String(oled_Presets[4]));
         display.setFont(Open_Sans_Regular_35);
         display.drawString(64,15,"Loaded!");
         display.display();
@@ -10016,20 +10016,20 @@ if(menuItem == 2){
       } else {
         applyPresets(rto->videoStandardInput);
       }
-      saveUserPrefs();
-      delay(50);
-      selectOption = 1;
-      subsetFrame = 2;
+        saveUserPrefs();
+        delay(50);
+        oled_selectOption = 1;
+        oled_subsetFrame = 2;
   }
-  if(pointer_count == 5 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 5 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     uopt->presetSlot = 'F';
     uopt->presetPreference = 2;
     saveUserPrefs();
       for(int i = 0; i<=280; i++){
         display.clear();
         display.setFont(Open_Sans_Regular_20);
-        display.drawString(64,-8,"Preset #" + String(Presets[5]));
+        display.drawString(64,-8,"Preset #" + String(oled_Presets[5]));
         display.setFont(Open_Sans_Regular_35);
         display.drawString(64,15,"Loaded!");
         display.display();
@@ -10042,18 +10042,18 @@ if(menuItem == 2){
       }
         saveUserPrefs();
         delay(50);
-      selectOption = 1;
-      subsetFrame = 2;
+        oled_selectOption = 1;
+        oled_subsetFrame = 2;
   }
-  if(pointer_count == 6 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 6 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     uopt->presetSlot = 'G';
     uopt->presetPreference = 2;
     saveUserPrefs();
       for(int i = 0; i<=280; i++){
         display.clear();
         display.setFont(Open_Sans_Regular_20);
-        display.drawString(64,-8,"Preset #" + String(Presets[6]));
+        display.drawString(64,-8,"Preset #" + String(oled_Presets[6]));
         display.setFont(Open_Sans_Regular_35);
         display.drawString(64,15,"Loaded!");
         display.display();
@@ -10066,38 +10066,38 @@ if(menuItem == 2){
       }
         saveUserPrefs();
         delay(50);
-      selectOption = 1;
-      subsetFrame = 2;
+        oled_selectOption = 1;
+        oled_subsetFrame = 2;
   }
-  if(pointer_count == 7 && selectOption == 2){
-      page = 0;
-      subsetFrame = 0;
-      main_pointer = 0;
-      sub_pointer = 0;
-      selectOption = 0;
+  if(oled_pointer_count == 7 && oled_selectOption == 2){
+      oled_page = 0;
+      oled_subsetFrame = 0;
+      oled_main_pointer = 0;
+      oled_sub_pointer = 0;
+      oled_selectOption = 0;
     }
   }
 //Misc pages
-  if(menuItem == 3 && subsetFrame == 1){
-    page = 1;
-    main_pointer = 0;
+  if(oled_menuItem == 3 && oled_subsetFrame == 1){
+    oled_page = 1;
+    oled_main_pointer = 0;
     subpointerfunction();
     display.clear();
-    display.drawString(0,sub_pointer,">");
-    display.drawString(14,0,String(Misc[0]));
-    display.drawString(14,15,String(Misc[1]));
-    display.drawString(14,45,String(Misc[2]));
+    display.drawString(0,oled_sub_pointer,">");
+    display.drawString(14,0,String(oled_Misc[0]));
+    display.drawString(14,15,String(oled_Misc[1]));
+    display.drawString(14,45,String(oled_Misc[2]));
     display.display();
-      if(sub_pointer <= 0){
-        sub_pointer = 0;
-      } if (sub_pointer >= 45){
-        sub_pointer = 45;
+      if(oled_sub_pointer <= 0){
+        oled_sub_pointer = 0;
+      } if (oled_sub_pointer >= 45){
+        oled_sub_pointer = 45;
       }
   }
 //Misc selection
-if(menuItem == 3){
-  if(pointer_count == 0 && selectOption == 2){
-    subsetFrame = 3;
+if(oled_menuItem == 3){
+  if(oled_pointer_count == 0 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for (int i = 0; i<=800; i++){
       display.clear();
       display.drawString(0,10,"Resetting GBS");
@@ -10107,12 +10107,12 @@ if(menuItem == 3){
     webSocket.close();
     delay(60);
     ESP.reset();
-    selectOption = 0;
-    subsetFrame = 0;
+    oled_selectOption = 0;
+    oled_subsetFrame = 0;
   }
 
-  if(pointer_count == 1 && selectOption == 2){
-    subsetFrame = 3;
+  if(oled_pointer_count == 1 && oled_selectOption == 2){
+    oled_subsetFrame = 3;
     for(int i = 0; i<=800; i++){
       display.clear();
       display.drawString(0,10,"Defaults Loading");
@@ -10124,35 +10124,35 @@ if(menuItem == 3){
     saveUserPrefs();
     delay(60);
     ESP.reset();
-    selectOption = 1;
-    subsetFrame = 1;
+    oled_selectOption = 1;
+    oled_subsetFrame = 1;
   }
 
-  if(pointer_count == 3 && selectOption == 2){
-    page = 0;
-    subsetFrame = 0;
-    main_pointer = 0;
-    sub_pointer = 0;
-    selectOption = 0;
+  if(oled_pointer_count == 3 && oled_selectOption == 2){
+    oled_page = 0;
+    oled_subsetFrame = 0;
+    oled_main_pointer = 0;
+    oled_sub_pointer = 0;
+    oled_selectOption = 0;
   }
 }
 //Current Settings pages
-  if(menuItem == 4 && subsetFrame == 1){
+  if(oled_menuItem == 4 && oled_subsetFrame == 1){
     boolean vsyncActive = 0;
     boolean hsyncActive = 0;
     float ofr = getOutputFrameRate();
     uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
     rto->presetID = GBS::GBS_PRESET_ID::read();
-
-    page = 1;
-    pointer_count = 0;
-    main_pointer = 0;
-
+    
+    oled_page = 1;
+    oled_pointer_count = 0;
+    oled_main_pointer = 0;
+    
     subpointerfunction();
     display.clear();
     display.setFont(URW_Gothic_L_Book_20);
     display.setTextAlignment(TEXT_ALIGN_LEFT);
-
+    
       if (rto->presetID == 0x01 || rto->presetID == 0x11){
         display.drawString(0,0,"1280x960");
       }
@@ -10179,13 +10179,13 @@ if(menuItem == 3){
       }
 
       display.drawString(0,20,String(ofr,5) + "Hz");
-
+    
       if(currentInput == 1){
         display.drawString(0,41,"RGB");
       } else {
         display.drawString(0,41,"YpBpR");
       }
-
+    
       if(currentInput == 1){
       vsyncActive = GBS::STATUS_SYNC_PROC_VSACT::read();
       if(vsyncActive){
@@ -10200,49 +10200,49 @@ if(menuItem == 3){
 
   }
 //current setting Selection
-  if(menuItem == 4){
-    if(pointer_count >= 0 && selectOption == 2){
-      page = 0;
-      subsetFrame = 0;
-      main_pointer = 0;
-      sub_pointer = 0;
-      selectOption = 0;
+  if(oled_menuItem == 4){
+    if(oled_pointer_count >= 0 && oled_selectOption == 2){
+      oled_page = 0;
+      oled_subsetFrame = 0;
+      oled_main_pointer = 0;
+      oled_sub_pointer = 0;
+      oled_selectOption = 0;
     }
   }
 }
 
 void pointerfunction() {
-  if (main_pointer <= 0){
-    main_pointer = 0;
+  if (oled_main_pointer <= 0){
+    oled_main_pointer = 0;
   }
-    if (main_pointer >= 45){ //limits
-    main_pointer = 45;
+    if (oled_main_pointer >= 45){ //limits
+    oled_main_pointer = 45;
   }
 
-  if(pointer_count <= 0){
-    pointer_count = 0;
-  } else if (pointer_count >= 3){
-    pointer_count = 3;
+  if(oled_pointer_count <= 0){
+    oled_pointer_count = 0;
+  } else if (oled_pointer_count >= 3){
+    oled_pointer_count = 3;
   }
 }
 void subpointerfunction(){
-  if (sub_pointer < 0){
-    sub_pointer = 0;
-    subsetFrame = 1;
-    page = 1;
-  } if (sub_pointer > 45) {  //limits to switch between the two pages
-    sub_pointer = 0;      //TODO
-    subsetFrame = 2;
-    page = 2;
+  if (oled_sub_pointer < 0){
+    oled_sub_pointer = 0;
+    oled_subsetFrame = 1;
+    oled_page = 1;
+  } if (oled_sub_pointer > 45) {  //limits to switch between the two pages
+    oled_sub_pointer = 0;      //TODO
+    oled_subsetFrame = 2;
+    oled_page = 2;
   }
   // }   if (sub_pointer <= -15){ //TODO: replace/take out
   //   sub_pointer = 0;
   //   page = 1;
   //   subsetFrame = 1;
   // }
-  if (pointer_count <= 0){
-    pointer_count = 0;
-  } else if (pointer_count >= 7){
-    pointer_count = 7;
+  if (oled_pointer_count <= 0){
+    oled_pointer_count = 0;
+  } else if (oled_pointer_count >= 7){
+    oled_pointer_count = 7;
   }
 }
