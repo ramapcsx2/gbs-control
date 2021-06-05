@@ -23,7 +23,7 @@
 #include "SSD1306Wire.h"
 #include "fonts.h"
 #include "images.h"
-SSD1306Wire display(0x3c,D2,D1);
+SSD1306Wire display(0x3c,D2,D1); //OLED I2C address & pins
 const int pin_clk = 14; //D5 GPIO14
 const int pin_data = 13; //D7 GPIO13
 const int pin_switch = 0; //D3 GPIO0 pulled HIGH, else fail on boot
