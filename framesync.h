@@ -145,7 +145,7 @@ private:
     if (inPeriod == 0 || outPeriod == 0) { return false; } // safety
 
     // allow ~4 negative (inPeriod is < outPeriod) clock cycles jitter 
-    if (abs(inPeriod - outPeriod) <= 4) {
+    if ((inPeriod > outPeriod ? inPeriod - outPeriod : outPeriod - inPeriod) <= 4) {
       /*if (inPeriod >= outPeriod) {
         Serial.print("inPeriod >= out: ");
         Serial.println(inPeriod - outPeriod);
