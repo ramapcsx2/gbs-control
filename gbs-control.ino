@@ -247,6 +247,7 @@ struct userOptions {
   uint8_t wantTap6;
   uint8_t preferScalingRgbhv;
   uint8_t PalForce60;
+  uint8_t disableExternalClockGenerator;
   uint8_t matchPresetSource;
   uint8_t wantStepResponse;
   uint8_t wantFullHeight;
@@ -6945,6 +6946,7 @@ void loadDefaultUserOptions() {
   uopt->preferScalingRgbhv = 1;
   uopt->wantTap6 = 1;
   uopt->PalForce60 = 0;
+  uopt->disableExternalClockGenerator = 0;
   uopt->matchPresetSource = 1;  // #14
   uopt->wantStepResponse = 1;   // #15
   uopt->wantFullHeight = 1;     // #16
@@ -7415,6 +7417,7 @@ void updateWebSocketData() {
 
       if (uopt->enableCalibrationADC) { toSend[5] |= (1 << 0); }
       if (uopt->preferScalingRgbhv) { toSend[5] |= (1 << 1); }
+      if (uopt->disableExternalClockGenerator) { toSend[5] |= (1 << 2); }
 
       // send ping and stats
       if (ESP.getFreeHeap() > 14000) {
@@ -9095,6 +9098,20 @@ void handleType2Command(char argument) {
     }
     saveUserPrefs();
     break;
+  case 'X':
+    SerialM.print(F("(TODO) externalClockGenerator "));
+    if (uopt->disableExternalClockGenerator == 0) {
+      uopt->disableExternalClockGenerator = 1;
+      SerialM.println("disabled");
+    }
+    else {
+      uopt->disableExternalClockGenerator = 0;
+      SerialM.println("enabled");
+    }
+    /*
+    saveUserPrefs();
+    */
+    break;    
   case 'z':
     // sog slicer level
     if (rto->currentLevelSOG > 0) {

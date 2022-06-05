@@ -822,6 +822,26 @@
               </tr>
               <tr>
                 <td>
+                  Disable External Clock Generator
+                  <!-- prettier-ignore -->
+                  <ul class="gbs-help">
+                    <li>By default the external clock generator is enabled when installed.</li>
+                    <li>You can disable it if you have issues with other options, e.g  Force PAL 50Hz to 60Hz.
+                    Reboot required.</li>
+                  </ul>
+                </td>
+                <td
+                  gbs-message="X"
+                  gbs-message-type="user"
+                  gbs-click="normal"
+                  class="gbs-icon"
+                  gbs-toggle-switch="disableExternalClockGenerator"
+                >
+                  toggle_off
+                </td>
+              </tr>
+              <tr>
+                <td>
                   ADC calibration
                   <!-- prettier-ignore -->
                   <ul class="gbs-help">
