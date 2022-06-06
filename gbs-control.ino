@@ -6946,12 +6946,12 @@ void loadDefaultUserOptions() {
   uopt->preferScalingRgbhv = 1;
   uopt->wantTap6 = 1;
   uopt->PalForce60 = 0;
-  uopt->disableExternalClockGenerator = 0;
   uopt->matchPresetSource = 1;  // #14
   uopt->wantStepResponse = 1;   // #15
   uopt->wantFullHeight = 1;     // #16
   uopt->enableCalibrationADC = 1;  // #17
   uopt->scanlineStrength = 0x30;  // #18
+  uopt->disableExternalClockGenerator = 0;
 }
 
 //RF_PRE_INIT() {
@@ -7168,6 +7168,9 @@ void setup() {
 
       uopt->scanlineStrength = (uint8_t)(f.read() - '0'); // #18
       if (uopt->scanlineStrength > 0x60) uopt->enableCalibrationADC = 0x30;
+
+      uopt->disableExternalClockGenerator = (uint8_t)(f.read() - '0');  // #19
+      if (uopt->disableExternalClockGenerator > 1) uopt->disableExternalClockGenerator = 0;
 
       f.close();
     }
@@ -8843,6 +8846,7 @@ void handleType2Command(char argument) {
       SerialM.print(F("pal force60 = ")); SerialM.println((uint8_t)(f.read() - '0'));
       SerialM.print(F("matched = ")); SerialM.println((uint8_t)(f.read() - '0'));
       SerialM.print(F("step response = ")); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print(F("disable external clock generator = ")); SerialM.println((uint8_t)(f.read() - '0'));
 
       f.close();
     }
@@ -9099,7 +9103,7 @@ void handleType2Command(char argument) {
     saveUserPrefs();
     break;
   case 'X':
-    SerialM.print(F("(TODO) externalClockGenerator "));
+    SerialM.print(F("externalClockGenerator "));
     if (uopt->disableExternalClockGenerator == 0) {
       uopt->disableExternalClockGenerator = 1;
       SerialM.println("disabled");
@@ -9108,9 +9112,7 @@ void handleType2Command(char argument) {
       uopt->disableExternalClockGenerator = 0;
       SerialM.println("enabled");
     }
-    /*
     saveUserPrefs();
-    */
     break;    
   case 'z':
     // sog slicer level
@@ -9802,6 +9804,8 @@ void saveUserPrefs() {
   f.write(uopt->wantFullHeight + '0');    // #16
   f.write(uopt->enableCalibrationADC + '0');    // #17
   f.write(uopt->scanlineStrength + '0');    // #18
+  f.write(uopt->disableExternalClockGenerator + '0');    // #19
+  
 
   f.close();
 }

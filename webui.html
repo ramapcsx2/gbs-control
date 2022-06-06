@@ -1488,9 +1488,9 @@ section[name="alert"] {
                   Disable External Clock Generator
                   <!-- prettier-ignore -->
                   <ul class="gbs-help">
-                    <li>By default the external clock generator is enable when installed.</li>
-                    <li>You can disable it if you have issues with other options, e.g  Force PAL 50Hz to 60Hz.</li>
-                    <li>Reboot required.</li>
+                    <li>By default the external clock generator is enabled when installed.</li>
+                    <li>You can disable it if you have issues with other options, e.g  Force PAL 50Hz to 60Hz.
+                    Reboot required.</li>
                   </ul>
                 </td>
                 <td
@@ -2357,7 +2357,7 @@ const createWebSocket = () => {
                             toggleMethod(button, (optionByte2 & 0x02) == 0x02);
                             break;
                         case "disableExternalClockGenerator":
-                            toggleMethod(button, (optionByte2 & 0x05) == 0x04);
+                            toggleMethod(button, (optionByte2 & 0x04) == 0x04);
                             break;
                     }
                 });
