@@ -470,26 +470,31 @@ void externalClockGenInitialize() {
 }
 
 void externalClockGenDetectPresence() {
-  const uint8_t siAddress = 0x60; // default Si5351 address 
-  uint8_t retVal = 0;
-
-  Wire.beginTransmission(siAddress);
-  // want to see some bits on reg 183, on reset at least [7:6] should be high
-  Wire.write(183);
-  Wire.endTransmission();
-  Wire.requestFrom(siAddress, (uint8_t)1, (uint8_t)0);
-
-  while (Wire.available())
-  {
-    retVal = Wire.read();
-    Serial.println(); Serial.println(retVal);
+  if (uopt->disableExternalClockGenerator) {
+    SerialM.println(F("ExternalClockGenerator disabled, skipping detection"));
   }
-
-  if (retVal == 0) {
-    rto->extClockGenDetected = 0;
-  }
-  else {
-    rto->extClockGenDetected = 1;
+  else {  
+    const uint8_t siAddress = 0x60; // default Si5351 address 
+    uint8_t retVal = 0;
+  
+    Wire.beginTransmission(siAddress);
+    // want to see some bits on reg 183, on reset at least [7:6] should be high
+    Wire.write(183);
+    Wire.endTransmission();
+    Wire.requestFrom(siAddress, (uint8_t)1, (uint8_t)0);
+  
+    while (Wire.available())
+    {
+      retVal = Wire.read();
+      Serial.println(); Serial.println(retVal);
+    }
+  
+    if (retVal == 0) {
+      rto->extClockGenDetected = 0;
+    }
+    else {
+      rto->extClockGenDetected = 1;
+    }
   }
 }
 
@@ -9103,7 +9108,7 @@ void handleType2Command(char argument) {
     saveUserPrefs();
     break;
   case 'X':
-    SerialM.print(F("externalClockGenerator "));
+    SerialM.print(F("ExternalClockGenerator "));
     if (uopt->disableExternalClockGenerator == 0) {
       uopt->disableExternalClockGenerator = 1;
       SerialM.println("disabled");
