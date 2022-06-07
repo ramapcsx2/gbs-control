@@ -6956,7 +6956,7 @@ void loadDefaultUserOptions() {
   uopt->wantFullHeight = 1;     // #16
   uopt->enableCalibrationADC = 1;  // #17
   uopt->scanlineStrength = 0x30;  // #18
-  uopt->disableExternalClockGenerator = 0;
+  uopt->disableExternalClockGenerator = 0; // #19
 }
 
 //RF_PRE_INIT() {
