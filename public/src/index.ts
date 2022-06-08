@@ -356,6 +356,9 @@ const createWebSocket = () => {
             case "preferScalingRgbhv":
               toggleMethod(button, (optionByte2 & 0x02) == 0x02);
               break;
+            case "disableExternalClockGenerator":
+              toggleMethod(button, (optionByte2 & 0x04) == 0x04);
+              break;
           }
         });
       }

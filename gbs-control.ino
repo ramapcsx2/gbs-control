@@ -247,6 +247,7 @@ struct userOptions {
   uint8_t wantTap6;
   uint8_t preferScalingRgbhv;
   uint8_t PalForce60;
+  uint8_t disableExternalClockGenerator;
   uint8_t matchPresetSource;
   uint8_t wantStepResponse;
   uint8_t wantFullHeight;
@@ -469,26 +470,31 @@ void externalClockGenInitialize() {
 }
 
 void externalClockGenDetectPresence() {
-  const uint8_t siAddress = 0x60; // default Si5351 address 
-  uint8_t retVal = 0;
-
-  Wire.beginTransmission(siAddress);
-  // want to see some bits on reg 183, on reset at least [7:6] should be high
-  Wire.write(183);
-  Wire.endTransmission();
-  Wire.requestFrom(siAddress, (uint8_t)1, (uint8_t)0);
-
-  while (Wire.available())
-  {
-    retVal = Wire.read();
-    Serial.println(); Serial.println(retVal);
+  if (uopt->disableExternalClockGenerator) {
+    SerialM.println(F("ExternalClockGenerator disabled, skipping detection"));
   }
-
-  if (retVal == 0) {
-    rto->extClockGenDetected = 0;
-  }
-  else {
-    rto->extClockGenDetected = 1;
+  else {  
+    const uint8_t siAddress = 0x60; // default Si5351 address 
+    uint8_t retVal = 0;
+  
+    Wire.beginTransmission(siAddress);
+    // want to see some bits on reg 183, on reset at least [7:6] should be high
+    Wire.write(183);
+    Wire.endTransmission();
+    Wire.requestFrom(siAddress, (uint8_t)1, (uint8_t)0);
+  
+    while (Wire.available())
+    {
+      retVal = Wire.read();
+      Serial.println(); Serial.println(retVal);
+    }
+  
+    if (retVal == 0) {
+      rto->extClockGenDetected = 0;
+    }
+    else {
+      rto->extClockGenDetected = 1;
+    }
   }
 }
 
@@ -6950,6 +6956,7 @@ void loadDefaultUserOptions() {
   uopt->wantFullHeight = 1;     // #16
   uopt->enableCalibrationADC = 1;  // #17
   uopt->scanlineStrength = 0x30;  // #18
+  uopt->disableExternalClockGenerator = 0; // #19
 }
 
 //RF_PRE_INIT() {
@@ -7166,6 +7173,9 @@ void setup() {
 
       uopt->scanlineStrength = (uint8_t)(f.read() - '0'); // #18
       if (uopt->scanlineStrength > 0x60) uopt->enableCalibrationADC = 0x30;
+
+      uopt->disableExternalClockGenerator = (uint8_t)(f.read() - '0');  // #19
+      if (uopt->disableExternalClockGenerator > 1) uopt->disableExternalClockGenerator = 0;
 
       f.close();
     }
@@ -7415,6 +7425,7 @@ void updateWebSocketData() {
 
       if (uopt->enableCalibrationADC) { toSend[5] |= (1 << 0); }
       if (uopt->preferScalingRgbhv) { toSend[5] |= (1 << 1); }
+      if (uopt->disableExternalClockGenerator) { toSend[5] |= (1 << 2); }
 
       // send ping and stats
       if (ESP.getFreeHeap() > 14000) {
@@ -8840,6 +8851,7 @@ void handleType2Command(char argument) {
       SerialM.print(F("pal force60 = ")); SerialM.println((uint8_t)(f.read() - '0'));
       SerialM.print(F("matched = ")); SerialM.println((uint8_t)(f.read() - '0'));
       SerialM.print(F("step response = ")); SerialM.println((uint8_t)(f.read() - '0'));
+      SerialM.print(F("disable external clock generator = ")); SerialM.println((uint8_t)(f.read() - '0'));
 
       f.close();
     }
@@ -9095,6 +9107,18 @@ void handleType2Command(char argument) {
     }
     saveUserPrefs();
     break;
+  case 'X':
+    SerialM.print(F("ExternalClockGenerator "));
+    if (uopt->disableExternalClockGenerator == 0) {
+      uopt->disableExternalClockGenerator = 1;
+      SerialM.println("disabled");
+    }
+    else {
+      uopt->disableExternalClockGenerator = 0;
+      SerialM.println("enabled");
+    }
+    saveUserPrefs();
+    break;    
   case 'z':
     // sog slicer level
     if (rto->currentLevelSOG > 0) {
@@ -9785,6 +9809,8 @@ void saveUserPrefs() {
   f.write(uopt->wantFullHeight + '0');    // #16
   f.write(uopt->enableCalibrationADC + '0');    // #17
   f.write(uopt->scanlineStrength + '0');    // #18
+  f.write(uopt->disableExternalClockGenerator + '0');    // #19
+  
 
   f.close();
 }
