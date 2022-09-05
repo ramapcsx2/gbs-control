@@ -1,4 +1,4 @@
-# gbs-control
+# GBS Control
 
 Gbscontrol is an alternative firmware for Tvia Trueview5725 based upscalers / video converter boards.  
 Its growing list of features includes:   
@@ -31,4 +31,3 @@ https://circuit-board.de/forum/index.php/Thread/15601-GBS-8220-Custom-Firmware-i
 
 If you like gbscontrol, you can now <a class="bmc-button" target="_blank" href="https://www.buymeacoffee.com/ramapcsx2"><img src="https://cdn.buymeacoffee.com/buttons/bmc-new-btn-logo.svg" alt="Buy me a coffee">buy me a coffee</a>.   
 Cheers! :)   
-
