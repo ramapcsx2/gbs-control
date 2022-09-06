@@ -33,7 +33,7 @@ Carefully solder a wire from the pictured DebugPin to:
 - some boards label this pin "D12" or "MISO"
    
 ## Software setup
-Next, the ESP8266 needs to be programmed. Head over to the [software setup](https://github.com/ramapcsx2/gbs-control/wiki/Software-Setup) page.
+Next, the ESP8266 needs to be programmed. Head over to the [software setup](./Software-Setup.html) page.
 
 ## Troubleshooting
 
