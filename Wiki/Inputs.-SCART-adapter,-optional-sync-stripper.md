@@ -21,7 +21,7 @@ If you want to use the RGBS input for regular video-level sync sources, the GBS 
 
 </span>
 
-# Using a Sync Stripper
+## Using a Sync Stripper
 Compatibility with Sync-on-Composite or Sync-on-Luma can be improved by using a sync stripper, such as the LM1881.   
 It is recommended that you build your circuit so that it has a 75 Ohm to ground (termination) resistor on the LM1881 video input, as well as a 470 Ohm series (attenuation) resistor on the sync output. You will no longer need the 100 ohm terminating resistor with this sync stripper built into your SCART adapter.<br>
 The 75 Ohm resistor on the chip's input provides a properly-terminated connection for the source signal.<br>
