@@ -70,9 +70,9 @@ https://github.com/me-no-dev/ESPAsyncWebServer
 
 Direct Downloads:
 
-<a class="btn btn-primary" type="button" href="https://github.com/me-no-dev/ESPAsyncTCP/archive/refs/heads/master.zip">ESPAsyncTCP</a>
+<a class="btn btn-outline" type="button" href="https://github.com/me-no-dev/ESPAsyncTCP/archive/refs/heads/master.zip">ESPAsyncTCP</a>
 
-<a class="btn btn-primary" type="button" href="https://github.com/me-no-dev/ESPAsyncWebServer/archive/refs/heads/master.zip">ESPAsyncWebServer</a>
+<a class="btn btn-outline" type="button" href="https://github.com/me-no-dev/ESPAsyncWebServer/archive/refs/heads/master.zip">ESPAsyncWebServer</a>
 
 ### OLED Add-on Library
 
@@ -88,15 +88,23 @@ __Sketch__ > __Include Library__ > __Manage Libraries__ > "ESP8266 and ESP32 OLE
 
 https://github.com/ThingPulse/esp8266-oled-ssd1306   
 
+Direct Download:
+<a class="btn btn-outline" type="button" href="https://github.com/ThingPulse/esp8266-oled-ssd1306/archive/refs/heads/master.zip">esp8266 oled ssd1306</a>
+
 <span class="anim-fade-in">
+
 ![Libraries](https://i.imgur.com/BR2olsh.png)
+
 </span>
 
 
 ### Optional Libraries
 Go to __Sketch__ > __Include Library__ > __Manage Libraries ...__ and install the following libraries by searching for them and installing:
 - ESP8266-ping by @bluemurder (used to debug WiFi connection issues, have the ESP8266 ping your router)   
-  https://github.com/bluemurder/ESP8266-ping
+  https://github.com/bluemurder/ESP8266-ping 
+
+Direct Download:
+<a class="btn btn-outline" type="button" href="https://github.com/bluemurder/ESP8266-ping/archive/refs/heads/master.zip">ESP8266 ping</a>
 
 ## Download gbs-control, Compile and Upload
 - download the current master .zip (https://github.com/ramapcsx2/gbs-control/archive/master.zip)
@@ -104,7 +112,7 @@ Go to __Sketch__ > __Include Library__ > __Manage Libraries ...__ and install th
 Extract the zip archive and rename the folder to "gbs-control" (removing "-master").
 - start the Arduino IDE by opening gbs-control.ino
 
-You should be able to build the software by choosing "Sketch" > "Verify / Compile" (or clicking the tick mark in the tool bar).
+You should be able to build the software by choosing __Sketch__ > __Verify / Compile__ (or clicking the tick mark in the tool bar).
 
 With the ESP8266 board connected to your computer, and the correct COM port selected, you can now upload the software.   
 Do this via __Sketch__ > __Upload__ (hit "Ctrl + U" or by clicking the right arrow in the tool bar).   
