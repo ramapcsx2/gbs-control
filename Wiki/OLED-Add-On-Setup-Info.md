@@ -3,14 +3,17 @@ sort: 9
 ---
 
 # OLED Addon
-<span class="anim-pulse">
+<span class="anim-pulse" style="color:red">
 ### NOTE: This OLED Add-On is completely optional to GBS-Control. If you choose not to install it, your GBS-Control board will still operate normally.
 </span>
 
+
 <span class="anim-fade-in">
+
 ```warning
 This addon is not meant to replace the Web UI and was/is just a means to help select the more common settings. This is still a work-in-progress to add more features in the future. 
 ```
+
 </span>
 
 ## Installation:
@@ -22,9 +25,11 @@ This addon is not meant to replace the Web UI and was/is just a means to help se
 - Schematic:
 
 <span class="anim-fade-in">
+
 ```note
 This is just a general/draft "how-to" schematic.
 ```
+
 </span>
 
 ![schematic_test1](https://i.imgur.com/X3MbPzX.png)
@@ -34,7 +39,9 @@ This is just a general/draft "how-to" schematic.
 After the boot logo splash screen, you'll be presented with a simple menu system.
 
 <span class="anim-fade-in">
+
 ![mainMenu](https://i.imgur.com/sI7LR1n.jpg)
+
 </span>
 
 By rotating left or right on the encoder, the indicator will move up or down. Pressing the encoder will select the option.
@@ -49,7 +56,9 @@ Each submenu will have a _BACK_ option which upon selecting will go back to the 
 The only menu that this is slightly different is the _Current Settings_ menu. Within this menu you will be able see various specs that are currently being utilized. While in this menu press the encoder once without rotation and this will bring you back to the main menu. 
 
 <span class="anim-fade-in">
+
 ![currentsettingsExample](https://i.imgur.com/wPpbZNC.jpg)
+
 </span>
 
 ## Additional Information
@@ -59,7 +68,9 @@ The only menu that this is slightly different is the _Current Settings_ menu. Wi
 - Color configurations will be found in various listings/datasheets for screens (BLUE,BLUE/YELLOW,WHITE). While any color configuration will work, it's recommended to stick to a single color option to achieve a cleaner look. Case in point shown below.
 
 <span class="anim-fade-in">
+
 ![dcbootExample](https://i.imgur.com/cBahzGe.jpg)
+
 </span>
 
 ### Rotary Encoders:

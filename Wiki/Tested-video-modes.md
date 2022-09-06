@@ -5,13 +5,11 @@ sort: 16
 # Tested Video Modes
 
 <span class="anim-fade-in">
+
 * [Atari ST family](atari-st-family)
-</span>
-<span class="anim-fade-in">
 * [IBM PC and compatibles](ibm-pc-and-compatibles)
-</span>
-<span class="anim-fade-in">
 * [Macintosh](macintosh)
+
 </span>
 
 # Atari ST family

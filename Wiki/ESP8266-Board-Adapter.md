@@ -16,25 +16,39 @@ This is a method of mating a GBS board with a common ESP8266 development board, 
 It provides all the required signals for the ESP8266 to take over control of the scaler.   
 
 <span class="anim-fade-in">
+
 ![](https://i.imgur.com/fEwLqRT.png)
+
 </span>
    
 ### Grinding down stand-offs
+
 <span class="anim-fade-in">
+
 ![](https://i.imgur.com/cbKwnoD.png)
+
 </span>
    
 ### Inner socket surface has to be flat and even
+
 <span class="anim-fade-in">
+
 ![](https://i.imgur.com/SFFIPYm.png)
+
 </span>
    
 ### Signal Locations
+
 <span class="anim-fade-in">
+
 ![](https://i.imgur.com/9DciLIe.png)
+
 </span>
    
 ### Mating Adapter with ESP8266 Dev Board
+
 <span class="anim-fade-in">
+
 ![](https://i.imgur.com/1JQfn3r.png)
+
 </span>

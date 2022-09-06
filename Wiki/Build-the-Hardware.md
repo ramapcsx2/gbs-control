@@ -42,11 +42,14 @@ Next, the ESP8266 needs to be programmed. Head over to the [software setup](http
 - Forgot to install the jumper that disables the GBS original controller?
 - ~100 Ohm resistor to ground on Sync-in is installed?
 - when using a sync stripper: Is the LM1881 source voltage `5V`?   
+
 <span class="anim-fade-in">
+
 ```tip
 ### To Debug Issues
 The Arduino IDE serial monitor shows debug information at `115200` baud.   
 If your ESP8266 is connected to a computer via USB, you can access this serial monitor to find out more about the issue.   
 In the Arduino IDE, you need to select an ESP8266 board that matches your hardware (if unsure, select "LOLIN(WEMOS) D1 R2 & mini").
 ```
+
 </span>

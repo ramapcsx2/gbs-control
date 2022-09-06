@@ -17,8 +17,12 @@ Forum post: https://shmups.system11.org/viewtopic.php?p=1349983#p1349983
 Examples of capacitors installed in parallel:   
 
 <span class="anim-fade-in">
-![](https://i.imgur.com/nfrRZc6.jpg)   
+
+![](https://i.imgur.com/nfrRZc6.jpg)  
+ 
 </span>
 <span class="anim-fade-in">
+
 ![](https://i.imgur.com/DVQ0Wkz.jpg)
+
 </span>

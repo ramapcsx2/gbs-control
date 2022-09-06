@@ -10,6 +10,7 @@ The ArcadeForge Sync Strike is a solution that will work, if you don't want to b
 http://arcadeforge.net/Scaler-and-Strike-Devices/Sync-Strike::15.html?language=en   
 
 <span class="anim-fade-in">
+
 ```note 
 Every GBS board comes with ~500 Ohm termination on the sync input. This termination is meant for (PC) VGA and most arcade boards.
 
@@ -17,6 +18,7 @@ Csync from consoles should be fine without additional termination but the input 
 
 If you want to use the RGBS input for regular video-level sync sources, the GBS requires one additional 100 Ohm resistor connected to ground from the sync input.<br>Together with the ~500 Ohm factory resistor, this will bring the total termination closer to TV levels (75 Ohms).
 ```
+
 </span>
 
 # Using a Sync Stripper
@@ -32,6 +34,7 @@ https://shmups.system11.org/viewtopic.php?f=6&t=55948&p=1153713#p1153713
 https://shmups.system11.org/viewtopic.php?p=1153077#p1153077   
 
 <span class="anim-fade-in">
+
 ```note
 Note that his circuit omits the _Rset_ resistor and capacitor. This works for CSync generation, but the VSync output will not work. This is not a problem for this application, as we are only interested in the CSync signal.   
 
@@ -41,4 +44,5 @@ The 5V power for the LM1881 needs to be sourced elsewhere. The GBS board's power
 One user has successfully used the sync stripper at just 3.3V with the output 470 Ohm resistor removed.   
 This is not recommended though, since the LM1881 will have a hard time with some signals when undervolted like this.   
 ```
+
 </span>
