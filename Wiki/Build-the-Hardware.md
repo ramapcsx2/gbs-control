@@ -2,7 +2,7 @@
 sort: 2
 ---
 
-# Intro   
+## Intro   
 Gbs-control is a replacement firmware for GBS8200 upscaler boards.   
 It runs on the popular ESP8266 microcontroller and uses the Arduino plattform.    
    
@@ -10,7 +10,7 @@ GBS8200 upscalers can be bought on Ebay, at prices around $20.
 Ebay also has ESP8266 microcontroller boards for about $4.   
 The ones called "Wemos D1" or "NodeMCU" work well and are recommended.   
 
-# Basic Install
+## Basic Install
 You need the GBS upscaler, an ESP8266 board, a bit of cabling and a jumper or wire link for disabling the onboard processor, so that the ESP8266 can take over.   
 Power for the ESP8266 can be provided by, for example:
 - using the power supply that powers the GBS > into the ESP8266 boards "Vin" (recommended, white connector next to power input)
@@ -26,16 +26,17 @@ ESP8266 boards do not have standardized pin names, but they follow some naming r
 - GBS side SDA goes to ESP8266 side SDA, same for SCL
 ![](https://i.imgur.com/TvSAQuX.png)
 - Use a jumper to bridge the 2 pins below the first programming port (see picture above)
-# Connect DebugPin
+### Connect DebugPin
 To enable automatic image position and timing adjustment, the ESP8266 needs to measure some timings.
 Carefully solder a wire from the pictured DebugPin to: 
 - Wemos D1 / NodeMCU pin "D6"
 - some boards label this pin "D12" or "MISO"
    
-# Software setup
+## Software setup
 Next, the ESP8266 needs to be programmed. Head over to the [software setup](https://github.com/ramapcsx2/gbs-control/wiki/Software-Setup) page.
 
-# Troubleshooting
+## Troubleshooting
+
 ### No Picture
 - Are SDA / SCL reversed? It's safe to reverse them and try again.
 - The debug pin does not have to be connected for gbscontrol to work at a basic level.
