@@ -46,9 +46,11 @@ If you aren't sure which board you have, select "LOLIN(WEMOS) D1 R2 & mini".
 
 Set CPU frequency to 160 MHz and Flash size to "4MB (FS:1MB OTA:~1019KB)".  
  
+```danger
 (Don't skip this step, or you won't be able to save custom configurations later.)   
+```
 
-Set the "IwIP Variant" to "v2 Lower Memory".   
+Set the `IwIP Variant` to `v2 Lower Memory`.   
 Plug your board into a free USB port on your PC and select the detected COM port in the Arduino IDE.
 
 ### ESP8266 IDE Settings
@@ -109,8 +111,12 @@ esp8266 oled ssd1306</a>
 
 ### Optional Libraries
 Go to __Sketch__ > __Include Library__ > __Manage Libraries ...__ and install the following libraries by searching for them and installing:
-- ESP8266-ping by @bluemurder (used to debug WiFi connection issues, have the ESP8266 ping your router)   
-  https://github.com/bluemurder/ESP8266-ping 
+
+#### ESP8266-ping
+
+> by @bluemurder (used to debug WiFi connection issues, have the ESP8266 ping your router)   
+
+ https://github.com/bluemurder/ESP8266-ping 
 
 Direct Download:
 <a class="btn btn-outline" type="button" href="https://github.com/bluemurder/ESP8266-ping/archive/refs/heads/master.zip">
@@ -160,6 +166,8 @@ If it can't connect, it will revert to AP mode.
 ``` 
 
 </span>
+
+### Remove WiFi settings
 
 If you ever want to delete the network information, you can do so by uploading the sketch in the   
 "Erase Flash:" > "Sketch + WiFi Settings" mode: 
