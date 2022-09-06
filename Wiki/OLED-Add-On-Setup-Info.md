@@ -53,7 +53,9 @@ By rotating left or right on the encoder, the indicator will move up or down. Pr
 Each submenu will have a _BACK_ option which upon selecting will go back to the main menu, for example:
 
 <span class="anim-fade-in">
+
 ![resolutionBackEx](https://i.imgur.com/jPDNq2N.jpg)
+
 </span>
 
 The only menu that this is slightly different is the _Current Settings_ menu. Within this menu you will be able see various specs that are currently being utilized. While in this menu press the encoder once without rotation and this will bring you back to the main menu. 
@@ -65,6 +67,7 @@ The only menu that this is slightly different is the _Current Settings_ menu. Wi
 </span>
 
 ## Additional Information
+
 ### OLED:
 - Communication method is very important for this! Please, try to get a hold of an **I2C** not a **SPI** screen.
 - At the moment, this was designed (font/text alignments) for the 0.96" variant of screens. Any other size will produce "interesting" results.
