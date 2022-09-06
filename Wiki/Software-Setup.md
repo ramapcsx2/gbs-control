@@ -54,7 +54,9 @@ Plug your board into a free USB port on your PC and select the detected COM port
 ### ESP8266 IDE Settings
 
 <span class="anim-fade-in">
+
 ![ESP8266 IDE Settings](https://i.imgur.com/yQkbbn1.png)
+
 </span>
 
 ## Used Libraries
@@ -66,7 +68,6 @@ Download these 2 libraries from Github (Button that looks like this <button clas
 
 https://github.com/me-no-dev/ESPAsyncTCP   
 https://github.com/me-no-dev/ESPAsyncWebServer   
-
 
 Direct Downloads:
 
