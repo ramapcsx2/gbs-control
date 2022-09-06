@@ -1,5 +1,5 @@
 ---
-sort: 98
+sort: 16
 ---
 
 # Tested Video Modes

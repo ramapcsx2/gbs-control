@@ -1,5 +1,5 @@
 ---
-sort: 4
+sort: 5
 ---
 
 # Si5351 Clock Generator install notes

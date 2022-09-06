@@ -1,5 +1,5 @@
 ---
-sort: 5
+sort: 6
 ---
 # ESP8266 adapter
 

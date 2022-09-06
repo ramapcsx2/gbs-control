@@ -1,5 +1,5 @@
 ---
-sort: 9
+sort: 10
 ---
 # Power Supply Bypass capacitors
 
