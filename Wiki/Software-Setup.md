@@ -46,9 +46,9 @@ https://github.com/me-no-dev/ESPAsyncWebServer
 
 Direct Downloads:
 
-<button class="btn btn-primary" type="button" href="https://github.com/me-no-dev/ESPAsyncTCP/archive/refs/heads/master.zip">ESPAsyncTCP</button>
+<a class="btn btn-primary" type="button" href="https://github.com/me-no-dev/ESPAsyncTCP/archive/refs/heads/master.zip">ESPAsyncTCP</a>
 
-<button class="btn btn-primary" type="button" href="https://github.com/me-no-dev/ESPAsyncWebServer/archive/refs/heads/master.zip">ESPAsyncWebServer</button>
+<a class="btn btn-primary" type="button" href="https://github.com/me-no-dev/ESPAsyncWebServer/archive/refs/heads/master.zip">ESPAsyncWebServer</a>
 
 ### OLED Add-on Library
 ```note
