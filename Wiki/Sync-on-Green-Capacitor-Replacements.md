@@ -2,11 +2,17 @@
 sort: 17
 ---
 
-**Update:**   
+# Sync-On-Green Capacitors replacements
+
+<span class="anim-pulse" style="color:red">
+
+```warning
 This modification is not required anymore.   
 Gbscontrol now uses an undocumented clamping level bit to work well with the default capacitors.   
 It isn't necessary to do this modification anymore, but you can still do it and improve sync performance.   
-**///////////**
+```
+
+</span>
 
 Sync pulses for RGBS and Component Video sources are AC coupled to the TV5725 scaler IC.   
 The GBS8200 board designs (all variants I know of) don't follow the TV5725 datasheet for these "SOG" coupling capacitors.   
