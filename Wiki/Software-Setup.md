@@ -37,12 +37,18 @@ Plug your board into a free USB port on your PC and select the detected COM port
 
 ### ESPAsyncTCP and ESPAsyncWebServer by me-no-dev   
 
-Download these 2 libraries from Github (green "Clone or download" button) and extract to Arduino libraries folder.   
+Download these 2 libraries from Github (Button that looks like this <button class="btn btn-primary" type="button">&lt;&gt; Code</button> ) and extract to Arduino libraries folder.   
 (On Windows: "Documents\Arduino\libraries" or full path: "C:\Users\rama\Documents\Arduino\libraries")   
 
 https://github.com/me-no-dev/ESPAsyncTCP   
 https://github.com/me-no-dev/ESPAsyncWebServer   
 
+
+Direct Downloads:
+
+<button class="btn btn-primary" type="button" href="https://github.com/me-no-dev/ESPAsyncTCP/archive/refs/heads/master.zip">ESPAsyncTCP</button>
+
+<button class="btn btn-primary" type="button" href="https://github.com/me-no-dev/ESPAsyncWebServer/archive/refs/heads/master.zip">ESPAsyncWebServer</button>
 
 ### OLED Add-on Library
 ```note
