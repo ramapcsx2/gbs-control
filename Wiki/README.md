@@ -1,1 +1,9 @@
-Welcome to the gbs-control wiki!
+---
+sort: 0
+---
+
+{:.anim-fade-in}
+# Welcome to the gbs-control wiki!
+
+
+{% include list.liquid all=true %}

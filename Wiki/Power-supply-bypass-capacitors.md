@@ -1,3 +1,8 @@
+---
+sort: 9
+---
+# Power Supply Bypass capacitors
+
 One recommended modification to the stock GBS board is to add more capacitance for power supply bypassing.
 This step can reduce some forms of visible noise.
 

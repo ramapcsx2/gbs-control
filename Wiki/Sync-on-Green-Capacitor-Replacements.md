@@ -1,3 +1,7 @@
+---
+sort: 99
+---
+
 **Update:**   
 This modification is not required anymore.   
 Gbscontrol now uses an undocumented clamping level bit to work well with the default capacitors.   

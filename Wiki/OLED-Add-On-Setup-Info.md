@@ -1,6 +1,15 @@
+---
+sort: 8
+---
+
+#OLED Addon
+
+{:.bg-red.text-white.p-5.box-shadow-large.anim-pulse}
 ### NOTE: This OLED Add-On is completely optional to GBS-Control. If you choose not to install it, your GBS-Control board will still operate normally.
 
+```warning
 This addon is not meant to replace the Web UI and was/is just a means to help select the more common settings. This is still a work-in-progress to add more features in the future. 
+```
 
 ## Installation:
 - Materials Needed:
@@ -10,7 +19,9 @@ This addon is not meant to replace the Web UI and was/is just a means to help se
 
 - Schematic:
 
-NOTE: This is just a general/draft "how-to" schematic.
+```note
+This is just a general/draft "how-to" schematic.
+```
 
 ![schematic_test1](https://i.imgur.com/X3MbPzX.png)
 

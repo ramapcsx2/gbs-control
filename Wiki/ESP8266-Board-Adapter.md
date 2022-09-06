@@ -1,4 +1,9 @@
-### !Update
+---
+sort: 5
+---
+# ESP8266 adapter
+
+# NOTE
 The adapter method places the ESP8266 very close to the TiVo5725 scaler chip, which exposes it to electromagnetic interference.   
 As a result, the ESP8266 can have issues with its WiFi, resulting in limited access to the web interface.   
 As such, I don't recommend using this adapter method.   

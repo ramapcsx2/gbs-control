@@ -1,13 +1,20 @@
+---
+sort: 2
+---
+
 # Yellow Button "V5.0" or "2017"
 Those newer GBS-8200 boards have an LDO oscillation problem.   
 It works, but there will be a lot of noise in the picture.   
 The easy fix is to remove one SMD capacitor, circled in red.   
-(A better fix would be to replace this capacitor with an electrolytic of 22uF to 47uF.)   
+```tip
+A better fix would be to replace this capacitor with an electrolytic of 22uF to 47uF.
+```
 ![](https://i.imgur.com/XWDD0Ss.jpg ) 
 [Background](http://www.ti.com/product/LM1117/datasheet/application_and_implementation#snos4127440)   
 The chosen SMD capacitor on these boards has far too little capacitance (120nF measured) AND has very little ESR. It causes the LDO to permanently oscillate at around 20Mhz. There is an electrolytic capacitor further down the line that is sufficient for stable operation of the LDO.
 
 # Original GBS-8220
+
 Same LDO oscillation problem, but here it is limited to setups that use a power supply of > 5.0V.   
 I get wild oscillation at 7.6V from a common PSOne supply.   
 The same C11 removal fix works here as well.   

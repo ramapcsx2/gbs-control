@@ -1,3 +1,7 @@
+---
+sort: 1
+---
+
 # Intro   
 Gbs-control is a replacement firmware for GBS8200 upscaler boards.   
 It runs on the popular ESP8266 microcontroller and uses the Arduino plattform.    
@@ -37,9 +41,11 @@ Next, the ESP8266 needs to be programmed. Head over to the [software setup](http
 - The debug pin does not have to be connected for gbscontrol to work at a basic level.
 - Forgot to install the jumper that disables the GBS original controller?
 - ~100 Ohm resistor to ground on Sync-in is installed?
-- when using a sync stripper: Is the LM1881 source voltage 5V?   
+- when using a sync stripper: Is the LM1881 source voltage `5V`?   
 
+```tip
 ### To Debug Issues
-The Arduino IDE serial monitor shows debug information at 115200 baud.   
+The Arduino IDE serial monitor shows debug information at `115200` baud.   
 If your ESP8266 is connected to a computer via USB, you can access this serial monitor to find out more about the issue.   
-In the Arduino IDE, you need to select an ESP8266 board that matches your hardware (if unsure, select "LOLIN(WEMOS) D1 R2 & mini").   
+In the Arduino IDE, you need to select an ESP8266 board that matches your hardware (if unsure, select "LOLIN(WEMOS) D1 R2 & mini").
+```

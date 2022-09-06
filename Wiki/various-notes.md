@@ -1,4 +1,10 @@
-# ESP8266 WiFi connection   
+---
+sort: 11
+---
+
+# Various Notes
+
+## ESP8266 WiFi connection   
 
 Wow, the ESP8266 WiFi connection issues are weird.
 Stabilizing the power supply, using short wires, fiddling with delay() and yield(), nothing brought better signal stability.

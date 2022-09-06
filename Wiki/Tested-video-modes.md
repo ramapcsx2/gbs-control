@@ -1,3 +1,9 @@
+---
+sort: 98
+---
+
+# Tested Video Modes
+
 * [Atari ST family](atari-st-family)
 * [IBM PC and compatibles](ibm-pc-and-compatibles)
 * [Macintosh](macintosh)

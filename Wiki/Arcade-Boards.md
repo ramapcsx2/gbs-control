@@ -1,3 +1,9 @@
+---
+sort: 14
+---
+
+# Arcade Boards notes
+
 User @tracedebrake posted some comments regarding the use of arcade boards with the GBS scaler (or any other scaler).   
 I've copied them here, so that arcade machine users are aware of what to look out for.
 

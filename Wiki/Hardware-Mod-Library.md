@@ -1,3 +1,9 @@
+---
+sort: 6
+---
+
+# Hardware Mods Library
+
 This page lists all of the known modifications which people have attempted on the GBS82XX series boards, what they do, and if they should be performed or not.   
 Note that in most cases, gbscontrol will work without any of these modifications.   
 
@@ -5,7 +11,7 @@ Note that in most cases, gbscontrol will work without any of these modifications
 |---|---|
 | **!** | Essential |
 | **O** | Optional / Recommended |
-| **X** | Not needed / Deprecated |````
+| **X** | Not needed / Deprecated |
 
 |Mod Description | _GBS8220_|_GBS8200_ |_GBS8200(2017)_| Effect/Issue Fixed by Mod |
 |----------------|----------|---------|---------------|---------------------------|
