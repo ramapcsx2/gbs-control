@@ -3,8 +3,11 @@ sort: 9
 ---
 
 # OLED Addon
+
 <span class="anim-pulse" style="color:red">
+
 ### NOTE: This OLED Add-On is completely optional to GBS-Control. If you choose not to install it, your GBS-Control board will still operate normally.
+
 </span>
 
 
