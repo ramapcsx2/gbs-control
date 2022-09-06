@@ -70,9 +70,13 @@ https://github.com/me-no-dev/ESPAsyncWebServer
 
 Direct Downloads:
 
-<a class="btn btn-outline" type="button" href="https://github.com/me-no-dev/ESPAsyncTCP/archive/refs/heads/master.zip">ESPAsyncTCP</a>
+<a class="btn btn-outline" type="button" href="https://github.com/me-no-dev/ESPAsyncTCP/archive/refs/heads/master.zip">
+  <svg class="octicon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16"><path fill-rule="evenodd" d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"></path></svg>
+ESPAsyncTCP</a>
 
-<a class="btn btn-outline" type="button" href="https://github.com/me-no-dev/ESPAsyncWebServer/archive/refs/heads/master.zip">ESPAsyncWebServer</a>
+<a class="btn btn-outline" type="button" href="https://github.com/me-no-dev/ESPAsyncWebServer/archive/refs/heads/master.zip">
+  <svg class="octicon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16"><path fill-rule="evenodd" d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"></path></svg>
+ESPAsyncWebServer</a>
 
 ### OLED Add-on Library
 
@@ -89,7 +93,9 @@ __Sketch__ > __Include Library__ > __Manage Libraries__ > "ESP8266 and ESP32 OLE
 https://github.com/ThingPulse/esp8266-oled-ssd1306   
 
 Direct Download:
-<a class="btn btn-outline" type="button" href="https://github.com/ThingPulse/esp8266-oled-ssd1306/archive/refs/heads/master.zip">esp8266 oled ssd1306</a>
+<a class="btn btn-outline" type="button" href="https://github.com/ThingPulse/esp8266-oled-ssd1306/archive/refs/heads/master.zip">
+  <svg class="octicon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16"><path fill-rule="evenodd" d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"></path></svg>
+esp8266 oled ssd1306</a>
 
 <span class="anim-fade-in">
 
@@ -104,7 +110,9 @@ Go to __Sketch__ > __Include Library__ > __Manage Libraries ...__ and install th
   https://github.com/bluemurder/ESP8266-ping 
 
 Direct Download:
-<a class="btn btn-outline" type="button" href="https://github.com/bluemurder/ESP8266-ping/archive/refs/heads/master.zip">ESP8266 ping</a>
+<a class="btn btn-outline" type="button" href="https://github.com/bluemurder/ESP8266-ping/archive/refs/heads/master.zip">
+  <svg class="octicon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16"><path fill-rule="evenodd" d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"></path></svg>
+ESP8266 ping</a>
 
 ## Download gbs-control, Compile and Upload
 - download the current master .zip (https://github.com/ramapcsx2/gbs-control/archive/master.zip)
