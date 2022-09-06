@@ -12,21 +12,29 @@ In the Arduino IDE open the preferences dialog and enter the following URL as "A
 http://arduino.esp8266.com/stable/package_esp8266com_index.json
 
 <span class="anim-fade-in">
+
 ![Preferences](https://i.imgur.com/rFCvLxl.png)
+
 </span>
 
 Go to __Tools__ > __Board:__ > __Boards Manager ...__, search for "esp8266" and install "esp8266 by ESP8266 Community",   
 version 2.6.3 (or newer) *EDIT*: Do not use any version >= 3.0.0, it is reported to break things!:
 
 <span class="anim-fade-in">
+
 ![Preferences](https://i.imgur.com/i6XGPwl.png)
 </span>
 
-Now go to __Tools__ > __Board:__ and choose your ESP8266 board.   
- 
+
+Now go to __Tools__ > __Board:__ and choose your ESP8266 board. 
+  
+<span class="anim-fade-in">
+
 ```note
 If you aren't sure which board you have, select "LOLIN(WEMOS) D1 R2 & mini".   
 ```
+
+</span>
 
 Set CPU frequency to 160 MHz and Flash size to "4MB (FS:1MB OTA:~1019KB)".  
  
@@ -61,9 +69,11 @@ Direct Downloads:
 ### OLED Add-on Library
 
 <span class="anim-fade-in">
+
 ```note
 The OLED functionality is _completely_ optional for GBS-Control. However, the OLED driver library is still needed for compilation. You can install it via the Arduino Library Manager like the previous libraries mentioned.
 ```
+
 </span>
 
 __Sketch__ > __Include Library__ > __Manage Libraries__ > "ESP8266 and ESP32 OLED driver for SSD1306 displays"
@@ -116,17 +126,21 @@ The next step is to connect the ESP8266 to your home network.
    - address "http://gbscontrol:80", "http://gbscontrol" or just "gbscontrol" 
 
 <span class="anim-fade-in">
+
 ```note
 The ESP8266 remembers this network, so it will always try to connect to this network first.   
 If it can't connect, it will revert to AP mode.  
 ``` 
+
 </span>
 
 If you ever want to delete the network information, you can do so by uploading the sketch in the   
 "Erase Flash:" > "Sketch + WiFi Settings" mode: 
 
 <span class="anim-fade-in">  
+
 ![ESP8266 Wipe WiFi](https://i.imgur.com/QlyWocy.png)
+
 </span>
    
 That's it!   
