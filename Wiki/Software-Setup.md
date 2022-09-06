@@ -18,7 +18,15 @@ http://arduino.esp8266.com/stable/package_esp8266com_index.json
 </span>
 
 Go to __Tools__ > __Board:__ > __Boards Manager ...__, search for "esp8266" and install "esp8266 by ESP8266 Community",   
-version 2.6.3 (or newer) *EDIT*: Do not use any version >= 3.0.0, it is reported to break things!:
+version 2.6.3 
+
+<span class="anim-pulse" style="color:red">
+
+```warning
+Do not use version `3.0.0` or newer, it is reported to break things!:
+```
+  
+</span>
 
 <span class="anim-fade-in">
 
