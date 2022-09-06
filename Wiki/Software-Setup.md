@@ -10,12 +10,17 @@ Download and install the [Arduino software (IDE)](https://www.arduino.cc/en/Main
 ## ESP8266 support for Arduino IDE
 In the Arduino IDE open the preferences dialog and enter the following URL as "Additional Boards Manger URL":
 http://arduino.esp8266.com/stable/package_esp8266com_index.json
+
+<span class="anim-fade-in">
 ![Preferences](https://i.imgur.com/rFCvLxl.png)
+</span>
 
 Go to __Tools__ > __Board:__ > __Boards Manager ...__, search for "esp8266" and install "esp8266 by ESP8266 Community",   
 version 2.6.3 (or newer) *EDIT*: Do not use any version >= 3.0.0, it is reported to break things!:
 
+<span class="anim-fade-in">
 ![Preferences](https://i.imgur.com/i6XGPwl.png)
+</span>
 
 Now go to __Tools__ > __Board:__ and choose your ESP8266 board.   
  
@@ -31,7 +36,10 @@ Set the "IwIP Variant" to "v2 Lower Memory".
 Plug your board into a free USB port on your PC and select the detected COM port in the Arduino IDE.
 
 ### ESP8266 IDE Settings
+
+<span class="anim-fade-in">
 ![ESP8266 IDE Settings](https://i.imgur.com/yQkbbn1.png)
+</span>
 
 ## Used Libraries
 
@@ -51,15 +59,20 @@ Direct Downloads:
 <a class="btn btn-primary" type="button" href="https://github.com/me-no-dev/ESPAsyncWebServer/archive/refs/heads/master.zip">ESPAsyncWebServer</a>
 
 ### OLED Add-on Library
+
+<span class="anim-fade-in">
 ```note
 The OLED functionality is _completely_ optional for GBS-Control. However, the OLED driver library is still needed for compilation. You can install it via the Arduino Library Manager like the previous libraries mentioned.
 ```
+</span>
 
 __Sketch__ > __Include Library__ > __Manage Libraries__ > "ESP8266 and ESP32 OLED driver for SSD1306 displays"
 
 https://github.com/ThingPulse/esp8266-oled-ssd1306   
 
+<span class="anim-fade-in">
 ![Libraries](https://i.imgur.com/BR2olsh.png)
+</span>
 
 
 ### Optional Libraries
@@ -102,14 +115,19 @@ The next step is to connect the ESP8266 to your home network.
    - address "http://gbscontrol.local" (requires mDNS support from the operating system, sometimes the router provides support)
    - address "http://gbscontrol:80", "http://gbscontrol" or just "gbscontrol" 
 
+<span class="anim-fade-in">
 ```note
 The ESP8266 remembers this network, so it will always try to connect to this network first.   
 If it can't connect, it will revert to AP mode.  
 ``` 
+</span>
 
 If you ever want to delete the network information, you can do so by uploading the sketch in the   
-"Erase Flash:" > "Sketch + WiFi Settings" mode:   
+"Erase Flash:" > "Sketch + WiFi Settings" mode: 
+
+<span class="anim-fade-in">  
 ![ESP8266 Wipe WiFi](https://i.imgur.com/QlyWocy.png)
+</span>
    
 That's it!   
 Head over to the other Wiki pages if you want further information.   

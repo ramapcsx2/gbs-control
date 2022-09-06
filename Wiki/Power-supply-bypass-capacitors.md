@@ -15,5 +15,10 @@ Forum post: https://shmups.system11.org/viewtopic.php?p=1349983#p1349983
 > Actual voltages are 3.3V for the main supply (C23 C41 C48), and 1.8V for the digital supply (C42).
    
 Examples of capacitors installed in parallel:   
+
+<span class="anim-fade-in">
 ![](https://i.imgur.com/nfrRZc6.jpg)   
+</span>
+<span class="anim-fade-in">
 ![](https://i.imgur.com/DVQ0Wkz.jpg)
+</span>

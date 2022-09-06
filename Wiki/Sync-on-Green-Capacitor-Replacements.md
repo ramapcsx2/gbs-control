@@ -19,7 +19,9 @@ Previously, it was recommended to use a Sync Stripper circuit to address the dro
 It is better to replace C33 and C35 with 1nF parts, thus allowing the SOG separation circuit to do the job it was designed to do.   
 Due to the densely populated work area, good soldering equipment and a little experience is required.   
 For the capacitors, I recommend looking for 1nF SMD NP0 (or X7R) parts. Sizes of "0805" or "0603" will fit well.   
-
+<span class="anim-fade-in">
 ![](https://i.imgur.com/hgpaVER.png)
-
+</span>
+<span class="anim-fade-in">
 ![](https://i.imgur.com/S2jw69Q.jpg)
+</span>

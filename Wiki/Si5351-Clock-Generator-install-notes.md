@@ -23,8 +23,11 @@ You can solder these wires directly to the same SDA/SCL lines on the ESP8266 too
 
 To test the clock generator is working, open the GBS Control web gui.  Go to Preferences and scroll down to Activate FrameTime lock.  Press on the FrameTime Lock button and the console will read “Active FrameTime Lock not necessary with external clock gen installed”.  Video output should be pristine and free of horizontal tearing when high output resolution presets are used.  
 
+<span class="anim-fade-in">
 ![Closeup of installed clock gen to GBS8200](https://i.imgur.com/bAtlD6Ah.jpg)
+</span>
 
+<span class="anim-fade-in">
 ```tip
 If you don't want to place the clock generator to the heat sink, then you can alternatively place it to where the potentiometers used to be. If you do the bridges on the bottom of the GBS board, then this leaves you with some blank space where you can attach the clock generator.
 
@@ -35,3 +38,4 @@ This is more a technique for advanced builders. If you don't have the right tool
 ![Closeup of the clock gen placed to the potentiometer location](https://user-images.githubusercontent.com/3519517/159733516-bcff58ba-ffef-4f89-9cb6-ce31d48bca01.jpg)
 
 ```
+</span>
