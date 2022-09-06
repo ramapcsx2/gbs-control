@@ -12,14 +12,14 @@ sort: 16
 
 </span>
 
-# Atari ST family
+## Atari ST family
 | Input | Graphics chip | Mode no | Type | Resolution |  Refresh (V)  | Refresh (H) | Works | Comments   |
 |-------|---------------|---------|------|------------|---------------|-------------|-------|------------|
 |  VGA  |  Shifter      |   Low   |  RGB |   320x200  | 50 Hz / 60 Hz |  15.75 KHz  |   <b style="color:#11ff11">YES</b>  | Jumps on STFM, works on Mega ST and STE ([#198](https://github.com/ramapcsx2/gbs-control/issues/198)) |
 |  VGA  |  Shifter      |  Medium |  RGB |   640x200  | 50 Hz / 60 Hz |  15.75 KHz  |  <b style="color:#11ff11">YES</b>  |  Tested on STE          |
 |  VGA  |  Shifter      |   High  |  RGB |   640x400  |     72 Hz     |  31.50 KHz  |   <b style="color:red">NO</b>  | Stops working after a few seconds ([#190](https://github.com/ramapcsx2/gbs-control/issues/190)) |
 
-# IBM PC and compatibles
+## IBM PC and compatibles
 
 | Input | Graphics chip | Mode no | Type | Resolution | Refresh (V) | Refresh (H) | Works | Comments   |
 |-------|---------------|---------|------|------------|-------------|-------------|-------|------------|
@@ -145,7 +145,7 @@ sort: 16
 |  VGA  |  ATi Mach 64  |  303h   | VESA |  1600x1200 |    ?????    |    ?????    |  ???  |            |
 |  VGA  |  ATi Mach 64  |  304h   | VESA |  1600x1200 |    ?????    |    ?????    |  ???  |            |
 
-# Macintosh
+## Macintosh
 
 | Input | Graphics chip | Mode no | Type | Resolution | Refresh (V) | Refresh (H) | Works | Comments   |
 |-------|---------------|---------|------|------------|-------------|-------------|-------|------------|
