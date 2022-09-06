@@ -2,9 +2,11 @@
 sort: 1
 ---
 
-{:.anim-fade-in}
 
 # Welcome to the gbs-control wiki!
 
+<span class="anim-fade-in">
 
 {% include list.liquid all=true %}
+
+</span>
