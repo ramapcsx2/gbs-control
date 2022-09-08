@@ -1,6 +1,6 @@
 <div class="d-table col-12">
   <div class="col-2 d-table-cell v-align-middle">
-    <img class="width-full avatar" src="https://raw.githubusercontent.com/ramapcsx2/gbs-control/master/public/assets/icons/icon-1024.png" alt="github" />
+    <img class="width-full avatar" src="./Images/GBS_CONTROL.png" alt="Logo" />
   </div>
   <div class="col-10 d-table-cell v-align-middle pl-4">
     <h1 class="text-normal lh-condensed">GBS Control</h1>
