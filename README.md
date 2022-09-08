@@ -1,7 +1,17 @@
-# GBS Control
+<div class="d-table col-12">
+  <div class="col-2 d-table-cell v-align-middle">
+    <img class="width-full avatar" src="https://github.com/ramapcsx2/gbs-control/blob/master/public/assets/icons/icon-1024.png" alt="github" />
+  </div>
+  <div class="col-10 d-table-cell v-align-middle pl-4">
+    <h1 class="text-normal lh-condensed">GBS Control</h1>
+    <p class="h4 color-fg-muted text-normal mb-2">an alternative firmware for Tvia Trueview5725 based upscalers / video converter boards.</p>
+    <a class="color-fg-muted text-small" href="./Wiki/README.md">Read the documentation</a>
+  </div>
+</div>
 
-Gbscontrol is an alternative firmware for Tvia Trueview5725 based upscalers / video converter boards.  
-Its growing list of features includes:   
+
+ 
+## Features:
 - very low lag
 - sharp and defined upscaling, comparing well to other -expensive- units
 - no synchronization loss switching 240p/480i (output runs independent from input, sync to display never drops)
