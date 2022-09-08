@@ -24,7 +24,13 @@ ESP8266 boards do not have standardized pin names, but they follow some naming r
 - if they are not named (Wemos D1 Mini and many others): SCL is "D1", SDA is "D2"
 - if unsure, see if you can find your ESP8266 board [here](https://randomnerdtutorials.com/esp8266-pinout-reference-gpios/)
 - GBS side SDA goes to ESP8266 side SDA, same for SCL
+
+<span class="color-shadow-extra-large p-3">
+
 ![](https://i.imgur.com/TvSAQuX.png)
+
+</span>
+
 - Use a jumper to bridge the 2 pins below the first programming port (see picture above)
 ### Connect DebugPin
 To enable automatic image position and timing adjustment, the ESP8266 needs to measure some timings.
