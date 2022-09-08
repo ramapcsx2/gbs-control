@@ -5,7 +5,7 @@
   <div class="col-10 d-table-cell v-align-middle pl-4">
     <h1 class="text-normal lh-condensed">GBS Control</h1>
     <p class="h4 color-fg-muted text-normal mb-2">an alternative firmware for Tvia Trueview5725 based upscalers / video converter boards.</p>
-    <a class="color-fg-muted text-small" href="./Wiki/README.md">Read the documentation</a>
+    <a class="color-fg-muted text-small" href="./Wiki/">Read the documentation</a>
   </div>
 </div>
 
