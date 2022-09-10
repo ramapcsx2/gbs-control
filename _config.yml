@@ -1,0 +1,31 @@
+title: GBS Control
+description: alternative firmware for Tvia Trueview5725 based upscalers
+markdown: GFM
+remote_theme: rundocs/jekyll-rtd-theme
+# debug:
+#   compress: true
+#   dist: false
+#   shortcodes: true
+
+readme_index:
+  with_frontmatter: true
+
+plugins:
+  - jemoji
+  - jekyll-avatar
+  - jekyll-mentions
+  - jekyll-remote-theme
+
+exclude:
+  - Makefile
+  - CNAME
+  - LICENSE
+  - update.sh
+  - Gemfile
+  - Gemfile.lock
+  - requirements.txt
+  - node_modules
+  - package.json
+  - package-lock.json
+  - webpack.config.js
+  - jekyll-rtd-theme.gemspec
