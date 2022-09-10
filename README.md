@@ -38,6 +38,3 @@ Head over to the [wiki](./Wiki/README.md) for the setup guide to learn how to bu
 Development threads:  
 https://shmups.system11.org/viewtopic.php?f=6&t=52172   
 https://circuit-board.de/forum/index.php/Thread/15601-GBS-8220-Custom-Firmware-in-Arbeit/   
-
-If you like gbscontrol, you can now <a class="bmc-button" target="_blank" href="https://www.buymeacoffee.com/ramapcsx2"><img src="https://cdn.buymeacoffee.com/buttons/bmc-new-btn-logo.svg" alt="Buy me a coffee">buy me a coffee</a>.   
-Cheers! :)   
