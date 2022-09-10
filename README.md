@@ -5,7 +5,7 @@
   <div class="col-10 d-table-cell v-align-middle pl-4">
     <h1 class="text-normal lh-condensed">GBS Control</h1>
     <p class="h4 color-fg-muted text-normal mb-2">an alternative firmware for Tvia Trueview5725 based upscalers / video converter boards.</p>
-    <a class="color-fg-muted text-small" href="./Wiki/">Read the documentation</a>
+    <a class="color-fg-muted text-small" href="https://ramapcsx2.github.io/gbs-control/">Read the documentation</a>
   </div>
 </div>
 
@@ -32,8 +32,7 @@ Gbscontrol is a continuation of previous work by dooklink, mybook4, Ian Stedman 
 Bob from RetroRGB did an [overview video on the project](https://www.youtube.com/watch?v=fmfR0XI5czI). This is a highly recommended watch!   
 
 
-Head over to the [wiki](./Wiki/README.md) for the setup guide to learn how to build and use it!  
-[Build the hardware](./Wiki/Build-the-Hardware.md)
+Head over to the new [documentation](https://ramapcsx2.github.io/gbs-control/) for the setup guide to learn how to build and use it!  
 
 Development threads:  
 https://shmups.system11.org/viewtopic.php?f=6&t=52172   
