@@ -16,23 +16,23 @@
 
 #define WIFI_CONNECT_TIMEOUT 45
 
-class PersWiFiManager {
+class PersWiFiManager
+{
 
-  public:
-
+public:
     typedef std::function<void(void)> WiFiChangeHandlerFunction;
 
-    PersWiFiManager(AsyncWebServer& s, DNSServer& d);
+    PersWiFiManager(AsyncWebServer &s, DNSServer &d);
 
-    bool attemptConnection(const String& ssid = "", const String& pass = "");
+    bool attemptConnection(const String &ssid = "", const String &pass = "");
 
     void setupWiFiHandlers();
 
-    bool begin(const String& ssid = "", const String& pass = "");
+    bool begin(const String &ssid = "", const String &pass = "");
 
     String getApSsid();
 
-    void setApCredentials(const String& apSsid, const String& apPass = "");
+    void setApCredentials(const String &apSsid, const String &apPass = "");
 
     void setConnectNonBlock(bool b);
 
@@ -44,9 +44,9 @@ class PersWiFiManager {
 
     void onAp(WiFiChangeHandlerFunction fn);
 
-  private:
-    AsyncWebServer * _server;
-    DNSServer * _dnsServer;
+private:
+    AsyncWebServer *_server;
+    DNSServer *_dnsServer;
     String _apSsid, _apPass;
 
     bool _connectNonBlock;
@@ -55,7 +55,7 @@ class PersWiFiManager {
     WiFiChangeHandlerFunction _connectHandler;
     WiFiChangeHandlerFunction _apHandler;
 
-};//class
+}; //class
 
 #endif
 #endif
