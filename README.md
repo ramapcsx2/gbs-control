@@ -1,5 +1,7 @@
 # gbs-control
 
+Documentation: https://ramapcsx2.github.io/gbs-control/
+
 Gbscontrol is an alternative firmware for Tvia Trueview5725 based upscalers / video converter boards.  
 Its growing list of features includes:   
 - very low lag
@@ -22,13 +24,6 @@ Gbscontrol is a continuation of previous work by dooklink, mybook4, Ian Stedman 
 Bob from RetroRGB did an overview video on the project. This is a highly recommended watch!   
 https://www.youtube.com/watch?v=fmfR0XI5czI
 
-Head over to the wiki for the setup guide to learn how to build and use it!  
-https://github.com/ramapcsx2/gbs-control/wiki/Build-the-Hardware
-
 Development threads:  
 https://shmups.system11.org/viewtopic.php?f=6&t=52172   
 https://circuit-board.de/forum/index.php/Thread/15601-GBS-8220-Custom-Firmware-in-Arbeit/   
-
-If you like gbscontrol, you can now <a class="bmc-button" target="_blank" href="https://www.buymeacoffee.com/ramapcsx2"><img src="https://cdn.buymeacoffee.com/buttons/bmc-new-btn-logo.svg" alt="Buy me a coffee">buy me a coffee</a>.   
-Cheers! :)   
-
