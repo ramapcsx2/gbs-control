@@ -292,8 +292,8 @@ typedef struct
     SlotMeta slot[SLOTS_TOTAL]; // the max avaliable slots that can be encoded in a the charset[A-Za-z0-9-._~()!*:,;]
 } SlotMetaArray;
 
-char typeOneCommand;               // Serial / Web Server commands
-char typeTwoCommand;               // Serial / Web Server commands
+char serialCommand;               // Serial / Web Server commands
+char userCommand;               // Serial / Web Server commands
 static uint8_t lastSegment = 0xFF; // GBS segment for direct access
 //uint8_t globalDelay; // used for dev / debug
 
@@ -945,8 +945,8 @@ void setResetParameters()
     rto->coastPositionIsSet = 0;
     rto->phaseIsSet = 0;
     rto->continousStableCounter = 0;
-    typeOneCommand = '@';
-    typeTwoCommand = '@';
+    serialCommand = '@';
+    userCommand = '@';
 }
 
 void OutputComponentOrVGA()
@@ -3760,7 +3760,7 @@ void doPostPresetLoadSteps()
     // unused now
     GBS::VDS_TAP6_BYPS::write(0);
     /*if (uopt->wantTap6) { GBS::VDS_TAP6_BYPS::write(0); }
-  else { 
+  else {
     GBS::VDS_TAP6_BYPS::write(1);
     if (!isCustomPreset) {
       GBS::MADPT_Y_DELAY_UV_DELAY::write(GBS::MADPT_Y_DELAY_UV_DELAY::read() + 1);
@@ -4146,7 +4146,7 @@ void applyPresets(uint8_t result)
         // only if the preset to load isn't custom
         // (else the command will instantly disable debug view)
         if (uopt->presetPreference != 2) {
-            typeOneCommand = 'D';
+            serialCommand = 'D';
         }
     }
 
@@ -4179,7 +4179,7 @@ void applyPresets(uint8_t result)
                 GBS::SP_CLAMP_MANUAL::write(1);
                 rto->syncWatcherEnabled = 0;
                 rto->videoStandardInput = 0;
-                typeOneCommand = 'D'; // enable debug view
+                serialCommand = 'D'; // enable debug view
 
                 return;
             }
@@ -4988,7 +4988,7 @@ void setOutModeHdBypass()
     if (GBS::ADC_UNUSED_62::read() != 0x00) {
         // remember debug view
         if (uopt->presetPreference != 2) {
-            typeOneCommand = 'D';
+            serialCommand = 'D';
         }
     }
 
@@ -7200,8 +7200,8 @@ void setup()
     adco->g_off = 0;
     adco->b_off = 0;
 
-    typeOneCommand = '@'; // ASCII @ = 0
-    typeTwoCommand = '@';
+    serialCommand = '@'; // ASCII @ = 0
+    userCommand = '@';
 
     pinMode(DEBUG_IN_PIN, INPUT);
     pinMode(LED_BUILTIN, OUTPUT);
@@ -7672,24 +7672,24 @@ void loop()
     // is there a command from Terminal or web ui?
     // Serial takes precedence
     if (Serial.available()) {
-        typeOneCommand = Serial.read();
+        serialCommand = Serial.read();
     } else if (inputStage > 0) {
         // multistage with no more data
         SerialM.println(F(" abort"));
         discardSerialRxData();
-        typeOneCommand = ' ';
+        serialCommand = ' ';
     }
-    if (typeOneCommand != '@') {
+    if (serialCommand != '@') {
         // multistage with bad characters?
         if (inputStage > 0) {
             // need 's', 't' or 'g'
-            if (typeOneCommand != 's' && typeOneCommand != 't' && typeOneCommand != 'g') {
+            if (serialCommand != 's' && serialCommand != 't' && serialCommand != 'g') {
                 discardSerialRxData();
                 SerialM.println(F(" abort"));
-                typeOneCommand = ' ';
+                serialCommand = ' ';
             }
         }
-        switch (typeOneCommand) {
+        switch (serialCommand) {
             case ' ':
                 // skip spaces
                 inputStage = segmentCurrent = registerCurrent = 0; // and reset these
@@ -7784,7 +7784,7 @@ void loop()
                     GBS::ADC_UNUSED_62::write(0);
                     SerialM.println("off");
                 }
-                typeOneCommand = '@';
+                serialCommand = '@';
                 break;
             case 'C':
                 SerialM.println(F("PLL: ICLK"));
@@ -8561,7 +8561,7 @@ void loop()
                 break;
             default:
                 Serial.print(F("unknown command "));
-                Serial.println(typeOneCommand, HEX);
+                Serial.println(serialCommand, HEX);
                 break;
         }
 
@@ -8574,16 +8574,16 @@ void loop()
         if (!Serial.available()) {
             // in case we handled a Serial or web server command and there's no more extra commands
             // but keep debug view command (resets once called)
-            if (typeOneCommand != 'D') {
-                typeOneCommand = '@';
+            if (serialCommand != 'D') {
+                serialCommand = '@';
             }
             handleWiFi(1);
         }
     }
 
-    if (typeTwoCommand != '@') {
-        handleType2Command(typeTwoCommand);
-        typeTwoCommand = '@'; // in case we handled web server command
+    if (userCommand != '@') {
+        handleType2Command(userCommand);
+        userCommand = '@'; // in case we handled web server command
         lastVsyncLock = millis();
         handleWiFi(1);
     }
@@ -9341,11 +9341,11 @@ void startWebserver()
             if (params > 0) {
                 AsyncWebParameter *p = request->getParam(0);
                 //Serial.println(p->name());
-                typeOneCommand = p->name().charAt(0);
+                serialCommand = p->name().charAt(0);
 
                 // hack, problem with '+' command received via url param
-                if (typeOneCommand == ' ') {
-                    typeOneCommand = '+';
+                if (serialCommand == ' ') {
+                    serialCommand = '+';
                 }
             }
             request->send(200); // reply
@@ -9360,7 +9360,7 @@ void startWebserver()
             if (params > 0) {
                 AsyncWebParameter *p = request->getParam(0);
                 //Serial.println(p->name());
-                typeTwoCommand = p->name().charAt(0);
+                userCommand = p->name().charAt(0);
             }
             request->send(200); // reply
         }
@@ -9382,7 +9382,7 @@ void startWebserver()
             WiFi.begin();
         }
 
-        typeTwoCommand = 'u'; // next loop, set wifi station mode and restart device
+        userCommand = 'u'; // next loop, set wifi station mode and restart device
     });
 
     server.on("/bin/slots.bin", HTTP_GET, [](AsyncWebServerRequest *request) {
