@@ -8002,17 +8002,6 @@ void loop()
                 }
                 break;
             case 'M': {
-                /*for (int a = 0; a < 10000; a++) {
-        GBS::VERYWIDEDUMMYREG::read();
-      }*/
-
-                calibrateAdcOffset();
-
-                //optimizeSogLevel();
-                /*rto->clampPositionIsSet = false;
-      rto->coastPositionIsSet = false;
-      updateClampPosition();
-      updateCoastPosition();*/
             } break;
             case 'm':
                 SerialM.print(F("syncwatcher "));
@@ -8138,15 +8127,6 @@ void loop()
                 }
                 scaleVertical(2, true);
                 // actually requires full vertical mask + position offset calculation
-                /*shiftVerticalUp();
-      uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
-      uint16_t vbstd = GBS::VDS_DIS_VB_ST::read();
-      uint16_t vbspd = GBS::VDS_DIS_VB_SP::read();
-      if ((vbstd < (vtotal - 4)) && (vbspd > 6))
-      {
-        GBS::VDS_DIS_VB_ST::write(vbstd + 1);
-        GBS::VDS_DIS_VB_SP::write(vbspd - 1);
-      }*/
             } break;
             case '5': {
                 // scale vertical -
@@ -8156,15 +8136,6 @@ void loop()
                 }
                 scaleVertical(2, false);
                 // actually requires full vertical mask + position offset calculation
-                /*shiftVerticalDown();
-      uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
-      uint16_t vbstd = GBS::VDS_DIS_VB_ST::read();
-      uint16_t vbspd = GBS::VDS_DIS_VB_SP::read();
-      if ((vbstd > 6) && (vbspd < (vtotal - 4)))
-      {
-        GBS::VDS_DIS_VB_ST::write(vbstd - 1);
-        GBS::VDS_DIS_VB_SP::write(vbspd + 1);
-      }*/
             } break;
             case '6':
                 if (videoStandardInputIsPalNtscSd() && !rto->outModeHdBypass) {
