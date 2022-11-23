@@ -232,12 +232,23 @@ struct runTimeOptions
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
+enum OutputMode : uint8_t {
+    Output960P = 0,
+    Output480P = 1,
+    OutputCustomized = 2,
+    Output720P = 3,
+    Output1024P = 4,
+    Output1080P = 5,
+    OutputDownscale = 6,
+    OutputBypass = 10,
+};
+
 // userOptions holds user preferences / customizations
 struct userOptions
 {
     // 0 - normal, 1 - x480/x576, 2 - customized, 3 - 1280x720, 4 - 1280x1024, 5 - 1920x1080,
     // 6 - downscale, 10 - bypass
-    uint8_t presetPreference;
+    OutputMode presetPreference;
     uint8_t presetSlot;
     uint8_t enableFrameTimeLock;
     uint8_t frameTimeLockMethod;
@@ -4104,10 +4115,11 @@ void doPostPresetLoadSteps()
     if (rto->videoStandardInput == 14) {
         SerialM.print(F("\nNote: scaling RGB is still in development"));
     }
-    // presetPreference = 2 may fail to load (missing) preset file and arrive here with defaults
+    // presetPreference = OutputCustomized may fail to load (missing) preset file and arrive here with defaults
     SerialM.println("\n");
 }
 
+// TODO replace result with VideoStandardInput enum
 void applyPresets(uint8_t result)
 {
     if (!rto->boardHasPower) {
@@ -4151,6 +4163,7 @@ void applyPresets(uint8_t result)
     }
 
     if (result == 0) {
+        // Unknown
         SerialM.println(F("Source format not properly recognized, using fallback preset!"));
         result = 3;                   // in case of success: override to 480p60
         GBS::ADC_INPUT_SEL::write(1); // RGB
@@ -4202,6 +4215,7 @@ void applyPresets(uint8_t result)
     }
 
     if (result == 1 || result == 3 || result == 8 || result == 9 || result == 14) {
+        // NTSC input
         if (uopt->presetPreference == 0) {
             writeProgramArrayNew(ntsc_240p, false);
         } else if (uopt->presetPreference == 1) {
@@ -4228,6 +4242,7 @@ void applyPresets(uint8_t result)
             writeProgramArrayNew(ntsc_downscale, false);
         }
     } else if (result == 2 || result == 4) {
+        // PAL input
         if (uopt->presetPreference == 0) {
             if (uopt->matchPresetSource) {
                 SerialM.println(F("matched preset override > 1280x1024"));
@@ -6474,7 +6489,7 @@ void runSyncWatcher()
                     }
 
                     if (uopt->presetPreference == 10) {
-                        uopt->presetPreference = 0; // fix presetPreference which can be "bypass"
+                        uopt->presetPreference = Output960P; // fix presetPreference which can be "bypass"
                     }
 
                     activePresetLineCount = sourceLines;
@@ -6587,7 +6602,7 @@ void runSyncWatcher()
                         }
 
                         if (uopt->presetPreference == 10) {
-                            uopt->presetPreference = 0; // fix presetPreference which can be "bypass"
+                            uopt->presetPreference = Output960P; // fix presetPreference which can be "bypass"
                         }
 
                         activePresetLineCount = sourceLines;
@@ -7051,7 +7066,7 @@ void calibrateAdcOffset()
 
 void loadDefaultUserOptions()
 {
-    uopt->presetPreference = 0;    // #1
+    uopt->presetPreference = Output960P;    // #1
     uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
     uopt->presetSlot = 0;          //
     uopt->frameTimeLockMethod = 0; // compatibility with more displays
@@ -7237,9 +7252,9 @@ void setup()
             saveUserPrefs(); // if this fails, there must be a spiffs problem
         } else {
             //on a fresh / spiffs not formatted yet MCU:  userprefs.txt open ok //result = 207
-            uopt->presetPreference = (uint8_t)(f.read() - '0'); // #1
+            uopt->presetPreference = (OutputMode)(f.read() - '0'); // #1
             if (uopt->presetPreference > 10)
-                uopt->presetPreference = 0; // fresh spiffs ?
+                uopt->presetPreference = Output960P; // fresh spiffs ?
 
             uopt->enableFrameTimeLock = (uint8_t)(f.read() - '0');
             if (uopt->enableFrameTimeLock > 1)
@@ -7833,7 +7848,7 @@ void loop()
                 break;
             case 'K':
                 setOutModeHdBypass();
-                uopt->presetPreference = 10;
+                uopt->presetPreference = OutputBypass;
                 saveUserPrefs();
                 break;
             case 'T':
@@ -8072,8 +8087,8 @@ void loop()
                 uint8_t videoMode = getVideoMode();
                 if (videoMode == 0)
                     videoMode = rto->videoStandardInput;
-                uint8_t backup = uopt->presetPreference;
-                uopt->presetPreference = 3;
+                OutputMode backup = uopt->presetPreference;
+                uopt->presetPreference = Output720P;
                 rto->videoStandardInput = 0; // force hard reset
                 applyPresets(videoMode);
                 uopt->presetPreference = backup;
@@ -8836,7 +8851,7 @@ void handleType2Command(char argument)
             break;
         case '3': // load custom preset
         {
-            uopt->presetPreference = 2; // custom
+            uopt->presetPreference = OutputCustomized; // custom
             if (rto->videoStandardInput == 14) {
                 // vga upscale path: let synwatcher handle it
                 rto->videoStandardInput = 15;
@@ -8848,7 +8863,7 @@ void handleType2Command(char argument)
         } break;
         case '4': // save custom preset
             savePresetToSPIFFS();
-            uopt->presetPreference = 2; // custom
+            uopt->presetPreference = OutputCustomized; // custom
             saveUserPrefs();
             break;
         case '5':
@@ -8953,17 +8968,17 @@ void handleType2Command(char argument)
             //else videoMode stays 0 and we'll apply via some assumptions
 
             if (argument == 'f')
-                uopt->presetPreference = 0; // 1280x960
+                uopt->presetPreference = Output960P; // 1280x960
             if (argument == 'g')
-                uopt->presetPreference = 3; // 1280x720
+                uopt->presetPreference = Output720P; // 1280x720
             if (argument == 'h')
-                uopt->presetPreference = 1; // 720x480/768x576
+                uopt->presetPreference = Output480P; // 720x480/768x576
             if (argument == 'p')
-                uopt->presetPreference = 4; // 1280x1024
+                uopt->presetPreference = Output1024P; // 1280x1024
             if (argument == 's')
-                uopt->presetPreference = 5; // 1920x1080
+                uopt->presetPreference = Output1080P; // 1920x1080
             if (argument == 'L')
-                uopt->presetPreference = 6; // downscale
+                uopt->presetPreference = OutputDownscale; // downscale
 
             rto->useHdmiSyncFix = 1; // disables sync out when programming preset
             if (rto->videoStandardInput == 14) {
@@ -9396,7 +9411,7 @@ void startWebserver()
                 char slotValue[2];
                 slotParamValue.toCharArray(slotValue, sizeof(slotValue));
                 uopt->presetSlot = (uint8_t)slotValue[0];
-                uopt->presetPreference = 2;
+                uopt->presetPreference = OutputCustomized;
                 saveUserPrefs();
                 result = true;
             }
@@ -9974,7 +9989,7 @@ void settingsMenuOLED()
             }
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
                 videoMode = rto->videoStandardInput;
-            uopt->presetPreference = 0;
+            uopt->presetPreference = Output960P;
             rto->useHdmiSyncFix = 1;
             if (rto->videoStandardInput == 14) {
                 rto->videoStandardInput = 15;
@@ -9996,7 +10011,7 @@ void settingsMenuOLED()
             }
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
                 videoMode = rto->videoStandardInput;
-            uopt->presetPreference = 4;
+            uopt->presetPreference = Output1024P;
             rto->useHdmiSyncFix = 1;
             if (rto->videoStandardInput == 14) {
                 rto->videoStandardInput = 15;
@@ -10018,7 +10033,7 @@ void settingsMenuOLED()
             }
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
                 videoMode = rto->videoStandardInput;
-            uopt->presetPreference = 3;
+            uopt->presetPreference = Output720P;
             rto->useHdmiSyncFix = 1;
             if (rto->videoStandardInput == 14) {
                 rto->videoStandardInput = 15;
@@ -10040,7 +10055,7 @@ void settingsMenuOLED()
             }
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
                 videoMode = rto->videoStandardInput;
-            uopt->presetPreference = 5;
+            uopt->presetPreference = Output1080P;
             rto->useHdmiSyncFix = 1;
             if (rto->videoStandardInput == 14) {
                 rto->videoStandardInput = 15;
@@ -10062,7 +10077,7 @@ void settingsMenuOLED()
             }
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
                 videoMode = rto->videoStandardInput;
-            uopt->presetPreference = 1;
+            uopt->presetPreference = Output480P;
             rto->useHdmiSyncFix = 1;
             if (rto->videoStandardInput == 14) {
                 rto->videoStandardInput = 15;
@@ -10084,7 +10099,7 @@ void settingsMenuOLED()
             }
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
                 videoMode = rto->videoStandardInput;
-            uopt->presetPreference = 6;
+            uopt->presetPreference = OutputDownscale;
             rto->useHdmiSyncFix = 1;
             if (rto->videoStandardInput == 14) {
                 rto->videoStandardInput = 15;
@@ -10105,7 +10120,7 @@ void settingsMenuOLED()
                 display.display();
             }
             setOutModeHdBypass();
-            uopt->presetPreference = 10;
+            uopt->presetPreference = OutputBypass;
             if (uopt->presetPreference == 10 && rto->videoStandardInput != 15) {
                 rto->autoBestHtotalEnabled = 0;
                 if (rto->applyPresetDoneStage == 11) {
@@ -10157,7 +10172,7 @@ void settingsMenuOLED()
         if (oled_pointer_count == 0 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
             uopt->presetSlot = 'A';
-            uopt->presetPreference = 2;
+            uopt->presetPreference = OutputCustomized;
             saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
@@ -10167,7 +10182,7 @@ void settingsMenuOLED()
                 display.drawString(64, 15, "Loaded!");
                 display.display(); //display loading conf
             }
-            uopt->presetPreference = 2;
+            uopt->presetPreference = OutputCustomized;
             if (rto->videoStandardInput == 14) {
                 rto->videoStandardInput = 15;
             } else {
@@ -10181,7 +10196,7 @@ void settingsMenuOLED()
         if (oled_pointer_count == 1 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
             uopt->presetSlot = 'B';
-            uopt->presetPreference = 2;
+            uopt->presetPreference = OutputCustomized;
             saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
@@ -10191,7 +10206,7 @@ void settingsMenuOLED()
                 display.drawString(64, 15, "Loaded!");
                 display.display();
             }
-            uopt->presetPreference = 2;
+            uopt->presetPreference = OutputCustomized;
             if (rto->videoStandardInput == 14) {
                 rto->videoStandardInput = 15;
             } else {
@@ -10205,7 +10220,7 @@ void settingsMenuOLED()
         if (oled_pointer_count == 2 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
             uopt->presetSlot = 'C';
-            uopt->presetPreference = 2;
+            uopt->presetPreference = OutputCustomized;
             saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
@@ -10215,7 +10230,7 @@ void settingsMenuOLED()
                 display.drawString(64, 15, "Loaded!");
                 display.display();
             }
-            uopt->presetPreference = 2;
+            uopt->presetPreference = OutputCustomized;
             if (rto->videoStandardInput == 14) {
                 rto->videoStandardInput = 15;
             } else {
@@ -10229,7 +10244,7 @@ void settingsMenuOLED()
         if (oled_pointer_count == 3 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
             uopt->presetSlot = 'D';
-            uopt->presetPreference = 2;
+            uopt->presetPreference = OutputCustomized;
             saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
@@ -10239,7 +10254,7 @@ void settingsMenuOLED()
                 display.drawString(64, 15, "Loaded!");
                 display.display();
             }
-            uopt->presetPreference = 2;
+            uopt->presetPreference = OutputCustomized;
             if (rto->videoStandardInput == 14) {
                 rto->videoStandardInput = 15;
             } else {
@@ -10253,7 +10268,7 @@ void settingsMenuOLED()
         if (oled_pointer_count == 4 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
             uopt->presetSlot = 'E';
-            uopt->presetPreference = 2;
+            uopt->presetPreference = OutputCustomized;
             saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
@@ -10263,7 +10278,7 @@ void settingsMenuOLED()
                 display.drawString(64, 15, "Loaded!");
                 display.display();
             }
-            uopt->presetPreference = 2;
+            uopt->presetPreference = OutputCustomized;
             if (rto->videoStandardInput == 14) {
                 rto->videoStandardInput = 15;
             } else {
@@ -10277,7 +10292,7 @@ void settingsMenuOLED()
         if (oled_pointer_count == 5 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
             uopt->presetSlot = 'F';
-            uopt->presetPreference = 2;
+            uopt->presetPreference = OutputCustomized;
             saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
@@ -10287,7 +10302,7 @@ void settingsMenuOLED()
                 display.drawString(64, 15, "Loaded!");
                 display.display();
             }
-            uopt->presetPreference = 2;
+            uopt->presetPreference = OutputCustomized;
             if (rto->videoStandardInput == 14) {
                 rto->videoStandardInput = 15;
             } else {
@@ -10301,7 +10316,7 @@ void settingsMenuOLED()
         if (oled_pointer_count == 6 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
             uopt->presetSlot = 'G';
-            uopt->presetPreference = 2;
+            uopt->presetPreference = OutputCustomized;
             saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
@@ -10311,7 +10326,7 @@ void settingsMenuOLED()
                 display.drawString(64, 15, "Loaded!");
                 display.display();
             }
-            uopt->presetPreference = 2;
+            uopt->presetPreference = OutputCustomized;
             if (rto->videoStandardInput == 14) {
                 rto->videoStandardInput = 15;
             } else {
