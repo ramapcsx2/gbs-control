@@ -7657,6 +7657,11 @@ void handleWiFi(boolean instant)
     yield();
 }
 
+void myLog(char const* type, char command) {
+    SerialM.printf("%s command %c at settings source %d, custom slot %d, status %x\n",
+        type, command, uopt->presetPreference, uopt->presetSlot, rto->presetID);
+}
+
 void loop()
 {
     static uint8_t readout = 0;
@@ -7704,6 +7709,8 @@ void loop()
                 serialCommand = ' ';
             }
         }
+        myLog("serial", serialCommand);
+
         switch (serialCommand) {
             case ' ':
                 // skip spaces
@@ -8824,6 +8831,7 @@ void loop()
 
 void handleType2Command(char argument)
 {
+    myLog("user", argument);
     switch (argument) {
         case '0':
             SerialM.print(F("pal force 60hz "));
