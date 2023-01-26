@@ -22,29 +22,41 @@
 //#define FS_DEBUG
 //#define FS_DEBUG_LED
 
-volatile uint32_t stopTime, startTime;
-volatile uint32_t armed;
+namespace MeasurePeriod {
+    volatile uint32_t stopTime, startTime;
+    volatile uint32_t armed;
 
-void ICACHE_RAM_ATTR risingEdgeISR_measure()
-{
-    noInterrupts();
-    //stopTime = ESP.getCycleCount();
-    __asm__ __volatile__("rsr %0,ccount"
-                         : "=a"(stopTime));
-    detachInterrupt(DEBUG_IN_PIN);
-    interrupts();
-}
+    void _risingEdgeISR_prepare();
+    void _risingEdgeISR_measure();
 
-void ICACHE_RAM_ATTR risingEdgeISR_prepare()
-{
-    noInterrupts();
-    //startTime = ESP.getCycleCount();
-    __asm__ __volatile__("rsr %0,ccount"
-                         : "=a"(startTime));
-    detachInterrupt(DEBUG_IN_PIN);
-    armed = 1;
-    attachInterrupt(DEBUG_IN_PIN, risingEdgeISR_measure, RISING);
-    interrupts();
+    void start() {
+        startTime = 0;
+        stopTime = 0;
+        armed = 0;
+        attachInterrupt(DEBUG_IN_PIN, _risingEdgeISR_prepare, RISING);
+    }
+
+    void ICACHE_RAM_ATTR _risingEdgeISR_prepare()
+    {
+        noInterrupts();
+        //startTime = ESP.getCycleCount();
+        __asm__ __volatile__("rsr %0,ccount"
+                            : "=a"(startTime));
+        detachInterrupt(DEBUG_IN_PIN);
+        armed = 1;
+        attachInterrupt(DEBUG_IN_PIN, _risingEdgeISR_measure, RISING);
+        interrupts();
+    }
+
+    void ICACHE_RAM_ATTR _risingEdgeISR_measure()
+    {
+        noInterrupts();
+        //stopTime = ESP.getCycleCount();
+        __asm__ __volatile__("rsr %0,ccount"
+                            : "=a"(stopTime));
+        detachInterrupt(DEBUG_IN_PIN);
+        interrupts();
+    }
 }
 
 template <class GBS, class Attrs>
@@ -68,26 +80,23 @@ private:
     // Sample vsync start and stop times from debug pin.
     static bool vsyncOutputSample(uint32_t *start, uint32_t *stop)
     {
-        startTime = 0;
-        stopTime = 0;
-        armed = 0;
         yield();
         ESP.wdtDisable();
+        MeasurePeriod::start();
 
-        attachInterrupt(DEBUG_IN_PIN, risingEdgeISR_prepare, RISING);
         // typical: 300000 at 80MHz, 600000 at 160MHz
         for (uint32_t i = 0; i < 3000000; i++) {
-            if (armed) {
-                armed = 0;
+            if (MeasurePeriod::armed) {
+                MeasurePeriod::armed = 0;
                 delay(7);
                 WiFi.setSleepMode(WIFI_LIGHT_SLEEP);
             }
-            if (stopTime > 0) {
+            if (MeasurePeriod::stopTime > 0) {
                 break;
             }
         }
-        *start = startTime;
-        *stop = stopTime;
+        *start = MeasurePeriod::startTime;
+        *stop = MeasurePeriod::stopTime;
         ESP.wdtEnable(0);
         WiFi.setSleepMode(WIFI_NONE_SLEEP);
 
@@ -286,26 +295,23 @@ public:
     // Sample vsync start and stop times from debug pin.
     static bool vsyncInputSample(uint32_t *start, uint32_t *stop)
     {
-        startTime = 0;
-        stopTime = 0;
-        armed = 0;
         yield();
         ESP.wdtDisable();
+        MeasurePeriod::start();
 
-        attachInterrupt(DEBUG_IN_PIN, risingEdgeISR_prepare, RISING);
         // typical: 300000 at 80MHz, 600000 at 160MHz
         for (uint32_t i = 0; i < 3000000; i++) {
-            if (armed) {
-                armed = 0;
+            if (MeasurePeriod::armed) {
+                MeasurePeriod::armed = 0;
                 delay(7);
                 WiFi.setSleepMode(WIFI_LIGHT_SLEEP);
             }
-            if (stopTime > 0) {
+            if (MeasurePeriod::stopTime > 0) {
                 break;
             }
         }
-        *start = startTime;
-        *stop = stopTime;
+        *start = MeasurePeriod::startTime;
+        *stop = MeasurePeriod::stopTime;
         ESP.wdtEnable(0);
         WiFi.setSleepMode(WIFI_NONE_SLEEP);
 
