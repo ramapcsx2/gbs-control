@@ -112,6 +112,8 @@ private:
     // difference in microseconds
     static bool vsyncPeriodAndPhase(int32_t *periodInput, int32_t *periodOutput, int32_t *phase)
     {
+        SerialM.printf("TEST_BUS_SEL=%d\n", GBS::TEST_BUS_SEL::read());
+
         uint32_t inStart, inStop, outStart, outStop;
         uint32_t inPeriod, outPeriod, diff;
 

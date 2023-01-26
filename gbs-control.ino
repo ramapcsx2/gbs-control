@@ -17,7 +17,6 @@
 
 #include <Wire.h>
 #include "tv5725.h"
-#include "framesync.h"
 #include "osd.h"
 
 #include "SSD1306Wire.h"
@@ -158,19 +157,6 @@ uint8_t getMovingAverage(uint8_t item)
     }
     return sum >> 4; // for array size 16
 }
-
-//
-// Sync locking tunables/magic numbers
-//
-struct FrameSyncAttrs
-{
-    static const uint8_t debugInPin = DEBUG_IN_PIN;
-    static const uint32_t lockInterval = 100 * 16.70; // every 100 frames
-    static const int16_t syncCorrection = 2;          // Sync correction in scanlines to apply when phase lags target
-    static const int32_t syncTargetPhase = 90;        // Target vsync phase offset (output trails input) in degrees
-                                                      // to debug: syncTargetPhase = 343 lockInterval = 15 * 16
-};
-typedef FrameSyncManager<GBS, FrameSyncAttrs> FrameSync;
 
 struct MenuAttrs
 {
@@ -375,6 +361,21 @@ SerialMirror SerialM;
 #else
 #define SerialM Serial
 #endif
+
+#include "framesync.h"
+
+//
+// Sync locking tunables/magic numbers
+//
+struct FrameSyncAttrs
+{
+    static const uint8_t debugInPin = DEBUG_IN_PIN;
+    static const uint32_t lockInterval = 100 * 16.70; // every 100 frames
+    static const int16_t syncCorrection = 2;          // Sync correction in scanlines to apply when phase lags target
+    static const int32_t syncTargetPhase = 90;        // Target vsync phase offset (output trails input) in degrees
+                                                      // to debug: syncTargetPhase = 343 lockInterval = 15 * 16
+};
+typedef FrameSyncManager<GBS, FrameSyncAttrs> FrameSync;
 
 void externalClockGenResetClock()
 {
