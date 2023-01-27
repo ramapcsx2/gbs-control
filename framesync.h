@@ -77,6 +77,10 @@ private:
     static uint8_t delayLock;
     static int16_t syncLastCorrection;
 
+    /// Set to -1 if uninitialized.
+    /// Reset with syncLastCorrection.
+    static float maybeFreqExt_per_videoFps;
+
     // Sample vsync start and stop times from debug pin.
     static bool vsyncOutputSample(uint32_t *start, uint32_t *stop)
     {
@@ -242,6 +246,7 @@ public:
         syncLockReady = false;
         syncLastCorrection = 0;
         delayLock = 0;
+        maybeFreqExt_per_videoFps = -1;
     }
 
     static void resetWithoutRecalculation()
@@ -292,6 +297,7 @@ public:
         syncLastCorrection = 0; // the important bit
         syncLockReady = 0;
         delayLock = 0;
+        maybeFreqExt_per_videoFps = -1;
     }
 
     // Sample vsync start and stop times from debug pin.
@@ -402,15 +408,48 @@ public:
         return true;
     }
 
+    static void initFrequency(float outFramesPerS, uint32_t freqExtClockGen) {
+        /*
+        This value can be interpreted in multiple ways:
+
+        - Each output frame is a fixed number of video clocks long, at a
+          given output resolution.
+        - At a given output resolution, the video clock rate should be
+          proportional to the input FPS.
+        */
+        maybeFreqExt_per_videoFps = (float)freqExtClockGen / outFramesPerS;
+    }
+
     // Perform vsync phase locking.  This is accomplished by measuring
     // the period and phase offset of the input and output vsync
     // signals, then adjusting the output video clock to bring the phase
     // offset closer to the desired value.
     static bool runFrequency()
     {
-        int32_t period;
-        int32_t phase;
-        int32_t target;
+        // See externalClockGenSyncInOutRate.
+
+        if (maybeFreqExt_per_videoFps < 0) {
+            SerialM.printf(
+                "Error: trying to tune external clock frequency while clock frequency uninitialized!\n");
+            return true;
+        }
+
+        if (GBS::PAD_CKIN_ENZ::read() != 0) {
+            // Failed due to external factors (PAD_CKIN_ENZ=0 on
+            // startup), not bad input signal, don't return frame sync
+            // error.
+            return true;
+        }
+
+        if (rto->outModeHdBypass) {
+            return true;
+        }
+        if (GBS::PLL648_CONTROL_01::read() != 0x75) {
+            SerialM.printf(
+                "Error: trying to tune external clock frequency while set to internal clock, PLL648_CONTROL_01=%d!\n",
+                GBS::PLL648_CONTROL_01::read());
+            return true;
+        }
 
         if (!syncLockReady)
             return false;
@@ -420,19 +459,63 @@ public:
             return true;
         }
 
-        if (!vsyncPeriodAndPhase(&period, NULL, &phase))
+        // ESP32 FPU only accelerates single-precision float add/mul, not divide, not double.
+        // https://esp32.com/viewtopic.php?p=82090#p82090
+        // TODO replace div with mul
+
+        // ESP CPU cycles/s
+        const float esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
+
+        // ESP CPU cycles
+        int32_t periodInput;
+        int32_t periodOutput;
+        int32_t phase;
+        if (!vsyncPeriodAndPhase(&periodInput, &periodOutput, &phase)) {
+            SerialM.printf("vsyncPeriodAndPhase failed\n");
             return false;
+        }
 
-        target = (syncTargetPhase * period) / 360;
+        // ESP CPU cycles
+        int32_t target = (syncTargetPhase * periodInput) / 360;
 
-        // TODO see externalClockGenSyncInOutRate.
+        // Frame/s
+        const float fpsInput = esp8266_clock_freq / (float)periodInput;
 
-        return true;
+        // Latency error (distance behind target), in fractional frames.
+        // If latency increases, boost frequency, and vice versa.
+        const float latency_err_frames =
+            (float)(phase - target) // cycles
+            / esp8266_clock_freq // s
+            * fpsInput; // frames
+
+        // TODO use a nonlinear controller to control latency error
+        // optimally, given a maximum slew rate.
+        // uint32_t old = rto->freqExtClockGen;
+
+        // We want to reduce error by 10% per second, or 0.0017 (0.1/60) per frame.
+        const float newFpsOutput = fpsInput * (1 + 0.0017f * latency_err_frames);
+
+        if (fabs((newFpsOutput - fpsInput) / fpsInput) < 0.01) {
+            const auto freqExtClockGen = (uint32_t)(maybeFreqExt_per_videoFps * newFpsOutput);
+            rto->freqExtClockGen = freqExtClockGen;
+            Si.setFreq(0, rto->freqExtClockGen);
+            return true;
+        } else {
+            SerialM.printf(
+                "Error: tuning external clock generator to invalid FPS %f of %f!\n",
+                newFpsOutput, fpsInput);
+            return false;
+        }
     }
 };
 
+// grrrrrrrrr
+
 template <class GBS, class Attrs>
 int16_t FrameSyncManager<GBS, Attrs>::syncLastCorrection;
+
+template <class GBS, class Attrs>
+float FrameSyncManager<GBS, Attrs>::maybeFreqExt_per_videoFps;
 
 template <class GBS, class Attrs>
 uint8_t FrameSyncManager<GBS, Attrs>::delayLock;

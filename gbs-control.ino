@@ -458,6 +458,7 @@ void externalClockGenSyncInOutRate()
 
     uint32_t old = rto->freqExtClockGen;
     uint32_t current = rto->freqExtClockGen;
+    FrameSync::initFrequency(ofr, old);
 
     rto->freqExtClockGen = (sfr / ofr) * rto->freqExtClockGen;
 
