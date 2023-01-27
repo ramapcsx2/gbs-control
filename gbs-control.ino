@@ -808,7 +808,7 @@ void activeFrameTimeLockInitialSteps()
 {
     // skip if using external clock gen
     if (rto->extClockGenDetected) {
-        SerialM.println(F("Active FrameTime Lock not necessary with external clock gen installed"));
+        SerialM.println(F("Active FrameTime Lock enabled, adjusting external clock gen frequency"));
         return;
     }
     // skip when out mode = bypass
@@ -8583,13 +8583,15 @@ void loop()
     }
 
     // run FrameTimeLock if enabled
-    if (rto->extClockGenDetected == false) {
-        if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false && rto->autoBestHtotalEnabled &&
-            rto->syncWatcherEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval && rto->continousStableCounter > 20 && rto->noSyncCounter == 0) {
+    if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false && rto->autoBestHtotalEnabled &&
+        rto->syncWatcherEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval && rto->continousStableCounter > 20 && rto->noSyncCounter == 0)
+    {
+        uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+        uint16_t pllad = GBS::PLLAD_MD::read();
+        // SerialM.printf("htotal=%d, pllad=%d\n", htotal, pllad);
 
-            uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
-            uint16_t pllad = GBS::PLLAD_MD::read();
-            if (((htotal > (pllad - 3)) && (htotal < (pllad + 3)))) {
+        if (((htotal > (pllad - 3)) && (htotal < (pllad + 3)))) {
+            if (rto->extClockGenDetected == false) {
                 uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
                 if (debug_backup != 0x0) {
                     GBS::TEST_BUS_SEL::write(0x0);
@@ -8607,9 +8609,11 @@ void loop()
                 if (debug_backup != 0x0) {
                     GBS::TEST_BUS_SEL::write(debug_backup);
                 }
+            } else {
+                // TODO adjust clock
             }
-            lastVsyncLock = millis();
         }
+        lastVsyncLock = millis();
     }
 
     if (rto->syncWatcherEnabled && rto->boardHasPower) {
