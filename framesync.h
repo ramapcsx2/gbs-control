@@ -330,7 +330,7 @@ public:
     // signals and adjusting the frame size (and thus the output vsync
     // frequency) to bring the phase offset closer to the desired
     // value.
-    static bool run(uint8_t frameTimeLockMethod)
+    static bool runVsync(uint8_t frameTimeLockMethod)
     {
         int32_t period;
         int32_t phase;

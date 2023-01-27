@@ -8597,7 +8597,7 @@ void loop()
                     GBS::TEST_BUS_SEL::write(0x0);
                 }
                 //unsigned long startTime = millis();
-                if (!FrameSync::run(uopt->frameTimeLockMethod)) {
+                if (!FrameSync::runVsync(uopt->frameTimeLockMethod)) {
                     if (rto->syncLockFailIgnore-- == 0) {
                         FrameSync::reset(uopt->frameTimeLockMethod); // in case run() failed because we lost sync signal
                     }
