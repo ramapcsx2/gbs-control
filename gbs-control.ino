@@ -8591,26 +8591,25 @@ void loop()
         // SerialM.printf("htotal=%d, pllad=%d\n", htotal, pllad);
 
         if (((htotal > (pllad - 3)) && (htotal < (pllad + 3)))) {
-            if (rto->extClockGenDetected == false) {
-                uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
-                if (debug_backup != 0x0) {
-                    GBS::TEST_BUS_SEL::write(0x0);
+            uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
+            if (debug_backup != 0x0) {
+                GBS::TEST_BUS_SEL::write(0x0);
+            }
+            //unsigned long startTime = millis();
+            bool success = rto->extClockGenDetected
+                ? FrameSync::runFrequency()
+                : FrameSync::runVsync(uopt->frameTimeLockMethod);
+            if (!success) {
+                if (rto->syncLockFailIgnore-- == 0) {
+                    FrameSync::reset(uopt->frameTimeLockMethod); // in case run() failed because we lost sync signal
                 }
-                //unsigned long startTime = millis();
-                if (!FrameSync::runVsync(uopt->frameTimeLockMethod)) {
-                    if (rto->syncLockFailIgnore-- == 0) {
-                        FrameSync::reset(uopt->frameTimeLockMethod); // in case run() failed because we lost sync signal
-                    }
-                } else if (rto->syncLockFailIgnore > 0) {
-                    rto->syncLockFailIgnore = 16;
-                }
-                //Serial.println(millis() - startTime);
+            } else if (rto->syncLockFailIgnore > 0) {
+                rto->syncLockFailIgnore = 16;
+            }
+            //Serial.println(millis() - startTime);
 
-                if (debug_backup != 0x0) {
-                    GBS::TEST_BUS_SEL::write(debug_backup);
-                }
-            } else {
-                // TODO adjust clock
+            if (debug_backup != 0x0) {
+                GBS::TEST_BUS_SEL::write(debug_backup);
             }
         }
         lastVsyncLock = millis();

@@ -401,6 +401,34 @@ public:
 
         return true;
     }
+
+    // Perform vsync phase locking.  This is accomplished by measuring
+    // the period and phase offset of the input and output vsync
+    // signals, then adjusting the output video clock to bring the phase
+    // offset closer to the desired value.
+    static bool runFrequency()
+    {
+        int32_t period;
+        int32_t phase;
+        int32_t target;
+
+        if (!syncLockReady)
+            return false;
+
+        if (delayLock < 2) {
+            delayLock++;
+            return true;
+        }
+
+        if (!vsyncPeriodAndPhase(&period, NULL, &phase))
+            return false;
+
+        target = (syncTargetPhase * period) / 360;
+
+        // TODO see externalClockGenSyncInOutRate.
+
+        return true;
+    }
 };
 
 template <class GBS, class Attrs>
