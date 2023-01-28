@@ -435,6 +435,7 @@ public:
             return true;
         }
 
+        // Compare to externalClockGenSyncInOutRate().
         if (GBS::PAD_CKIN_ENZ::read() != 0) {
             // Failed due to external factors (PAD_CKIN_ENZ=0 on
             // startup), not bad input signal, don't return frame sync
@@ -489,12 +490,19 @@ public:
             / esp8266_clock_freq // s
             * fpsInput; // frames
 
-        // TODO use a nonlinear controller to control latency error
-        // optimally, given a maximum slew rate.
-        // uint32_t old = rto->freqExtClockGen;
+        // 0.0038f is 2/525, the difference between SNES and Wii 240p.
+        // This number is somewhat arbitrary, but works well in
+        // practice.
+        float correction = 0.0038f * latency_err_frames;
 
-        // We want to reduce error by 10% per second, or 0.0017 (0.1/60) per frame.
-        const float newFpsOutput = fpsInput * (1 + 0.0017f * latency_err_frames);
+        // Most displays can handle the difference between 60 and 59.94
+        // FPS (ratio of 1.001) with no issue. To avoid compatibility
+        // errors, clamp the maximum FPS deviation to this value.
+        constexpr float MAX_CORRECTION = 0.001f;
+        if (correction > MAX_CORRECTION) correction = MAX_CORRECTION;
+        if (correction < -MAX_CORRECTION) correction = -MAX_CORRECTION;
+
+        const float newFpsOutput = fpsInput * (1 + correction);
 
         #ifdef FRAMESYNC_DEBUG
         SerialM.printf(
@@ -502,6 +510,8 @@ public:
             periodInput, periodOutput, phase, target, fpsInput, latency_err_frames, newFpsOutput);
         #endif
 
+        // This test should always pass due to MAX_CORRECTION, unless an
+        // Infinity or NaN popped up somewhere?
         if (fabs((newFpsOutput - fpsInput) / fpsInput) < 0.01) {
             const auto freqExtClockGen = (uint32_t)(maybeFreqExt_per_videoFps * newFpsOutput);
 
