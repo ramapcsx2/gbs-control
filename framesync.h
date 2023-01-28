@@ -21,6 +21,7 @@
 // FS_DEBUG_LED:  just blink LED (off = adjust phase, on = normal phase)
 //#define FS_DEBUG
 //#define FS_DEBUG_LED
+#define FRAMESYNC_DEBUG
 
 namespace MeasurePeriod {
     volatile uint32_t stopTime, startTime;
@@ -116,7 +117,9 @@ private:
     // difference in microseconds
     static bool vsyncPeriodAndPhase(int32_t *periodInput, int32_t *periodOutput, int32_t *phase)
     {
-        SerialM.printf("TEST_BUS_SEL=%d\n", GBS::TEST_BUS_SEL::read());
+        #ifdef FRAMESYNC_DEBUG
+        SerialM.printf("vsyncPeriodAndPhase(), TEST_BUS_SEL=%d\n", GBS::TEST_BUS_SEL::read());
+        #endif
 
         uint32_t inStart, inStop, outStart, outStop;
         uint32_t inPeriod, outPeriod, diff;
@@ -426,8 +429,6 @@ public:
     // offset closer to the desired value.
     static bool runFrequency()
     {
-        // See externalClockGenSyncInOutRate.
-
         if (maybeFreqExt_per_videoFps < 0) {
             SerialM.printf(
                 "Error: trying to tune external clock frequency while clock frequency uninitialized!\n");
@@ -495,8 +496,21 @@ public:
         // We want to reduce error by 10% per second, or 0.0017 (0.1/60) per frame.
         const float newFpsOutput = fpsInput * (1 + 0.0017f * latency_err_frames);
 
+        #ifdef FRAMESYNC_DEBUG
+        SerialM.printf(
+            "periodInput=%d, periodOutput=%d, phase=%d of %d, fpsInput=%f, latency_err_frames=%f, newFpsOutput=%f\n",
+            periodInput, periodOutput, phase, target, fpsInput, latency_err_frames, newFpsOutput);
+        #endif
+
         if (fabs((newFpsOutput - fpsInput) / fpsInput) < 0.01) {
             const auto freqExtClockGen = (uint32_t)(maybeFreqExt_per_videoFps * newFpsOutput);
+
+            #ifdef FRAMESYNC_DEBUG
+            SerialM.printf(
+                "Setting clock frequency from %u to %u\n",
+                rto->freqExtClockGen, freqExtClockGen);
+            #endif
+
             rto->freqExtClockGen = freqExtClockGen;
             Si.setFreq(0, rto->freqExtClockGen);
             return true;

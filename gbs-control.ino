@@ -8589,7 +8589,9 @@ void loop()
     {
         uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
         uint16_t pllad = GBS::PLLAD_MD::read();
-        // SerialM.printf("htotal=%d, pllad=%d\n", htotal, pllad);
+        #ifdef FRAMESYNC_DEBUG
+        SerialM.printf("htotal=%d, pllad=%d\n", htotal, pllad);
+        #endif
 
         if (((htotal > (pllad - 3)) && (htotal < (pllad + 3)))) {
             uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
@@ -8597,6 +8599,9 @@ void loop()
                 GBS::TEST_BUS_SEL::write(0x0);
             }
             //unsigned long startTime = millis();
+            #ifdef FRAMESYNC_DEBUG
+            SerialM.printf("running frame sync, clock gen = %d\n", rto->extClockGenDetected);
+            #endif
             bool success = rto->extClockGenDetected
                 ? FrameSync::runFrequency()
                 : FrameSync::runVsync(uopt->frameTimeLockMethod);
