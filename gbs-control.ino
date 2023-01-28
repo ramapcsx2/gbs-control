@@ -382,6 +382,9 @@ void externalClockGenResetClock()
     if (!rto->extClockGenDetected) {
         return;
     }
+    #ifdef FRAMESYNC_DEBUG
+    SerialM.printf("externalClockGenResetClock()\n");
+    #endif
 
     uint8_t activeDisplayClock = GBS::PLL648_CONTROL_01::read();
 
@@ -422,6 +425,7 @@ void externalClockGenResetClock()
 
     Si.setFreq(0, rto->freqExtClockGen);
     GBS::PAD_CKIN_ENZ::write(0); // 0 = clock input enable (pin40)
+    FrameSync::clearFrequency();
 
     SerialM.print(F("clock gen reset: "));
     SerialM.println(rto->freqExtClockGen);
@@ -429,6 +433,10 @@ void externalClockGenResetClock()
 
 void externalClockGenSyncInOutRate()
 {
+    #ifdef FRAMESYNC_DEBUG
+    SerialM.printf("externalClockGenSyncInOutRate()\n");
+    #endif
+
     if (!rto->extClockGenDetected) {
         return;
     }

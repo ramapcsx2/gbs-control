@@ -246,10 +246,24 @@ public:
             Serial.println("No");
         }
 #endif
+        #ifdef FRAMESYNC_DEBUG
+        SerialM.printf("FrameSyncManager::reset(%d)\n", frameTimeLockMethod);
+        #endif
+
         syncLockReady = false;
         syncLastCorrection = 0;
         delayLock = 0;
-        maybeFreqExt_per_videoFps = -1;
+        // Don't clear maybeFreqExt_per_videoFps.
+        //
+        // Clearing is unsafe, since many callers call reset(), don't
+        // call externalClockGenSyncInOutRate() -> initFrequency(), then
+        // expect runFrequency() to keep working.
+        //
+        // Not clearing is hopefully safe, since when loading an output
+        // resolution, externalClockGenResetClock() calls
+        // FrameSync::clearFrequency() and clears the variable, and
+        // later someone calls externalClockGenSyncInOutRate() ->
+        // FrameSync::initFrequency().
     }
 
     static void resetWithoutRecalculation()
@@ -297,9 +311,26 @@ public:
 
     static void cleanup()
     {
+        #ifdef FRAMESYNC_DEBUG
+        SerialM.printf("FrameSyncManager::cleanup(), resetting video frequency\n");
+        #endif
         syncLastCorrection = 0; // the important bit
         syncLockReady = 0;
         delayLock = 0;
+
+        // Should we clear maybeFreqExt_per_videoFps?
+        //
+        // Clearing is hopefully safe. cleanup() appears to only be
+        // called when switching between 15 kHz and 31 kHz inputs, or
+        // when no video is present for an extended period of time and
+        // the output shuts off. (cleanup() is not called when switching
+        // between 240p and 480i.) When a new video signal is present,
+        // someone calls externalClockGenSyncInOutRate() ->
+        // FrameSync::initFrequency() to reinitialize the output frame
+        // sync.
+        //
+        // Not clearing is hopefully safe. See reset() for an
+        // explanation.
         maybeFreqExt_per_videoFps = -1;
     }
 
@@ -409,6 +440,10 @@ public:
 #endif
 
         return true;
+    }
+
+    static void clearFrequency() {
+        maybeFreqExt_per_videoFps = -1;
     }
 
     static void initFrequency(float outFramesPerS, uint32_t freqExtClockGen) {
