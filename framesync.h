@@ -528,8 +528,10 @@ public:
         // Frame/s
         float fpsInput;
 
-        // Measure input period until we get two consistent measurements, to
-        // avoid incorrectly guessing FPS when input sync changes.
+        // Measure input period until we get two consistent measurements. This
+        // substantially reduces the chance of incorrectly guessing FPS when
+        // input sync changes (but does not eliminate it, eg. when resetting a
+        // SNES).
         bool success = false;
         for (int attempt = 0; attempt < 2; attempt++) {
             // Measure input period and output latency.
@@ -552,6 +554,7 @@ public:
 
             // Check that the two FPS measurements are sufficiently close.
             float diff = fabs(fpsInput2 - fpsInput);
+            // TODO switch to relative difference
             if (diff != diff || diff > 0.5) {
                 SerialM.printf(
                     "FrameSyncManager::runFrequency() measured inconsistent FPS %f and %f, retrying...\n",
@@ -581,43 +584,51 @@ public:
         // 0.0038f is 2/525, the difference between SNES and Wii 240p.
         // This number is somewhat arbitrary, but works well in
         // practice.
-        float correction = 0.0038f * latency_err_frames;
+        const float correction = 0.0038f * latency_err_frames;
+        const float rawFpsOutput = fpsInput * (1 + correction);
 
-        // Most displays can handle the difference between 60 and 59.94
-        // FPS (ratio of 1.001) with no issue. To avoid compatibility
-        // errors, clamp the maximum FPS deviation to this value.
-        constexpr float MAX_CORRECTION = 0.001f;
-        if (correction > MAX_CORRECTION) correction = MAX_CORRECTION;
-        if (correction < -MAX_CORRECTION) correction = -MAX_CORRECTION;
+        // This has floating-point conversion round-trip rounding errors, which
+        // is suboptimal, but it's not a big deal.
+        const float prevFpsOutput = (float)rto->freqExtClockGen / maybeFreqExt_per_videoFps;
 
-        const float newFpsOutput = fpsInput * (1 + correction);
+        // Most displays can handle the difference between 60 and 59.94 FPS
+        // (ratio of 1.001) with no issue. To avoid compatibility errors, and to
+        // limit the impact of incorrect input FPS measurements, clamp the
+        // maximum FPS deviation *per sync operation* to this value.
+        //
+        // (We currently don't clamp long-term FPS near the initial value
+        // measured by externalClockGenSyncInOutRate()... Let's hope this isn't
+        // a problem.)
+        constexpr float MAX_FPS_CHANGE = 0.001f;
+        float fpsOutput = rawFpsOutput;
+        fpsOutput = std::min(fpsOutput, prevFpsOutput * (1 + MAX_FPS_CHANGE));
+        fpsOutput = std::max(fpsOutput, prevFpsOutput * (1 - MAX_FPS_CHANGE));
+
+        if (fabs(rawFpsOutput - prevFpsOutput) >= 1.f) {
+            SerialM.printf(
+                "FPS excursion detected! Measured input FPS %f, previous output FPS %f",
+                fpsInput, prevFpsOutput);
+        }
 
         #ifdef FRAMESYNC_DEBUG
         SerialM.printf(
-            "periodInput=%d, phase=%d of %d, fpsInput=%f, latency_err_frames=%f, newFpsOutput=%f\n",
-            periodInput, phase, target, fpsInput, latency_err_frames, newFpsOutput);
+            "periodInput=%d, fpsInput=%f, latency_err_frames=%f from %f, "
+            "fpsOutput := %f\n",
+            periodInput, fpsInput, latency_err_frames, (float)syncTargetPhase / 360.f,
+            fpsOutput);
         #endif
 
-        // This test should always pass due to MAX_CORRECTION, unless an
-        // Infinity or NaN popped up somewhere?
-        if (fabs((newFpsOutput - fpsInput) / fpsInput) < 0.01) {
-            const auto freqExtClockGen = (uint32_t)(maybeFreqExt_per_videoFps * newFpsOutput);
+        const auto freqExtClockGen = (uint32_t)(maybeFreqExt_per_videoFps * fpsOutput);
 
-            #ifdef FRAMESYNC_DEBUG
-            SerialM.printf(
-                "Setting clock frequency from %u to %u\n",
-                rto->freqExtClockGen, freqExtClockGen);
-            #endif
+        #ifdef FRAMESYNC_DEBUG
+        SerialM.printf(
+            "Setting clock frequency from %u to %u\n",
+            rto->freqExtClockGen, freqExtClockGen);
+        #endif
 
-            rto->freqExtClockGen = freqExtClockGen;
-            Si.setFreq(0, rto->freqExtClockGen);
-            return true;
-        } else {
-            SerialM.printf(
-                "Error: tuning external clock generator to invalid FPS %f of %f!\n",
-                newFpsOutput, fpsInput);
-            return false;
-        }
+        rto->freqExtClockGen = freqExtClockGen;
+        Si.setFreq(0, rto->freqExtClockGen);
+        return true;
     }
 };
 
