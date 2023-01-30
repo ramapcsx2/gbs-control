@@ -8597,9 +8597,6 @@ void loop()
     {
         uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
         uint16_t pllad = GBS::PLLAD_MD::read();
-        #ifdef FRAMESYNC_DEBUG
-        SerialM.printf("htotal=%d, pllad=%d\n", htotal, pllad);
-        #endif
 
         if (((htotal > (pllad - 3)) && (htotal < (pllad + 3)))) {
             uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
