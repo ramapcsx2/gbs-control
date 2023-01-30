@@ -21,7 +21,7 @@
 // FS_DEBUG_LED:  just blink LED (off = adjust phase, on = normal phase)
 //#define FS_DEBUG
 //#define FS_DEBUG_LED
-#define FRAMESYNC_DEBUG
+// #define FRAMESYNC_DEBUG
 
 namespace MeasurePeriod {
     volatile uint32_t stopTime, startTime;
