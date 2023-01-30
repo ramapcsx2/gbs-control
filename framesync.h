@@ -504,19 +504,54 @@ public:
         const float esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
 
         // ESP CPU cycles
-        int32_t periodInput;
-        int32_t periodOutput;
+        int32_t periodInput;  // int32_t periodOutput;
         int32_t phase;
-        if (!vsyncPeriodAndPhase(&periodInput, &periodOutput, &phase)) {
-            SerialM.printf("vsyncPeriodAndPhase failed\n");
+
+        // Frame/s
+        float fpsInput;
+
+        // Measure input period until we get two consistent measurements, to
+        // avoid incorrectly guessing FPS when input sync changes.
+        bool success = false;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            // Measure input period and output latency.
+            if (!vsyncPeriodAndPhase(&periodInput, nullptr, &phase)) {
+                SerialM.printf("runFrequency(): vsyncPeriodAndPhase failed, retrying...\n");
+                continue;
+            }
+            fpsInput = esp8266_clock_freq / (float)periodInput;
+
+            // Measure input period again. vsyncPeriodAndPhase()/getPulseTicks()
+            // -> vsyncInputSample() depend on GBS::TEST_BUS_SEL = 0, but
+            // vsyncPeriodAndPhase() sets it to 2.
+            GBS::TEST_BUS_SEL::write(0x0);
+            uint32_t periodInput2 = getPulseTicks();
+            if (periodInput2 == 0) {
+                SerialM.printf("runFrequency(): getPulseTicks failed, retrying...\n");
+                continue;
+            }
+            float fpsInput2 = esp8266_clock_freq / (float)periodInput2;
+
+            // Check that the two FPS measurements are sufficiently close.
+            float diff = fabs(fpsInput2 - fpsInput);
+            if (diff != diff || diff > 0.5) {
+                SerialM.printf(
+                    "FrameSyncManager::runFrequency() measured inconsistent FPS %f and %f, retrying...\n",
+                    fpsInput,
+                    fpsInput2);
+                continue;
+            }
+
+            success = true;
+            break;
+        }
+        if (!success) {
+            SerialM.printf("FrameSyncManager::runFrequency() failed!\n");
             return false;
         }
 
         // ESP CPU cycles
         int32_t target = (syncTargetPhase * periodInput) / 360;
-
-        // Frame/s
-        const float fpsInput = esp8266_clock_freq / (float)periodInput;
 
         // Latency error (distance behind target), in fractional frames.
         // If latency increases, boost frequency, and vice versa.
@@ -541,8 +576,8 @@ public:
 
         #ifdef FRAMESYNC_DEBUG
         SerialM.printf(
-            "periodInput=%d, periodOutput=%d, phase=%d of %d, fpsInput=%f, latency_err_frames=%f, newFpsOutput=%f\n",
-            periodInput, periodOutput, phase, target, fpsInput, latency_err_frames, newFpsOutput);
+            "periodInput=%d, phase=%d of %d, fpsInput=%f, latency_err_frames=%f, newFpsOutput=%f\n",
+            periodInput, phase, target, fpsInput, latency_err_frames, newFpsOutput);
         #endif
 
         // This test should always pass due to MAX_CORRECTION, unless an
