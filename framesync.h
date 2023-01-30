@@ -546,8 +546,8 @@ public:
 
             // Check that the two FPS measurements are sufficiently close.
             float diff = fabs(fpsInput2 - fpsInput);
-            // TODO switch to relative difference
-            if (diff != diff || diff > 0.5) {
+            float relDiff = diff / std::min(fpsInput, fpsInput2);
+            if (relDiff != relDiff || diff > 0.5f || relDiff > 0.00833f) {
                 SerialM.printf(
                     "FrameSyncManager::runFrequency() measured inconsistent FPS %f and %f, retrying...\n",
                     fpsInput,
