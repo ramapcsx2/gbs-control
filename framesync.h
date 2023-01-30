@@ -532,6 +532,12 @@ public:
                 continue;
             }
             fpsInput = esp8266_clock_freq / (float)periodInput;
+            if (fpsInput < 47.0f || fpsInput > 86.0f) {
+                SerialM.printf(
+                    "runFrequency(): fpsInput wrong: %f, retrying...\n",
+                    fpsInput);
+                continue;
+            }
 
             // Measure input period again. vsyncPeriodAndPhase()/getPulseTicks()
             // -> vsyncInputSample() depend on GBS::TEST_BUS_SEL = 0, but
@@ -543,6 +549,12 @@ public:
                 continue;
             }
             float fpsInput2 = esp8266_clock_freq / (float)periodInput2;
+            if (fpsInput2 < 47.0f || fpsInput2 > 86.0f) {
+                SerialM.printf(
+                    "runFrequency(): fpsInput2 wrong: %f, retrying...\n",
+                    fpsInput2);
+                continue;
+            }
 
             // Check that the two FPS measurements are sufficiently close.
             float diff = fabs(fpsInput2 - fpsInput);
