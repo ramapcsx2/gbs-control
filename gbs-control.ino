@@ -382,9 +382,7 @@ void externalClockGenResetClock()
     if (!rto->extClockGenDetected) {
         return;
     }
-    #ifdef FRAMESYNC_DEBUG
-    SerialM.printf("externalClockGenResetClock()\n");
-    #endif
+    fsDebugPrintf("externalClockGenResetClock()\n");
 
     uint8_t activeDisplayClock = GBS::PLL648_CONTROL_01::read();
 
@@ -433,9 +431,7 @@ void externalClockGenResetClock()
 
 void externalClockGenSyncInOutRate()
 {
-    #ifdef FRAMESYNC_DEBUG
-    SerialM.printf("externalClockGenSyncInOutRate()\n");
-    #endif
+    fsDebugPrintf("externalClockGenSyncInOutRate()\n");
 
     if (!rto->extClockGenDetected) {
         return;
@@ -8604,9 +8600,7 @@ void loop()
                 GBS::TEST_BUS_SEL::write(0x0);
             }
             //unsigned long startTime = millis();
-            #ifdef FRAMESYNC_DEBUG
-            SerialM.printf("running frame sync, clock gen = %d\n", rto->extClockGenDetected);
-            #endif
+            fsDebugPrintf("running frame sync, clock gen enabled = %d\n", rto->extClockGenDetected);
             bool success = rto->extClockGenDetected
                 ? FrameSync::runFrequency()
                 : FrameSync::runVsync(uopt->frameTimeLockMethod);

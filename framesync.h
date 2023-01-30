@@ -23,6 +23,12 @@
 //#define FS_DEBUG_LED
 // #define FRAMESYNC_DEBUG
 
+#ifdef FRAMESYNC_DEBUG
+#define fsDebugPrintf(...) SerialM.printf(__VA_ARGS__)
+#else
+#define fsDebugPrintf(...)
+#endif
+
 namespace MeasurePeriod {
     volatile uint32_t stopTime, startTime;
     volatile uint32_t armed;
@@ -117,9 +123,7 @@ private:
     // difference in microseconds
     static bool vsyncPeriodAndPhase(int32_t *periodInput, int32_t *periodOutput, int32_t *phase)
     {
-        #ifdef FRAMESYNC_DEBUG
-        SerialM.printf("vsyncPeriodAndPhase(), TEST_BUS_SEL=%d\n", GBS::TEST_BUS_SEL::read());
-        #endif
+        fsDebugPrintf("vsyncPeriodAndPhase(), TEST_BUS_SEL=%d\n", GBS::TEST_BUS_SEL::read());
 
         uint32_t inStart, inStop, outStart, outStop;
         uint32_t inPeriod, outPeriod, diff;
@@ -246,9 +250,7 @@ public:
             Serial.println("No");
         }
 #endif
-        #ifdef FRAMESYNC_DEBUG
-        SerialM.printf("FrameSyncManager::reset(%d)\n", frameTimeLockMethod);
-        #endif
+        fsDebugPrintf("FrameSyncManager::reset(%d)\n", frameTimeLockMethod);
 
         syncLockReady = false;
         syncLastCorrection = 0;
@@ -311,9 +313,8 @@ public:
 
     static void cleanup()
     {
-        #ifdef FRAMESYNC_DEBUG
-        SerialM.printf("FrameSyncManager::cleanup(), resetting video frequency\n");
-        #endif
+        fsDebugPrintf("FrameSyncManager::cleanup(), resetting video frequency\n");
+
         syncLastCorrection = 0; // the important bit
         syncLockReady = 0;
         delayLock = 0;
@@ -475,18 +476,14 @@ public:
             // Failed due to external factors (PAD_CKIN_ENZ=0 on
             // startup), not bad input signal, don't return frame sync
             // error.
-            #ifdef FRAMESYNC_DEBUG
-            SerialM.printf(
+            fsDebugPrintf(
                 "Skipping FrameSyncManager::runFrequency(), GBS::PAD_CKIN_ENZ::read() != 0\n");
-            #endif
             return true;
         }
 
         if (rto->outModeHdBypass) {
-            #ifdef FRAMESYNC_DEBUG
-            SerialM.printf(
+            fsDebugPrintf(
                 "Skipping FrameSyncManager::runFrequency(), rto->outModeHdBypass\n");
-            #endif
             return true;
         }
         if (GBS::PLL648_CONTROL_01::read() != 0x75) {
@@ -497,26 +494,21 @@ public:
         }
 
         if (!syncLockReady) {
-            #ifdef FRAMESYNC_DEBUG
-            SerialM.printf(
+            fsDebugPrintf(
                 "Skipping FrameSyncManager::runFrequency(), !syncLockReady\n");
-            #endif
             return false;
         }
 
         if (delayLock < 2) {
-            #ifdef FRAMESYNC_DEBUG
-            SerialM.printf(
+            fsDebugPrintf(
                 "Skipping FrameSyncManager::runFrequency(), delayLock=%d < 2\n",
                 delayLock);
-            #endif
             delayLock++;
             return true;
         }
 
         // ESP32 FPU only accelerates single-precision float add/mul, not divide, not double.
         // https://esp32.com/viewtopic.php?p=82090#p82090
-        // TODO replace div with mul
 
         // ESP CPU cycles/s
         const float esp8266_clock_freq = ESP.getCpuFreqMHz() * 1000000;
@@ -610,21 +602,17 @@ public:
                 fpsInput, prevFpsOutput);
         }
 
-        #ifdef FRAMESYNC_DEBUG
-        SerialM.printf(
+        fsDebugPrintf(
             "periodInput=%d, fpsInput=%f, latency_err_frames=%f from %f, "
             "fpsOutput := %f\n",
             periodInput, fpsInput, latency_err_frames, (float)syncTargetPhase / 360.f,
             fpsOutput);
-        #endif
 
         const auto freqExtClockGen = (uint32_t)(maybeFreqExt_per_videoFps * fpsOutput);
 
-        #ifdef FRAMESYNC_DEBUG
-        SerialM.printf(
+        fsDebugPrintf(
             "Setting clock frequency from %u to %u\n",
             rto->freqExtClockGen, freqExtClockGen);
-        #endif
 
         rto->freqExtClockGen = freqExtClockGen;
         Si.setFreq(0, rto->freqExtClockGen);
