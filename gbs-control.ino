@@ -370,7 +370,7 @@ SerialMirror SerialM;
 struct FrameSyncAttrs
 {
     static const uint8_t debugInPin = DEBUG_IN_PIN;
-    static const uint32_t lockInterval = 100 * 16.70; // every 100 frames
+    static const uint32_t lockInterval = 6 * 16.70;
     static const int16_t syncCorrection = 2;          // Sync correction in scanlines to apply when phase lags target
     static const int32_t syncTargetPhase = 90;        // Target vsync phase offset (output trails input) in degrees
                                                       // to debug: syncTargetPhase = 343 lockInterval = 15 * 16
