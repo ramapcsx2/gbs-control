@@ -475,10 +475,18 @@ public:
             // Failed due to external factors (PAD_CKIN_ENZ=0 on
             // startup), not bad input signal, don't return frame sync
             // error.
+            #ifdef FRAMESYNC_DEBUG
+            SerialM.printf(
+                "Skipping FrameSyncManager::runFrequency(), GBS::PAD_CKIN_ENZ::read() != 0\n");
+            #endif
             return true;
         }
 
         if (rto->outModeHdBypass) {
+            #ifdef FRAMESYNC_DEBUG
+            SerialM.printf(
+                "Skipping FrameSyncManager::runFrequency(), rto->outModeHdBypass\n");
+            #endif
             return true;
         }
         if (GBS::PLL648_CONTROL_01::read() != 0x75) {
@@ -488,10 +496,20 @@ public:
             return true;
         }
 
-        if (!syncLockReady)
+        if (!syncLockReady) {
+            #ifdef FRAMESYNC_DEBUG
+            SerialM.printf(
+                "Skipping FrameSyncManager::runFrequency(), !syncLockReady\n");
+            #endif
             return false;
+        }
 
         if (delayLock < 2) {
+            #ifdef FRAMESYNC_DEBUG
+            SerialM.printf(
+                "Skipping FrameSyncManager::runFrequency(), delayLock=%d < 2\n",
+                delayLock);
+            #endif
             delayLock++;
             return true;
         }
