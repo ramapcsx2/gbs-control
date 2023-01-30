@@ -527,10 +527,14 @@ public:
         bool success = false;
         for (int attempt = 0; attempt < 2; attempt++) {
             // Measure input period and output latency.
-            if (!vsyncPeriodAndPhase(&periodInput, nullptr, &phase)) {
+            bool ret = vsyncPeriodAndPhase(&periodInput, nullptr, &phase);
+            // TODO make vsyncPeriodAndPhase() restore TEST_BUS_SEL, not the caller?
+            GBS::TEST_BUS_SEL::write(0x0);
+            if (!ret) {
                 SerialM.printf("runFrequency(): vsyncPeriodAndPhase failed, retrying...\n");
                 continue;
             }
+
             fpsInput = esp8266_clock_freq / (float)periodInput;
             if (fpsInput < 47.0f || fpsInput > 86.0f) {
                 SerialM.printf(
