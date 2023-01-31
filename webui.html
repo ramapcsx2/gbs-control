@@ -2472,7 +2472,8 @@ const updateSlotNames = () => {
     for (let i = 0; i < GBSControl.maxSlots; i++) {
         const el = document.querySelector(`[gbs-slot-id="${i}"]`);
         el.setAttribute("gbs-name", GBSControl.structs.slots[i].name);
-        el.setAttribute("gbs-meta", getSlotPresetName(parseInt(GBSControl.structs.slots[i].presetID, 10)));
+        const id = parseInt(GBSControl.structs.slots[i].presetID, 10);
+        el.setAttribute("gbs-meta", `${id}: ${getSlotPresetName(id)}`);
     }
 };
 const fetchSlotNames = () => {

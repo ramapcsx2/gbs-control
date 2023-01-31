@@ -375,13 +375,6 @@ namespace tw
                 setSeg(segment);
                 BaseTie::write(values...);
             }
-
-            template <class... Funcs>
-            static void modify(Funcs... funcs)
-            {
-                setSeg(segment);
-                BaseTie::modify(funcs...);
-            }
         };
 
         static void read(SegValue seg, uint8_t offset, uint8_t *output, uint8_t size)
