@@ -592,21 +592,27 @@ public:
         // 0.0038f is 2/525, the difference between SNES and Wii 240p.
         // This number is somewhat arbitrary, but works well in
         // practice.
-        const float correction = 0.0038f * latency_err_frames;
+        float correction = 0.0038f * latency_err_frames;
+
+        // Most displays can handle the difference between 60 and 59.94 FPS
+        // (ratio of 1.001) with no issue. To avoid compatibility errors, clamp
+        // the maximum deviation from input FPS to this ratio. This is
+        // sufficient as long as fpsInput does not vary drastically from frame
+        // to frame.
+        constexpr float MAX_CORRECTION = 0.001f;
+        if (correction > MAX_CORRECTION) correction = MAX_CORRECTION;
+        if (correction < -MAX_CORRECTION) correction = -MAX_CORRECTION;
+
         const float rawFpsOutput = fpsInput * (1 + correction);
 
         // This has floating-point conversion round-trip rounding errors, which
         // is suboptimal, but it's not a big deal.
         const float prevFpsOutput = (float)rto->freqExtClockGen / maybeFreqExt_per_videoFps;
 
-        // Most displays can handle the difference between 60 and 59.94 FPS
-        // (ratio of 1.001) with no issue. To avoid compatibility errors, and to
-        // limit the impact of incorrect input FPS measurements, clamp the
-        // maximum FPS deviation *per sync operation* to this value.
-        //
-        // (We currently don't clamp long-term FPS near the initial value
-        // measured by externalClockGenSyncInOutRate()... Let's hope this isn't
-        // a problem.)
+        // In case fpsInput is measured incorrectly, rawFpsOutput may be
+        // drastically different from the previous frame's output FPS. To limit
+        // the impact of incorrect input FPS measurements, clamp the maximum FPS
+        // deviation relative to the previous frame's *output* FPS.
         constexpr float MAX_FPS_CHANGE = 0.001f;
         float fpsOutput = rawFpsOutput;
         fpsOutput = std::min(fpsOutput, prevFpsOutput * (1 + MAX_FPS_CHANGE));
