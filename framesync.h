@@ -66,6 +66,34 @@ namespace MeasurePeriod {
     }
 }
 
+void setExternalClockGenFrequencySmooth(uint32_t freq) {
+    uint32_t current = rto->freqExtClockGen;
+
+    rto->freqExtClockGen = freq;
+
+    constexpr uint32_t STEP_SIZE_HZ = 1000;
+
+    if (current > rto->freqExtClockGen) {
+        if ((current - rto->freqExtClockGen) < 750000) {
+            while (current > (rto->freqExtClockGen + STEP_SIZE_HZ)) {
+                current -= STEP_SIZE_HZ;
+                Si.setFreq(0, current);
+                handleWiFi(0);
+            }
+        }
+    } else if (current < rto->freqExtClockGen) {
+        if ((rto->freqExtClockGen - current) < 750000) {
+            while ((current + STEP_SIZE_HZ) < rto->freqExtClockGen) {
+                current += STEP_SIZE_HZ;
+                Si.setFreq(0, current);
+                handleWiFi(0);
+            }
+        }
+    }
+
+    Si.setFreq(0, rto->freqExtClockGen);
+}
+
 template <class GBS, class Attrs>
 class FrameSyncManager
 {
@@ -636,8 +664,7 @@ public:
             "Setting clock frequency from %u to %u\n",
             rto->freqExtClockGen, freqExtClockGen);
 
-        rto->freqExtClockGen = freqExtClockGen;
-        Si.setFreq(0, rto->freqExtClockGen);
+        setExternalClockGenFrequencySmooth(freqExtClockGen);
         return true;
     }
 };

@@ -464,27 +464,7 @@ void externalClockGenSyncInOutRate()
     uint32_t current = rto->freqExtClockGen;
     FrameSync::initFrequency(ofr, old);
 
-    rto->freqExtClockGen = (sfr / ofr) * rto->freqExtClockGen;
-
-    if (current > rto->freqExtClockGen) {
-        if ((current - rto->freqExtClockGen) < 750000) {
-            while (current > rto->freqExtClockGen) {
-                current -= 1000;
-                Si.setFreq(0, current);
-                handleWiFi(0);
-            }
-        }
-    } else if (current < rto->freqExtClockGen) {
-        if ((rto->freqExtClockGen - current) < 750000) {
-            while (current < rto->freqExtClockGen) {
-                current += 1000;
-                Si.setFreq(0, current);
-                handleWiFi(0);
-            }
-        }
-    }
-
-    Si.setFreq(0, rto->freqExtClockGen);
+    setExternalClockGenFrequencySmooth((sfr / ofr) * rto->freqExtClockGen);
 
     int32_t diff = rto->freqExtClockGen - old;
 
