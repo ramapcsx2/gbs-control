@@ -614,12 +614,13 @@ public:
         // practice.
         float correction = 0.0038f * latency_err_frames;
 
-        // Most displays can handle the difference between 60 and 59.94 FPS
-        // (ratio of 1.001) with no issue. To avoid compatibility errors, clamp
-        // the maximum deviation from input FPS to this ratio. This is
-        // sufficient as long as fpsInput does not vary drastically from frame
-        // to frame.
-        constexpr float MAX_CORRECTION = 0.001f;
+        // Some LCD displays (eg. Dell U2312HM) lose sync when changing
+        // frequency by 0.1% (switching between 59.94 and 60 FPS).
+        //
+        // To ensure long-term FPS stability, clamp the maximum deviation from
+        // input FPS to 0.06%. This is sufficient as long as fpsInput does not
+        // vary drastically from frame to frame.
+        constexpr float MAX_CORRECTION = 0.0006f;
         if (correction > MAX_CORRECTION) correction = MAX_CORRECTION;
         if (correction < -MAX_CORRECTION) correction = -MAX_CORRECTION;
 
@@ -632,8 +633,9 @@ public:
         // In case fpsInput is measured incorrectly, rawFpsOutput may be
         // drastically different from the previous frame's output FPS. To limit
         // the impact of incorrect input FPS measurements, clamp the maximum FPS
-        // deviation relative to the previous frame's *output* FPS.
-        constexpr float MAX_FPS_CHANGE = 0.001f;
+        // deviation relative to the previous frame's *output* FPS. This
+        // provides short-term FPS stability.
+        constexpr float MAX_FPS_CHANGE = 0.0006f;
         float fpsOutput = rawFpsOutput;
         fpsOutput = std::min(fpsOutput, prevFpsOutput * (1 + MAX_FPS_CHANGE));
         fpsOutput = std::max(fpsOutput, prevFpsOutput * (1 - MAX_FPS_CHANGE));
