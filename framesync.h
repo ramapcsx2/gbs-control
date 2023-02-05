@@ -527,14 +527,6 @@ public:
             return false;
         }
 
-        if (delayLock < 2) {
-            fsDebugPrintf(
-                "Skipping FrameSyncManager::runFrequency(), delayLock=%d < 2\n",
-                delayLock);
-            delayLock++;
-            return true;
-        }
-
         // ESP32 FPU only accelerates single-precision float add/mul, not divide, not double.
         // https://esp32.com/viewtopic.php?p=82090#p82090
 
