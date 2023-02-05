@@ -654,9 +654,9 @@ public:
 
         fsDebugPrintf(
             "periodInput=%d, fpsInput=%f, latency_err_frames=%f from %f, "
-            "fpsOutput := %f\n",
+            "fpsOutput=%f := %f\n",
             periodInput, fpsInput, latency_err_frames, (float)syncTargetPhase / 360.f,
-            fpsOutput);
+            prevFpsOutput, fpsOutput);
 
         const auto freqExtClockGen = (uint32_t)(maybeFreqExt_per_videoFps * fpsOutput);
 
