@@ -247,7 +247,8 @@ private:
     }
 
 public:
-    // sets syncLockReady = false, which in turn starts a new findBestHtotal run in loop()
+    // sets syncLockReady = ready() = false, which in turn starts a new init()
+    // -> findBestHtotal() run in loop()
     static void reset(uint8_t frameTimeLockMethod)
     {
 #ifdef FS_DEBUG
