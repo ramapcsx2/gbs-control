@@ -17,7 +17,6 @@
 
 #include <Wire.h>
 #include "tv5725.h"
-#include "framesync.h"
 #include "osd.h"
 
 #include "SSD1306Wire.h"
@@ -158,19 +157,6 @@ uint8_t getMovingAverage(uint8_t item)
     }
     return sum >> 4; // for array size 16
 }
-
-//
-// Sync locking tunables/magic numbers
-//
-struct FrameSyncAttrs
-{
-    static const uint8_t debugInPin = DEBUG_IN_PIN;
-    static const uint32_t lockInterval = 100 * 16.70; // every 100 frames
-    static const int16_t syncCorrection = 2;          // Sync correction in scanlines to apply when phase lags target
-    static const int32_t syncTargetPhase = 90;        // Target vsync phase offset (output trails input) in degrees
-                                                      // to debug: syncTargetPhase = 343 lockInterval = 15 * 16
-};
-typedef FrameSyncManager<GBS, FrameSyncAttrs> FrameSync;
 
 struct MenuAttrs
 {
@@ -376,11 +362,27 @@ SerialMirror SerialM;
 #define SerialM Serial
 #endif
 
+#include "framesync.h"
+
+//
+// Sync locking tunables/magic numbers
+//
+struct FrameSyncAttrs
+{
+    static const uint8_t debugInPin = DEBUG_IN_PIN;
+    static const uint32_t lockInterval = 100 * 16.70; // every 100 frames
+    static const int16_t syncCorrection = 2;          // Sync correction in scanlines to apply when phase lags target
+    static const int32_t syncTargetPhase = 90;        // Target vsync phase offset (output trails input) in degrees
+                                                      // to debug: syncTargetPhase = 343 lockInterval = 15 * 16
+};
+typedef FrameSyncManager<GBS, FrameSyncAttrs> FrameSync;
+
 void externalClockGenResetClock()
 {
     if (!rto->extClockGenDetected) {
         return;
     }
+    fsDebugPrintf("externalClockGenResetClock()\n");
 
     uint8_t activeDisplayClock = GBS::PLL648_CONTROL_01::read();
 
@@ -421,6 +423,7 @@ void externalClockGenResetClock()
 
     Si.setFreq(0, rto->freqExtClockGen);
     GBS::PAD_CKIN_ENZ::write(0); // 0 = clock input enable (pin40)
+    FrameSync::clearFrequency();
 
     SerialM.print(F("clock gen reset: "));
     SerialM.println(rto->freqExtClockGen);
@@ -428,6 +431,8 @@ void externalClockGenResetClock()
 
 void externalClockGenSyncInOutRate()
 {
+    fsDebugPrintf("externalClockGenSyncInOutRate()\n");
+
     if (!rto->extClockGenDetected) {
         return;
     }
@@ -457,28 +462,9 @@ void externalClockGenSyncInOutRate()
 
     uint32_t old = rto->freqExtClockGen;
     uint32_t current = rto->freqExtClockGen;
+    FrameSync::initFrequency(ofr, old);
 
-    rto->freqExtClockGen = (sfr / ofr) * rto->freqExtClockGen;
-
-    if (current > rto->freqExtClockGen) {
-        if ((current - rto->freqExtClockGen) < 750000) {
-            while (current > rto->freqExtClockGen) {
-                current -= 1000;
-                Si.setFreq(0, current);
-                handleWiFi(0);
-            }
-        }
-    } else if (current < rto->freqExtClockGen) {
-        if ((rto->freqExtClockGen - current) < 750000) {
-            while (current < rto->freqExtClockGen) {
-                current += 1000;
-                Si.setFreq(0, current);
-                handleWiFi(0);
-            }
-        }
-    }
-
-    Si.setFreq(0, rto->freqExtClockGen);
+    setExternalClockGenFrequencySmooth((sfr / ofr) * rto->freqExtClockGen);
 
     int32_t diff = rto->freqExtClockGen - old;
 
@@ -807,7 +793,7 @@ void activeFrameTimeLockInitialSteps()
 {
     // skip if using external clock gen
     if (rto->extClockGenDetected) {
-        SerialM.println(F("Active FrameTime Lock not necessary with external clock gen installed"));
+        SerialM.println(F("Active FrameTime Lock enabled, adjusting external clock gen frequency"));
         return;
     }
     // skip when out mode = bypass
@@ -8582,33 +8568,36 @@ void loop()
     }
 
     // run FrameTimeLock if enabled
-    if (rto->extClockGenDetected == false) {
-        if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false && rto->autoBestHtotalEnabled &&
-            rto->syncWatcherEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval && rto->continousStableCounter > 20 && rto->noSyncCounter == 0) {
+    if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false && rto->autoBestHtotalEnabled &&
+        rto->syncWatcherEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval && rto->continousStableCounter > 20 && rto->noSyncCounter == 0)
+    {
+        uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
+        uint16_t pllad = GBS::PLLAD_MD::read();
 
-            uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
-            uint16_t pllad = GBS::PLLAD_MD::read();
-            if (((htotal > (pllad - 3)) && (htotal < (pllad + 3)))) {
-                uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
-                if (debug_backup != 0x0) {
-                    GBS::TEST_BUS_SEL::write(0x0);
-                }
-                //unsigned long startTime = millis();
-                if (!FrameSync::run(uopt->frameTimeLockMethod)) {
-                    if (rto->syncLockFailIgnore-- == 0) {
-                        FrameSync::reset(uopt->frameTimeLockMethod); // in case run() failed because we lost sync signal
-                    }
-                } else if (rto->syncLockFailIgnore > 0) {
-                    rto->syncLockFailIgnore = 16;
-                }
-                //Serial.println(millis() - startTime);
-
-                if (debug_backup != 0x0) {
-                    GBS::TEST_BUS_SEL::write(debug_backup);
-                }
+        if (((htotal > (pllad - 3)) && (htotal < (pllad + 3)))) {
+            uint8_t debug_backup = GBS::TEST_BUS_SEL::read();
+            if (debug_backup != 0x0) {
+                GBS::TEST_BUS_SEL::write(0x0);
             }
-            lastVsyncLock = millis();
+            //unsigned long startTime = millis();
+            fsDebugPrintf("running frame sync, clock gen enabled = %d\n", rto->extClockGenDetected);
+            bool success = rto->extClockGenDetected
+                ? FrameSync::runFrequency()
+                : FrameSync::runVsync(uopt->frameTimeLockMethod);
+            if (!success) {
+                if (rto->syncLockFailIgnore-- == 0) {
+                    FrameSync::reset(uopt->frameTimeLockMethod); // in case run() failed because we lost sync signal
+                }
+            } else if (rto->syncLockFailIgnore > 0) {
+                rto->syncLockFailIgnore = 16;
+            }
+            //Serial.println(millis() - startTime);
+
+            if (debug_backup != 0x0) {
+                GBS::TEST_BUS_SEL::write(debug_backup);
+            }
         }
+        lastVsyncLock = millis();
     }
 
     if (rto->syncWatcherEnabled && rto->boardHasPower) {
