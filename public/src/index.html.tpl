@@ -245,6 +245,7 @@
             <!-- prettier-ignore -->
             <ul class="gbs-help">
               <li>Gain +/- adjusts the gain for the currently loaded preset.</li>
+              <li>Auto Gain increases gain so bright areas are displayed as white, then decreases it when clipping is detected. Calibrate for a few seconds on a white screen.</li>
             </ul>
             <div class="gbs-flex gbs-margin__bottom--16">
               <button
