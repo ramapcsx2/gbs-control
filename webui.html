@@ -363,15 +363,39 @@ body {
 
 /* sections */
 
+.gbs-scroll {
+  /* self */
+  display: flex;
+  flex-direction: column;
+}
+.gbs-scroll > section[name="presets"] {
+  flex-grow: 1;
+  /* self */
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 8px;
+}
+.gbs-scroll > section[name="presets"] > fieldset {
+  margin: 0;
+}
+
 .gbs-resolution {
   display: flex;
 }
 
-.gbs-presets {
+.gbs-scroll > section[name="presets"] > fieldset.presets {
+  flex-grow: 1;
+  /* self */
+  display: flex;
+  flex-direction: column;
+}
+.gbs-scroll > section[name="presets"] > fieldset.presets > .gbs-presets {
+  flex-grow: 1;
+  /* self */
   border-radius: 8px;
   display: flex;
   flex-wrap: wrap;
-  height: calc(var(--viewport-height) - 310px);
   justify-content: space-around;
   margin-bottom: 16px;
   overflow-y: scroll;
@@ -622,10 +646,6 @@ section[name="alert"] {
     display: block;
   }
 
-  .gbs-presets {
-    height: calc(100vh - 310px);
-  }
-
   .gbs-output {
     background-color: var(--color-mine-shaft-light);
     height: 100vh;
@@ -646,10 +666,6 @@ section[name="alert"] {
     display: block;
     height: calc(100vh - 64px);
     margin-top: 32px;
-  }
-
-  .gbs-output-hide .gbs-presets {
-    height: calc(100vh - 374px);
   }
 
   .gbs-fieldset-output {
