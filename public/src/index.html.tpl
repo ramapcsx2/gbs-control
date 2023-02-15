@@ -651,14 +651,6 @@
               <div class="gbs-icon">blur_on</div>
               <div>Filters</div>
             </legend>
-            <ul class="gbs-help">
-              <!-- prettier-ignore -->
-              <li>Scanlines only work with 240p sources, or 480i with Bob deinterlacing.</li>
-              <li>Line Filter eliminates blocky-pixel artifacts when upscaling beyond 480p, and is recommended.</li>
-              <!-- prettier-ignore -->
-              <li>Peaking increases contrast around horizontal brightness steps, and is recommended.</li>
-              <li>Step Response increases the sharpness of horizontal color steps, and is recommended.</li>
-            </ul>
             <div class="gbs-margin__bottom--16">
               <div class="gbs-flex gbs-margin__bottom--16">
                 <button
@@ -691,6 +683,11 @@
                   <div>line filter</div>
                 </button>
               </div>
+              <ul class="gbs-help">
+                <!-- prettier-ignore -->
+                <li>Scanlines only work with 240p sources, or 480i with Bob deinterlacing.</li>
+                <li>Line Filter eliminates blocky-pixel artifacts when upscaling beyond 480p, and is recommended.</li>
+              </ul>
               <div class="gbs-flex">
                 <button
                   gbs-message="f"
@@ -713,6 +710,11 @@
                   <div>step response</div>
                 </button>
               </div>
+              <ul class="gbs-help">
+                <!-- prettier-ignore -->
+                <li>Peaking increases contrast around horizontal brightness steps, and is recommended.</li>
+                <li>Step Response increases the sharpness of horizontal color steps, and is recommended.</li>
+              </ul>
             </div>
           </fieldset>
         </section>
