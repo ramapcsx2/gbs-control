@@ -123,6 +123,7 @@
               </li>
               <li>Use the "Matched Presets" option to switch between the two automatically (Preferences tab)
               </li>
+              <li>Selecting a resolution also makes it the new startup preset.</li>
             </ul>
             <div class="gbs-resolution">
               <button
@@ -652,9 +653,11 @@
             </legend>
             <ul class="gbs-help">
               <!-- prettier-ignore -->
-              <li>Scanlines only work with 240p sources. They look best with the Line Filter enabled.</li>
+              <li>Scanlines only work with 240p sources, or 480i with Bob deinterlacing.</li>
+              <li>Line Filter eliminates blocky-pixel artifacts when upscaling beyond 480p, and is recommended.</li>
               <!-- prettier-ignore -->
-              <li>Peaking and Step Response are subtle sharpening filters and recommended.</li>
+              <li>Peaking increases contrast around horizontal brightness steps, and is recommended.</li>
+              <li>Step Response increases the sharpness of horizontal color steps, and is recommended.</li>
             </ul>
             <div class="gbs-margin__bottom--16">
               <div class="gbs-flex gbs-margin__bottom--16">
@@ -783,7 +786,7 @@
               </tr>
               <tr>
                 <td>
-                  RGBHV/Component Toggle
+                  Output RGBHV/Component
                   <!-- prettier-ignore -->
                   <ul class="gbs-help">
                     <li>The default output mode is RGBHV, suitable for use with VGA cables or HDMI converters.</li>
@@ -865,7 +868,7 @@
                   <!-- prettier-ignore -->
                   <ul class="gbs-help">
                     <li>This option keeps the input and output timings aligned, fixing the horizontal tear line that can appear sometimes.</li>
-                    <li>Two methods are available. Try switching methods if your display goes blank.</li>
+                    <li>Two methods are available. Try switching methods if your display goes blank or shifts vertically.</li>
                   </ul>
                 </td>
               </tr>
@@ -899,8 +902,8 @@
                   <!-- prettier-ignore -->
                   <ul class="gbs-help">
                     <li>Gbscontrol detects interlaced content and automatically toggles deinterlacing.</li>
-                    <li>Bob Method: essentially no deinterlacing, no added lag but flickers</li>
-                    <li>Motion Adaptive: removes flicker, adds 1 frame of lag and shows some artefacts in moving details</li>
+                    <li>Bob Method: essentially no deinterlacing, no added lag but flickers, can be combined with scanlines</li>
+                    <li>Motion Adaptive: removes flicker and shows some artefacts in moving details</li>
                     <li>If possible, configure the source for progressive output. Otherwise, using Motion Adaptive is recommended.</li>
                   </ul>
                 </td>
@@ -941,10 +944,10 @@
               </tr>
               <tr gbs-slot-custom-filters>
                 <td>
-                  Custom Slot Filters
+                  Save Filtering Per Slot
                   <!-- prettier-ignore -->
                   <ul class="gbs-help">
-                    <li>When enabled, saved slots recover it owns filter preferences.</li>
+                    <li>When enabled, saved slots recover their own filter preferences.</li>
                     <li>When disabled, saved slots maintain current filter settings.</li>
                   </ul>
                 </td>
