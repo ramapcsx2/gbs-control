@@ -2298,10 +2298,8 @@ const createWebSocket = () => {
             const presetEl = document.querySelector(`[gbs-element-ref="${presetId}"]`);
             const activePresetButton = presetEl
                 ? presetEl.getAttribute("gbs-element-ref")
-                : null;
-            if (activePresetButton) {
-                GBSControl.ui.presetButtonList.forEach(toggleButtonActive(activePresetButton));
-            }
+                : "none";
+            GBSControl.ui.presetButtonList.forEach(toggleButtonActive(activePresetButton));
             const slotId = "slot-" + messageDataAt2;
             const activeSlotButton = document.querySelector(`[gbs-element-ref="${slotId}"]`);
             if (activeSlotButton) {
