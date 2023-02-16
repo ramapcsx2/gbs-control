@@ -4169,16 +4169,13 @@ void applyPresets(uint8_t result)
                 rto->syncTypeCsync = 1;
                 rto->syncWatcherEnabled = 1;
             } else {
-                // found nothing at all, switch to RGB input and turn off syncwatcher
-                GBS::ADC_INPUT_SEL::write(1); // RGB
-                writeProgramArrayNew(ntsc_240p, false);
-                rto->videoStandardInput = 3; // override to 480p60
-                doPostPresetLoadSteps();
-                GBS::SP_CLAMP_MANUAL::write(1);
-                rto->syncWatcherEnabled = 0;
-                rto->videoStandardInput = 0;
-                serialCommand = 'D'; // enable debug view
+                // found nothing at all, turn off output
 
+                // If we call setResetParameters(), soon afterwards loop() ->
+                // inputAndSyncDetect() -> goLowPowerWithInputDetection() will
+                // call setResetParameters() again. But if we don't call
+                // setResetParameters() here, the second call will never happen.
+                setResetParameters();
                 return;
             }
         }
