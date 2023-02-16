@@ -4176,6 +4176,12 @@ void applyPresets(uint8_t result)
                 // call setResetParameters() again. But if we don't call
                 // setResetParameters() here, the second call will never happen.
                 setResetParameters();
+
+                // Deselect the output resolution in the web UI. We cannot call
+                // doPostPresetLoadSteps() to select the right resolution, since
+                // it *enables* the output (showing a green screen) even if
+                // previously disabled, and we want to *disable* it.
+                rto->presetID = 0;
                 return;
             }
         }
