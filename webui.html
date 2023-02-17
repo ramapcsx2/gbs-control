@@ -363,15 +363,39 @@ body {
 
 /* sections */
 
+.gbs-scroll {
+  /* self */
+  display: flex;
+  flex-direction: column;
+}
+.gbs-scroll > section[name="presets"] {
+  flex-grow: 1;
+  /* self */
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 8px;
+}
+.gbs-scroll > section[name="presets"] > fieldset {
+  margin: 0;
+}
+
 .gbs-resolution {
   display: flex;
 }
 
-.gbs-presets {
+.gbs-scroll > section[name="presets"] > fieldset.presets {
+  flex-grow: 1;
+  /* self */
+  display: flex;
+  flex-direction: column;
+}
+.gbs-scroll > section[name="presets"] > fieldset.presets > .gbs-presets {
+  flex-grow: 1;
+  /* self */
   border-radius: 8px;
   display: flex;
   flex-wrap: wrap;
-  height: calc(var(--viewport-height) - 310px);
   justify-content: space-around;
   margin-bottom: 16px;
   overflow-y: scroll;
@@ -622,10 +646,6 @@ section[name="alert"] {
     display: block;
   }
 
-  .gbs-presets {
-    height: calc(100vh - 310px);
-  }
-
   .gbs-output {
     background-color: var(--color-mine-shaft-light);
     height: 100vh;
@@ -646,10 +666,6 @@ section[name="alert"] {
     display: block;
     height: calc(100vh - 64px);
     margin-top: 32px;
-  }
-
-  .gbs-output-hide .gbs-presets {
-    height: calc(100vh - 374px);
   }
 
   .gbs-fieldset-output {
@@ -786,6 +802,7 @@ section[name="alert"] {
               </li>
               <li>Use the "Matched Presets" option to switch between the two automatically (Preferences tab)
               </li>
+              <li>Selecting a resolution also makes it the new startup preset.</li>
             </ul>
             <div class="gbs-resolution">
               <button
@@ -907,6 +924,7 @@ section[name="alert"] {
             <!-- prettier-ignore -->
             <ul class="gbs-help">
               <li>Gain +/- adjusts the gain for the currently loaded preset.</li>
+              <li>Auto Gain increases gain so bright areas are displayed as white, then decreases it when clipping is detected. Calibrate for a few seconds on a white screen.</li>
             </ul>
             <div class="gbs-flex gbs-margin__bottom--16">
               <button
@@ -1313,12 +1331,6 @@ section[name="alert"] {
               <div class="gbs-icon">blur_on</div>
               <div>Filters</div>
             </legend>
-            <ul class="gbs-help">
-              <!-- prettier-ignore -->
-              <li>Scanlines only work with 240p sources. They look best with the Line Filter enabled.</li>
-              <!-- prettier-ignore -->
-              <li>Peaking and Step Response are subtle sharpening filters and recommended.</li>
-            </ul>
             <div class="gbs-margin__bottom--16">
               <div class="gbs-flex gbs-margin__bottom--16">
                 <button
@@ -1351,6 +1363,11 @@ section[name="alert"] {
                   <div>line filter</div>
                 </button>
               </div>
+              <ul class="gbs-help">
+                <!-- prettier-ignore -->
+                <li>Scanlines only work with 240p sources, or 480i with Bob deinterlacing.</li>
+                <li>Line Filter eliminates blocky-pixel artifacts when upscaling beyond 480p, and is recommended.</li>
+              </ul>
               <div class="gbs-flex">
                 <button
                   gbs-message="f"
@@ -1373,6 +1390,11 @@ section[name="alert"] {
                   <div>step response</div>
                 </button>
               </div>
+              <ul class="gbs-help">
+                <!-- prettier-ignore -->
+                <li>Peaking increases contrast around horizontal brightness steps, and is recommended.</li>
+                <li>Step Response increases the sharpness of horizontal color steps, and is recommended.</li>
+              </ul>
             </div>
           </fieldset>
         </section>
@@ -1446,7 +1468,7 @@ section[name="alert"] {
               </tr>
               <tr>
                 <td>
-                  RGBHV/Component Toggle
+                  Output RGBHV/Component
                   <!-- prettier-ignore -->
                   <ul class="gbs-help">
                     <li>The default output mode is RGBHV, suitable for use with VGA cables or HDMI converters.</li>
@@ -1528,7 +1550,7 @@ section[name="alert"] {
                   <!-- prettier-ignore -->
                   <ul class="gbs-help">
                     <li>This option keeps the input and output timings aligned, fixing the horizontal tear line that can appear sometimes.</li>
-                    <li>Two methods are available. Try switching methods if your display goes blank.</li>
+                    <li>Two methods are available. Try switching methods if your display goes blank or shifts vertically.</li>
                   </ul>
                 </td>
               </tr>
@@ -1562,8 +1584,8 @@ section[name="alert"] {
                   <!-- prettier-ignore -->
                   <ul class="gbs-help">
                     <li>Gbscontrol detects interlaced content and automatically toggles deinterlacing.</li>
-                    <li>Bob Method: essentially no deinterlacing, no added lag but flickers</li>
-                    <li>Motion Adaptive: removes flicker, adds 1 frame of lag and shows some artefacts in moving details</li>
+                    <li>Bob Method: essentially no deinterlacing, no added lag but flickers, can be combined with scanlines</li>
+                    <li>Motion Adaptive: removes flicker and shows some artefacts in moving details</li>
                     <li>If possible, configure the source for progressive output. Otherwise, using Motion Adaptive is recommended.</li>
                   </ul>
                 </td>
@@ -1604,10 +1626,10 @@ section[name="alert"] {
               </tr>
               <tr gbs-slot-custom-filters>
                 <td>
-                  Custom Slot Filters
+                  Save Filtering Per Slot
                   <!-- prettier-ignore -->
                   <ul class="gbs-help">
-                    <li>When enabled, saved slots recover it owns filter preferences.</li>
+                    <li>When enabled, saved slots recover their own filter preferences.</li>
                     <li>When disabled, saved slots maintain current filter settings.</li>
                   </ul>
                 </td>
@@ -2541,6 +2563,11 @@ const fetchSlotNamesAndInit = () => {
 /** Promises */
 const serial = (funcs) => funcs.reduce((promise, func) => promise.then((result) => func().then(Array.prototype.concat.bind(result))), Promise.resolve([]));
 /** helpers */
+const toggleHelp = () => {
+    let help = GBSStorage.read("help") || false;
+    GBSStorage.write("help", !help);
+    updateHelp(!help);
+};
 const toggleDeveloperMode = () => {
     const developerMode = GBSStorage.read("developerMode") || false;
     GBSStorage.write("developerMode", !developerMode);
@@ -2550,6 +2577,14 @@ const toggleCustomSlotFilters = () => {
     const customSlotFilters = GBSStorage.read("customSlotFilters");
     GBSStorage.write("customSlotFilters", !customSlotFilters);
     updateCustomSlotFilters(!customSlotFilters);
+};
+const updateHelp = (help) => {
+    if (help) {
+        document.body.classList.remove("gbs-help-hide");
+    }
+    else {
+        document.body.classList.add("gbs-help-hide");
+    }
 };
 const updateDeveloperMode = (developerMode) => {
     const el = document.querySelector('[gbs-section="developer"]');
@@ -2946,9 +2981,7 @@ const initControlMobileKeys = () => {
 };
 const initLegendHelpers = () => {
     nodelistToArray(document.querySelectorAll(".gbs-fieldset__legend--help")).forEach((e) => {
-        e.addEventListener("click", () => {
-            document.body.classList.toggle("gbs-help-hide");
-        });
+        e.addEventListener("click", toggleHelp);
     });
 };
 const initUnloadListener = () => {
@@ -3061,6 +3094,14 @@ const initDeveloperMode = () => {
         updateDeveloperMode(devMode);
     }
 };
+const initHelp = () => {
+    let help = GBSStorage.read("help");
+    if (help === undefined) {
+        help = false;
+        GBSStorage.write("help", help);
+    }
+    updateHelp(help);
+};
 const gbsAlertPromise = {
     resolve: null,
     reject: null,
@@ -3116,6 +3157,7 @@ const initUI = () => {
     initControlMobileKeys();
     initUnloadListener();
     initDeveloperMode();
+    initHelp();
 };
 const main = () => {
     const ip = location.hostname;

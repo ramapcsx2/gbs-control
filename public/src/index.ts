@@ -588,6 +588,13 @@ const serial = (funcs: (() => Promise<any>)[]) =>
 
 /** helpers */
 
+const toggleHelp = () => {
+  let help = GBSStorage.read("help") || false;
+
+  GBSStorage.write("help", !help);
+  updateHelp(!help);
+};
+
 const toggleDeveloperMode = () => {
   const developerMode = GBSStorage.read("developerMode") || false;
 
@@ -599,6 +606,14 @@ const toggleCustomSlotFilters = () => {
   const customSlotFilters = GBSStorage.read("customSlotFilters");
   GBSStorage.write("customSlotFilters", !customSlotFilters);
   updateCustomSlotFilters(!customSlotFilters);
+};
+
+const updateHelp = (help: boolean) => {
+  if (help) {
+    document.body.classList.remove("gbs-help-hide");
+  } else {
+    document.body.classList.add("gbs-help-hide");
+  }
 };
 
 const updateDeveloperMode = (developerMode: boolean) => {
@@ -1136,9 +1151,7 @@ const initLegendHelpers = () => {
   nodelistToArray<HTMLElement>(
     document.querySelectorAll(".gbs-fieldset__legend--help")
   ).forEach((e) => {
-    e.addEventListener("click", () => {
-      document.body.classList.toggle("gbs-help-hide");
-    });
+    e.addEventListener("click", toggleHelp);
   });
 };
 
@@ -1269,6 +1282,15 @@ const initDeveloperMode = () => {
   }
 };
 
+const initHelp = () => {
+  let help = GBSStorage.read("help") as boolean;
+  if (help === undefined) {
+    help = false;
+    GBSStorage.write("help", help);
+  }
+  updateHelp(help);
+};
+
 const gbsAlertPromise = {
   resolve: null,
   reject: null,
@@ -1330,6 +1352,7 @@ const initUI = () => {
   initControlMobileKeys();
   initUnloadListener();
   initDeveloperMode();
+  initHelp();
 };
 
 const main = () => {
