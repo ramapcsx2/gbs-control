@@ -226,8 +226,8 @@ struct runTimeOptions
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
-/// Requested output resolution, *given to* applyPresets().
-enum OutputMode : uint8_t {
+/// Output resolution requested by user, *given to* applyPresets().
+enum PresetPreference : uint8_t {
     Output960P = 0,
     Output480P = 1,
     OutputCustomized = 2,
@@ -243,7 +243,7 @@ struct userOptions
 {
     // 0 - normal, 1 - x480/x576, 2 - customized, 3 - 1280x720, 4 - 1280x1024, 5 - 1920x1080,
     // 6 - downscale, 10 - bypass
-    OutputMode presetPreference;
+    PresetPreference presetPreference;
     uint8_t presetSlot;
     uint8_t enableFrameTimeLock;
     uint8_t frameTimeLockMethod;
@@ -7328,7 +7328,7 @@ void setup()
             saveUserPrefs(); // if this fails, there must be a spiffs problem
         } else {
             //on a fresh / spiffs not formatted yet MCU:  userprefs.txt open ok //result = 207
-            uopt->presetPreference = (OutputMode)(f.read() - '0'); // #1
+            uopt->presetPreference = (PresetPreference)(f.read() - '0'); // #1
             if (uopt->presetPreference > 10)
                 uopt->presetPreference = Output960P; // fresh spiffs ?
 
@@ -8170,7 +8170,7 @@ void loop()
                 uint8_t videoMode = getVideoMode();
                 if (videoMode == 0)
                     videoMode = rto->videoStandardInput;
-                OutputMode backup = uopt->presetPreference;
+                PresetPreference backup = uopt->presetPreference;
                 uopt->presetPreference = Output720P;
                 rto->videoStandardInput = 0; // force hard reset
                 applyPresets(videoMode);
