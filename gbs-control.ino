@@ -170,6 +170,14 @@ struct MenuAttrs
 };
 typedef MenuManager<GBS, MenuAttrs> Menu;
 
+/// Video processing mode, loaded into register GBS_PRESET_ID by applyPresets()
+/// and read to rto->presetID by doPostPresetLoadSteps(). Shown on web UI.
+enum PresetID : uint8_t {
+    PresetCustomized = 0x09,
+    PresetHdBypass = 0x21,
+    PresetBypassRGBHV = 0x22,
+};
+
 // runTimeOptions holds system variables
 struct runTimeOptions
 {
@@ -185,7 +193,7 @@ struct runTimeOptions
     uint8_t applyPresetDoneStage;
     uint8_t continousStableCounter;
     uint8_t failRetryAttempts;
-    uint8_t presetID;
+    uint8_t presetID;  // PresetID
     uint8_t HPLLState;
     uint8_t medResLineCount;
     uint8_t osr;
@@ -218,6 +226,7 @@ struct runTimeOptions
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
+/// Requested output resolution, *given to* applyPresets().
 enum OutputMode : uint8_t {
     Output960P = 0,
     Output480P = 1,
@@ -796,7 +805,7 @@ void activeFrameTimeLockInitialSteps()
         return;
     }
     // skip when out mode = bypass
-    if (rto->presetID != 0x21 && rto->presetID != 0x22) {
+    if (rto->presetID != PresetHdBypass && rto->presetID != PresetBypassRGBHV) {
         SerialM.print(F("Active FrameTime Lock enabled, disable if display unstable or stays blank! Method: "));
         if (uopt->frameTimeLockMethod == 0) {
             SerialM.println(F("0 (vtotal + VSST)"));
@@ -4054,7 +4063,7 @@ void doPostPresetLoadSteps()
         SerialM.print(F("bypass"));
 
     if (isCustomPreset) {
-        rto->presetID = 9; // overwrite to "custom" after printing original id (for webui)
+        rto->presetID = PresetCustomized; // overwrite to "custom" after printing original id (for webui)
     }
     if (rto->outModeHdBypass) {
         SerialM.print(F(" (bypass)"));
@@ -4212,7 +4221,7 @@ void applyPresets(uint8_t result)
             writeProgramArrayNew(ntsc_1280x720, false);
         }
 #if defined(ESP8266)
-        else if (uopt->presetPreference == 2) {
+        else if (uopt->presetPreference == OutputCustomized) {
             const uint8_t *preset = loadPresetFromSPIFFS(result);
             writeProgramArrayNew(preset, false);
         } else if (uopt->presetPreference == 4) {
@@ -4244,7 +4253,7 @@ void applyPresets(uint8_t result)
             writeProgramArrayNew(pal_1280x720, false);
         }
 #if defined(ESP8266)
-        else if (uopt->presetPreference == 2) {
+        else if (uopt->presetPreference == OutputCustomized) {
             const uint8_t *preset = loadPresetFromSPIFFS(result);
             writeProgramArrayNew(preset, false);
         } else if (uopt->presetPreference == 4) {
@@ -5414,8 +5423,8 @@ void bypassModeSwitch_RGBHV()
         GBS::DEC_TEST_ENABLE::write(0); // no need for decimation test to be enabled
     }
 
-    rto->presetID = 0x22; // bypass flavor 2, used to signal buttons in web ui
-    GBS::GBS_PRESET_ID::write(0x22);
+    rto->presetID = PresetBypassRGBHV; // bypass flavor 2, used to signal buttons in web ui
+    GBS::GBS_PRESET_ID::write(PresetBypassRGBHV);
     delay(200);
 }
 
@@ -7543,11 +7552,11 @@ void updateWebSocketData()
                 case 0x16:
                     toSend[1] = '6';
                     break;
-                case 0x09: // custom
+                case PresetCustomized: // custom
                     toSend[1] = '9';
                     break;
-                case 0x21: // bypass 1
-                case 0x22: // bypass 2
+                case PresetHdBypass: // bypass 1
+                case PresetBypassRGBHV: // bypass 2
                     toSend[1] = '8';
                     break;
                 default:
