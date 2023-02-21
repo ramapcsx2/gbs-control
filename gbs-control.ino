@@ -4258,8 +4258,6 @@ void applyPresets(uint8_t result)
                             - we never overwrite rto->presetID = PresetCustomized!
                     - ...
                     - rto->outModeHdBypass = 1; (again?!)
-                    - rto->presetID = PresetHdBypass; // bypass flavor 1, used
-                      to signal buttons in web ui
                 - rto->presetID = PresetCustomized;
         */
 
@@ -5092,6 +5090,12 @@ void setOutModeHdBypass()
 
     GBS::GBS_PRESET_ID::write(PresetHdBypass);
     doPostPresetLoadSteps(); // todo: remove this, code path for hdbypass is hard to follow
+
+    // doPostPresetLoadSteps() sets rto->presetID = GBS_PRESET_ID::read() =
+    // PresetHdBypass. Because we set rto->outModeHdBypass = 1,
+    // doPostPresetLoadSteps() skips assigning rto->presetID = PresetCustomized.
+    // Our caller must assign that manually if needed.
+
     resetDebugPort();
 
     rto->autoBestHtotalEnabled = false; // need to re-set this
@@ -5325,7 +5329,6 @@ void setOutModeHdBypass()
     setAndUpdateSogLevel(rto->currentLevelSOG); // also re-latch everything
 
     rto->outModeHdBypass = 1;
-    rto->presetID = PresetHdBypass; // bypass flavor 1, used to signal buttons in web ui
 
     unsigned long timeout = millis();
     while ((!getStatus16SpHsStable()) && (millis() - timeout < 2002)) {
