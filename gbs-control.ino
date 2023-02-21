@@ -5014,6 +5014,7 @@ void setOutModeHdBypass()
     GBS::PA_ADC_BYPSZ::write(1); // enable phase unit ADC
     GBS::PA_SP_BYPSZ::write(1);  // enable phase unit SP
 
+    GBS::GBS_PRESET_ID::write(PresetHdBypass);
     doPostPresetLoadSteps(); // todo: remove this, code path for hdbypass is hard to follow
     resetDebugPort();
 
@@ -5248,8 +5249,7 @@ void setOutModeHdBypass()
     setAndUpdateSogLevel(rto->currentLevelSOG); // also re-latch everything
 
     rto->outModeHdBypass = 1;
-    rto->presetID = 0x21; // bypass flavor 1, used to signal buttons in web ui
-    GBS::GBS_PRESET_ID::write(0x21);
+    rto->presetID = PresetHdBypass; // bypass flavor 1, used to signal buttons in web ui
 
     unsigned long timeout = millis();
     while ((!getStatus16SpHsStable()) && (millis() - timeout < 2002)) {
