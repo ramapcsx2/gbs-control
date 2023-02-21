@@ -4211,6 +4211,76 @@ void applyPresets(uint8_t result)
         }
     }
 
+    /// If uopt->presetPreference == OutputCustomized and we load a custom
+    /// preset, check if it's intended to bypass scaling at the current input
+    /// resolution. If so, setup bypass and skip the rest of applyPresets().
+    auto applySavedBypassPreset = [&result]() -> bool {
+        /*
+        Types:
+
+        - Registers:
+            - Written by applyPresets() -> writeProgramArrayNew(),
+              loadHdBypassSection(), etc.
+            - GBS_PRESET_ID @ S1_2B[0:6]
+            - GBS_PRESET_CUSTOM @ S1_2B[7]
+        - uopt is source of truth, rto is derived cached state???
+        - uopt->presetPreference
+            - Read by applyPresets() to pick an output resolution.
+        - rto->presetID
+            - Written by applyPresets() -> doPostPresetLoadSteps().
+            - = register GBS_PRESET_ID, unless you loaded a custom preset (then
+              = PresetCustomized).
+            - Controls which button is highlighted in the web UI
+              (updateWebSocketData() -> GBSControl.buttonMapping).
+
+        Control flow:
+
+        applyPresets():
+        - If uopt->presetPreference == OutputCustomized (yes):
+            - loadPresetFromSPIFFS()
+                - All custom presets are saved with GBS_PRESET_CUSTOM = 1.
+            - writeProgramArrayNew()
+                - GBS_PRESET_ID = output resolution ID
+                - GBS_PRESET_CUSTOM = 1
+            - applySavedBypassPreset():
+            - If GBS_PRESET_ID == PresetHdBypass (yes):
+                - rto->videoStandardInput = result; (not sure why)
+                - setOutModeHdBypass()
+                    - rto->outModeHdBypass = 1;
+                    - loadHdBypassSection()
+                        - Overwrites S1_30..5F.
+                    - GBS::GBS_PRESET_ID::write(PresetHdBypass);
+                    - doPostPresetLoadSteps()
+                        - rto->presetID = GBS::GBS_PRESET_ID::read();
+                            - PresetHdBypass
+                        - Branches based on rto->presetID
+                        - if (rto->outModeHdBypass) (yes) return.
+                            - we never overwrite rto->presetID = PresetCustomized!
+                    - ...
+                    - rto->outModeHdBypass = 1; (again?!)
+                    - rto->presetID = PresetHdBypass; // bypass flavor 1, used
+                      to signal buttons in web ui
+                - rto->presetID = PresetCustomized;
+        */
+
+        uint8_t rawPresetId = GBS::GBS_PRESET_ID::read();
+        if (rawPresetId == PresetHdBypass) {
+            // Required for switching from 240p to 480p to work.
+            rto->videoStandardInput = result;
+
+            // Setup video mode passthrough.
+            setOutModeHdBypass();
+
+            // Highlight the "custom" button in the web UI.
+            rto->presetID = PresetCustomized;
+            return true;
+        }
+        if (rawPresetId == PresetBypassRGBHV) {
+            // TODO implement bypassModeSwitch_RGBHV (I don't have RGBHV inputs to verify)
+        }
+        return false;
+    };
+
     if (result == 1 || result == 3 || result == 8 || result == 9 || result == 14) {
         // NTSC input
         if (uopt->presetPreference == 0) {
@@ -4224,6 +4294,9 @@ void applyPresets(uint8_t result)
         else if (uopt->presetPreference == OutputCustomized) {
             const uint8_t *preset = loadPresetFromSPIFFS(result);
             writeProgramArrayNew(preset, false);
+            if (applySavedBypassPreset()) {
+                return;
+            }
         } else if (uopt->presetPreference == 4) {
             if (uopt->matchPresetSource && (result != 8) && (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)) {
                 SerialM.println(F("matched preset override > 1280x960"));
@@ -4256,6 +4329,9 @@ void applyPresets(uint8_t result)
         else if (uopt->presetPreference == OutputCustomized) {
             const uint8_t *preset = loadPresetFromSPIFFS(result);
             writeProgramArrayNew(preset, false);
+            if (applySavedBypassPreset()) {
+                return;
+            }
         } else if (uopt->presetPreference == 4) {
             writeProgramArrayNew(pal_1280x1024, false);
         }
