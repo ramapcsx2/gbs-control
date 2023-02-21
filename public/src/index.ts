@@ -261,13 +261,11 @@ const createWebSocket = () => {
       );
       const activePresetButton = presetEl
         ? presetEl.getAttribute("gbs-element-ref")
-        : null;
+        : "none";
 
-      if (activePresetButton) {
-        GBSControl.ui.presetButtonList.forEach(
-          toggleButtonActive(activePresetButton)
-        );
-      }
+      GBSControl.ui.presetButtonList.forEach(
+        toggleButtonActive(activePresetButton)
+      );
 
       const slotId = "slot-" + messageDataAt2;
       const activeSlotButton = document.querySelector(
