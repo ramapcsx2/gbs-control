@@ -4269,7 +4269,7 @@ void applyPresets(uint8_t result)
             rto->videoStandardInput = result;
 
             // Setup video mode passthrough.
-            setOutModeHdBypass();
+            setOutModeHdBypass(true);
 
             // Highlight the "custom" button in the web UI.
             rto->presetID = PresetCustomized;
@@ -4344,7 +4344,7 @@ void applyPresets(uint8_t result)
     } else if (result == 5 || result == 6 || result == 7 || result == 13) {
         // use bypass mode for these HD sources
         rto->videoStandardInput = result;
-        setOutModeHdBypass();
+        setOutModeHdBypass(false);
         return;
     } else if (result == 15) {
         SerialM.print(F("RGB/HV "));
@@ -5060,7 +5060,7 @@ void updateClampPosition()
 // use t5t00t2 and adjust t5t11t5 to find this sources ideal sampling clock for this preset (affected by htotal)
 // 2431 for psx, 2437 for MD
 // in this mode, sampling clock is free to choose
-void setOutModeHdBypass()
+void setOutModeHdBypass(bool regsInitialized)
 {
     if (!rto->boardHasPower) {
         SerialM.println(F("GBS board not responding!"));
@@ -5091,6 +5091,12 @@ void setOutModeHdBypass()
     GBS::PA_SP_BYPSZ::write(1);  // enable phase unit SP
 
     GBS::GBS_PRESET_ID::write(PresetHdBypass);
+    // If loading from top-level, clear custom preset flag to avoid stale
+    // values. If loading after applyPresets() called writeProgramArrayNew(), it
+    // has already set the flag to 1.
+    if (!regsInitialized) {
+        GBS::GBS_PRESET_CUSTOM::write(0);
+    }
     doPostPresetLoadSteps(); // todo: remove this, code path for hdbypass is hard to follow
 
     // doPostPresetLoadSteps() sets rto->presetID = GBS_PRESET_ID::read() =
@@ -6285,7 +6291,7 @@ void runSyncWatcher()
                     applyPresets(detectedVideoMode);
                 } else {
                     rto->videoStandardInput = detectedVideoMode;
-                    setOutModeHdBypass();
+                    setOutModeHdBypass(false);
                 }
                 rto->videoStandardInput = detectedVideoMode;
                 rto->noSyncCounter = 0;
@@ -7931,7 +7937,7 @@ void loop()
                 bypassModeSwitch_RGBHV();
                 break;
             case 'K':
-                setOutModeHdBypass();
+                setOutModeHdBypass(false);
                 uopt->presetPreference = OutputBypass;
                 saveUserPrefs();
                 break;
@@ -8826,7 +8832,7 @@ void loop()
 
     if (rto->applyPresetDoneStage == 10) {
         rto->applyPresetDoneStage = 11; // set first, so we don't loop applying presets
-        setOutModeHdBypass();
+        setOutModeHdBypass(false);
     }
 
     if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true && rto->boardHasPower) {
@@ -10214,7 +10220,7 @@ void settingsMenuOLED()
                 display.drawString(0, 30, "Loaded!");
                 display.display();
             }
-            setOutModeHdBypass();
+            setOutModeHdBypass(false);
             uopt->presetPreference = OutputBypass;
             if (uopt->presetPreference == 10 && rto->videoStandardInput != 15) {
                 rto->autoBestHtotalEnabled = 0;
