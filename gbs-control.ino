@@ -7603,7 +7603,8 @@ void updateWebSocketData()
     if (rto->webServerEnabled && rto->webServerStarted) {
         if (webSocket.connectedClients() > 0) {
 
-            char toSend[7] = {0};
+            constexpr size_t MESSAGE_LEN = 6;
+            char toSend[MESSAGE_LEN] = {0};
             toSend[0] = '#'; // makeshift ping in slot 0
 
             switch (rto->presetID) {
@@ -7700,7 +7701,7 @@ void updateWebSocketData()
 
             // send ping and stats
             if (ESP.getFreeHeap() > 14000) {
-                webSocket.broadcastTXT(toSend);
+                webSocket.broadcastTXT(toSend, MESSAGE_LEN);
             } else {
                 webSocket.disconnect();
             }
