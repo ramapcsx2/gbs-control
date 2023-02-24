@@ -9544,6 +9544,9 @@ void startWebserver()
                 AsyncWebParameter *slotIndexParam = request->getParam(0);
                 String slotIndexString = slotIndexParam->value();
                 uint8_t slotIndex = lowByte(slotIndexString.toInt());
+                if (slotIndex >= SLOTS_TOTAL) {
+                    goto fail;
+                }
 
                 // name param
                 AsyncWebParameter *slotNameParam = request->getParam(1);
@@ -9569,6 +9572,7 @@ void startWebserver()
             }
         }
 
+        fail:
         request->send(200, "application/json", result ? "true" : "false");
     });
 
@@ -9643,7 +9647,11 @@ void startWebserver()
             slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
             slotsBinaryFileRead.close();
             String slotIndexMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
-            uint8_t currentSlot = slotIndexMap.indexOf(uopt->presetSlot);
+            auto currentSlot = slotIndexMap.indexOf(uopt->presetSlot);
+            if (currentSlot == -1) {
+                goto fail;
+            }
+
             uopt->wantScanlines = slotsObject.slot[currentSlot].scanlines;
 
             SerialM.print(F("slot: "));
@@ -9664,6 +9672,7 @@ void startWebserver()
             result = true;
         }
 
+        fail:
         request->send(200, "application/json", result ? "true" : "false");
     });
 
