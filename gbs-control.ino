@@ -238,13 +238,15 @@ enum PresetPreference : uint8_t {
     OutputBypass = 10,
 };
 
+using Ascii8 = uint8_t;
+
 // userOptions holds user preferences / customizations
 struct userOptions
 {
     // 0 - normal, 1 - x480/x576, 2 - customized, 3 - 1280x720, 4 - 1280x1024, 5 - 1920x1080,
     // 6 - downscale, 10 - bypass
     PresetPreference presetPreference;
-    uint8_t presetSlot;
+    Ascii8 presetSlot;
     uint8_t enableFrameTimeLock;
     uint8_t frameTimeLockMethod;
     uint8_t enableAutoGain;
@@ -9775,7 +9777,7 @@ const uint8_t *loadPresetFromSPIFFS(byte forVideoMode)
 {
     static uint8_t preset[432];
     String s = "";
-    uint8_t slot = 0;
+    Ascii8 slot = 0;
     File f;
 
     f = SPIFFS.open("/preferencesv2.txt", "r");
@@ -9851,7 +9853,7 @@ void savePresetToSPIFFS()
 {
     uint8_t readout = 0;
     File f;
-    uint8_t slot = 0;
+    Ascii8 slot = 0;
 
     // first figure out if the user has set a preferenced slot
     f = SPIFFS.open("/preferencesv2.txt", "r");
