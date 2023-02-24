@@ -7339,8 +7339,6 @@ void setup()
                 uopt->enableFrameTimeLock = 0;
 
             uopt->presetSlot = lowByte(f.read());
-            if (uopt->presetSlot >= SLOTS_TOTAL)
-                uopt->presetSlot = 0;
 
             uopt->frameTimeLockMethod = (uint8_t)(f.read() - '0');
             if (uopt->frameTimeLockMethod > 1)
@@ -9789,9 +9787,7 @@ const uint8_t *loadPresetFromSPIFFS(byte forVideoMode)
         result[2] = f.read();
 
         f.close();
-        if (result[2] < SLOTS_TOTAL) { // # of slots
-            slot = result[2];          // otherwise not stored on spiffs
-        }
+        slot = result[2];
     } else {
         // file not found, we don't know what preset to load
         SerialM.println(F("please select a preset slot first!")); // say "slot" here to make people save usersettings
