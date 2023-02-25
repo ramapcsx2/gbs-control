@@ -7144,7 +7144,7 @@ void loadDefaultUserOptions()
 {
     uopt->presetPreference = Output960P;    // #1
     uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
-    uopt->presetSlot = 0;          //
+    uopt->presetSlot = 'A';          //
     uopt->frameTimeLockMethod = 0; // compatibility with more displays
     uopt->enableAutoGain = 0;
     uopt->wantScanlines = 0;
