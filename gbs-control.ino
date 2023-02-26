@@ -170,6 +170,14 @@ struct MenuAttrs
 };
 typedef MenuManager<GBS, MenuAttrs> Menu;
 
+/// Video processing mode, loaded into register GBS_PRESET_ID by applyPresets()
+/// and read to rto->presetID by doPostPresetLoadSteps(). Shown on web UI.
+enum PresetID : uint8_t {
+    PresetCustomized = 0x09,
+    PresetHdBypass = 0x21,
+    PresetBypassRGBHV = 0x22,
+};
+
 // runTimeOptions holds system variables
 struct runTimeOptions
 {
@@ -185,7 +193,7 @@ struct runTimeOptions
     uint8_t applyPresetDoneStage;
     uint8_t continousStableCounter;
     uint8_t failRetryAttempts;
-    uint8_t presetID;
+    uint8_t presetID;  // PresetID
     uint8_t HPLLState;
     uint8_t medResLineCount;
     uint8_t osr;
@@ -218,7 +226,8 @@ struct runTimeOptions
 } rtos;
 struct runTimeOptions *rto = &rtos;
 
-enum OutputMode : uint8_t {
+/// Output resolution requested by user, *given to* applyPresets().
+enum PresetPreference : uint8_t {
     Output960P = 0,
     Output480P = 1,
     OutputCustomized = 2,
@@ -234,7 +243,7 @@ struct userOptions
 {
     // 0 - normal, 1 - x480/x576, 2 - customized, 3 - 1280x720, 4 - 1280x1024, 5 - 1920x1080,
     // 6 - downscale, 10 - bypass
-    OutputMode presetPreference;
+    PresetPreference presetPreference;
     uint8_t presetSlot;
     uint8_t enableFrameTimeLock;
     uint8_t frameTimeLockMethod;
@@ -796,7 +805,7 @@ void activeFrameTimeLockInitialSteps()
         return;
     }
     // skip when out mode = bypass
-    if (rto->presetID != 0x21 && rto->presetID != 0x22) {
+    if (rto->presetID != PresetHdBypass && rto->presetID != PresetBypassRGBHV) {
         SerialM.print(F("Active FrameTime Lock enabled, disable if display unstable or stays blank! Method: "));
         if (uopt->frameTimeLockMethod == 0) {
             SerialM.println(F("0 (vtotal + VSST)"));
@@ -4054,7 +4063,7 @@ void doPostPresetLoadSteps()
         SerialM.print(F("bypass"));
 
     if (isCustomPreset) {
-        rto->presetID = 9; // overwrite to "custom" after printing original id (for webui)
+        rto->presetID = PresetCustomized; // overwrite to "custom" after printing original id (for webui)
     }
     if (rto->outModeHdBypass) {
         SerialM.print(F(" (bypass)"));
@@ -4202,6 +4211,74 @@ void applyPresets(uint8_t result)
         }
     }
 
+    /// If uopt->presetPreference == OutputCustomized and we load a custom
+    /// preset, check if it's intended to bypass scaling at the current input
+    /// resolution. If so, setup bypass and skip the rest of applyPresets().
+    auto applySavedBypassPreset = [&result]() -> bool {
+        /*
+        Types:
+
+        - Registers:
+            - Written by applyPresets() -> writeProgramArrayNew(),
+              loadHdBypassSection(), etc.
+            - GBS_PRESET_ID @ S1_2B[0:6]
+            - GBS_PRESET_CUSTOM @ S1_2B[7]
+        - uopt is source of truth, rto is derived cached state???
+        - uopt->presetPreference
+            - Read by applyPresets() to pick an output resolution.
+        - rto->presetID
+            - Written by applyPresets() -> doPostPresetLoadSteps().
+            - = register GBS_PRESET_ID, unless you loaded a custom preset (then
+              = PresetCustomized).
+            - Controls which button is highlighted in the web UI
+              (updateWebSocketData() -> GBSControl.buttonMapping).
+
+        Control flow:
+
+        applyPresets():
+        - If uopt->presetPreference == OutputCustomized (yes):
+            - loadPresetFromSPIFFS()
+                - All custom presets are saved with GBS_PRESET_CUSTOM = 1.
+            - writeProgramArrayNew()
+                - GBS_PRESET_ID = output resolution ID
+                - GBS_PRESET_CUSTOM = 1
+            - applySavedBypassPreset():
+            - If GBS_PRESET_ID == PresetHdBypass (yes):
+                - rto->videoStandardInput = result; (not sure why)
+                - setOutModeHdBypass()
+                    - rto->outModeHdBypass = 1;
+                    - loadHdBypassSection()
+                        - Overwrites S1_30..5F.
+                    - GBS::GBS_PRESET_ID::write(PresetHdBypass);
+                    - doPostPresetLoadSteps()
+                        - rto->presetID = GBS::GBS_PRESET_ID::read();
+                            - PresetHdBypass
+                        - Branches based on rto->presetID
+                        - if (rto->outModeHdBypass) (yes) return.
+                            - we never overwrite rto->presetID = PresetCustomized!
+                    - ...
+                    - rto->outModeHdBypass = 1; (again?!)
+                - rto->presetID = PresetCustomized;
+        */
+
+        uint8_t rawPresetId = GBS::GBS_PRESET_ID::read();
+        if (rawPresetId == PresetHdBypass) {
+            // Required for switching from 240p to 480p to work.
+            rto->videoStandardInput = result;
+
+            // Setup video mode passthrough.
+            setOutModeHdBypass();
+
+            // Highlight the "custom" button in the web UI.
+            rto->presetID = PresetCustomized;
+            return true;
+        }
+        if (rawPresetId == PresetBypassRGBHV) {
+            // TODO implement bypassModeSwitch_RGBHV (I don't have RGBHV inputs to verify)
+        }
+        return false;
+    };
+
     if (result == 1 || result == 3 || result == 8 || result == 9 || result == 14) {
         // NTSC input
         if (uopt->presetPreference == 0) {
@@ -4212,9 +4289,12 @@ void applyPresets(uint8_t result)
             writeProgramArrayNew(ntsc_1280x720, false);
         }
 #if defined(ESP8266)
-        else if (uopt->presetPreference == 2) {
+        else if (uopt->presetPreference == OutputCustomized) {
             const uint8_t *preset = loadPresetFromSPIFFS(result);
             writeProgramArrayNew(preset, false);
+            if (applySavedBypassPreset()) {
+                return;
+            }
         } else if (uopt->presetPreference == 4) {
             if (uopt->matchPresetSource && (result != 8) && (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)) {
                 SerialM.println(F("matched preset override > 1280x960"));
@@ -4244,9 +4324,12 @@ void applyPresets(uint8_t result)
             writeProgramArrayNew(pal_1280x720, false);
         }
 #if defined(ESP8266)
-        else if (uopt->presetPreference == 2) {
+        else if (uopt->presetPreference == OutputCustomized) {
             const uint8_t *preset = loadPresetFromSPIFFS(result);
             writeProgramArrayNew(preset, false);
+            if (applySavedBypassPreset()) {
+                return;
+            }
         } else if (uopt->presetPreference == 4) {
             writeProgramArrayNew(pal_1280x1024, false);
         }
@@ -5005,7 +5088,14 @@ void setOutModeHdBypass()
     GBS::PA_ADC_BYPSZ::write(1); // enable phase unit ADC
     GBS::PA_SP_BYPSZ::write(1);  // enable phase unit SP
 
+    GBS::GBS_PRESET_ID::write(PresetHdBypass);
     doPostPresetLoadSteps(); // todo: remove this, code path for hdbypass is hard to follow
+
+    // doPostPresetLoadSteps() sets rto->presetID = GBS_PRESET_ID::read() =
+    // PresetHdBypass. Because we set rto->outModeHdBypass = 1,
+    // doPostPresetLoadSteps() skips assigning rto->presetID = PresetCustomized.
+    // Our caller must assign that manually if needed.
+
     resetDebugPort();
 
     rto->autoBestHtotalEnabled = false; // need to re-set this
@@ -5239,8 +5329,6 @@ void setOutModeHdBypass()
     setAndUpdateSogLevel(rto->currentLevelSOG); // also re-latch everything
 
     rto->outModeHdBypass = 1;
-    rto->presetID = 0x21; // bypass flavor 1, used to signal buttons in web ui
-    GBS::GBS_PRESET_ID::write(0x21);
 
     unsigned long timeout = millis();
     while ((!getStatus16SpHsStable()) && (millis() - timeout < 2002)) {
@@ -5414,8 +5502,8 @@ void bypassModeSwitch_RGBHV()
         GBS::DEC_TEST_ENABLE::write(0); // no need for decimation test to be enabled
     }
 
-    rto->presetID = 0x22; // bypass flavor 2, used to signal buttons in web ui
-    GBS::GBS_PRESET_ID::write(0x22);
+    rto->presetID = PresetBypassRGBHV; // bypass flavor 2, used to signal buttons in web ui
+    GBS::GBS_PRESET_ID::write(PresetBypassRGBHV);
     delay(200);
 }
 
@@ -7240,7 +7328,7 @@ void setup()
             saveUserPrefs(); // if this fails, there must be a spiffs problem
         } else {
             //on a fresh / spiffs not formatted yet MCU:  userprefs.txt open ok //result = 207
-            uopt->presetPreference = (OutputMode)(f.read() - '0'); // #1
+            uopt->presetPreference = (PresetPreference)(f.read() - '0'); // #1
             if (uopt->presetPreference > 10)
                 uopt->presetPreference = Output960P; // fresh spiffs ?
 
@@ -7543,11 +7631,11 @@ void updateWebSocketData()
                 case 0x16:
                     toSend[1] = '6';
                     break;
-                case 0x09: // custom
+                case PresetCustomized: // custom
                     toSend[1] = '9';
                     break;
-                case 0x21: // bypass 1
-                case 0x22: // bypass 2
+                case PresetHdBypass: // bypass 1
+                case PresetBypassRGBHV: // bypass 2
                     toSend[1] = '8';
                     break;
                 default:
@@ -8082,7 +8170,7 @@ void loop()
                 uint8_t videoMode = getVideoMode();
                 if (videoMode == 0)
                     videoMode = rto->videoStandardInput;
-                OutputMode backup = uopt->presetPreference;
+                PresetPreference backup = uopt->presetPreference;
                 uopt->presetPreference = Output720P;
                 rto->videoStandardInput = 0; // force hard reset
                 applyPresets(videoMode);
