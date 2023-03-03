@@ -238,13 +238,15 @@ enum PresetPreference : uint8_t {
     OutputBypass = 10,
 };
 
+using Ascii8 = uint8_t;
+
 // userOptions holds user preferences / customizations
 struct userOptions
 {
     // 0 - normal, 1 - x480/x576, 2 - customized, 3 - 1280x720, 4 - 1280x1024, 5 - 1920x1080,
     // 6 - downscale, 10 - bypass
     PresetPreference presetPreference;
-    uint8_t presetSlot;
+    Ascii8 presetSlot;
     uint8_t enableFrameTimeLock;
     uint8_t frameTimeLockMethod;
     uint8_t enableAutoGain;
@@ -7144,7 +7146,7 @@ void loadDefaultUserOptions()
 {
     uopt->presetPreference = Output960P;    // #1
     uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
-    uopt->presetSlot = 0;          //
+    uopt->presetSlot = 'A';          //
     uopt->frameTimeLockMethod = 0; // compatibility with more displays
     uopt->enableAutoGain = 0;
     uopt->wantScanlines = 0;
@@ -7337,8 +7339,6 @@ void setup()
                 uopt->enableFrameTimeLock = 0;
 
             uopt->presetSlot = lowByte(f.read());
-            if (uopt->presetSlot >= SLOTS_TOTAL)
-                uopt->presetSlot = 0;
 
             uopt->frameTimeLockMethod = (uint8_t)(f.read() - '0');
             if (uopt->frameTimeLockMethod > 1)
@@ -7603,7 +7603,8 @@ void updateWebSocketData()
     if (rto->webServerEnabled && rto->webServerStarted) {
         if (webSocket.connectedClients() > 0) {
 
-            char toSend[7] = {0};
+            constexpr size_t MESSAGE_LEN = 6;
+            char toSend[MESSAGE_LEN] = {0};
             toSend[0] = '#'; // makeshift ping in slot 0
 
             switch (rto->presetID) {
@@ -7700,7 +7701,7 @@ void updateWebSocketData()
 
             // send ping and stats
             if (ESP.getFreeHeap() > 14000) {
-                webSocket.broadcastTXT(toSend);
+                webSocket.broadcastTXT(toSend, MESSAGE_LEN);
             } else {
                 webSocket.disconnect();
             }
@@ -9543,6 +9544,9 @@ void startWebserver()
                 AsyncWebParameter *slotIndexParam = request->getParam(0);
                 String slotIndexString = slotIndexParam->value();
                 uint8_t slotIndex = lowByte(slotIndexString.toInt());
+                if (slotIndex >= SLOTS_TOTAL) {
+                    goto fail;
+                }
 
                 // name param
                 AsyncWebParameter *slotNameParam = request->getParam(1);
@@ -9568,6 +9572,7 @@ void startWebserver()
             }
         }
 
+        fail:
         request->send(200, "application/json", result ? "true" : "false");
     });
 
@@ -9642,7 +9647,11 @@ void startWebserver()
             slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
             slotsBinaryFileRead.close();
             String slotIndexMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
-            uint8_t currentSlot = slotIndexMap.indexOf(uopt->presetSlot);
+            auto currentSlot = slotIndexMap.indexOf(uopt->presetSlot);
+            if (currentSlot == -1) {
+                goto fail;
+            }
+
             uopt->wantScanlines = slotsObject.slot[currentSlot].scanlines;
 
             SerialM.print(F("slot: "));
@@ -9663,6 +9672,7 @@ void startWebserver()
             result = true;
         }
 
+        fail:
         request->send(200, "application/json", result ? "true" : "false");
     });
 
@@ -9765,7 +9775,7 @@ const uint8_t *loadPresetFromSPIFFS(byte forVideoMode)
 {
     static uint8_t preset[432];
     String s = "";
-    uint8_t slot = 0;
+    Ascii8 slot = 0;
     File f;
 
     f = SPIFFS.open("/preferencesv2.txt", "r");
@@ -9777,9 +9787,7 @@ const uint8_t *loadPresetFromSPIFFS(byte forVideoMode)
         result[2] = f.read();
 
         f.close();
-        if (result[2] < SLOTS_TOTAL) { // # of slots
-            slot = result[2];          // otherwise not stored on spiffs
-        }
+        slot = result[2];
     } else {
         // file not found, we don't know what preset to load
         SerialM.println(F("please select a preset slot first!")); // say "slot" here to make people save usersettings
@@ -9841,7 +9849,7 @@ void savePresetToSPIFFS()
 {
     uint8_t readout = 0;
     File f;
-    uint8_t slot = 0;
+    Ascii8 slot = 0;
 
     // first figure out if the user has set a preferenced slot
     f = SPIFFS.open("/preferencesv2.txt", "r");
