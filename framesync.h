@@ -106,7 +106,8 @@ private:
 
     static const uint8_t debugInPin = Attrs::debugInPin;
     static const int16_t syncCorrection = Attrs::syncCorrection;
-    static const int32_t syncTargetPhase = Attrs::syncTargetPhase;
+    static const int32_t vsyncTargetPhase = Attrs::vsyncTargetPhase;
+    static const int32_t freqSyncTargetPhase = Attrs::freqSyncTargetPhase;
 
     static bool syncLockReady;
     static uint8_t delayLock;
@@ -418,7 +419,7 @@ public:
         if (!vsyncPeriodAndPhase(&period, NULL, &phase))
             return false;
 
-        target = (syncTargetPhase * period) / 360;
+        target = (vsyncTargetPhase * period) / 360;
 
         if (phase > target)
             correction = 0;
@@ -601,7 +602,7 @@ public:
         }
 
         // ESP CPU cycles
-        int32_t target = (syncTargetPhase * periodInput) / 360;
+        int32_t target = (freqSyncTargetPhase * periodInput) / 360;
 
         // Latency error (distance behind target), in fractional frames.
         // If latency increases, boost frequency, and vice versa.
@@ -650,7 +651,7 @@ public:
         fsDebugPrintf(
             "periodInput=%d, fpsInput=%f, latency_err_frames=%f from %f, "
             "fpsOutput=%f := %f\n",
-            periodInput, fpsInput, latency_err_frames, (float)syncTargetPhase / 360.f,
+            periodInput, fpsInput, latency_err_frames, (float)freqSyncTargetPhase / 360.f,
             prevFpsOutput, fpsOutput);
 
         const auto freqExtClockGen = (uint32_t)(maybeFreqExt_per_videoFps * fpsOutput);

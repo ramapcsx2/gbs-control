@@ -383,8 +383,9 @@ struct FrameSyncAttrs
     static const uint8_t debugInPin = DEBUG_IN_PIN;
     static const uint32_t lockInterval = 100 * 16.70; // every 100 frames
     static const int16_t syncCorrection = 2;          // Sync correction in scanlines to apply when phase lags target
-    static const int32_t syncTargetPhase = 90;        // Target vsync phase offset (output trails input) in degrees
+    static const int32_t vsyncTargetPhase = 90;       // Target vsync phase offset (output trails input) in degrees
                                                       // to debug: syncTargetPhase = 343 lockInterval = 15 * 16
+    static const int32_t freqSyncTargetPhase = 45;    // Target phase offset when using more precise frequency-based mode
 };
 typedef FrameSyncManager<GBS, FrameSyncAttrs> FrameSync;
 
