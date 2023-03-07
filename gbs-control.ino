@@ -491,42 +491,49 @@ void externalClockGenSyncInOutRate()
     delay(1);
 }
 
-void externalClockGenDetectPresence()
+void externalClockGenDetectAndInitialize()
 {
-    if (uopt->disableExternalClockGenerator) {
-        SerialM.println(F("ExternalClockGenerator disabled, skipping detection"));
-    } else {
-        const uint8_t siAddress = 0x60; // default Si5351 address
-        uint8_t retVal = 0;
+    const uint8_t xtal_cl = 0xD2; // 10pF, other choices are 8pF (0x92) and 6pF (0x52) NOTE: Per AN619, the low bytes should be written 0b010010
 
-        Wire.beginTransmission(siAddress);
-        // want to see some bits on reg 183, on reset at least [7:6] should be high
-        Wire.write(183);
-        Wire.endTransmission();
-        Wire.requestFrom(siAddress, (uint8_t)1, (uint8_t)0);
-
-        while (Wire.available()) {
-            retVal = Wire.read();
-            Serial.println();
-            Serial.println(retVal);
-        }
-
-        if (retVal == 0) {
-            rto->extClockGenDetected = 0;
-        } else {
-            rto->extClockGenDetected = 1;
-        }
-    }
-}
-
-void externalClockGenInitialize()
-{
     // MHz: 27, 32.4, 40.5, 54, 64.8, 81, 108, 129.6, 162
     rto->freqExtClockGen = 81000000;
-    if (!rto->extClockGenDetected) {
+    rto->extClockGenDetected = 0;
+
+    if (uopt->disableExternalClockGenerator) {
+        SerialM.println(F("ExternalClockGenerator disabled, skipping detection"));
         return;
     }
+
+    uint8_t retVal = 0;
+    Wire.beginTransmission(SIADDR);
+    retVal = Wire.endTransmission();
+
+    if (retVal != 0) {
+        return;
+    }
+
+    Wire.beginTransmission(SIADDR);
+    Wire.write(0); // Device Status
+    Wire.endTransmission();
+    size_t bytes_read = Wire.requestFrom((uint8_t)SIADDR, (size_t)1, false);
+
+    if (bytes_read == 1) {
+        retVal = Wire.read();
+        if ((retVal & 0x80) == 0) {
+            // SYS_INIT indicates device is ready.
+            rto->extClockGenDetected = 1;
+        } else {
+            return;
+        }
+    } else {
+        return;
+    }
+
     Si.init(25000000L); // many Si5351 boards come with 25MHz crystal; 27000000L for one with 27MHz
+    Wire.beginTransmission(SIADDR);
+    Wire.write(183);    // XTAL_CL
+    Wire.write(xtal_cl);
+    Wire.endTransmission();
     Si.setPower(0, SIOUT_6mA);
     Si.setFreq(0, rto->freqExtClockGen);
     Si.disable(0);
@@ -7418,8 +7425,7 @@ void setup()
 
 
     GBS::PAD_CKIN_ENZ::write(1); // disable to prevent startup spike damage
-    externalClockGenDetectPresence();
-    externalClockGenInitialize(); // sets rto->extClockGenDetected
+    externalClockGenDetectAndInitialize();
     // library may change i2c clock or pins, so restart
     startWire();
     GBS::STATUS_00::read();
@@ -7487,8 +7493,7 @@ void setup()
         // second init, in cases where i2c got stuck earlier but has recovered
         // *if* ext clock gen is installed and *if* i2c got stuck, then clockgen must be already running
         if (!rto->extClockGenDetected) {
-            externalClockGenDetectPresence(); // sets rto->extClockGenDetected
-            externalClockGenInitialize();
+            externalClockGenDetectAndInitialize();
         }
         if (rto->extClockGenDetected == 1) {
             Serial.println(F("ext clockgen detected"));
