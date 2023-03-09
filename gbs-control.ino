@@ -8529,6 +8529,8 @@ void loop()
                         }
                     } else if (what.equals("vt")) {
                         set_vtotal(value);
+                    } else if (what.equals("hscl")) {
+                        GBS::VDS_HSCALE::write(value);
                     } else if (what.equals("hsst")) {
                         setHSyncStartPosition(value);
                     } else if (what.equals("hssp")) {
