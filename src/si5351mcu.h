@@ -54,8 +54,11 @@
 #include "Arduino.h"
 #include "Wire.h"
 
-// default I2C address of the Si5351
+// default I2C address of the Si5351A - other variants may differ
 #define SIADDR 0x60
+
+// The number of output channels - 3 for Si5351A 10 pin
+#define SICHANNELS 3
 
 // register's power modifiers
 #define SIOUT_2mA 0
@@ -64,47 +67,11 @@
 #define SIOUT_8mA 3
 
 // registers base (2mA by default)
-#define SICLK0_R   76       // 0b1001100
-#define SICLK12_R 108       // 0b1101100
-
+#define SICLK0_R   76       // 0b01001100
+#define SICLK12_R 108       // 0b01101100
 
 class Si5351mcu {
-    public:
-        // default init procedure
-        void init(void);
-
-        // custom init procedure (XTAL in Hz);
-        void init(uint32_t);
-
-        // reset all PLLs
-        void reset(void);
-
-        // set CLKx(0..2) to freq (Hz)
-        void setFreq(uint8_t, uint32_t);
-
-        // pass a correction factor
-        void correction(int32_t);
-
-        // enable some CLKx output
-        void enable(uint8_t);
-
-        // disable some CLKx output
-        void disable(uint8_t);
-
-        // disable all outputs
-        void off(void);
-
-        // set power output to a specific clk
-        void setPower(uint8_t, uint8_t);
-
-        // var to check the clock state
-        bool clkOn[3] = {0, 0, 0};
-
-
     private:
-        // used to talk with the chip, via Arduino Wire lib
-        void i2cWrite(uint8_t, uint8_t);
-
         // base xtal freq, over this we apply the correction factor
         // by default 27 MHz
         uint32_t base_xtal = 27000000L;
@@ -114,7 +81,7 @@ class Si5351mcu {
         uint32_t int_xtal = base_xtal;
 
         // clk# power holders (2ma by default)
-        uint8_t clkpower[3] = {0, 0, 0};
+        uint8_t clkpower[SICHANNELS] = { 0 };
 
         // local var to keep track of when to reset the "pll"
         /*********************************************************
@@ -134,7 +101,65 @@ class Si5351mcu {
          *
          * It's a word (16 bit) because the final max value is 900
          *********************************************************/
-        uint16_t omsynth[3] = {0, 0, 0};
+        uint16_t  omsynth[SICHANNELS] = { 0 };
+        uint8_t   o_Rdiv[SICHANNELS] = { 0 };
+
+    public:
+        // var to check the clock state
+        bool clkOn[SICHANNELS] = { 0 };     // This should not really be public - use isEnabled()
+
+    public:
+        // default init procedure
+        void init(void);
+
+        // custom init procedure (XTAL in Hz);
+        void init(uint32_t);
+
+        // reset all PLLs
+        static void reset(void);
+
+        // set CLKx(0..2) to freq (Hz)
+        void setFreq(uint8_t, uint32_t);
+
+        // pass a correction factor
+        void correction(int32_t);
+
+        // enable some CLKx output
+        void enable(uint8_t);
+
+        // disable some CLKx output
+        void disable(uint8_t);
+
+        // disable all outputs
+        void off(void);
+
+        // set power output to a specific clk
+        void setPower(uint8_t, uint8_t);
+
+        // used to talk with the chip, via Arduino Wire lib
+        //
+        // declared as static, since they do not reference any this-> class attributes
+        //
+        static void     i2cWrite( const uint8_t reg, const uint8_t val );
+        static uint8_t  i2cWriteBurst( const uint8_t start_register, const uint8_t *data, const uint8_t numbytes );
+        static int16_t  i2cRead( const uint8_t reg );
+        
+        inline const bool isEnabled( const uint8_t channel ) {
+          return channel < SICHANNELS && clkOn[ channel ] != 0;
+        };
+        
+        inline const uint8_t getPower( const uint8_t channel ) {
+          return channel < SICHANNELS ? clkpower[ channel ] : 0;  
+        };
+
+        inline const uint32_t getXtalBase( void ) {
+          return base_xtal;
+        };
+
+        inline const uint32_t getXtalCurrent( void ) {
+          return int_xtal;
+        };
+        
 };
 
 

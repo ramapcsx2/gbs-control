@@ -37,7 +37,7 @@
  * This is the default init procedure, it set the Si5351 with this params:
  * XTAL 27.000 Mhz
  *****************************************************************************/
- void Si5351mcu::init() {
+ void Si5351mcu::init(void) {
     // init with the default freq
     init(int_xtal);
 }
@@ -53,6 +53,12 @@
 
     // start I2C (wire) procedures
     Wire.begin();
+
+    // shut off the spread spectrum by default, DWaite contibuted code  
+    uint8_t regval;
+    regval = i2cRead(149);
+    regval &= ~0x80;  // set bit 7 LOW to turn OFF spread spectrum mode
+    i2cWrite(149, regval);
 
     // power off all the outputs
     off();
@@ -77,7 +83,7 @@
  * [See the README.md file for other details]
  ****************************************************************************/
 void Si5351mcu::setFreq(uint8_t clk, uint32_t freq) {
-    uint8_t a, R = 1, shifts = 0;
+    uint8_t a, R = 1, pll_stride = 0, msyn_stride = 0;
     uint32_t b, c, f, fvco, outdivider;
     uint32_t MSx_P1, MSNx_P1, MSNx_P2, MSNx_P3;
 
@@ -118,6 +124,7 @@ void Si5351mcu::setFreq(uint8_t clk, uint32_t freq) {
 
     // we have now the integer part of the output msynth
     // the b & c is fixed below
+    
     MSx_P1 = 128 * outdivider - 512;
 
     // calc the a/b/c for the PLL Msynth
@@ -135,7 +142,7 @@ void Si5351mcu::setFreq(uint8_t clk, uint32_t freq) {
     *
     ****************************************************************************/
     a = fvco / int_xtal;
-    b = (fvco % int_xtal) >> 5;     // Integer par of the fraction
+    b = (fvco % int_xtal) >> 5;     // Integer part of the fraction
                                     // scaled to match "c" limits
     c = int_xtal >> 5;              // "c" scaled to match it's limits
                                     // in the register
@@ -148,50 +155,90 @@ void Si5351mcu::setFreq(uint8_t clk, uint32_t freq) {
     MSNx_P2 = 128 * b - f * c;
     MSNx_P3 = c;
 
-    // PLLs and CLK# registers are allocated with a shift, we handle that with
-    // the shifts var to make code smaller
-    if (clk > 0 ) shifts = 8;
+    // PLLs and CLK# registers are allocated with a stride, we handle that with
+    // the stride var to make code smaller
+    if (clk > 0 ) pll_stride = 8;
 
-    // plls, A & B registers separated by 8 bytes
-    i2cWrite(26 + shifts, (MSNx_P3 & 65280) >> 8);   // Bits [15:8] of MSNx_P3 in register 26
-    i2cWrite(27 + shifts, MSNx_P3 & 255);
-    i2cWrite(28 + shifts, (MSNx_P1 & 196608) >> 16);
-    i2cWrite(29 + shifts, (MSNx_P1 & 65280) >> 8);   // Bits [15:8]  of MSNx_P1 in register 29
-    i2cWrite(30 + shifts, MSNx_P1 & 255);            // Bits [7:0]  of MSNx_P1 in register 30
-    i2cWrite(31 + shifts, ((MSNx_P3 & 983040) >> 12) | ((MSNx_P2 & 983040) >> 16)); // Parts of MSNx_P3 and MSNx_P1
-    i2cWrite(32 + shifts, (MSNx_P2 & 65280) >> 8);   // Bits [15:8]  of MSNx_P2 in register 32
-    i2cWrite(33 + shifts, MSNx_P2 & 255);            // Bits [7:0]  of MSNx_P2 in register 33
+    // HEX makes it easier to human read on bit shifts
+    uint8_t reg_bank_26[] = { 
+      (MSNx_P3 & 0xFF00) >> 8,          // Bits [15:8] of MSNx_P3 in register 26
+      MSNx_P3 & 0xFF,
+      (MSNx_P1 & 0x030000L) >> 16,
+      (MSNx_P1 & 0xFF00) >> 8,          // Bits [15:8]  of MSNx_P1 in register 29
+      MSNx_P1 & 0xFF,                   // Bits [7:0]  of MSNx_P1 in register 30
+      ((MSNx_P3 & 0x0F0000L) >> 12) | ((MSNx_P2 & 0x0F0000) >> 16), // Parts of MSNx_P3 and MSNx_P1
+      (MSNx_P2 & 0xFF00) >> 8,          // Bits [15:8]  of MSNx_P2 in register 32
+      MSNx_P2 & 0xFF                    // Bits [7:0]  of MSNx_P2 in register 33
+    };
+
+    // We could do this here - but move it next to the reg_bank_42 write
+    // i2cWriteBurst(26 + pll_stride, reg_bank_26, sizeof(reg_bank_26));
 
     // Write the output divider msynth only if we need to, in this way we can
     // speed up the frequency changes almost by half the time most of the time
     // and the main goal is to avoid the nasty click noise on freq change
-    if (omsynth[clk] != outdivider) {
-        // CLK# registers are exactly 8 * clk# bytes shifted from a base register.
-        shifts = clk * 8;
+    if (omsynth[clk] != outdivider || o_Rdiv[clk] != R ) {
+      
+        // CLK# registers are exactly 8 * clk# bytes stride from a base register.
+        msyn_stride = clk * 8;
 
-        // multisynths
-        i2cWrite(42 + shifts, 0);                        // Bits [15:8] of MS0_P3 (always 0) in register 42
-        i2cWrite(43 + shifts, 1);                        // Bits [7:0]  of MS0_P3 (always 1) in register 43
-        // See datasheet, special trick when R=4
-        if (outdivider == 4) {
-            i2cWrite(44 + shifts, 12 | R);
-            i2cWrite(45 + shifts, 0);            // Bits [15:8] of MSx_P1 must be 0
-            i2cWrite(46 + shifts, 0);            // Bits [7:0] of MSx_P1 must be 0
-        } else {
-            i2cWrite(44 + shifts, ((MSx_P1 & 196608) >> 16) | R);  // Bits [17:16] of MSx_P1 in bits [1:0] and R in [7:4]
-            i2cWrite(45 + shifts, (MSx_P1 & 65280) >> 8);    // Bits [15:8]  of MSx_P1 in register 45
-            i2cWrite(46 + shifts, MSx_P1 & 255);             // Bits [7:0]  of MSx_P1 in register 46
+        // keep track of the change
+        omsynth[clk] = (uint16_t) outdivider;
+        o_Rdiv[clk] = R;    // cache it now, before we OR mask up R for special divide by 4
+
+        // See datasheet, special trick when MSx == 4
+        //    MSx_P1 is always 0 if outdivider == 4, from the above equations, so there is 
+        //    no need to set it to 0. ... MSx_P1 = 128 * outdivider - 512;
+        //  
+        //        See para 4.1.3 on the datasheet.
+        // 
+        
+        if ( outdivider == 4 ) {
+          R |= 0x0C;    // bit set OR mask for MSYNTH divide by 4, for reg 44 {3:2]
         }
-        i2cWrite(47 + shifts, 0);                        // Bits [19:16] of MS0_P2 and MS0_P3 are always 0
-        i2cWrite(48 + shifts, 0);                        // Bits [15:8]  of MS0_P2 are always 0
-        i2cWrite(49 + shifts, 0);                        // Bits [7:0]   of MS0_P2 are always 0
+        
+        // HEX makes it easier to human read on bit shifts
+        uint8_t reg_bank_42[] = { 
+          0,                         // Bits [15:8] of MS0_P3 (always 0) in register 42
+          1,                         // Bits [7:0]  of MS0_P3 (always 1) in register 43
+          ((MSx_P1 & 0x030000L ) >> 16) | R,  // Bits [17:16] of MSx_P1 in bits [1:0] and R in [7:4] | [3:2]
+          (MSx_P1 & 0xFF00) >> 8,    // Bits [15:8]  of MSx_P1 in register 45
+          MSx_P1 & 0xFF,             // Bits [7:0]  of MSx_P1 in register 46
+          0,                         // Bits [19:16] of MS0_P2 and MS0_P3 are always 0
+          0,                         // Bits [15:8]  of MS0_P2 are always 0
+          0                          // Bits [7:0]   of MS0_P2 are always 0
+        };
+        
+        // Get the two write bursts as close together as possible,
+        // to attempt to reduce any more click glitches.  This is   
+        // at the expense of only 24 increased bytes compilation size in AVR 328.
+        // Everything is already precalculated above, reducing any delay,  
+        // by not doing calculations between the burst writes.
+        
+        i2cWriteBurst(26 + pll_stride, reg_bank_26, sizeof(reg_bank_26));
+        i2cWriteBurst(42 + msyn_stride, reg_bank_42, sizeof(reg_bank_42));
 
+        // 
+        // https://www.silabs.com/documents/public/application-notes/Si5350-Si5351%20FAQ.pdf
+        // 
+        // 11.1 "The Int, R and N register values inside the Interpolative Dividers are updated 
+        //      when the LSB of R is written via I2C." - Q. does this mean reg 44 or 49 (misprint ?) ???
+        //
+        // 10.1 "All outputs are within +/- 500ps of one another at power up (if pre-programmed) 
+        //      or if PLLA and PLLB are reset simultaneously via register 177."
+        // 
+        // 17.1 "The PLL can track any abrupt input frequency changes of 3–4% without losing 
+        //      lock to it. Any input frequency changes greater than this amount will not 
+        //      necessarily track from the input to the output 
+        
         // must reset the so called "PLL", in fact the output msynth
         reset();
 
-        // keep track of the change
-        omsynth[clk] = (uint16_t)outdivider;
     }
+    else {
+          i2cWriteBurst(26 + pll_stride, reg_bank_26, sizeof(reg_bank_26));
+    }
+
 }
 
 
@@ -221,9 +268,11 @@ void Si5351mcu::reset(void) {
  * This allows to keep the chip warm and exactly on freq the next time you
  * enable an output.
  ****************************************************************************/
-void Si5351mcu::off() {
+void Si5351mcu::off(void) {
     // This disable all the CLK outputs
-    for (byte i=0; i<3; i++) disable(i);
+    for (byte i=0; i < SICHANNELS; i++) {
+      disable(i);
+    }
 }
 
 
@@ -245,12 +294,15 @@ void Si5351mcu::correction(int32_t diff) {
 /*****************************************************************************
  * This function enables the selected output
  *
- * Beware: ZERO is clock output enabled
+ * Beware: ZERO is clock output enabled, in register 16+CLK
  *****************************************************************************/
 void Si5351mcu::enable(uint8_t clk) {
     // var to handle the mask of the registers value
     uint8_t m = SICLK0_R;
-    if (clk > 0) m = SICLK12_R;
+    
+    if (clk > 0) {
+      m = SICLK12_R;
+    }
 
     // write the register value
     i2cWrite(16 + clk, m + clkpower[clk]);
@@ -267,11 +319,11 @@ void Si5351mcu::enable(uint8_t clk) {
 /*****************************************************************************
  * This function disables the selected output
  *
- * Beware: ONE is clock output disabled
+ * Beware: ONE is clock output disabled, in register 16+CLK
  * *****************************************************************************/
 void Si5351mcu::disable(uint8_t clk) {
     // send
-    i2cWrite(16 + clk, 128);
+    i2cWrite(16 + clk, 0x80);
 
     // update the status of the clk
     clkOn[clk] = 0;
@@ -281,7 +333,7 @@ void Si5351mcu::disable(uint8_t clk) {
 /****************************************************************************
  * Set the power output for each output independently
  ***************************************************************************/
-void Si5351mcu::setPower(byte clk, byte power) {
+void Si5351mcu::setPower(uint8_t clk, uint8_t power) {
     // set the power to the correct var
     clkpower[clk] = power;
 
@@ -289,13 +341,54 @@ void Si5351mcu::setPower(byte clk, byte power) {
     enable(clk);
 }
 
+/****************************************************************************
+ * method to send multi-byte burst register data.
+ ***************************************************************************/
+uint8_t Si5351mcu::i2cWriteBurst( const uint8_t start_register, 
+                                const uint8_t *data, 
+                                const uint8_t numbytes) {
+
+    // This method saves the massive overhead of having to keep opening
+    // and closing the I2C bus for consecutive register writes.  It 
+    // also saves numbytes - 1 writes for register address selection.
+    Wire.beginTransmission(SIADDR);
+
+    Wire.write(start_register);
+    Wire.write(data, numbytes);
+    // All of the bytes queued up in the above write() calls are buffered
+    // up and will be sent to the slave in one "burst", on the call to
+    // endTransmission().  This also sends the I2C STOP to the Slave.
+    return Wire.endTransmission();
+    // returns non zero on error
+}
 
 /****************************************************************************
- * Private function to send the register data to the Si5351, arduino way.
+ * function to send the register data to the Si5351, arduino way.
  ***************************************************************************/
-void Si5351mcu::i2cWrite(byte regist, byte value){
+void Si5351mcu::i2cWrite( const uint8_t regist, const uint8_t value) {
+    // Using the "burst" method instead of 
+    // doing it longhand saves a few bytes
+    i2cWriteBurst( regist, &value, 1);
+        
+}
+
+/****************************************************************************
+ * Read i2C register, returns -1 on error or timeout
+ ***************************************************************************/
+int16_t  Si5351mcu::i2cRead( const uint8_t regist ) {
+    int value;
+
     Wire.beginTransmission(SIADDR);
     Wire.write(regist);
-    Wire.write(value);
     Wire.endTransmission();
+    
+    Wire.requestFrom(SIADDR, 1);
+    if ( Wire.available() ) {
+      value = Wire.read();
+    }
+    else {
+      value = -1;   // "EOF" in C
+    }
+
+    return value;
 }
