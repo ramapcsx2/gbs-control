@@ -5786,7 +5786,7 @@ boolean snapToIntegralFrameRate(void)
 
 void printInfo()
 {
-    static char print[114]; // 108 + 1 minimum
+    static char print[121]; // Increase if compiler complains about sprintf
     static uint8_t clearIrqCounter = 0;
     static uint8_t lockCounterPrevious = 0;
     uint8_t lockCounter = 0;
