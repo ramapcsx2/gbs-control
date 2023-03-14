@@ -7173,7 +7173,7 @@ void loadDefaultUserOptions()
 //  //system_phy_set_powerup_option(3); // 0 = default, use init byte; 3 = full calibr. each boot, extra 200ms
 //  system_phy_set_powerup_option(0);
 //}
-void ICACHE_RAM_ATTR isrRotaryEncoder()
+void IRAM_ATTR isrRotaryEncoder()
 {
     static unsigned long lastInterruptTime = 0;
     unsigned long interruptTime = millis();

@@ -43,7 +43,7 @@ namespace MeasurePeriod {
         attachInterrupt(DEBUG_IN_PIN, _risingEdgeISR_prepare, RISING);
     }
 
-    void ICACHE_RAM_ATTR _risingEdgeISR_prepare()
+    void IRAM_ATTR _risingEdgeISR_prepare()
     {
         noInterrupts();
         //startTime = ESP.getCycleCount();
@@ -55,7 +55,7 @@ namespace MeasurePeriod {
         interrupts();
     }
 
-    void ICACHE_RAM_ATTR _risingEdgeISR_measure()
+    void IRAM_ATTR _risingEdgeISR_measure()
     {
         noInterrupts();
         //stopTime = ESP.getCycleCount();
