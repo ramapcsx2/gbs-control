@@ -140,26 +140,26 @@ class Si5351mcu {
         //
         // declared as static, since they do not reference any this-> class attributes
         //
-        static void     i2cWrite( const uint8_t reg, const uint8_t val );
-        static uint8_t  i2cWriteBurst( const uint8_t start_register, const uint8_t *data, const uint8_t numbytes );
-        static int16_t  i2cRead( const uint8_t reg );
-        
-        inline const bool isEnabled( const uint8_t channel ) {
+        static void     i2cWrite( uint8_t reg, uint8_t val );
+        static uint8_t  i2cWriteBurst( uint8_t start_register, const uint8_t *data, uint8_t numbytes );
+        static int16_t  i2cRead( uint8_t reg );
+
+        inline bool isEnabled( const uint8_t channel ) {
           return channel < SICHANNELS && clkOn[ channel ] != 0;
         };
-        
-        inline const uint8_t getPower( const uint8_t channel ) {
-          return channel < SICHANNELS ? clkpower[ channel ] : 0;  
+
+        inline uint8_t getPower( const uint8_t channel ) {
+          return channel < SICHANNELS ? clkpower[ channel ] : 0;
         };
 
-        inline const uint32_t getXtalBase( void ) {
+        inline uint32_t getXtalBase( void ) {
           return base_xtal;
         };
 
-        inline const uint32_t getXtalCurrent( void ) {
+        inline uint32_t getXtalCurrent( void ) {
           return int_xtal;
         };
-        
+
 };
 
 
