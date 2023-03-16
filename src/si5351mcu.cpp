@@ -54,7 +54,7 @@
     // start I2C (wire) procedures
     Wire.begin();
 
-    // shut off the spread spectrum by default, DWaite contibuted code  
+    // shut off the spread spectrum by default, DWaite contibuted code
     uint8_t regval;
     regval = i2cRead(149);
     regval &= ~0x80;  // set bit 7 LOW to turn OFF spread spectrum mode
@@ -124,7 +124,7 @@ void Si5351mcu::setFreq(uint8_t clk, uint32_t freq) {
 
     // we have now the integer part of the output msynth
     // the b & c is fixed below
-    
+
     MSx_P1 = 128 * outdivider - 512;
 
     // calc the a/b/c for the PLL Msynth
@@ -159,8 +159,10 @@ void Si5351mcu::setFreq(uint8_t clk, uint32_t freq) {
     // the stride var to make code smaller
     if (clk > 0 ) pll_stride = 8;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnarrowing"
     // HEX makes it easier to human read on bit shifts
-    uint8_t reg_bank_26[] = { 
+    uint8_t reg_bank_26[] = {
       (MSNx_P3 & 0xFF00) >> 8,          // Bits [15:8] of MSNx_P3 in register 26
       MSNx_P3 & 0xFF,
       (MSNx_P1 & 0x030000L) >> 16,
@@ -170,6 +172,7 @@ void Si5351mcu::setFreq(uint8_t clk, uint32_t freq) {
       (MSNx_P2 & 0xFF00) >> 8,          // Bits [15:8]  of MSNx_P2 in register 32
       MSNx_P2 & 0xFF                    // Bits [7:0]  of MSNx_P2 in register 33
     };
+#pragma GCC diagnostic pop
 
     // We could do this here - but move it next to the reg_bank_42 write
     // i2cWriteBurst(26 + pll_stride, reg_bank_26, sizeof(reg_bank_26));
@@ -178,7 +181,7 @@ void Si5351mcu::setFreq(uint8_t clk, uint32_t freq) {
     // speed up the frequency changes almost by half the time most of the time
     // and the main goal is to avoid the nasty click noise on freq change
     if (omsynth[clk] != outdivider || o_Rdiv[clk] != R ) {
-      
+
         // CLK# registers are exactly 8 * clk# bytes stride from a base register.
         msyn_stride = clk * 8;
 
@@ -187,18 +190,20 @@ void Si5351mcu::setFreq(uint8_t clk, uint32_t freq) {
         o_Rdiv[clk] = R;    // cache it now, before we OR mask up R for special divide by 4
 
         // See datasheet, special trick when MSx == 4
-        //    MSx_P1 is always 0 if outdivider == 4, from the above equations, so there is 
+        //    MSx_P1 is always 0 if outdivider == 4, from the above equations, so there is
         //    no need to set it to 0. ... MSx_P1 = 128 * outdivider - 512;
-        //  
+        //
         //        See para 4.1.3 on the datasheet.
-        // 
-        
+        //
+
         if ( outdivider == 4 ) {
           R |= 0x0C;    // bit set OR mask for MSYNTH divide by 4, for reg 44 {3:2]
         }
-        
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnarrowing"
         // HEX makes it easier to human read on bit shifts
-        uint8_t reg_bank_42[] = { 
+        uint8_t reg_bank_42[] = {
           0,                         // Bits [15:8] of MS0_P3 (always 0) in register 42
           1,                         // Bits [7:0]  of MS0_P3 (always 1) in register 43
           ((MSx_P1 & 0x030000L ) >> 16) | R,  // Bits [17:16] of MSx_P1 in bits [1:0] and R in [7:4] | [3:2]
@@ -208,29 +213,30 @@ void Si5351mcu::setFreq(uint8_t clk, uint32_t freq) {
           0,                         // Bits [15:8]  of MS0_P2 are always 0
           0                          // Bits [7:0]   of MS0_P2 are always 0
         };
-        
+#pragma GCC diagnostic pop
+
         // Get the two write bursts as close together as possible,
-        // to attempt to reduce any more click glitches.  This is   
+        // to attempt to reduce any more click glitches.  This is
         // at the expense of only 24 increased bytes compilation size in AVR 328.
-        // Everything is already precalculated above, reducing any delay,  
+        // Everything is already precalculated above, reducing any delay,
         // by not doing calculations between the burst writes.
-        
+
         i2cWriteBurst(26 + pll_stride, reg_bank_26, sizeof(reg_bank_26));
         i2cWriteBurst(42 + msyn_stride, reg_bank_42, sizeof(reg_bank_42));
 
-        // 
+        //
         // https://www.silabs.com/documents/public/application-notes/Si5350-Si5351%20FAQ.pdf
-        // 
-        // 11.1 "The Int, R and N register values inside the Interpolative Dividers are updated 
+        //
+        // 11.1 "The Int, R and N register values inside the Interpolative Dividers are updated
         //      when the LSB of R is written via I2C." - Q. does this mean reg 44 or 49 (misprint ?) ???
         //
-        // 10.1 "All outputs are within +/- 500ps of one another at power up (if pre-programmed) 
+        // 10.1 "All outputs are within +/- 500ps of one another at power up (if pre-programmed)
         //      or if PLLA and PLLB are reset simultaneously via register 177."
-        // 
-        // 17.1 "The PLL can track any abrupt input frequency changes of 3–4% without losing 
-        //      lock to it. Any input frequency changes greater than this amount will not 
-        //      necessarily track from the input to the output 
-        
+        //
+        // 17.1 "The PLL can track any abrupt input frequency changes of 3–4% without losing
+        //      lock to it. Any input frequency changes greater than this amount will not
+        //      necessarily track from the input to the output
+
         // must reset the so called "PLL", in fact the output msynth
         reset();
 
@@ -299,7 +305,7 @@ void Si5351mcu::correction(int32_t diff) {
 void Si5351mcu::enable(uint8_t clk) {
     // var to handle the mask of the registers value
     uint8_t m = SICLK0_R;
-    
+
     if (clk > 0) {
       m = SICLK12_R;
     }
@@ -344,12 +350,12 @@ void Si5351mcu::setPower(uint8_t clk, uint8_t power) {
 /****************************************************************************
  * method to send multi-byte burst register data.
  ***************************************************************************/
-uint8_t Si5351mcu::i2cWriteBurst( const uint8_t start_register, 
-                                const uint8_t *data, 
+uint8_t Si5351mcu::i2cWriteBurst( const uint8_t start_register,
+                                const uint8_t *data,
                                 const uint8_t numbytes) {
 
     // This method saves the massive overhead of having to keep opening
-    // and closing the I2C bus for consecutive register writes.  It 
+    // and closing the I2C bus for consecutive register writes.  It
     // also saves numbytes - 1 writes for register address selection.
     Wire.beginTransmission(SIADDR);
 
@@ -366,10 +372,10 @@ uint8_t Si5351mcu::i2cWriteBurst( const uint8_t start_register,
  * function to send the register data to the Si5351, arduino way.
  ***************************************************************************/
 void Si5351mcu::i2cWrite( const uint8_t regist, const uint8_t value) {
-    // Using the "burst" method instead of 
+    // Using the "burst" method instead of
     // doing it longhand saves a few bytes
     i2cWriteBurst( regist, &value, 1);
-        
+
 }
 
 /****************************************************************************
@@ -381,7 +387,7 @@ int16_t  Si5351mcu::i2cRead( const uint8_t regist ) {
     Wire.beginTransmission(SIADDR);
     Wire.write(regist);
     Wire.endTransmission();
-    
+
     Wire.requestFrom(SIADDR, 1);
     if ( Wire.available() ) {
       value = Wire.read();
