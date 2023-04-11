@@ -491,19 +491,6 @@ void externalClockGenSyncInOutRate()
     delay(1);
 }
 
-void externalClockGenInitialize()
-{
-    // MHz: 27, 32.4, 40.5, 54, 64.8, 81, 108, 129.6, 162
-    rto->freqExtClockGen = 81000000;
-    if (!rto->extClockGenDetected) {
-        return;
-    }
-    Si.init(25000000L); // many Si5351 boards come with 25MHz crystal; 27000000L for one with 27MHz
-    Si.setPower(0, SIOUT_6mA);
-    Si.setFreq(0, rto->freqExtClockGen);
-    Si.disable(0);
-}
-
 void externalClockGenDetectPresence()
 {
     if (uopt->disableExternalClockGenerator) {
@@ -530,6 +517,19 @@ void externalClockGenDetectPresence()
             rto->extClockGenDetected = 1;
         }
     }
+}
+
+void externalClockGenInitialize()
+{
+    // MHz: 27, 32.4, 40.5, 54, 64.8, 81, 108, 129.6, 162
+    rto->freqExtClockGen = 81000000;
+    if (!rto->extClockGenDetected) {
+        return;
+    }
+    Si.init(25000000L); // many Si5351 boards come with 25MHz crystal; 27000000L for one with 27MHz
+    Si.setPower(0, SIOUT_6mA);
+    Si.setFreq(0, rto->freqExtClockGen);
+    Si.disable(0);
 }
 
 static inline void writeOneByte(uint8_t slaveRegister, uint8_t value)
