@@ -3310,7 +3310,9 @@ void doPostPresetLoadSteps()
     GBS::ADC_UNUSED_67::write(0); // clear temp storage
     GBS::PAD_CKIN_ENZ::write(0);  // 0 = clock input enable (pin40)
 
-    prepareSyncProcessor(); // todo: handle modes 14 and 15 better, now that they support scaling
+    if (!rto->isCustomPreset) {
+        prepareSyncProcessor(); // todo: handle modes 14 and 15 better, now that they support scaling
+    }
     if (rto->videoStandardInput == 14) {
         // copy of code in bypassModeSwitch_RGBHV
         if (rto->syncTypeCsync == false) {
