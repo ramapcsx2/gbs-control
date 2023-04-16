@@ -7953,12 +7953,10 @@ void loop()
                 SerialM.print(F("auto gain "));
                 if (uopt->enableAutoGain == 0) {
                     uopt->enableAutoGain = 1;
-                    if (!rto->outModeHdBypass) { // no readout possible
-                        GBS::ADC_RGCTRL::write(0x48);
-                        GBS::ADC_GGCTRL::write(0x48);
-                        GBS::ADC_BGCTRL::write(0x48);
-                        GBS::DEC_TEST_ENABLE::write(1);
-                    }
+                    GBS::ADC_RGCTRL::write(0x48);
+                    GBS::ADC_GGCTRL::write(0x48);
+                    GBS::ADC_BGCTRL::write(0x48);
+                    GBS::DEC_TEST_ENABLE::write(1);
                     SerialM.println("on");
                 } else {
                     uopt->enableAutoGain = 0;
