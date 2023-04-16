@@ -8730,7 +8730,9 @@ void loop()
         lastTimeSyncWatcher = millis();
 
         // auto adc gain
-        if (uopt->enableAutoGain == 1 && !rto->sourceDisconnected && rto->videoStandardInput > 0 && rto->clampPositionIsSet && rto->noSyncCounter == 0 && rto->continousStableCounter > 90 && rto->boardHasPower) {
+        if (uopt->enableAutoGain == 1 && !rto->sourceDisconnected && rto->videoStandardInput > 0 && rto->clampPositionIsSet && rto->noSyncCounter == 0 && rto->continousStableCounter > 90 && rto->boardHasPower
+            && !rto->outModeHdBypass
+        ) {
             uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
             uint16_t pllad = GBS::PLLAD_MD::read();
             if (((htotal > (pllad - 3)) && (htotal < (pllad + 3)))) {
