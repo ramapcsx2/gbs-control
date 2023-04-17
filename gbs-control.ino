@@ -3725,17 +3725,19 @@ void doPostPresetLoadSteps()
     GBS::ADC_TA_05_CTRL::write(0x02); // 5_05
 
     // auto ADC gain
-    if (uopt->enableAutoGain == 1 && adco->r_gain == 0) {
-        //SerialM.println(F("ADC gain: reset"));
-        GBS::ADC_RGCTRL::write(AUTO_GAIN_INIT);
-        GBS::ADC_GGCTRL::write(AUTO_GAIN_INIT);
-        GBS::ADC_BGCTRL::write(AUTO_GAIN_INIT);
-        GBS::DEC_TEST_ENABLE::write(1);
-    } else if (uopt->enableAutoGain == 1 && adco->r_gain != 0) {
-        GBS::ADC_RGCTRL::write(adco->r_gain);
-        GBS::ADC_GGCTRL::write(adco->g_gain);
-        GBS::ADC_BGCTRL::write(adco->b_gain);
-        GBS::DEC_TEST_ENABLE::write(1);
+    if (uopt->enableAutoGain == 1) {
+        if (adco->r_gain == 0) {
+            //SerialM.println(F("ADC gain: reset"));
+            GBS::ADC_RGCTRL::write(AUTO_GAIN_INIT);
+            GBS::ADC_GGCTRL::write(AUTO_GAIN_INIT);
+            GBS::ADC_BGCTRL::write(AUTO_GAIN_INIT);
+            GBS::DEC_TEST_ENABLE::write(1);
+        } else {
+            GBS::ADC_RGCTRL::write(adco->r_gain);
+            GBS::ADC_GGCTRL::write(adco->g_gain);
+            GBS::ADC_BGCTRL::write(adco->b_gain);
+            GBS::DEC_TEST_ENABLE::write(1);
+        }
     } else {
         GBS::DEC_TEST_ENABLE::write(0); // no need for decimation test to be enabled
     }
