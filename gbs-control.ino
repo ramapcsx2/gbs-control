@@ -3285,6 +3285,8 @@ uint32_t getPllRate()
     return retVal;
 }
 
+#define AUTO_GAIN_INIT 0x48
+
 void doPostPresetLoadSteps()
 {
     //unsigned long postLoadTimer = millis();
@@ -3725,9 +3727,9 @@ void doPostPresetLoadSteps()
     // auto ADC gain
     if (uopt->enableAutoGain == 1 && adco->r_gain == 0) {
         //SerialM.println(F("ADC gain: reset"));
-        GBS::ADC_RGCTRL::write(0x48);
-        GBS::ADC_GGCTRL::write(0x48);
-        GBS::ADC_BGCTRL::write(0x48);
+        GBS::ADC_RGCTRL::write(AUTO_GAIN_INIT);
+        GBS::ADC_GGCTRL::write(AUTO_GAIN_INIT);
+        GBS::ADC_BGCTRL::write(AUTO_GAIN_INIT);
         GBS::DEC_TEST_ENABLE::write(1);
     } else if (uopt->enableAutoGain == 1 && adco->r_gain != 0) {
         GBS::ADC_RGCTRL::write(adco->r_gain);
@@ -5503,9 +5505,9 @@ void bypassModeSwitch_RGBHV()
 
     if (uopt->enableAutoGain == 1 && adco->r_gain == 0) {
         //SerialM.println("ADC gain: reset");
-        GBS::ADC_RGCTRL::write(0x48);
-        GBS::ADC_GGCTRL::write(0x48);
-        GBS::ADC_BGCTRL::write(0x48);
+        GBS::ADC_RGCTRL::write(AUTO_GAIN_INIT);
+        GBS::ADC_GGCTRL::write(AUTO_GAIN_INIT);
+        GBS::ADC_BGCTRL::write(AUTO_GAIN_INIT);
         GBS::DEC_TEST_ENABLE::write(1);
     } else if (uopt->enableAutoGain == 1 && adco->r_gain != 0) {
         /*SerialM.println("ADC gain: keep previous");
@@ -7953,9 +7955,9 @@ void loop()
                 SerialM.print(F("auto gain "));
                 if (uopt->enableAutoGain == 0) {
                     uopt->enableAutoGain = 1;
-                    GBS::ADC_RGCTRL::write(0x48);
-                    GBS::ADC_GGCTRL::write(0x48);
-                    GBS::ADC_BGCTRL::write(0x48);
+                    GBS::ADC_RGCTRL::write(AUTO_GAIN_INIT);
+                    GBS::ADC_GGCTRL::write(AUTO_GAIN_INIT);
+                    GBS::ADC_BGCTRL::write(AUTO_GAIN_INIT);
                     GBS::DEC_TEST_ENABLE::write(1);
                     SerialM.println("on");
                 } else {
