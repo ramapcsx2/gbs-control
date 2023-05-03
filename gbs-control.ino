@@ -3318,6 +3318,20 @@ void doPostPresetLoadSteps()
 {
     //unsigned long postLoadTimer = millis();
 
+    // adco->r_gain gets applied if uopt->enableAutoGain is set.
+    if (uopt->enableAutoGain) {
+        if (uopt->presetPreference == OutputCustomized) {
+            // Loaded custom preset, we want to keep newly loaded gain. Save
+            // gain written by loadPresetFromSPIFFS -> writeProgramArrayNew.
+            adco->r_gain = GBS::ADC_RGCTRL::read();
+            adco->g_gain = GBS::ADC_GGCTRL::read();
+            adco->b_gain = GBS::ADC_BGCTRL::read();
+        } else {
+            // Loaded fixed preset. Keep adco->r_gain from before overwriting
+            // registers.
+        }
+    }
+
     //GBS::PAD_SYNC_OUT_ENZ::write(1);  // no sync out
     //GBS::DAC_RGBS_PWDNZ::write(0);    // no DAC
     //GBS::SFTRST_MEM_FF_RSTZ::write(0);  // mem fifos keep in reset
@@ -4402,13 +4416,6 @@ void applyPresets(uint8_t result)
         bypassModeSwitch_RGBHV();
         // don't go through doPostPresetLoadSteps
         return;
-    }
-
-    // get auto gain prefs
-    if (uopt->presetPreference == 2 && uopt->enableAutoGain) {
-        adco->r_gain = GBS::ADC_RGCTRL::read();
-        adco->g_gain = GBS::ADC_GGCTRL::read();
-        adco->b_gain = GBS::ADC_BGCTRL::read();
     }
 
     rto->videoStandardInput = result;
