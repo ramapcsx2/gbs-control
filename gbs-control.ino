@@ -270,6 +270,13 @@ struct userOptions *uopt = &uopts;
 // remember adc options across presets
 struct adcOptions
 {
+    // If `uopt->enableAutoGain == 1` and we're not before/during
+    // doPostPresetLoadSteps(), `adco->r_gain` must match `GBS::ADC_RGCTRL`.
+    //
+    // When we either set `uopt->enableAutoGain = 1` or call
+    // `GBS::ADC_RGCTRL::write()`, we must either call
+    // `GBS::ADC_RGCTRL::write(adco->r_gain)`, or set `adco->r_gain =
+    // GBS::ADC_RGCTRL::read()`.
     uint8_t r_gain;
     uint8_t g_gain;
     uint8_t b_gain;
@@ -1076,11 +1083,31 @@ void applyRGBPatches()
     }
 }
 
+/// Write ADC gain registers, and save in adco->r_gain to properly transfer it
+/// across loading presets or passthrough.
+void setAdcGain(uint8_t gain) {
+    // gain is actually range, increasing it dims the image.
+    GBS::ADC_RGCTRL::write(gain);
+    GBS::ADC_GGCTRL::write(gain);
+    GBS::ADC_BGCTRL::write(gain);
+
+    // Save gain for applying preset. (Gain affects passthrough presets, and
+    // loading a passthrough preset loads from adco but doesn't save to it.)
+    adco->r_gain = gain;
+    adco->g_gain = gain;
+    adco->b_gain = gain;
+}
+
 void setAdcParametersGainAndOffset()
 {
     GBS::ADC_ROFCTRL::write(0x40);
     GBS::ADC_GOFCTRL::write(0x40);
     GBS::ADC_BOFCTRL::write(0x40);
+
+    // Do not call setAdcGain() and overwrite adco->r_gain. This function should
+    // only be called during startup, or during doPostPresetLoadSteps(), and if
+    // `uopt->enableAutoGain == 1` then doPostPresetLoadSteps() will revert
+    // these writes with `adco->r_gain`.
     GBS::ADC_RGCTRL::write(0x7B);
     GBS::ADC_GGCTRL::write(0x7B);
     GBS::ADC_BGCTRL::write(0x7B);
@@ -3285,9 +3312,25 @@ uint32_t getPllRate()
     return retVal;
 }
 
+#define AUTO_GAIN_INIT 0x48
+
 void doPostPresetLoadSteps()
 {
     //unsigned long postLoadTimer = millis();
+
+    // adco->r_gain gets applied if uopt->enableAutoGain is set.
+    if (uopt->enableAutoGain) {
+        if (uopt->presetPreference == OutputCustomized) {
+            // Loaded custom preset, we want to keep newly loaded gain. Save
+            // gain written by loadPresetFromSPIFFS -> writeProgramArrayNew.
+            adco->r_gain = GBS::ADC_RGCTRL::read();
+            adco->g_gain = GBS::ADC_GGCTRL::read();
+            adco->b_gain = GBS::ADC_BGCTRL::read();
+        } else {
+            // Loaded fixed preset. Keep adco->r_gain from before overwriting
+            // registers.
+        }
+    }
 
     //GBS::PAD_SYNC_OUT_ENZ::write(1);  // no sync out
     //GBS::DAC_RGBS_PWDNZ::write(0);    // no DAC
@@ -3393,6 +3436,8 @@ void doPostPresetLoadSteps()
     setAndUpdateSogLevel(rto->currentLevelSOG);
 
     if (!rto->isCustomPreset) {
+        // Writes ADC_RGCTRL. If auto gain is enabled, ADC_RGCTRL will be
+        // overwritten further down at `uopt->enableAutoGain == 1`.
         setAdcParametersGainAndOffset();
     }
 
@@ -3723,17 +3768,18 @@ void doPostPresetLoadSteps()
     GBS::ADC_TA_05_CTRL::write(0x02); // 5_05
 
     // auto ADC gain
-    if (uopt->enableAutoGain == 1 && adco->r_gain == 0) {
-        //SerialM.println(F("ADC gain: reset"));
-        GBS::ADC_RGCTRL::write(0x48);
-        GBS::ADC_GGCTRL::write(0x48);
-        GBS::ADC_BGCTRL::write(0x48);
-        GBS::DEC_TEST_ENABLE::write(1);
-    } else if (uopt->enableAutoGain == 1 && adco->r_gain != 0) {
-        GBS::ADC_RGCTRL::write(adco->r_gain);
-        GBS::ADC_GGCTRL::write(adco->g_gain);
-        GBS::ADC_BGCTRL::write(adco->b_gain);
-        GBS::DEC_TEST_ENABLE::write(1);
+    if (uopt->enableAutoGain == 1) {
+        if (adco->r_gain == 0) {
+            // SerialM.printf("ADC gain: reset %x := %x\n", GBS::ADC_RGCTRL::read(), AUTO_GAIN_INIT);
+            setAdcGain(AUTO_GAIN_INIT);
+            GBS::DEC_TEST_ENABLE::write(1);
+        } else {
+            // SerialM.printf("ADC gain: transferred %x := %x\n", GBS::ADC_RGCTRL::read(), adco->r_gain);
+            GBS::ADC_RGCTRL::write(adco->r_gain);
+            GBS::ADC_GGCTRL::write(adco->g_gain);
+            GBS::ADC_BGCTRL::write(adco->b_gain);
+            GBS::DEC_TEST_ENABLE::write(1);
+        }
     } else {
         GBS::DEC_TEST_ENABLE::write(0); // no need for decimation test to be enabled
     }
@@ -4370,13 +4416,6 @@ void applyPresets(uint8_t result)
         bypassModeSwitch_RGBHV();
         // don't go through doPostPresetLoadSteps
         return;
-    }
-
-    // get auto gain prefs
-    if (uopt->presetPreference == 2 && uopt->enableAutoGain) {
-        adco->r_gain = GBS::ADC_RGCTRL::read();
-        adco->g_gain = GBS::ADC_GGCTRL::read();
-        adco->b_gain = GBS::ADC_BGCTRL::read();
     }
 
     rto->videoStandardInput = result;
@@ -5503,9 +5542,7 @@ void bypassModeSwitch_RGBHV()
 
     if (uopt->enableAutoGain == 1 && adco->r_gain == 0) {
         //SerialM.println("ADC gain: reset");
-        GBS::ADC_RGCTRL::write(0x48);
-        GBS::ADC_GGCTRL::write(0x48);
-        GBS::ADC_BGCTRL::write(0x48);
+        setAdcGain(AUTO_GAIN_INIT);
         GBS::DEC_TEST_ENABLE::write(1);
     } else if (uopt->enableAutoGain == 1 && adco->r_gain != 0) {
         /*SerialM.println("ADC gain: keep previous");
@@ -5570,9 +5607,7 @@ void runAutoGain()
                 limit_found = 0;
                 uint8_t level = GBS::ADC_GGCTRL::read();
                 if (level < 0xfe) {
-                    GBS::ADC_GGCTRL::write(level + 2);
-                    GBS::ADC_RGCTRL::write(level + 2);
-                    GBS::ADC_BGCTRL::write(level + 2);
+                    setAdcGain(level + 2);
 
                     // remember these gain settings
                     adco->r_gain = GBS::ADC_RGCTRL::read();
@@ -7953,12 +7988,8 @@ void loop()
                 SerialM.print(F("auto gain "));
                 if (uopt->enableAutoGain == 0) {
                     uopt->enableAutoGain = 1;
-                    if (!rto->outModeHdBypass) { // no readout possible
-                        GBS::ADC_RGCTRL::write(0x48);
-                        GBS::ADC_GGCTRL::write(0x48);
-                        GBS::ADC_BGCTRL::write(0x48);
-                        GBS::DEC_TEST_ENABLE::write(1);
-                    }
+                    setAdcGain(AUTO_GAIN_INIT);
+                    GBS::DEC_TEST_ENABLE::write(1);
                     SerialM.println("on");
                 } else {
                     uopt->enableAutoGain = 0;
@@ -9180,17 +9211,13 @@ void handleType2Command(char argument)
         case 'n':
             SerialM.print(F("ADC gain++ : "));
             uopt->enableAutoGain = 0;
-            GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() - 1);
-            GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() - 1);
-            GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() - 1);
+            setAdcGain(GBS::ADC_RGCTRL::read() - 1);
             SerialM.println(GBS::ADC_RGCTRL::read(), HEX);
             break;
         case 'o':
             SerialM.print(F("ADC gain-- : "));
             uopt->enableAutoGain = 0;
-            GBS::ADC_RGCTRL::write(GBS::ADC_RGCTRL::read() + 1);
-            GBS::ADC_GGCTRL::write(GBS::ADC_GGCTRL::read() + 1);
-            GBS::ADC_BGCTRL::write(GBS::ADC_BGCTRL::read() + 1);
+            setAdcGain(GBS::ADC_RGCTRL::read() + 1);
             SerialM.println(GBS::ADC_RGCTRL::read(), HEX);
             break;
         case 'A': {
