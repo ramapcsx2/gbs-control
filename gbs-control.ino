@@ -5264,7 +5264,7 @@ void setOutModeHdBypass(bool regsInitialized)
         GBS::HD_VB_ST::write(0x00);  // 1_43
         GBS::HD_VB_SP::write(0x40);  // 1_45
         if (rto->videoStandardInput == 3) {
-            GBS::HD_HS_ST::write(0x10);  // 1_3F
+            GBS::HD_HS_ST::write(0x54);  // 1_3F
             GBS::HD_HS_SP::write(0x864); // 1_41
             GBS::HD_VS_ST::write(0x06);  // 1_47 // VS neg
             GBS::HD_VS_SP::write(0x00);  // 1_49
