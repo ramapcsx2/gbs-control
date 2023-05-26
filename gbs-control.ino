@@ -5268,8 +5268,8 @@ void setOutModeHdBypass(bool regsInitialized)
             GBS::HD_HS_SP::write(0x864); // 1_41
             GBS::HD_VS_ST::write(0x06);  // 1_47 // VS neg
             GBS::HD_VS_SP::write(0x00);  // 1_49
-            setCsVsStart(2);
-            setCsVsStop(0);
+            setCsVsStart(525 - 5);
+            setCsVsStop(525 - 3);
         }
         if (rto->videoStandardInput == 4) {
             GBS::HD_HS_ST::write(0x10);  // 1_3F
