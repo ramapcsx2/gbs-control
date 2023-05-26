@@ -5258,7 +5258,8 @@ void setOutModeHdBypass(bool regsInitialized)
         GBS::PLLAD_KS::write(1);                                               // 5_16 post divider
         GBS::PLLAD_CKOS::write(0);                                             // 5_16 2x OS (with KS=1)
         //GBS::HD_INI_ST::write(0x76); // 1_39
-        GBS::HD_HB_ST::write(0x878); // 1_3B
+        GBS::HD_HB_ST::write(0x820); // 1_3B
+            // you *must* begin hblank before hsync.
         GBS::HD_HB_SP::write(0xa0);  // 1_3D
         GBS::HD_VB_ST::write(0x00);  // 1_43
         GBS::HD_VB_SP::write(0x40);  // 1_45
