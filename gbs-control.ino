@@ -80,6 +80,8 @@ unsigned long pingLastTime;
 Pinger pinger; // pinger global object to aid debugging WiFi issues
 #endif
 
+// Arduino hoists function declarations above the struct definition.
+struct Context;
 typedef TV5725<GBS_ADDR> GBS;
 
 static unsigned long lastVsyncLock = millis();
@@ -193,7 +195,7 @@ struct runTimeOptions
     uint8_t continousStableCounter;
     uint8_t failRetryAttempts;
     uint8_t presetID;  // PresetID
-    bool isCustomPreset;
+    bool realIsCustomPreset;
     uint8_t HPLLState;
     uint8_t medResLineCount;
     uint8_t osr;
@@ -225,6 +227,22 @@ struct runTimeOptions
     boolean extClockGenDetected;
 } rtos;
 struct runTimeOptions *rto = &rtos;
+
+struct Context {
+    bool isCustomPreset;
+
+    static Context real() {
+        return Context {
+            rto->realIsCustomPreset,
+        };
+    }
+
+    static Context forceFixed() {
+        return Context {
+            false,
+        };
+    }
+};
 
 /// Output resolution requested by user, *given to* applyPresets().
 enum PresetPreference : uint8_t {
@@ -892,7 +910,7 @@ void setResetParameters()
     GBS::ADC_UNUSED_65::write(0);
     GBS::ADC_UNUSED_66::write(0);
     GBS::ADC_UNUSED_67::write(0);
-    GBS::GBS_PRESET_CUSTOM::write(0);
+    GBS::REAL_GBS_PRESET_CUSTOM::write(0);
     GBS::GBS_PRESET_ID::write(0);
     GBS::GBS_OPTION_SCALING_RGBHV::write(0);
     GBS::GBS_OPTION_PALFORCED60_ENABLED::write(0);
@@ -970,11 +988,8 @@ void setResetParameters()
     userCommand = '@';
 }
 
-void OutputComponentOrVGA()
+void OutputComponentOrVGA(Context const& ctx)
 {
-
-    // TODO replace with rto->isCustomPreset?
-    boolean isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
     if (uopt->wantOutputComponent) {
         SerialM.println(F("Output Format: Component"));
         GBS::VDS_SYNC_LEV::write(0x80); // 0.25Vpp sync (leave more room for Y)
@@ -986,11 +1001,11 @@ void OutputComponentOrVGA()
         GBS::OUT_SYNC_CNTRL::write(1); // H / V sync out enable
     }
 
-    if (!isCustomPreset) {
+    if (!ctx.isCustomPreset) {
         if (rto->inputIsYpBpR == true) {
-            applyYuvPatches();
+            applyYuvPatches(ctx);
         } else {
-            applyRGBPatches();
+            applyRGBPatches(ctx);
         }
     }
 }
@@ -1027,7 +1042,7 @@ void toggleIfAutoOffset()
 }
 
 // blue only mode: t0t44t1 t0t44t4
-void applyYuvPatches()
+void applyYuvPatches(Context const& ctx)
 {
     GBS::ADC_RYSEL_R::write(1);     // midlevel clamp red
     GBS::ADC_RYSEL_B::write(1);     // midlevel clamp blue
@@ -1035,7 +1050,7 @@ void applyYuvPatches()
     GBS::DEC_MATRIX_BYPS::write(1); // ADC
     GBS::IF_MATRIX_BYPS::write(1);
 
-    if (GBS::GBS_PRESET_CUSTOM::read() == 0) {
+    if (!ctx.isCustomPreset) {
         // colors
         GBS::VDS_Y_GAIN::write(0x80);    // 3_25
         GBS::VDS_UCOS_GAIN::write(0x1c); // 3_26
@@ -1060,7 +1075,7 @@ void applyYuvPatches()
 }
 
 // blue only mode: t0t44t1 t0t44t4
-void applyRGBPatches()
+void applyRGBPatches(Context const& ctx)
 {
     GBS::ADC_RYSEL_R::write(0);     // gnd clamp red
     GBS::ADC_RYSEL_B::write(0);     // gnd clamp blue
@@ -1068,7 +1083,7 @@ void applyRGBPatches()
     GBS::DEC_MATRIX_BYPS::write(0); // 5_1f 2 = 1 for YUV / 0 for RGB << using DEC matrix
     GBS::IF_MATRIX_BYPS::write(1);
 
-    if (GBS::GBS_PRESET_CUSTOM::read() == 0) {
+    if (!ctx.isCustomPreset) {
         // colors
         GBS::VDS_Y_GAIN::write(0x80); // 0x80 = 0
         GBS::VDS_UCOS_GAIN::write(0x1c);
@@ -1776,7 +1791,7 @@ uint8_t inputAndSyncDetect()
         rto->sourceDisconnected = false;
         rto->isInLowPowerMode = false;
         resetDebugPort();
-        applyRGBPatches();
+        applyRGBPatches(Context::real());
         LEDON;
         return 1;
     } else if (syncFound == 2) {
@@ -1784,7 +1799,7 @@ uint8_t inputAndSyncDetect()
         rto->sourceDisconnected = false;
         rto->isInLowPowerMode = false;
         resetDebugPort();
-        applyYuvPatches();
+        applyYuvPatches(Context::real());
         LEDON;
         return 2;
     } else if (syncFound == 3) { // input is RGBHV
@@ -3314,8 +3329,10 @@ uint32_t getPllRate()
 
 #define AUTO_GAIN_INIT 0x48
 
-void doPostPresetLoadSteps()
+void doPostPresetLoadSteps(Context const& origCtx)
 {
+    Context ctx = origCtx;
+
     //unsigned long postLoadTimer = millis();
 
     // adco->r_gain gets applied if uopt->enableAutoGain is set.
@@ -3345,7 +3362,7 @@ void doPostPresetLoadSteps()
         }
     }
     rto->presetID = GBS::GBS_PRESET_ID::read();
-    rto->isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
+    rto->realIsCustomPreset = GBS::REAL_GBS_PRESET_CUSTOM::read();
 
     GBS::ADC_UNUSED_64::write(0);
     GBS::ADC_UNUSED_65::write(0); // clear temp storage
@@ -3353,7 +3370,7 @@ void doPostPresetLoadSteps()
     GBS::ADC_UNUSED_67::write(0); // clear temp storage
     GBS::PAD_CKIN_ENZ::write(0);  // 0 = clock input enable (pin40)
 
-    if (!rto->isCustomPreset) {
+    if (!ctx.isCustomPreset) {
         prepareSyncProcessor(); // todo: handle modes 14 and 15 better, now that they support scaling
     }
     if (rto->videoStandardInput == 14) {
@@ -3412,9 +3429,9 @@ void doPostPresetLoadSteps()
     GBS::ADC_AUTO_OFST_RANGE_REG::write(0x00); // 5_0f U/V ranges = 0 (full range, 1 to 15)
 
     if (rto->inputIsYpBpR == true) {
-        applyYuvPatches();
+        applyYuvPatches(ctx);
     } else {
-        applyRGBPatches();
+        applyRGBPatches(ctx);
     }
 
     if (rto->outModeHdBypass) {
@@ -3435,7 +3452,7 @@ void doPostPresetLoadSteps()
 
     setAndUpdateSogLevel(rto->currentLevelSOG);
 
-    if (!rto->isCustomPreset) {
+    if (!ctx.isCustomPreset) {
         // Writes ADC_RGCTRL. If auto gain is enabled, ADC_RGCTRL will be
         // overwritten further down at `uopt->enableAutoGain == 1`.
         setAdcParametersGainAndOffset();
@@ -3456,10 +3473,10 @@ void doPostPresetLoadSteps()
     rto->boardHasPower = true;       //same
 
     if (rto->presetID == 0x06 || rto->presetID == 0x16) {
-        rto->isCustomPreset = 0; // override so it applies section 2 deinterlacer settings
+        ctx.isCustomPreset = 0; // override so it applies section 2 deinterlacer settings
     }
 
-    if (!rto->isCustomPreset) {
+    if (!ctx.isCustomPreset) {
         if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 ||
             rto->videoStandardInput == 8 || rto->videoStandardInput == 9) {
             GBS::IF_LD_RAM_BYPS::write(1); // 1_0c 0 no LD, do this before setIfHblankParameters
@@ -3703,9 +3720,7 @@ void doPostPresetLoadSteps()
         }
     }
 
-    if (rto->presetID == 0x06 || rto->presetID == 0x16) {
-        rto->isCustomPreset = GBS::GBS_PRESET_CUSTOM::read(); // override back
-    }
+    ctx.isCustomPreset = origCtx.isCustomPreset; // override back
 
     resetDebugPort();
 
@@ -3723,7 +3738,7 @@ void doPostPresetLoadSteps()
 
     latchPLLAD(); // besthtotal reliable with this (EDTV modes, possibly others)
 
-    if (rto->isCustomPreset) {
+    if (ctx.isCustomPreset) {
         // patch in segments not covered in custom preset files (currently seg 2)
         if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 || rto->videoStandardInput == 8) {
             GBS::MADPT_Y_DELAY_UV_DELAY::write(1); // 2_17 : 1
@@ -3915,7 +3930,7 @@ void doPostPresetLoadSteps()
     }
 
     // late adjustments that require some delay time first
-    if (!rto->isCustomPreset) {
+    if (!ctx.isCustomPreset) {
         if (videoStandardInputIsPalNtscSd() && !rto->outModeHdBypass) {
             // SNES has less total lines and a slight offset (only relevant in 60Hz)
             if (GBS::VPERIOD_IF::read() == 523) {
@@ -3944,7 +3959,7 @@ void doPostPresetLoadSteps()
     resetPLLAD();             // also turns on pllad
     GBS::PLLAD_LEN::write(1); // 5_11 1
 
-    if (!rto->isCustomPreset) {
+    if (!ctx.isCustomPreset) {
         GBS::VDS_IN_DREG_BYPS::write(0); // 3_40 2 // 0 = input data triggered on falling clock edge, 1 = bypass
         GBS::PLLAD_R::write(3);
         GBS::PLLAD_S::write(3);
@@ -4075,7 +4090,7 @@ void doPostPresetLoadSteps()
     GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
     GBS::INTERRUPT_CONTROL_00::write(0x00);
 
-    OutputComponentOrVGA();
+    OutputComponentOrVGA(ctx);
 
     // presetPreference 10 means the user prefers bypass mode at startup
     // it's best to run a normal format detect > apply preset loop, then enter bypass mode
@@ -4122,7 +4137,7 @@ void doPostPresetLoadSteps()
 
     if (rto->outModeHdBypass) {
         SerialM.print(F(" (bypass)"));
-    } else if (rto->isCustomPreset) {
+    } else if (rto->realIsCustomPreset) {
         SerialM.print(F(" (custom)"));
     }
 
@@ -4202,8 +4217,8 @@ void applyPresets(uint8_t result)
     rto->outModeHdBypass = 0;         // the default at this stage
 
     // in case it is set; will get set appropriately later in doPostPresetLoadSteps()
-    GBS::GBS_PRESET_CUSTOM::write(0);
-    rto->isCustomPreset = false;
+    GBS::REAL_GBS_PRESET_CUSTOM::write(0);
+    rto->realIsCustomPreset = false;
 
     // carry over debug view if possible
     if (GBS::ADC_UNUSED_62::read() != 0x00) {
@@ -4280,17 +4295,17 @@ void applyPresets(uint8_t result)
             - Written by applyPresets() -> writeProgramArrayNew(),
               loadHdBypassSection(), etc.
             - GBS_PRESET_ID @ S1_2B[0:6]
-            - GBS_PRESET_CUSTOM @ S1_2B[7]
+            - REAL_GBS_PRESET_CUSTOM @ S1_2B[7]
         - uopt is source of truth, rto is derived cached state???
         - uopt->presetPreference
             - Read by applyPresets() to pick an output resolution.
         - rto->presetID
             - Written by applyPresets() -> doPostPresetLoadSteps().
             - = register GBS_PRESET_ID.
-        - rto->isCustomPreset
+        - rto->realIsCustomPreset
             - Written by applyPresets() -> doPostPresetLoadSteps().
-            - = register GBS_PRESET_CUSTOM.
-        - rto->isCustomPreset and rto->presetID control which button is
+            - = register REAL_GBS_PRESET_CUSTOM.
+        - rto->realIsCustomPreset and rto->presetID control which button is
             highlighted in the web UI (updateWebSocketData() ->
             GBSControl.buttonMapping).
 
@@ -4299,10 +4314,10 @@ void applyPresets(uint8_t result)
         applyPresets():
         - If uopt->presetPreference == OutputCustomized (yes):
             - loadPresetFromSPIFFS()
-                - All custom presets are saved with GBS_PRESET_CUSTOM = 1.
+                - All custom presets are saved with REAL_GBS_PRESET_CUSTOM = 1.
             - writeProgramArrayNew()
                 - GBS_PRESET_ID = output resolution ID
-                - GBS_PRESET_CUSTOM = 1
+                - REAL_GBS_PRESET_CUSTOM = 1
             - applySavedBypassPreset():
             - If GBS_PRESET_ID == PresetHdBypass (yes):
                 - rto->videoStandardInput = result; (not sure why)
@@ -4312,11 +4327,11 @@ void applyPresets(uint8_t result)
                         - Overwrites S1_30..5F.
                     - GBS::GBS_PRESET_ID::write(PresetHdBypass);
                     - if (!regsInitialized) (false)
-                        - ~~GBS::GBS_PRESET_CUSTOM::write(0);~~ (skipped)
+                        - ~~GBS::REAL_GBS_PRESET_CUSTOM::write(0);~~ (skipped)
                     - doPostPresetLoadSteps()
                         - rto->presetID = GBS::GBS_PRESET_ID::read();
                             - PresetHdBypass
-                        - rto->isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
+                        - rto->realIsCustomPreset = GBS::REAL_GBS_PRESET_CUSTOM::read();
                             - true
                         - Branches based on rto->presetID
                         - if (rto->outModeHdBypass) (yes) return.
@@ -4424,7 +4439,7 @@ void applyPresets(uint8_t result)
         //Serial.println("waitExtra 400ms");
         delay(400); // min ~ 300
     }
-    doPostPresetLoadSteps();
+    doPostPresetLoadSteps(Context::real());
 }
 
 void unfreezeVideo()
@@ -5118,6 +5133,9 @@ void setOutModeHdBypass(bool regsInitialized)
         return;
     }
 
+    // TODO write partial setResetParameters(), to avoid registers leaking over
+    // from previous scaling preset
+
     rto->autoBestHtotalEnabled = false; // disable while in this mode
     rto->outModeHdBypass = 1;           // skips waiting at end of doPostPresetLoadSteps
 
@@ -5146,12 +5164,18 @@ void setOutModeHdBypass(bool regsInitialized)
     // values. If loading after applyPresets() called writeProgramArrayNew(), it
     // has already set the flag to 1.
     if (!regsInitialized) {
-        GBS::GBS_PRESET_CUSTOM::write(0);
+        GBS::REAL_GBS_PRESET_CUSTOM::write(0);
     }
-    doPostPresetLoadSteps(); // todo: remove this, code path for hdbypass is hard to follow
+    // Always write registers as if we were in fixed passthrough, to avoid
+    // (broken) custom passthrough from behaving differently from (working)
+    // fixed passthrough.
+    const auto ctx = Context::forceFixed();
+
+    doPostPresetLoadSteps(ctx); // todo: remove this, code path for hdbypass is hard to follow
 
     // doPostPresetLoadSteps() sets rto->presetID = GBS_PRESET_ID::read() =
-    // PresetHdBypass, and rto->isCustomPreset = GBS_PRESET_CUSTOM::read().
+    // PresetHdBypass, and rto->realIsCustomPreset =
+    // REAL_GBS_PRESET_CUSTOM::read().
 
     resetDebugPort();
 
@@ -5344,7 +5368,7 @@ void setOutModeHdBypass(bool regsInitialized)
             GBS::HD_VS_SP::write(0x0A); // 1_49
         }
         if (rto->videoStandardInput == 13) { // odd HD mode (PS2 "VGA" over Component)
-            applyRGBPatches();               // treat mostly as RGB, clamp R/B to gnd
+            applyRGBPatches(ctx);               // treat mostly as RGB, clamp R/B to gnd
             rto->syncTypeCsync = true;       // used in loop to set clamps and SP dynamic
             GBS::DEC_MATRIX_BYPS::write(1);  // overwrite for this mode
             GBS::SP_PRE_COAST::write(4);
@@ -5424,7 +5448,7 @@ void bypassModeSwitch_RGBHV()
     GBS::ADC_UNUSED_62::write(0x00); // clear debug view
     GBS::PA_ADC_BYPSZ::write(1);     // enable phase unit ADC
     GBS::PA_SP_BYPSZ::write(1);      // enable phase unit SP
-    applyRGBPatches();
+    applyRGBPatches(Context::forceFixed());
     resetDebugPort();
     rto->videoStandardInput = 15;       // making sure
     rto->autoBestHtotalEnabled = false; // not necessary, since VDS is off / bypassed // todo: mode 14 (works anyway)
@@ -7307,7 +7331,7 @@ void setup()
     rto->phaseSP = 16;
     rto->failRetryAttempts = 0;
     rto->presetID = 0;
-    rto->isCustomPreset = false;
+    rto->realIsCustomPreset = false;
     rto->HPLLState = 0;
     rto->motionAdaptiveDeinterlaceActive = false;
     rto->deinterlaceAutoEnabled = true;
@@ -7658,7 +7682,7 @@ void updateWebSocketData()
             char toSend[MESSAGE_LEN] = {0};
             toSend[0] = '#'; // makeshift ping in slot 0
 
-            if (rto->isCustomPreset) {
+            if (rto->realIsCustomPreset) {
                 toSend[1] = '9';
             } else switch (rto->presetID) {
                 case 0x01:
@@ -7952,11 +7976,11 @@ void loop()
                 break;
             case 'Y':
                 writeProgramArrayNew(ntsc_1280x720, false);
-                doPostPresetLoadSteps();
+                doPostPresetLoadSteps(Context::real());
                 break;
             case 'y':
                 writeProgramArrayNew(pal_1280x720, false);
-                doPostPresetLoadSteps();
+                doPostPresetLoadSteps(Context::real());
                 break;
             case 'P':
                 SerialM.print(F("auto deinterlace: "));
@@ -8001,11 +8025,11 @@ void loop()
                 break;
             case 'e':
                 writeProgramArrayNew(ntsc_240p, false);
-                doPostPresetLoadSteps();
+                doPostPresetLoadSteps(Context::real());
                 break;
             case 'r':
                 writeProgramArrayNew(pal_240p, false);
-                doPostPresetLoadSteps();
+                doPostPresetLoadSteps(Context::real());
                 break;
             case '.': {
                 if (!rto->outModeHdBypass) {
@@ -8211,7 +8235,7 @@ void loop()
             case 'L': {
                 // Component / VGA Output
                 uopt->wantOutputComponent = !uopt->wantOutputComponent;
-                OutputComponentOrVGA();
+                OutputComponentOrVGA(Context::real());
                 saveUserPrefs();
                 // apply 1280x720 preset now, otherwise a reboot would be required
                 uint8_t videoMode = getVideoMode();
@@ -8245,11 +8269,11 @@ void loop()
                 break;
             case 'E':
                 writeProgramArrayNew(ntsc_1280x1024, false);
-                doPostPresetLoadSteps();
+                doPostPresetLoadSteps(Context::real());
                 break;
             case 'R':
                 writeProgramArrayNew(pal_1280x1024, false);
-                doPostPresetLoadSteps();
+                doPostPresetLoadSteps(Context::real());
                 break;
             case '0':
                 moveHS(4, true);
@@ -8259,7 +8283,7 @@ void loop()
                 break;
             case '2':
                 writeProgramArrayNew(pal_768x576, false); // ModeLine "720x576@50" 27 720 732 795 864 576 581 586 625 -hsync -vsync
-                doPostPresetLoadSteps();
+                doPostPresetLoadSteps(Context::real());
                 break;
             case '3':
                 //
@@ -8338,7 +8362,7 @@ void loop()
                 break;
             case '9':
                 writeProgramArrayNew(ntsc_720x480, false);
-                doPostPresetLoadSteps();
+                doPostPresetLoadSteps(Context::real());
                 break;
             case 'o': {
                 if (rto->osr == 1) {
@@ -8633,11 +8657,11 @@ void loop()
             } break;
             case '(': {
                 writeProgramArrayNew(ntsc_1920x1080, false);
-                doPostPresetLoadSteps();
+                doPostPresetLoadSteps(Context::real());
             } break;
             case ')': {
                 writeProgramArrayNew(pal_1920x1080, false);
-                doPostPresetLoadSteps();
+                doPostPresetLoadSteps(Context::real());
             } break;
             case 'V': {
                 SerialM.print(F("step response "));
@@ -9941,7 +9965,7 @@ void savePresetToSPIFFS()
     } else {
         SerialM.println(F("open save file ok"));
 
-        GBS::GBS_PRESET_CUSTOM::write(1); // use one reserved bit to mark this as a custom preset
+        GBS::REAL_GBS_PRESET_CUSTOM::write(1); // use one reserved bit to mark this as a custom preset
         // don't store scanlines
         if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) {
             disableScanlines();

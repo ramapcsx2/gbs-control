@@ -252,7 +252,7 @@ public:
     typedef UReg<0x01, 0x2A, 0, 4> IF_AUTO_OFST_U_RANGE;
     typedef UReg<0x01, 0x2A, 4, 4> IF_AUTO_OFST_V_RANGE;
     typedef UReg<0x01, 0x2B, 0, 7> GBS_PRESET_ID;
-    typedef UReg<0x01, 0x2B, 7, 1> GBS_PRESET_CUSTOM;
+    typedef UReg<0x01, 0x2B, 7, 1> REAL_GBS_PRESET_CUSTOM;
     typedef UReg<0x01, 0x2C, 0, 1> GBS_OPTION_SCANLINES_ENABLED;
     typedef UReg<0x01, 0x2C, 1, 1> GBS_OPTION_SCALING_RGBHV;
     typedef UReg<0x01, 0x2C, 2, 1> GBS_OPTION_PALFORCED60_ENABLED;
