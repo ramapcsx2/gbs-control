@@ -400,6 +400,47 @@ SerialMirror SerialM;
 
 #include "framesync.h"
 
+const char HEX_DIGITS[] = "0123456789ABCDEF";
+
+void print_hex(uint8_t val) {
+    SerialM.print(HEX_DIGITS[(val >> 4) & 0xf]);
+    SerialM.print(HEX_DIGITS[val & 0xf]);
+}
+
+void print_page(uint8_t page, size_t begin = 0, size_t end = 256) {
+    // SerialM.printf("Page %d:\n", page);
+
+    for (size_t row = begin; row < end; row += 16) {
+        SerialM.printf("S%c_", HEX_DIGITS[page]);
+        print_hex(row);
+        SerialM.print(": ");
+
+        for (size_t col = 0; col < 16; col += 1) {
+            auto addr = row + col;
+
+            uint8_t val;
+            GBS::read(page, addr, &val, 1);
+            print_hex(val);
+            SerialM.print(' ');
+        }
+        SerialM.println();
+    }
+    SerialM.println();
+}
+
+void print_regs() {
+    SerialM.println("       _0 _1 _2 _3 _4 _5 _6 _7 _8 _9 _A _B _C _D _E _F ");
+    SerialM.println("------ -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- ");
+
+    print_page(0, 0x40, 0x60);
+    print_page(1, 0x00, 0x90);
+    print_page(5, 0x00, 0x70);
+}
+
+void trace_reg() {
+    SerialM.printf("PAD_SYNC1_IN_ENZ = %d\n", GBS::PAD_SYNC1_IN_ENZ::read());
+}
+
 //
 // Sync locking tunables/magic numbers
 //
@@ -1307,6 +1348,7 @@ void prepareSyncProcessor()
 // -> 10mV per step; if cables and source are to standard (level 6 = 60mV)
 void setAndUpdateSogLevel(uint8_t level)
 {
+    SerialM.printf("setAndUpdateSogLevel(%d)\n", level);
     rto->currentLevelSOG = level & 0x1f;
     GBS::ADC_SOGCTRL::write(level);
     setAndLatchPhaseSP();
@@ -1521,16 +1563,16 @@ void optimizeSogLevel()
                     }
                 }
                 if (syncGoodCounter >= 49) {
-                    //SerialM.print("OK @SOG "); SerialM.println(rto->currentLevelSOG); printInfo();
+                    SerialM.print("OK @SOG "); SerialM.println(rto->currentLevelSOG); printInfo();
                     break; // found, exit
                 } else {
-                    //Serial.print(" inner test failed syncGoodCounter: "); Serial.println(syncGoodCounter);
+                    Serial.print(" inner test failed syncGoodCounter: "); Serial.println(syncGoodCounter);
                 }
             } else { // getVideoMode() == 0
-                     //Serial.print("sog-- syncGoodCounter: "); Serial.println(syncGoodCounter);
+                     Serial.print("sog-- syncGoodCounter: "); Serial.println(syncGoodCounter);
             }
         } else { // syncGoodCounter < 40
-                 //Serial.print("outer test failed syncGoodCounter: "); Serial.println(syncGoodCounter);
+                 Serial.print("outer test failed syncGoodCounter: "); Serial.println(syncGoodCounter);
         }
 
         if (rto->currentLevelSOG >= 2) {
@@ -1957,6 +1999,7 @@ void resetDigital()
 
 void resetSyncProcessor()
 {
+    SerialM.println("resetSyncProcessor");
     GBS::SFTRST_SYNC_RSTZ::write(0);
     delayMicroseconds(10);
     GBS::SFTRST_SYNC_RSTZ::write(1);
@@ -3331,6 +3374,8 @@ uint32_t getPllRate()
 
 void doPostPresetLoadSteps(Context const& origCtx)
 {
+    SerialM.println("doPostPresetLoadSteps");
+    trace_reg();
     Context ctx = origCtx;
 
     //unsigned long postLoadTimer = millis();
@@ -3410,6 +3455,7 @@ void doPostPresetLoadSteps(Context const& origCtx)
             rto->phaseSP = 8;
         }
     }
+    SerialM.println("a"); trace_reg();
 
     GBS::SP_H_PROTECT::write(0);
     GBS::SP_COAST_INV_REG::write(0); // just in case
@@ -3417,6 +3463,7 @@ void doPostPresetLoadSteps(Context const& origCtx)
         // setOutModeHdBypass has it's own and needs to update later
         updateSpDynamic(0); // remember: rto->videoStandardInput for RGB(C/HV) in scaling is 1, 2 or 3 here
     }
+    SerialM.println("b"); trace_reg();
 
     GBS::SP_NO_CLAMP_REG::write(1); // (keep) clamp disabled, to be enabled when position determined
     GBS::OUT_SYNC_CNTRL::write(1);  // prepare sync out to PAD
@@ -3440,6 +3487,7 @@ void doPostPresetLoadSteps(Context const& origCtx)
     } else {
         rto->autoBestHtotalEnabled = true;
     }
+    SerialM.println("c"); trace_reg();
 
     rto->phaseADC = GBS::PA_ADC_S::read(); // we can't know which is right, get from preset
     rto->phaseSP = 8;                      // get phase into global variables early: before latching
@@ -3475,8 +3523,10 @@ void doPostPresetLoadSteps(Context const& origCtx)
     if (rto->presetID == 0x06 || rto->presetID == 0x16) {
         ctx.isCustomPreset = 0; // override so it applies section 2 deinterlacer settings
     }
+    SerialM.println("d"); trace_reg();
 
     if (!ctx.isCustomPreset) {
+        SerialM.println("e"); trace_reg();
         if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 ||
             rto->videoStandardInput == 8 || rto->videoStandardInput == 9) {
             GBS::IF_LD_RAM_BYPS::write(1); // 1_0c 0 no LD, do this before setIfHblankParameters
@@ -3497,7 +3547,10 @@ void doPostPresetLoadSteps(Context const& origCtx)
         //GBS::MADPT_Y_DELAY_UV_DELAY::write(0); // 2_17 default: 0 // don't overwrite
 
         GBS::SP_RT_HS_ST::write(0); // 5_49 // retiming hs ST, SP
+
+        SerialM.print("doPostPresetLoadSteps, "); trace_reg();
         GBS::SP_RT_HS_SP::write(GBS::PLLAD_MD::read() * 0.93f);
+        SerialM.printf("SP_RT_HS_SP := %d\n", GBS::SP_RT_HS_SP::read());
 
         GBS::VDS_PK_LB_CORE::write(0); // 3_44 0-3 // 1 for anti source jailbars
         GBS::VDS_PK_LH_CORE::write(0); // 3_46 0-3 // 1 for anti source jailbars
@@ -3512,6 +3565,7 @@ void doPostPresetLoadSteps(Context const& origCtx)
         GBS::VDS_PK_VL_HH_SEL::write(0); // 3_43 1
 
         GBS::VDS_STEP_GAIN::write(1); // step response, max 15 (VDS_STEP_DLY_CNTRL set in presets)
+        SerialM.println("f"); trace_reg();
 
         // DAC filters / keep in presets for now
         //GBS::VDS_1ST_INT_BYPS::write(1); // disable RGB stage interpolator
@@ -3544,6 +3598,7 @@ void doPostPresetLoadSteps(Context const& origCtx)
                 }
             }
         }
+        SerialM.println("g"); trace_reg();
 
         if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
             //GBS::PLLAD_ICP::write(5);         // 5 rather than 6 to work well with CVBS sync as well as CSync
@@ -3586,6 +3641,7 @@ void doPostPresetLoadSteps(Context const& origCtx)
                 }
             }
         }
+        SerialM.println("h"); trace_reg();
         if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 ||
             rto->videoStandardInput == 8 || rto->videoStandardInput == 9) {
             // EDTV p-scan, need to either double adc data rate and halve vds scaling
@@ -3718,25 +3774,39 @@ void doPostPresetLoadSteps(Context const& origCtx)
                 GBS::VDS_VSCALE::write(400);
             }
         }
+        SerialM.println("i"); trace_reg();
     }
 
     ctx.isCustomPreset = origCtx.isCustomPreset; // override back
 
+    SerialM.println("i1");
     resetDebugPort();
+    SerialM.println("i2");
 
     boolean avoidAutoBest = 0;
     if (rto->syncTypeCsync) {
+        SerialM.println("checking for optimizeSogLevel");
+        SerialM.printf(
+            "TEST_BUS_SEL = %d, TEST_BUS_SP_SEL = %d\n",
+            GBS::TEST_BUS_SEL::read(), GBS::TEST_BUS_SP_SEL::read());
+        SerialM.printf( "ADC_SOGCTRL = %d\n", GBS::ADC_SOGCTRL::read());
+
         if (GBS::TEST_BUS_2F::read() == 0) {
+            SerialM.println("maybe?");
             delay(4);
             if (GBS::TEST_BUS_2F::read() == 0) {
+                SerialM.println("{ optimizeSogLevel");
                 optimizeSogLevel();
+                SerialM.println("} optimizeSogLevel");
                 avoidAutoBest = 1;
                 delay(4);
             }
         }
     }
 
+    SerialM.println("j"); trace_reg();
     latchPLLAD(); // besthtotal reliable with this (EDTV modes, possibly others)
+    SerialM.println("k"); trace_reg();
 
     if (ctx.isCustomPreset) {
         // patch in segments not covered in custom preset files (currently seg 2)
@@ -5128,6 +5198,8 @@ void updateClampPosition()
 // in this mode, sampling clock is free to choose
 void setOutModeHdBypass(bool regsInitialized)
 {
+    SerialM.println("setOutModeHdBypass");
+    trace_reg();
     if (!rto->boardHasPower) {
         SerialM.println(F("GBS board not responding!"));
         return;
@@ -5140,8 +5212,11 @@ void setOutModeHdBypass(bool regsInitialized)
     rto->outModeHdBypass = 1;           // skips waiting at end of doPostPresetLoadSteps
 
     externalClockGenResetClock();
+    trace_reg();
     updateSpDynamic(0);
+    SerialM.print("updateSpDynamic, "); trace_reg();
     loadHdBypassSection(); // this would be ignored otherwise
+    SerialM.print("loadHdBypassSection, "); trace_reg();
     if (GBS::ADC_UNUSED_62::read() != 0x00) {
         // remember debug view
         if (uopt->presetPreference != 2) {
@@ -5430,6 +5505,7 @@ void setOutModeHdBypass(bool regsInitialized)
     delay(200);
     optimizePhaseSP();
     SerialM.println(F("pass-through on"));
+    trace_reg();
 }
 
 void bypassModeSwitch_RGBHV()
@@ -5573,7 +5649,7 @@ void bypassModeSwitch_RGBHV()
         /*SerialM.println("ADC gain: keep previous");
     SerialM.print(adco->r_gain, HEX); SerialM.print(" ");
     SerialM.print(adco->g_gain, HEX); SerialM.print(" ");
-    SerialM.print(adco->b_gain, HEX); SerialM.println(" ");*/
+    SerialM.print(adco->b_gain, HEX); SerialM.println(" "); trace_reg();*/
         GBS::ADC_RGCTRL::write(adco->r_gain);
         GBS::ADC_GGCTRL::write(adco->g_gain);
         GBS::ADC_BGCTRL::write(adco->b_gain);
@@ -8376,7 +8452,7 @@ void loop()
                 optimizePhaseSP();
                 SerialM.print("OSR ");
                 SerialM.print(rto->osr);
-                SerialM.println("x");
+                SerialM.println("x"); trace_reg();
                 rto->phaseIsSet = 0; // do it again in modes applicable
             } break;
             case 'g':
@@ -8919,6 +8995,7 @@ void loop()
                 rto->currentLevelSOG = 6;
                 GBS::ADC_SOGCTRL::write(rto->currentLevelSOG);
             }
+            SerialM.printf("slots machine %d\n", rto->currentLevelSOG);
         }
     }
 
@@ -9117,8 +9194,7 @@ void handleType2Command(char argument)
         case 'g':
         case 'h':
         case 'p':
-        case 's':
-        case 'L': {
+        case 's': {
             // load preset via webui
             uint8_t videoMode = getVideoMode();
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
@@ -9148,6 +9224,11 @@ void handleType2Command(char argument)
             }
             saveUserPrefs();
         } break;
+        case 'L': {
+            print_regs();
+
+            break;
+        }
         case 'i':
             // toggle active frametime lock method
             if (!rto->extClockGenDetected) {
