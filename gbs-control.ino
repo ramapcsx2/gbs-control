@@ -4656,6 +4656,9 @@ void setOverSampleRatio(uint8_t newRatio, boolean prepareOnly)
 {
     uint8_t ks = GBS::PLLAD_KS::read();
 
+    bool hi_res = rto->videoStandardInput == 8 || rto->videoStandardInput == 4 || rto->videoStandardInput == 3;
+    bool bypass = rto->presetID == PresetHdBypass;
+
     switch (newRatio) {
         case 1:
             if (ks == 0)
@@ -4671,7 +4674,8 @@ void setOverSampleRatio(uint8_t newRatio, boolean prepareOnly)
             GBS::DEC1_BYPS::write(1); // dec1 couples to ADC_CLK_ICLK2X
             GBS::DEC2_BYPS::write(1);
 
-            if (rto->videoStandardInput == 8 || rto->videoStandardInput == 4 || rto->videoStandardInput == 3) {
+            // Necessary to avoid a 2x-scaled image for some reason.
+            if (hi_res && !bypass) {
                 GBS::ADC_CLK_ICLK1X::write(1);
                 //GBS::DEC2_BYPS::write(0);
             }
@@ -4696,7 +4700,7 @@ void setOverSampleRatio(uint8_t newRatio, boolean prepareOnly)
             GBS::DEC2_BYPS::write(0);
             GBS::DEC1_BYPS::write(1); // dec1 couples to ADC_CLK_ICLK2X
 
-            if (rto->videoStandardInput == 8 || rto->videoStandardInput == 4 || rto->videoStandardInput == 3) {
+            if (hi_res && !bypass) {
                 //GBS::ADC_CLK_ICLK2X::write(1);
                 //GBS::DEC1_BYPS::write(0);
                 // instead increase CKOS by 1 step
