@@ -4656,6 +4656,9 @@ void setOverSampleRatio(uint8_t newRatio, boolean prepareOnly)
 {
     uint8_t ks = GBS::PLLAD_KS::read();
 
+    bool hi_res = rto->videoStandardInput == 8 || rto->videoStandardInput == 4 || rto->videoStandardInput == 3;
+    bool bypass = rto->presetID == PresetHdBypass;
+
     switch (newRatio) {
         case 1:
             if (ks == 0)
@@ -4671,7 +4674,8 @@ void setOverSampleRatio(uint8_t newRatio, boolean prepareOnly)
             GBS::DEC1_BYPS::write(1); // dec1 couples to ADC_CLK_ICLK2X
             GBS::DEC2_BYPS::write(1);
 
-            if (rto->videoStandardInput == 8 || rto->videoStandardInput == 4 || rto->videoStandardInput == 3) {
+            // Necessary to avoid a 2x-scaled image for some reason.
+            if (hi_res && !bypass) {
                 GBS::ADC_CLK_ICLK1X::write(1);
                 //GBS::DEC2_BYPS::write(0);
             }
@@ -4696,7 +4700,7 @@ void setOverSampleRatio(uint8_t newRatio, boolean prepareOnly)
             GBS::DEC2_BYPS::write(0);
             GBS::DEC1_BYPS::write(1); // dec1 couples to ADC_CLK_ICLK2X
 
-            if (rto->videoStandardInput == 8 || rto->videoStandardInput == 4 || rto->videoStandardInput == 3) {
+            if (hi_res && !bypass) {
                 //GBS::ADC_CLK_ICLK2X::write(1);
                 //GBS::DEC1_BYPS::write(0);
                 // instead increase CKOS by 1 step
@@ -5258,17 +5262,18 @@ void setOutModeHdBypass(bool regsInitialized)
         GBS::PLLAD_KS::write(1);                                               // 5_16 post divider
         GBS::PLLAD_CKOS::write(0);                                             // 5_16 2x OS (with KS=1)
         //GBS::HD_INI_ST::write(0x76); // 1_39
-        GBS::HD_HB_ST::write(0x878); // 1_3B
+        GBS::HD_HB_ST::write(0x864); // 1_3B
+            // you *must* begin hblank before hsync.
         GBS::HD_HB_SP::write(0xa0);  // 1_3D
         GBS::HD_VB_ST::write(0x00);  // 1_43
         GBS::HD_VB_SP::write(0x40);  // 1_45
         if (rto->videoStandardInput == 3) {
-            GBS::HD_HS_ST::write(0x10);  // 1_3F
+            GBS::HD_HS_ST::write(0x54);  // 1_3F
             GBS::HD_HS_SP::write(0x864); // 1_41
             GBS::HD_VS_ST::write(0x06);  // 1_47 // VS neg
             GBS::HD_VS_SP::write(0x00);  // 1_49
-            setCsVsStart(2);
-            setCsVsStop(0);
+            setCsVsStart(525 - 5);
+            setCsVsStop(525 - 3);
         }
         if (rto->videoStandardInput == 4) {
             GBS::HD_HS_ST::write(0x10);  // 1_3F
