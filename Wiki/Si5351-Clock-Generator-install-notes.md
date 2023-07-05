@@ -21,7 +21,7 @@ Alternatively one use the output side (right) of **R10 for SCL** and **R37 for S
 
 You can solder these wires directly to the same SDA/SCL lines on the ESP8266 too.
 
-To test the clock generator is working, open the GBS Control web gui.  Go to Preferences and scroll down to Activate FrameTime lock.  Press on the FrameTime Lock button and the console will read “Active FrameTime Lock not necessary with external clock gen installed”.  Video output should be pristine and free of horizontal tearing when high output resolution presets are used.  
+To test the clock generator is working, open the GBS Control web gui.  Go to Preferences and scroll down to Activate FrameTime lock.  Press on the FrameTime Lock button and the console will read “Active FrameTime Lock enabled, adjusting external clock gen frequency”.  Video output should be pristine and free of horizontal tearing when high output resolution presets are used. If however the clock generator is not detected, the console will read “Active FrameTime Lock enabled, disable if display unstable or stays blank!”.
 
 <span class="anim-fade-in">
 
