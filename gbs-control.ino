@@ -7255,6 +7255,12 @@ void ICACHE_RAM_ATTR isrRotaryEncoder()
 }
 void setup()
 {
+    Serial.begin(115200); // Arduino IDE Serial Monitor requires the same 115200 bauds!
+    Serial.setTimeout(10);
+
+    Serial.println(F("\n{ setup()"));
+    delay(1);
+
     display.init();                 //inits OLED on I2C bus
     display.flipScreenVertically(); //orientation fix for OLED
 
@@ -7266,9 +7272,6 @@ void setup()
 
     rto->webServerEnabled = true;
     rto->webServerStarted = false; // make sure this is set
-
-    Serial.begin(115200); // Arduino IDE Serial Monitor requires the same 115200 bauds!
-    Serial.setTimeout(10);
 
     // millis() at this point: typically 65ms
     // start web services as early in boot as possible
@@ -7297,6 +7300,7 @@ void setup()
 #endif
 
     SerialM.println(F("\nstartup"));
+    delay(1);
 
     loadDefaultUserOptions();
     //globalDelay = 0;
