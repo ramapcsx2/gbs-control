@@ -7255,6 +7255,13 @@ void ICACHE_RAM_ATTR isrRotaryEncoder()
 }
 void setup()
 {
+    for (int i = 0; i < 5; i++) {
+        LEDON;
+        delay(200);
+        LEDOFF;
+        delay(200);
+    }
+
     Serial.begin(115200); // Arduino IDE Serial Monitor requires the same 115200 bauds!
     Serial.setTimeout(10);
 
