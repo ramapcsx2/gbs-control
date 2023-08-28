@@ -9396,6 +9396,121 @@ void handleType2Command(char argument)
             SerialM.print(F("Scanline Strength: "));
             SerialM.println(uopt->scanlineStrength, HEX);
             break;
+        case 'Z':
+            // brightness++
+            GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 1);
+            SerialM.print(F("Brightness++ : "));
+            SerialM.println(GBS::VDS_Y_OFST::read(), DEC);
+            break;
+        case 'T':
+            // brightness--
+            GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() - 1);
+            SerialM.print(F("Brightness-- : "));
+            SerialM.println(GBS::VDS_Y_OFST::read(), DEC);
+        break;
+        case 'N':
+            // contrast++
+            GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 1);
+            SerialM.print(F("Contrast++ : "));
+            SerialM.println(GBS::VDS_Y_GAIN::read(), DEC);
+        break;
+        case 'M':
+            // contrast--
+            GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 1);
+            SerialM.print(F("Contrast-- : "));
+            SerialM.println(GBS::VDS_Y_GAIN::read(), DEC);
+        break;
+        case 'Q':
+             // pb/u gain++
+            GBS::VDS_UCOS_GAIN::write(GBS::VDS_UCOS_GAIN::read() + 1);
+            SerialM.print(F("Pb/U gain++ : "));
+            SerialM.println(GBS::VDS_UCOS_GAIN::read(), DEC);
+            break;
+        case 'H':
+             // pb/u gain--
+            GBS::VDS_UCOS_GAIN::write(GBS::VDS_UCOS_GAIN::read() - 1);
+            SerialM.print(F("Pb/U gain-- : "));
+            SerialM.println(GBS::VDS_UCOS_GAIN::read(), DEC);
+            break;
+        break;
+        case 'P':
+            // pr/v gain++
+            GBS::VDS_VCOS_GAIN::write(GBS::VDS_VCOS_GAIN::read() + 1);
+            SerialM.print(F("Pr/V gain++ : "));
+            SerialM.println(GBS::VDS_VCOS_GAIN::read(), DEC);
+            break;
+        case 'S':
+            // pr/v gain--
+            GBS::VDS_VCOS_GAIN::write(GBS::VDS_VCOS_GAIN::read() - 1);
+            SerialM.print(F("Pr/V gain-- : "));
+            SerialM.println(GBS::VDS_VCOS_GAIN::read(), DEC);
+            break;
+        case 'O':
+            // info
+            if (GBS::ADC_INPUT_SEL::read() == 1) 
+            {
+                SerialM.println("RGB reg");
+                SerialM.println(F("------------ "));
+                SerialM.print(F("Y_OFFSET: "));
+                SerialM.println(GBS::VDS_Y_OFST::read(), DEC);
+                SerialM.print(F("U_OFFSET: "));
+                SerialM.println( GBS::VDS_U_OFST::read(), DEC);
+                SerialM.print(F("V_OFFSET: "));
+                SerialM.println(GBS::VDS_V_OFST::read(), DEC);
+                SerialM.print(F("Y_GAIN: "));
+                SerialM.println(GBS::VDS_Y_GAIN::read(), DEC);
+                SerialM.print(F("USIN_GAIN: "));
+                SerialM.println(GBS::VDS_USIN_GAIN::read(), DEC);
+                SerialM.print(F("UCOS_GAIN: "));
+                SerialM.println(GBS::VDS_UCOS_GAIN::read(), DEC);
+            } 
+            else 
+            {
+                SerialM.println("YPbPr reg");
+                SerialM.println(F("------------ "));
+                SerialM.print(F("Y_OFFSET: "));
+                SerialM.println(GBS::VDS_Y_OFST::read(), DEC);
+                SerialM.print(F("U_OFFSET: "));
+                SerialM.println( GBS::VDS_U_OFST::read(), DEC);
+                SerialM.print(F("V_OFFSET: "));
+                SerialM.println(GBS::VDS_V_OFST::read(), DEC);
+                SerialM.print(F("Y_GAIN: "));
+                SerialM.println(GBS::VDS_Y_GAIN::read(), DEC);
+                SerialM.print(F("USIN_GAIN: "));
+                SerialM.println(GBS::VDS_USIN_GAIN::read(), DEC);
+                SerialM.print(F("UCOS_GAIN: "));
+                SerialM.println(GBS::VDS_UCOS_GAIN::read(), DEC);
+            }
+            break;
+        case 'U':
+            // default
+            if (GBS::ADC_INPUT_SEL::read() == 1)
+            {
+                GBS::VDS_Y_GAIN::write(128);
+                GBS::VDS_UCOS_GAIN::write(28);
+                GBS::VDS_VCOS_GAIN::write(41);
+                GBS::VDS_Y_OFST::write(0);
+                GBS::VDS_U_OFST::write(0);
+                GBS::VDS_V_OFST::write(0);
+                GBS::ADC_ROFCTRL::write(adco->r_off);
+                GBS::ADC_GOFCTRL::write(adco->g_off);
+                GBS::ADC_BOFCTRL::write(adco->b_off);
+                SerialM.println("RGB:defauit");
+            }
+            else 
+            {
+                GBS::VDS_Y_GAIN::write(128);
+                GBS::VDS_UCOS_GAIN::write(28);
+                GBS::VDS_VCOS_GAIN::write(41);
+                GBS::VDS_Y_OFST::write(254);
+                GBS::VDS_U_OFST::write(3);
+                GBS::VDS_V_OFST::write(3);
+                GBS::ADC_ROFCTRL::write(adco->r_off);
+                GBS::ADC_GOFCTRL::write(adco->g_off);
+                GBS::ADC_BOFCTRL::write(adco->b_off);
+                SerialM.println("YPbPr:defauit");
+            }
+            break;
         default:
             break;
     }
