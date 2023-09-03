@@ -9737,6 +9737,83 @@ void startWebserver()
         request->send(200, "application/json", result ? "true" : "false");
     });
 
+    server.on("/slot/remove", HTTP_GET, [](AsyncWebServerRequest *request) {
+        bool result = false;
+        int params = request->params();
+        AsyncWebParameter *p = request->getParam(0);
+        char param = p->name().charAt(0);
+        if (params > 0)
+        {
+            if (param == '0')
+            {
+                SerialM.println("Wait...");
+                result = true;
+            }
+            else
+            {
+                Ascii8 slot = uopt->presetSlot;
+                Ascii8 nextSlot;
+                String slotIndexMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
+                auto currentSlot = slotIndexMap.indexOf(slot);
+
+                SlotMetaArray slotsObject;
+                File slotsBinaryFileRead = SPIFFS.open(SLOTS_FILE, "r");
+                slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
+                slotsBinaryFileRead.close();
+                String slotName = slotsObject.slot[currentSlot].name;
+
+                // remove preset files
+                SPIFFS.remove("/preset_ntsc." + String((char)slot));
+                SPIFFS.remove("/preset_pal." + String((char)slot));
+                SPIFFS.remove("/preset_ntsc_480p." + String((char)slot));
+                SPIFFS.remove("/preset_pal_576p." + String((char)slot));
+                SPIFFS.remove("/preset_ntsc_720p." + String((char)slot));
+                SPIFFS.remove("/preset_ntsc_1080p." + String((char)slot));
+                SPIFFS.remove("/preset_medium_res." + String((char)slot));
+                SPIFFS.remove("/preset_vga_upscale." + String((char)slot));
+                SPIFFS.remove("/preset_unknown." + String((char)slot));
+                
+                uint8_t loopCount = 0;
+                uint8_t flag = 1;
+                while (flag != 0)
+                {
+                    slot = slotIndexMap[currentSlot + loopCount];
+                    nextSlot = slotIndexMap[currentSlot + loopCount + 1];
+                    flag = 0;
+                    flag += SPIFFS.rename("/preset_ntsc." + String((char)(nextSlot)), "/preset_ntsc." + String((char)slot));
+                    flag += SPIFFS.rename("/preset_pal." + String((char)(nextSlot)), "/preset_pal." + String((char)slot));
+                    flag += SPIFFS.rename("/preset_ntsc_480p." + String((char)(nextSlot)), "/preset_ntsc_480p." + String((char)slot));
+                    flag += SPIFFS.rename("/preset_pal_576p." + String((char)(nextSlot)), "/preset_pal_576p." + String((char)slot));
+                    flag += SPIFFS.rename("/preset_ntsc_720p." + String((char)(nextSlot)), "/preset_ntsc_720p." + String((char)slot));
+                    flag += SPIFFS.rename("/preset_ntsc_1080p." + String((char)(nextSlot)), "/preset_ntsc_1080p." + String((char)slot));
+                    flag += SPIFFS.rename("/preset_medium_res." + String((char)(nextSlot)), "/preset_medium_res." + String((char)slot));
+                    flag += SPIFFS.rename("/preset_vga_upscale." + String((char)(nextSlot)), "/preset_vga_upscale." + String((char)slot));
+                    flag += SPIFFS.rename("/preset_unknown." + String((char)(nextSlot)), "/preset_unknown." + String((char)slot));
+
+                    slotsObject.slot[currentSlot + loopCount].slot = slotsObject.slot[currentSlot + loopCount + 1].slot;
+                    slotsObject.slot[currentSlot + loopCount].presetID = slotsObject.slot[currentSlot + loopCount + 1].presetID;
+                    slotsObject.slot[currentSlot + loopCount].scanlines = slotsObject.slot[currentSlot + loopCount + 1].scanlines;
+                    slotsObject.slot[currentSlot + loopCount].scanlinesStrength = slotsObject.slot[currentSlot + loopCount + 1].scanlinesStrength;
+                    slotsObject.slot[currentSlot + loopCount].wantVdsLineFilter = slotsObject.slot[currentSlot + loopCount + 1].wantVdsLineFilter;
+                    slotsObject.slot[currentSlot + loopCount].wantStepResponse = slotsObject.slot[currentSlot + loopCount + 1].wantStepResponse;
+                    slotsObject.slot[currentSlot + loopCount].wantPeaking = slotsObject.slot[currentSlot + loopCount + 1].wantPeaking;
+                    // slotsObject.slot[currentSlot + loopCount].name = slotsObject.slot[currentSlot + loopCount + 1].name;
+                    strncpy(slotsObject.slot[currentSlot + loopCount].name, slotsObject.slot[currentSlot + loopCount + 1].name, 25);
+                    loopCount++;
+                }
+
+                File slotsBinaryFileWrite = SPIFFS.open(SLOTS_FILE, "w");
+                slotsBinaryFileWrite.write((byte *)&slotsObject, sizeof(slotsObject));
+                slotsBinaryFileWrite.close();
+                SerialM.println("Preset \"" + slotName + "\" removed");
+                result = true;
+            }
+        }
+        
+        fail:
+        request->send(200, "application/json", result ? "true" : "false");
+    });
+
     server.on("/spiffs/upload", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send(200, "application/json", "true");
     });
