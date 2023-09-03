@@ -908,9 +908,17 @@ section[name="alert"] {
                 onclick="savePreset()"
                 active
               >
-                <div class="gbs-icon">fiber_manual_record</div>
+                <div class="gbs-icon">add_circle_outline</div>
                 <div>save preset</div>
               </button>
+              <button
+              class="gbs-button gbs-button__control-action gbs-button__secondary"
+              onclick="removePreset()"
+              active
+            >
+              <div class="gbs-icon">highlight_remove</div>
+              <div>remove preset</div>
+            </button>
             </div>
           </fieldset>
         </section>
@@ -2572,6 +2580,23 @@ const loadPreset = () => {
                 fetch(`/gbs/restore-filters?${+new Date()}`);
             }, 250);
         }
+    });
+};
+const removePreset = () => {
+    fetch(`/slot/remove?0&nocache=${new Date().getTime()}`).then(() => {
+        setTimeout(() => {
+            clearTimeout(GBSControl.wsTimeout);
+            // GBSControl.wsTimeout = setTimeout(timeOutWs, 6000); //TODO: calc timeout
+            fetch(`/slot/remove?1&nocache=${new Date().getTime()}`).then(() => {
+                setTimeout(() => {
+                    fetchSlotNames().then((success) => {
+                        if (success) {
+                            updateSlotNames();
+                        }
+                    });
+                }, 500);
+            });
+        }, 200);
     });
 };
 const getSlotsHTML = () => {
