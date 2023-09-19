@@ -307,6 +307,8 @@ typedef struct
     SlotMeta slot[SLOTS_TOTAL]; // the max avaliable slots that can be encoded in a the charset[A-Za-z0-9-._~()!*:,;]
 } SlotMetaArray;
 
+String slotIndexMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
+
 char serialCommand;               // Serial / Web Server commands
 char userCommand;               // Serial / Web Server commands
 static uint8_t lastSegment = 0xFF; // GBS segment for direct access
@@ -9753,7 +9755,6 @@ void startWebserver()
             {
                 Ascii8 slot = uopt->presetSlot;
                 Ascii8 nextSlot;
-                String slotIndexMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
                 auto currentSlot = slotIndexMap.indexOf(slot);
 
                 SlotMetaArray slotsObject;
@@ -9884,7 +9885,6 @@ void startWebserver()
         if (slotsBinaryFileRead) {
             slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
             slotsBinaryFileRead.close();
-            String slotIndexMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
             auto currentSlot = slotIndexMap.indexOf(uopt->presetSlot);
             if (currentSlot == -1) {
                 goto fail;
