@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "ntsc_240p.h"
 #include "pal_240p.h"
 #include "ntsc_720x480.h"
@@ -22,6 +23,9 @@
 #include "SSD1306Wire.h"
 #include "fonts.h"
 #include "images.h"
+
+const uint8_t *loadPresetFromSPIFFS(byte forVideoMode);
+
 SSD1306Wire display(0x3c, D2, D1); //inits I2C address & pins for OLED
 const int pin_clk = 14;            //D5 = GPIO14 (input of one direction for encoder)
 const int pin_data = 13;           //D7 = GPIO13	(input of one direction for encoder)
@@ -67,8 +71,8 @@ volatile int oled_sub_pointer = 0;
 // https://github.com/Links2004/arduinoWebSockets
 // included in src folder to allow header modifications within limitations of the Arduino framework
 // See 3rdparty/WebSockets for unmodified source and license
-#include "src/WebSockets.h"
-#include "src/WebSocketsServer.h"
+#include "WebSockets.h"
+#include "WebSocketsServer.h"
 
 // Optional:
 // ESP8266-ping library to aid debugging WiFi issues, install via Arduino library manager
@@ -85,10 +89,10 @@ typedef TV5725<GBS_ADDR> GBS;
 static unsigned long lastVsyncLock = millis();
 
 // Si5351mcu library by Pavel Milanes
-// https ://github.com/pavelmc/Si5351mcu
+// https://github.com/pavelmc/Si5351mcu
 // included in project root folder to allow modifications within limitations of the Arduino framework
 // See 3rdparty/Si5351mcu for unmodified source and license
-#include "src/si5351mcu.h"
+#include "si5351mcu.h"
 Si5351mcu Si;
 
 #define THIS_DEVICE_MASTER
@@ -546,17 +550,17 @@ void externalClockGenDetectAndInitialize()
     Si.disable(0);
 }
 
-static inline void writeOneByte(uint8_t slaveRegister, uint8_t value)
-{
-    writeBytes(slaveRegister, &value, 1);
-}
-
 static inline void writeBytes(uint8_t slaveRegister, uint8_t *values, uint8_t numValues)
 {
     if (slaveRegister == 0xF0 && numValues == 1) {
         lastSegment = *values;
     } else
         GBS::write(lastSegment, slaveRegister, values, numValues);
+}
+
+static inline void writeOneByte(uint8_t slaveRegister, uint8_t value)
+{
+    writeBytes(slaveRegister, &value, 1);
 }
 
 void copyBank(uint8_t *bank, const uint8_t *programArray, uint16_t *index)
@@ -10173,7 +10177,7 @@ void settingsMenuOLED()
         display.setTextAlignment(TEXT_ALIGN_LEFT);
         display.setFont(ArialMT_Plain_16);
         display.drawString(0, oled_main_pointer, ">");
-        display.drawString(14, 0, String(oled_menu[0]));
+        display.drawString(14, 0,  String(oled_menu[0]));
         display.drawString(14, 15, String(oled_menu[1]));
         display.drawString(14, 30, String(oled_menu[2]));
         display.drawString(14, 45, String(oled_menu[3]));
