@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "ntsc_240p.h"
 #include "pal_240p.h"
 #include "ntsc_720x480.h"
@@ -40,12 +41,16 @@ int oled_menuItem = 1;
 int oled_subsetFrame = 0;
 int oled_selectOption = 0;
 int oled_page = 0;
+bool oled_on = true;
+#define OLED_OFF_TIMEOUT_MS 10000
 
 int oled_lastCount = 0;
 volatile int oled_encoder_pos = 0;
 volatile int oled_main_pointer = 0; //volatile vars change done with ISR
 volatile int oled_pointer_count = 0;
 volatile int oled_sub_pointer = 0;
+
+static unsigned long lastOledInterruptTime = 0;
 
 #include <ESP8266WiFi.h>
 // ESPAsyncTCP and ESPAsyncWebServer libraries by me-no-dev
@@ -7237,6 +7242,7 @@ void loadDefaultUserOptions()
 void ICACHE_RAM_ATTR isrRotaryEncoder()
 {
     static unsigned long lastInterruptTime = 0;
+    lastOledInterruptTime = 0;
     unsigned long interruptTime = millis();
 
     if (interruptTime - lastInterruptTime > 120) {
@@ -7257,6 +7263,7 @@ void ICACHE_RAM_ATTR isrRotaryEncoder()
         }
     }
     lastInterruptTime = interruptTime;
+    lastOledInterruptTime = interruptTime;
 }
 void setup()
 {
@@ -10246,9 +10253,20 @@ void settingsMenuOLED()
         delay(350);         //TODO
         oled_subsetFrame++; //this button counter for navigating menu
         oled_selectOption++;
+        lastOledInterruptTime = millis();
     }
+
+    unsigned long currentTime = millis();
+
     //main menu
-    if (oled_page == 0) {
+    if (oled_page == 0 && 
+        (currentTime - lastOledInterruptTime <= OLED_OFF_TIMEOUT_MS))
+    {
+        if (!oled_on)
+        {
+            display.displayOn();
+            oled_on = true;
+        }
         pointerfunction();
         display.clear();
         display.setTextAlignment(TEXT_ALIGN_LEFT);
@@ -10259,6 +10277,11 @@ void settingsMenuOLED()
         display.drawString(14, 30, String(oled_menu[2]));
         display.drawString(14, 45, String(oled_menu[3]));
         display.display();
+    }
+    else if (oled_page == 0 && oled_on)
+    {
+        display.displayOff();
+        oled_on = false;
     }
     //cursor location on main menu
     if (oled_main_pointer == 0 && oled_subsetFrame == 0) {
