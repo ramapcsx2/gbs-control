@@ -1848,10 +1848,9 @@ void dumpRegisters(byte segment)
             }
             break;
         case 2:
-            // not needed anymore, code kept for debug
-            /*for (int x = 0x0; x <= 0x3F; x++) {
-      printReg(2, x);
-    }*/
+            for (int x = 0x0; x <= 0x3F; x++) {
+                printReg(2, x);
+            }
             break;
         case 3:
             for (int x = 0x0; x <= 0x7F; x++) {
