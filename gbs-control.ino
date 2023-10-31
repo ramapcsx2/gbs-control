@@ -5646,7 +5646,7 @@ void enableScanlines()
         GBS::MADPT_UVDLY_PD_ST::write(0);     // 2_39 4..7
         GBS::MADPT_EN_UV_DEINT::write(1);     // 2_3a 0
         GBS::MADPT_UV_MI_DET_BYPS::write(1);  // 2_3a 7 enables 2_3b adjust
-        GBS::MADPT_UV_MI_OFFSET::write(0x40); // 2_3b 0x40 for mix, 0x00 to test
+        GBS::MADPT_UV_MI_OFFSET::write(uopt->scanlineStrength); // 2_3b offset (mixing factor here)
         GBS::MADPT_MO_ADP_UV_EN::write(1);    // 2_16 5 (try to do this some other way?)
 
         GBS::DIAG_BOB_PLDY_RAM_BYPS::write(0); // 2_00 7 enabled, looks better
@@ -9390,9 +9390,10 @@ void handleType2Command(char argument)
             }
             if (rto->scanlinesEnabled) {
                 GBS::MADPT_Y_MI_OFFSET::write(uopt->scanlineStrength);
+                GBS::MADPT_UV_MI_OFFSET::write(uopt->scanlineStrength);
             }
             saveUserPrefs();
-            SerialM.print(F("Scanline Strength: "));
+            SerialM.print(F("Scanline Brightness: "));
             SerialM.println(uopt->scanlineStrength, HEX);
             break;
         case 'Z':
