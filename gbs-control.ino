@@ -1848,10 +1848,9 @@ void dumpRegisters(byte segment)
             }
             break;
         case 2:
-            // not needed anymore, code kept for debug
-            /*for (int x = 0x0; x <= 0x3F; x++) {
-      printReg(2, x);
-    }*/
+            for (int x = 0x0; x <= 0x3F; x++) {
+                printReg(2, x);
+            }
             break;
         case 3:
             for (int x = 0x0; x <= 0x7F; x++) {
@@ -5643,12 +5642,12 @@ void enableScanlines()
         //GBS::RFF_ENABLE::write(0); //GBS::WFF_ENABLE::write(0);
 
         // following lines set up UV deinterlacer (on top of normal Y)
-        //GBS::MADPT_UVDLY_PD_SP::write(0);     // 2_39 0..3
-        //GBS::MADPT_UVDLY_PD_ST::write(0);     // 2_39 4..7
-        //GBS::MADPT_EN_UV_DEINT::write(1);     // 2_3a 0
-        //GBS::MADPT_UV_MI_DET_BYPS::write(1);  // 2_3a 7 enables 2_3b adjust
-        //GBS::MADPT_UV_MI_OFFSET::write(0x40); // 2_3b 0x40 for mix, 0x00 to test
-        //GBS::MADPT_MO_ADP_UV_EN::write(1);    // 2_16 5 (try to do this some other way?)
+        GBS::MADPT_UVDLY_PD_SP::write(0);     // 2_39 0..3
+        GBS::MADPT_UVDLY_PD_ST::write(0);     // 2_39 4..7
+        GBS::MADPT_EN_UV_DEINT::write(1);     // 2_3a 0
+        GBS::MADPT_UV_MI_DET_BYPS::write(1);  // 2_3a 7 enables 2_3b adjust
+        GBS::MADPT_UV_MI_OFFSET::write(uopt->scanlineStrength); // 2_3b offset (mixing factor here)
+        GBS::MADPT_MO_ADP_UV_EN::write(1);    // 2_16 5 (try to do this some other way?)
 
         GBS::DIAG_BOB_PLDY_RAM_BYPS::write(0); // 2_00 7 enabled, looks better
         GBS::MADPT_PD_RAM_BYPS::write(0);      // 2_24 2
@@ -5675,13 +5674,13 @@ void disableScanlines()
         //SerialM.println("disableScanlines())");
         GBS::MAPDT_VT_SEL_PRGV::write(1);
 
-        //// following lines set up UV deinterlacer (on top of normal Y)
-        //GBS::MADPT_UVDLY_PD_SP::write(4); // 2_39 0..3
-        //GBS::MADPT_UVDLY_PD_ST::write(4); // 2_39 4..77
-        //GBS::MADPT_EN_UV_DEINT::write(0);     // 2_3a 0
-        //GBS::MADPT_UV_MI_DET_BYPS::write(0);  // 2_3a 7 enables 2_3b adjust
-        //GBS::MADPT_UV_MI_OFFSET::write(4);    // 2_3b
-        //GBS::MADPT_MO_ADP_UV_EN::write(0);    // 2_16 5
+        // following lines set up UV deinterlacer (on top of normal Y)
+        GBS::MADPT_UVDLY_PD_SP::write(4); // 2_39 0..3
+        GBS::MADPT_UVDLY_PD_ST::write(4); // 2_39 4..77
+        GBS::MADPT_EN_UV_DEINT::write(0);     // 2_3a 0
+        GBS::MADPT_UV_MI_DET_BYPS::write(0);  // 2_3a 7 enables 2_3b adjust
+        GBS::MADPT_UV_MI_OFFSET::write(4);    // 2_3b
+        GBS::MADPT_MO_ADP_UV_EN::write(0);    // 2_16 5
 
         GBS::DIAG_BOB_PLDY_RAM_BYPS::write(1); // 2_00 7
         GBS::VDS_W_LEV_BYPS::write(1);         // brightness
@@ -9391,9 +9390,10 @@ void handleType2Command(char argument)
             }
             if (rto->scanlinesEnabled) {
                 GBS::MADPT_Y_MI_OFFSET::write(uopt->scanlineStrength);
+                GBS::MADPT_UV_MI_OFFSET::write(uopt->scanlineStrength);
             }
             saveUserPrefs();
-            SerialM.print(F("Scanline Strength: "));
+            SerialM.print(F("Scanline Brightness: "));
             SerialM.println(uopt->scanlineStrength, HEX);
             break;
         case 'Z':
