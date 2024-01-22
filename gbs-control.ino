@@ -22,6 +22,10 @@
 #include "SSD1306Wire.h"
 #include "fonts.h"
 #include "images.h"
+
+static inline void writeBytes(uint8_t slaveRegister, uint8_t *values, uint8_t numValues);
+const uint8_t *loadPresetFromSPIFFS(byte forVideoMode);
+
 SSD1306Wire display(0x3c, D2, D1); //inits I2C address & pins for OLED
 const int pin_clk = 14;            //D5 = GPIO14 (input of one direction for encoder)
 const int pin_data = 13;           //D7 = GPIO13	(input of one direction for encoder)
@@ -85,7 +89,7 @@ typedef TV5725<GBS_ADDR> GBS;
 static unsigned long lastVsyncLock = millis();
 
 // Si5351mcu library by Pavel Milanes
-// https ://github.com/pavelmc/Si5351mcu
+// https://github.com/pavelmc/Si5351mcu
 // included in project root folder to allow modifications within limitations of the Arduino framework
 // See 3rdparty/Si5351mcu for unmodified source and license
 #include "src/si5351mcu.h"
