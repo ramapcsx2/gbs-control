@@ -177,8 +177,11 @@ void initOSD()
 {
     osdManager.registerIcon(OSDIcon::BRIGHTNESS, osdBrightness);
     osdManager.registerIcon(OSDIcon::CONTRAST, osdContrast);
-    osdManager.registerIcon(OSDIcon::HUE, osdScanlines);
-    osdManager.registerIcon(OSDIcon::VOLUME, osdLineFilter);
+
+    // consufuing, disabled for now
+    // osdManager.registerIcon(OSDIcon::HUE, osdScanlines);
+    // osdManager.registerIcon(OSDIcon::VOLUME, osdLineFilter);
+
     osdManager.registerIcon(OSDIcon::MOVE_Y, osdMoveY);
     osdManager.registerIcon(OSDIcon::MOVE_X, osdMoveX);
     osdManager.registerIcon(OSDIcon::SCALE_Y, osdScaleY);
