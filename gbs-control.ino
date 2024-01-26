@@ -14,14 +14,18 @@
 #include "presetDeinterlacerSection.h"
 #include "presetHdBypassSection.h"
 #include "ofw_RGBS.h"
+#include "options.h"
+#include "slot.h"
 
 #include <Wire.h>
 #include "tv5725.h"
 #include "osd.h"
-
 #include "SSD1306Wire.h"
-#include "fonts.h"
 #include "images.h"
+
+#define HAVE_BUTTONS 0
+#define USE_NEW_OLED_MENU 1
+#define NEW_OLED_MENU_REVERSE_ROTATORY_ENCODER 0
 
 static inline void writeBytes(uint8_t slaveRegister, uint8_t *values, uint8_t numValues);
 const uint8_t *loadPresetFromSPIFFS(byte forVideoMode);
@@ -31,6 +35,15 @@ const int pin_clk = 14;            //D5 = GPIO14 (input of one direction for enc
 const int pin_data = 13;           //D7 = GPIO13	(input of one direction for encoder)
 const int pin_switch = 0;          //D3 = GPIO0 pulled HIGH, else boot fail (middle push button for encoder)
 
+
+#if USE_NEW_OLED_MENU
+#include "OLEDMenuImplementation.h"
+#include "OSDManager.h"
+OLEDMenuManager oledMenu(&display);
+OSDManager osdManager;
+volatile OLEDMenuNav oledNav = OLEDMenuNav::IDLE;
+volatile uint8_t rotaryIsrID = 0;
+#else
 String oled_menu[4] = {"Resolutions", "Presets", "Misc.", "Current Settings"};
 String oled_Resolutions[7] = {"1280x960", "1280x1024", "1280x720", "1920x1080", "480/576", "Downscale", "Pass-Through"};
 String oled_Presets[8] = {"1", "2", "3", "4", "5", "6", "7", "Back"};
@@ -43,10 +56,10 @@ int oled_page = 0;
 
 int oled_lastCount = 0;
 volatile int oled_encoder_pos = 0;
-volatile int oled_main_pointer = 0; //volatile vars change done with ISR
+volatile int oled_main_pointer = 0; // volatile vars change done with ISR
 volatile int oled_pointer_count = 0;
 volatile int oled_sub_pointer = 0;
-
+#endif
 #include <ESP8266WiFi.h>
 // ESPAsyncTCP and ESPAsyncWebServer libraries by me-no-dev
 // download (green "Clone or download" button) and extract to Arduino libraries folder
@@ -180,136 +193,12 @@ enum PresetID : uint8_t {
     PresetHdBypass = 0x21,
     PresetBypassRGBHV = 0x22,
 };
-
-// runTimeOptions holds system variables
-struct runTimeOptions
-{
-    uint32_t freqExtClockGen;
-    uint16_t noSyncCounter; // is always at least 1 when checking value in syncwatcher
-    uint8_t presetVlineShift;
-    uint8_t videoStandardInput; // 0 - unknown, 1 - NTSC like, 2 - PAL like, 3 480p NTSC, 4 576p PAL
-    uint8_t phaseSP;
-    uint8_t phaseADC;
-    uint8_t currentLevelSOG;
-    uint8_t thisSourceMaxLevelSOG;
-    uint8_t syncLockFailIgnore;
-    uint8_t applyPresetDoneStage;
-    uint8_t continousStableCounter;
-    uint8_t failRetryAttempts;
-    uint8_t presetID;  // PresetID
-    bool isCustomPreset;
-    uint8_t HPLLState;
-    uint8_t medResLineCount;
-    uint8_t osr;
-    uint8_t notRecognizedCounter;
-    boolean isInLowPowerMode;
-    boolean clampPositionIsSet;
-    boolean coastPositionIsSet;
-    boolean phaseIsSet;
-    boolean inputIsYpBpR;
-    boolean syncWatcherEnabled;
-    boolean outModeHdBypass;
-    boolean printInfos;
-    boolean sourceDisconnected;
-    boolean webServerEnabled;
-    boolean webServerStarted;
-    boolean allowUpdatesOTA;
-    boolean enableDebugPings;
-    boolean autoBestHtotalEnabled;
-    boolean videoIsFrozen;
-    boolean forceRetime;
-    boolean motionAdaptiveDeinterlaceActive;
-    boolean deinterlaceAutoEnabled;
-    boolean scanlinesEnabled;
-    boolean boardHasPower;
-    boolean presetIsPalForce60;
-    boolean syncTypeCsync;
-    boolean isValidForScalingRGBHV;
-    boolean useHdmiSyncFix;
-    boolean extClockGenDetected;
-} rtos;
+struct runTimeOptions rtos;
 struct runTimeOptions *rto = &rtos;
-
-/// Output resolution requested by user, *given to* applyPresets().
-enum PresetPreference : uint8_t {
-    Output960P = 0,
-    Output480P = 1,
-    OutputCustomized = 2,
-    Output720P = 3,
-    Output1024P = 4,
-    Output1080P = 5,
-    OutputDownscale = 6,
-    OutputBypass = 10,
-};
-
-using Ascii8 = uint8_t;
-
-// userOptions holds user preferences / customizations
-struct userOptions
-{
-    // 0 - normal, 1 - x480/x576, 2 - customized, 3 - 1280x720, 4 - 1280x1024, 5 - 1920x1080,
-    // 6 - downscale, 10 - bypass
-    PresetPreference presetPreference;
-    Ascii8 presetSlot;
-    uint8_t enableFrameTimeLock;
-    uint8_t frameTimeLockMethod;
-    uint8_t enableAutoGain;
-    uint8_t wantScanlines;
-    uint8_t wantOutputComponent;
-    uint8_t deintMode;
-    uint8_t wantVdsLineFilter;
-    uint8_t wantPeaking;
-    uint8_t wantTap6;
-    uint8_t preferScalingRgbhv;
-    uint8_t PalForce60;
-    uint8_t disableExternalClockGenerator;
-    uint8_t matchPresetSource;
-    uint8_t wantStepResponse;
-    uint8_t wantFullHeight;
-    uint8_t enableCalibrationADC;
-    uint8_t scanlineStrength;
-} uopts;
+struct userOptions uopts;
 struct userOptions *uopt = &uopts;
-
-// remember adc options across presets
-struct adcOptions
-{
-    // If `uopt->enableAutoGain == 1` and we're not before/during
-    // doPostPresetLoadSteps(), `adco->r_gain` must match `GBS::ADC_RGCTRL`.
-    //
-    // When we either set `uopt->enableAutoGain = 1` or call
-    // `GBS::ADC_RGCTRL::write()`, we must either call
-    // `GBS::ADC_RGCTRL::write(adco->r_gain)`, or set `adco->r_gain =
-    // GBS::ADC_RGCTRL::read()`.
-    uint8_t r_gain;
-    uint8_t g_gain;
-    uint8_t b_gain;
-    uint8_t r_off;
-    uint8_t g_off;
-    uint8_t b_off;
-} adcopts;
+struct adcOptions adcopts;
 struct adcOptions *adco = &adcopts;
-
-// SLOTS
-#define SLOTS_FILE "/slots.bin" // the file where to store slots metadata
-#define SLOTS_TOTAL 72          // max number of slots
-
-typedef struct
-{
-    char name[25];
-    uint8_t presetID;
-    uint8_t scanlines;
-    uint8_t scanlinesStrength;
-    uint8_t slot;
-    uint8_t wantVdsLineFilter;
-    uint8_t wantStepResponse;
-    uint8_t wantPeaking;
-} SlotMeta;
-
-typedef struct
-{
-    SlotMeta slot[SLOTS_TOTAL]; // the max avaliable slots that can be encoded in a the charset[A-Za-z0-9-._~()!*:,;]
-} SlotMetaArray;
 
 String slotIndexMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
 
@@ -4452,7 +4341,7 @@ void freezeVideo()
     GBS::CAPTURE_ENABLE::write(0);
 }
 
-static uint8_t getVideoMode()
+uint8_t getVideoMode()
 {
     uint8_t detectedMode = 0;
 
@@ -7234,6 +7123,8 @@ void loadDefaultUserOptions()
 //  //system_phy_set_powerup_option(3); // 0 = default, use init byte; 3 = full calibr. each boot, extra 200ms
 //  system_phy_set_powerup_option(0);
 //}
+
+#if !USE_NEW_OLED_MENU
 void ICACHE_RAM_ATTR isrRotaryEncoder()
 {
     static unsigned long lastInterruptTime = 0;
@@ -7245,19 +7136,59 @@ void ICACHE_RAM_ATTR isrRotaryEncoder()
             oled_main_pointer += 15;
             oled_sub_pointer += 15;
             oled_pointer_count++;
-            //down = true;
-            //up = false;
+            // down = true;
+            // up = false;
         } else {
             oled_encoder_pos--;
             oled_main_pointer -= 15;
             oled_sub_pointer -= 15;
             oled_pointer_count--;
-            //down = false;
-            //up = true;
+            // down = false;
+            // up = true;
         }
     }
     lastInterruptTime = interruptTime;
 }
+#endif
+
+#if USE_NEW_OLED_MENU
+void ICACHE_RAM_ATTR isrRotaryEncoderRotateForNewMenu()
+{
+    unsigned long interruptTime = millis();
+    static unsigned long lastInterruptTime = 0;
+    static unsigned long lastNavUpdateTime = 0;
+    static OLEDMenuNav lastNav;
+    OLEDMenuNav newNav;
+    if (interruptTime - lastInterruptTime > 250) {
+        if (!digitalRead(pin_data)) {
+            newNav = NEW_OLED_MENU_REVERSE_ROTATORY_ENCODER ? OLEDMenuNav::UP : OLEDMenuNav::DOWN;
+        } else {
+            newNav = NEW_OLED_MENU_REVERSE_ROTATORY_ENCODER ? OLEDMenuNav::DOWN : OLEDMenuNav::UP;
+        }
+        if (newNav != lastNav && (interruptTime - lastNavUpdateTime < 800)) {
+            // ignore rapid changes to filter out mis-reads. besides, you are not supposed to rotate the encoder this fast anyway
+            oledNav = lastNav = OLEDMenuNav::IDLE;
+        }
+        else{
+            lastNav = oledNav = newNav;
+            ++rotaryIsrID;
+            lastNavUpdateTime = interruptTime;
+        }
+        lastInterruptTime = interruptTime;
+    }
+}
+void ICACHE_RAM_ATTR isrRotaryEncoderPushForNewMenu()
+{
+    static unsigned long lastInterruptTime = 0;
+    unsigned long interruptTime = millis();
+    if (interruptTime - lastInterruptTime > 800) {
+        oledNav = OLEDMenuNav::ENTER;
+        ++rotaryIsrID;
+    }
+    lastInterruptTime = interruptTime;
+}
+#endif
+
 void setup()
 {
     display.init();                 //inits OLED on I2C bus
@@ -7266,8 +7197,16 @@ void setup()
     pinMode(pin_clk, INPUT_PULLUP);
     pinMode(pin_data, INPUT_PULLUP);
     pinMode(pin_switch, INPUT_PULLUP);
-    //ISR TO PIN
+
+#if USE_NEW_OLED_MENU 
+    attachInterrupt(digitalPinToInterrupt(pin_clk), isrRotaryEncoderRotateForNewMenu, FALLING);
+    attachInterrupt(digitalPinToInterrupt(pin_switch), isrRotaryEncoderPushForNewMenu, FALLING);
+    initOLEDMenu();
+    initOSD();
+#else
+    // ISR TO PIN
     attachInterrupt(digitalPinToInterrupt(pin_clk), isrRotaryEncoder, FALLING);
+#endif
 
     rto->webServerEnabled = true;
     rto->webServerStarted = false; // make sure this is set
@@ -7600,11 +7539,12 @@ void setup()
     }
 }
 
-#ifdef HAVE_BUTTONS
+#if HAVE_BUTTONS
 #define INPUT_SHIFT 0
 #define DOWN_SHIFT 1
 #define UP_SHIFT 2
 #define MENU_SHIFT 3
+#define BACK_SHIFT 4
 
 static const uint8_t historySize = 32;
 static const uint16_t buttonPollInterval = 100; // microseconds
@@ -7615,10 +7555,10 @@ static uint8_t buttonChanged;
 
 uint8_t readButtons(void)
 {
-    return ~((digitalRead(INPUT_PIN) << INPUT_SHIFT) |
-             (digitalRead(DOWN_PIN) << DOWN_SHIFT) |
-             (digitalRead(UP_PIN) << UP_SHIFT) |
-             (digitalRead(MENU_PIN) << MENU_SHIFT));
+    return ~((digitalRead(pin_data) << INPUT_SHIFT) |
+             (digitalRead(pin_clk) << DOWN_SHIFT) |
+             (digitalRead(pin_data) << UP_SHIFT) |
+             (digitalRead(pin_switch) << MENU_SHIFT));
 }
 
 void debounceButtons(void)
@@ -7637,15 +7577,29 @@ bool buttonDown(uint8_t pos)
 
 void handleButtons(void)
 {
+#if USE_NEW_OLED_MENU
+    OLEDMenuNav btn = OLEDMenuNav::IDLE;
+    debounceButtons();
+    if (buttonDown(MENU_SHIFT))
+        btn = OLEDMenuNav::ENTER;
+    if (buttonDown(DOWN_SHIFT))
+        btn = OLEDMenuNav::UP;
+    if (buttonDown(UP_SHIFT))
+        btn = OLEDMenuNav::DOWN;
+    if (buttonDown(BACK_SHIFT))
+        btn = OLEDMenuNav::LEFT;
+    oledMenu.tick(btn);
+#else
     debounceButtons();
     if (buttonDown(INPUT_SHIFT))
         Menu::run(MenuInput::BACK);
     if (buttonDown(DOWN_SHIFT))
         Menu::run(MenuInput::DOWN);
-    if (buttonDown(UP_SHIFT))
-        Menu::run(MenuInput::UP);
+    // if (buttonDown(UP_SHIFT))
+    //     Menu::run(MenuInput::UP);
     if (buttonDown(MENU_SHIFT))
         Menu::run(MenuInput::FORWARD);
+#endif
 }
 #endif
 
@@ -7809,17 +7763,27 @@ void loop()
     static unsigned long lastTimeSourceCheck = 500; // 500 to start right away (after setup it will be 2790ms when we get here)
     static unsigned long lastTimeInterruptClear = millis();
 
-    settingsMenuOLED();
-    if (oled_encoder_pos != oled_lastCount) {
-        oled_lastCount = oled_encoder_pos;
-    }
-
-#ifdef HAVE_BUTTONS
+#if HAVE_BUTTONS
     static unsigned long lastButton = micros();
-
     if (micros() - lastButton > buttonPollInterval) {
         lastButton = micros();
         handleButtons();
+    }
+#endif
+
+#if USE_NEW_OLED_MENU
+    uint8_t oldIsrID = rotaryIsrID;
+    // make sure no rotary encoder isr happened while menu was updating.
+    // skipping this check will make the rotary encoder not responsive randomly.
+    // (oledNav change will be lost if isr happened during menu updating)
+    oledMenu.tick(oledNav);
+    if (oldIsrID == rotaryIsrID) {
+        oledNav = OLEDMenuNav::IDLE;
+    }
+#else
+    settingsMenuOLED();
+    if (oled_encoder_pos != oled_lastCount) {
+        oled_lastCount = oled_encoder_pos;
     }
 #endif
 
@@ -10237,6 +10201,7 @@ void saveUserPrefs()
 
 #endif
 
+#if !USE_NEW_OLED_MENU
 //OLED Functionality
 void settingsMenuOLED()
 {
@@ -10847,3 +10812,4 @@ void subpointerfunction()
         oled_pointer_count = 7;
     }
 }
+#endif

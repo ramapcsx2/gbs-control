@@ -172,10 +172,9 @@ public:
     {
         switch (menuState) {
             case MenuState::OFF:
-                if (input == MenuInput::FORWARD) {
+                    menuOff();
                     menuOn();
                     menuState = MenuState::MAIN;
-                }
                 break;
             case MenuState::MAIN:
                 switch (input) {

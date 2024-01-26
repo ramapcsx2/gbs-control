@@ -386,3 +386,4 @@ ASALocalRun/
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+i18n_preview*.jpg

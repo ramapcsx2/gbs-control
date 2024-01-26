@@ -63,7 +63,7 @@ namespace tw
         template <uint8_t BitWidth, Signage Signed>
         using RegValue = typename RegValue_<BitWidth, Signed>::Type;
 
-        void rawRead(uint8_t addr, uint8_t reg, uint8_t *output, uint8_t size)
+        inline void rawRead(uint8_t addr, uint8_t reg, uint8_t *output, uint8_t size)
         {
             Wire.beginTransmission(addr);
             Wire.write(reg);
@@ -83,7 +83,7 @@ namespace tw
 #endif
         }
 
-        void rawWrite(uint8_t addr, uint8_t reg, uint8_t const *input, uint8_t size)
+        inline void rawWrite(uint8_t addr, uint8_t reg, uint8_t const *input, uint8_t size)
         {
 #if 0
   Serial.print("WRITE "); Serial.print(addr, HEX); Serial.print("@"); Serial.print(reg, HEX); Serial.print(": ");
