@@ -25,7 +25,7 @@
 
 #define HAVE_BUTTONS 0
 #define USE_NEW_OLED_MENU 1
-#define NEW_OLED_MENU_REVERSE_ROTATORY_ENCODER 0
+
 
 static inline void writeBytes(uint8_t slaveRegister, uint8_t *values, uint8_t numValues);
 const uint8_t *loadPresetFromSPIFFS(byte forVideoMode);
@@ -7159,13 +7159,13 @@ void ICACHE_RAM_ATTR isrRotaryEncoderRotateForNewMenu()
     static unsigned long lastNavUpdateTime = 0;
     static OLEDMenuNav lastNav;
     OLEDMenuNav newNav;
-    if (interruptTime - lastInterruptTime > 250) {
+    if (interruptTime - lastInterruptTime > 150) {
         if (!digitalRead(pin_data)) {
-            newNav = NEW_OLED_MENU_REVERSE_ROTATORY_ENCODER ? OLEDMenuNav::UP : OLEDMenuNav::DOWN;
+            newNav = REVERSE_ROTARY_ENCODER_FOR_OLED_MENU ? OLEDMenuNav::DOWN : OLEDMenuNav::UP;
         } else {
-            newNav = NEW_OLED_MENU_REVERSE_ROTATORY_ENCODER ? OLEDMenuNav::DOWN : OLEDMenuNav::UP;
+            newNav = REVERSE_ROTARY_ENCODER_FOR_OLED_MENU ? OLEDMenuNav::UP : OLEDMenuNav::DOWN;
         }
-        if (newNav != lastNav && (interruptTime - lastNavUpdateTime < 800)) {
+        if (newNav != lastNav && (interruptTime - lastNavUpdateTime < 120)) {
             // ignore rapid changes to filter out mis-reads. besides, you are not supposed to rotate the encoder this fast anyway
             oledNav = lastNav = OLEDMenuNav::IDLE;
         }
@@ -7181,7 +7181,7 @@ void ICACHE_RAM_ATTR isrRotaryEncoderPushForNewMenu()
 {
     static unsigned long lastInterruptTime = 0;
     unsigned long interruptTime = millis();
-    if (interruptTime - lastInterruptTime > 800) {
+    if (interruptTime - lastInterruptTime > 500) {
         oledNav = OLEDMenuNav::ENTER;
         ++rotaryIsrID;
     }
@@ -7586,8 +7586,6 @@ void handleButtons(void)
         btn = OLEDMenuNav::UP;
     if (buttonDown(UP_SHIFT))
         btn = OLEDMenuNav::DOWN;
-    if (buttonDown(BACK_SHIFT))
-        btn = OLEDMenuNav::LEFT;
     oledMenu.tick(btn);
 #else
     debounceButtons();

@@ -18,7 +18,6 @@ class OLEDMenuItem
     friend class OLEDMenuManager;
 
 private:
-    uint8_t numSubItem = 0;
     OLEDDISPLAY_TEXT_ALIGNMENT alignment;
     void addSubItem(OLEDMenuItem *item)
     {
@@ -64,6 +63,7 @@ public:
     uint16_t alignOffset; // used if imageWidth < OLED_MENU_WIDTH
     uint8_t pageInParent;
     uint8_t maxPageIndex;
+    uint8_t numSubItem = 0;
     const uint8_t *xbmImage;
     const char *str;
     const uint8_t *font;

@@ -20,8 +20,6 @@ enum class OLEDMenuNav
     IDLE = 0,
     UP,
     DOWN,
-    LEFT,
-    RIGHT,
     ENTER,
 };
 
@@ -60,7 +58,7 @@ private:
         if (itemSP == OLED_MENU_MAX_DEPTH - 1)
         {
             char msg[30];
-            sprintf(msg, "Maxmimum depth reached: %d", OLED_MENU_MAX_DEPTH);
+            sprintf(msg, "Maximum depth reached: %d", OLED_MENU_MAX_DEPTH);
             panicAndDisable(msg);
         }
         itemStack[itemSP++] = item;
@@ -84,7 +82,7 @@ private:
         this->display->setFont(ArialMT_Plain_10);
         this->display->drawString(0, 0, msg);
         this->display->display();
-        this->disabled = true;
+        while (1);
     }
 
     void drawScreenSaver()

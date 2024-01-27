@@ -38,11 +38,11 @@ menu_items = [
         "en-US": "Press Any Key",
     },
     {
-        "tag": "OM_RESO",
+        "tag": "OM_RESOLUTION",
         "en-US": "Resolutions",
     },
     {
-        "tag": "OM_PASSTHRU",
+        "tag": "OM_PASSTHROUGH",
         "en-US": "Passthrough",
     },
     {
@@ -82,6 +82,10 @@ menu_items = [
         "en-US": "No Presets. Please use the Web UI to create one first.",
     },
     {
+        "tag": "TEXT_TOO_MANY_PRESETS",
+        "en-US": "Please use WebUI to access more presets.",
+    },
+    {
         "tag": "TEXT_RESETTING_GBS",
         "en-US": "Resetting GBS\nPlease wait\n...",
         "size": 16,
@@ -102,17 +106,16 @@ menu_items = [
     },
     {
         "tag": "TEXT_WIFI_CONNECTED",
-        "en-US": "Status: Connected √",
+        "en-US": "Status: Connected",
     },
     {
         "tag": "TEXT_WIFI_DISCONNECTED",
-        "en-US": "Status: Disconnected ×",
+        "en-US": "Status: Disconnected",
     },
     {
         "tag": "TEXT_WIFI_URL",
         "en-US": "Use one of the following URLs to use the Web UI",
     },
-
     {
         "tag": "TEXT_LOADED",
         "en-US": "Loaded",
@@ -126,7 +129,9 @@ menu_items = [
     {
         "tag": "OM_OSD",
         "en-US": "Open OSD Menu",
-    }
+    },
+
+
 ]
 
 res = """

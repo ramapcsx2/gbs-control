@@ -26,7 +26,7 @@ OLEDMenuItem *OLEDMenuManager::allocItem()
     }
     if (!newItem) {
         char msg[40];
-        sprintf(msg, "Maxmimum number of items reached: %d", OLED_MENU_MAX_DEPTH);
+        sprintf(msg, "Maximum number of items reached: %d", OLED_MENU_MAX_ITEMS_NUM);
         panicAndDisable(msg);
     }
     return newItem;
@@ -83,7 +83,7 @@ OLEDMenuItem *OLEDMenuManager::registerItem(
     if (parent) {
         if (parent->numSubItem == OLED_MENU_MAX_SUBITEMS_NUM) {
             char msg[50];
-            sprintf(msg, "Maxmimum number of sub items reached: %d", OLED_MENU_MAX_SUBITEMS_NUM);
+            sprintf(msg, "Maximum number of sub items reached: %d", OLED_MENU_MAX_SUBITEMS_NUM);
             panicAndDisable(msg);
         }
         parent->addSubItem(newItem);
@@ -275,7 +275,7 @@ void OLEDMenuManager::enterItem(OLEDMenuItem *item, OLEDMenuNav btn, bool isFirs
         this->state = OLEDMenuState::ITEM_HANDLING;
     }
     if (item->handler) {
-        // Notify the handler that we're about to enter the sub menu, i.e. draw sub items of this item. Or we're now freezing.
+        // Notify the handler that we're about to enter the sub menu and draw sub items of this item, or we're now freezing.
         // You can dynamically edit the sub items, or clear all the items and register new ones.
         // Handlers can return "false" to stop the manager from entering the sub menu if some conditions are not met.
         // If there are no sub items, then the return value does not matter.
@@ -389,7 +389,6 @@ void OLEDMenuManager::tick(OLEDMenuNav nav)
             nextItem();
             break;
         case OLEDMenuNav::ENTER:
-        case OLEDMenuNav::RIGHT:
             if (itemUnderCursor) {
                 enterItem(itemUnderCursor, OLEDMenuNav::IDLE, true);
             } else {
@@ -397,10 +396,6 @@ void OLEDMenuManager::tick(OLEDMenuNav nav)
                 goBack();
                 this->state = OLEDMenuState::IDLE;
             }
-            break;
-        case OLEDMenuNav::LEFT:
-            goBack();
-            this->state = OLEDMenuState::IDLE;
             break;
         default:
             break;

@@ -120,9 +120,12 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     display->display();
     uopt->presetSlot = 'A' + item->tag; // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,
     uopt->presetPreference = PresetPreference::OutputCustomized;
+    saveUserPrefs();
     if (rto->videoStandardInput == 14) {
+        // vga upscale path: let synwatcher handle it
         rto->videoStandardInput = 15;
     } else {
+        // normal path
         applyPresets(rto->videoStandardInput);
     }
     saveUserPrefs();
@@ -136,22 +139,29 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
 {
     SlotMetaArray slotsObject;
     File slotsBinaryFileRead = SPIFFS.open(SLOTS_FILE, "r");
-
     manager->clearSubItems(item);
-    bool found = false;
+    int curNumSlot = 0;
     if (slotsBinaryFileRead) {
         slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
         slotsBinaryFileRead.close();
-        for (int i; i < OLED_MENU_MAX_SUBITEMS_NUM; ++i) {
+        for (int i; i < SLOTS_TOTAL; ++i) {
             const SlotMeta &slot = slotsObject.slot[i];
             if (strcmp(EMPTY_SLOT_NAME, slot.name) == 0 || !strlen(slot.name)) {
                 continue;
             }
-            found = true;
+            curNumSlot++;
+            if (curNumSlot > OLED_MENU_MAX_SUBITEMS_NUM) {
+                break;
+            }
             manager->registerItem(item, slot.slot, slot.name, presetSelectionMenuHandler);
         }
     }
-    if (!found) {
+
+    if (curNumSlot > OLED_MENU_MAX_SUBITEMS_NUM) {
+        manager->registerItem(item, 0, IMAGE_ITEM(TEXT_TOO_MANY_PRESETS));
+    }
+    
+    if (!item->numSubItem) {
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_NO_PRESETS));
     }
     return true;
@@ -338,18 +348,21 @@ bool osdMenuHanlder(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav nav, b
                 start = millis();
                 break;
             case OLEDMenuNav::DOWN:
-                osdManager.tick(OSDNav::LEFT);
+                if(REVERSE_ROTARY_ENCODER_FOR_OSD) {
+                    osdManager.tick(OSDNav::RIGHT);
+                } else {
+                    osdManager.tick(OSDNav::LEFT);
+                }
                 start = millis();
                 break;
             case OLEDMenuNav::UP:
+                if(REVERSE_ROTARY_ENCODER_FOR_OSD) {
+                    osdManager.tick(OSDNav::LEFT);
+                } else {
+                    osdManager.tick(OSDNav::RIGHT);
+                }
                 start = millis();
-                osdManager.tick(OSDNav::RIGHT);
                 break;
-            case OLEDMenuNav::LEFT:
-                start = millis();
-                osdManager.tick(OSDNav::BACK);
-                manager->unfreeze();
-                return false;
             default:
                 break;
         }
@@ -369,7 +382,7 @@ void initOLEDMenu()
     oledMenu.registerItem(root, MT_NULL, IMAGE_ITEM(OM_OSD), osdMenuHanlder);
 
     // Resolutions
-    OLEDMenuItem *resMenu = oledMenu.registerItem(root, MT_NULL, IMAGE_ITEM(OM_RESO));
+    OLEDMenuItem *resMenu = oledMenu.registerItem(root, MT_NULL, IMAGE_ITEM(OM_RESOLUTION));
     const char *resolutions[5] = {"1280x960", "1280x1024", "1280x720", "1920x1080", "480/576"};
     uint8_t tags[5] = {MT_1280x960, MT1280x1024, MT1280x720, MT1920x1080, MT_480s576};
     for (int i = 0; i < 5; ++i) {
@@ -377,7 +390,7 @@ void initOLEDMenu()
     }
     // downscale and passthrough
     oledMenu.registerItem(resMenu, MT_DOWNSCALE, IMAGE_ITEM(OM_DOWNSCALE), resolutionMenuHandler);
-    oledMenu.registerItem(resMenu, MT_BYPASS, IMAGE_ITEM(OM_PASSTHRU), resolutionMenuHandler);
+    oledMenu.registerItem(resMenu, MT_BYPASS, IMAGE_ITEM(OM_PASSTHROUGH), resolutionMenuHandler);
 
     // Presets
     oledMenu.registerItem(root, MT_NULL, IMAGE_ITEM(OM_PRESET), presetsCreationMenuHandler);
