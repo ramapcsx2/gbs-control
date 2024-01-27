@@ -342,6 +342,14 @@ bool osdMenuHanlder(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav nav, b
         display->setTextAlignment(OLEDDISPLAY_TEXT_ALIGNMENT::TEXT_ALIGN_CENTER);
         display->drawStringf(OLED_MENU_WIDTH / 2, 16, buf, "OSD (%ds)", left / 1000 + 1);
         display->display();
+        if (REVERSE_ROTARY_ENCODER_FOR_OLED_MENU){
+            // reverse nav back to normal
+            if(nav == OLEDMenuNav::DOWN) {
+                nav = OLEDMenuNav::UP;
+            } else if(nav == OLEDMenuNav::UP) {
+                nav = OLEDMenuNav::DOWN;
+            }
+        }
         switch (nav) {
             case OLEDMenuNav::ENTER:
                 osdManager.tick(OSDNav::ENTER);
