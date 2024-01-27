@@ -20,6 +20,7 @@
 #define OLED_MENU_WRAPPING_SPACE (OLED_MENU_WIDTH / 3)
 #define REVERSE_ROTARY_ENCODER_FOR_OLED_MENU 0 // if set 1, rotary encoder will be reversed for menu navigation
 #define REVERSE_ROTARY_ENCODER_FOR_OSD 0 // if set 1, rotary encoder will be reversed for OSD navigation
+#define OSD_TIMEOUT 8000 // OSD will disappear after OSD_TIMEOUT milliseconds without inputs
 
 // do not edit these
 #define OLED_MENU_STATUS_BAR_HEIGHT (OLED_MENU_HEIGHT / 4) // status bar uses 1/4 of the screen
