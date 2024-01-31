@@ -806,5 +806,4 @@ public:
     static const uint8_t OSD_FORMAT_RGB = 0;
 };
 
-
 #endif
