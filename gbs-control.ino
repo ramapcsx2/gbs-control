@@ -7191,6 +7191,10 @@ void ICACHE_RAM_ATTR isrRotaryEncoderPushForNewMenu()
 
 void setup()
 {
+    // Wait for power to stabilize, to reduce the risk of the ESP failing to boot until
+    // manually reset (https://github.com/ramapcsx2/gbs-control/issues/480).
+    delay(500);
+
     display.init();                 //inits OLED on I2C bus
     display.flipScreenVertically(); //orientation fix for OLED
 
@@ -9415,7 +9419,7 @@ void handleType2Command(char argument)
             break;
         case 'O':
             // info
-            if (GBS::ADC_INPUT_SEL::read() == 1) 
+            if (GBS::ADC_INPUT_SEL::read() == 1)
             {
                 SerialM.println("RGB reg");
                 SerialM.println(F("------------ "));
@@ -9431,8 +9435,8 @@ void handleType2Command(char argument)
                 SerialM.println(GBS::VDS_USIN_GAIN::read(), DEC);
                 SerialM.print(F("UCOS_GAIN: "));
                 SerialM.println(GBS::VDS_UCOS_GAIN::read(), DEC);
-            } 
-            else 
+            }
+            else
             {
                 SerialM.println("YPbPr reg");
                 SerialM.println(F("------------ "));
@@ -9465,7 +9469,7 @@ void handleType2Command(char argument)
                 GBS::ADC_BOFCTRL::write(adco->b_off);
                 SerialM.println("RGB:defauit");
             }
-            else 
+            else
             {
                 GBS::VDS_Y_GAIN::write(128);
                 GBS::VDS_UCOS_GAIN::write(28);
