@@ -9648,7 +9648,11 @@ void startWebserver()
                 File slotsBinaryFileRead = SPIFFS.open(SLOTS_FILE, "r");
 
                 if (slotsBinaryFileRead) {
-                    slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
+                    auto read = slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
+                    if (read < sizeof(slotsObject)) {
+                        Serial.print("Failed to read " SLOTS_FILE "!");
+                        goto fail;
+                    }
                     slotsBinaryFileRead.close();
                 } else {
                     File slotsBinaryFileWrite = SPIFFS.open(SLOTS_FILE, "w");
