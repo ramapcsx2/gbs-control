@@ -19,7 +19,7 @@ LIBRARIES_URLS := \
 
 # The FQBN is the core, followed by the board and other build options.
 CORE_NAME := $(shell echo $(CORE) | cut -f1 -d@)
-FQBN := $(CORE_NAME):$(BOARD):xtal=160,eesz=4M1M,ip=lm2f
+FQBN := $(CORE_NAME):$(BOARD):xtal=160,eesz=4M1M
 
 # Treat all warnings as errors.
 BUILDPROP := compiler.warning_flags.all='-Wall -Wextra'

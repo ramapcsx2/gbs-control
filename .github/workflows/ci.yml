@@ -28,3 +28,9 @@ jobs:
         run: make env
       - name: Build the sketch
         run: make VERBOSE=1
+      - name: Upload the compiled sketch artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-sketch-binary
+          path: var/build/gbs-control.ino.elf
+          retention-days: 5
