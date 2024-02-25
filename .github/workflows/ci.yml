@@ -32,5 +32,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: compiled-sketch-binary
-          path: var/build/gbs-control.ino.elf
+          path: var/build/gbs-control.ino.bin
           retention-days: 5
