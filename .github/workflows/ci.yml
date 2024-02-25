@@ -1,0 +1,30 @@
+---
+name: ci
+
+on: push
+
+jobs:
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Arduino CLI environment
+        run: make env
+      - name: Lint the sketch
+        run: make lint
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Fetch git tags info
+        run: git fetch --tags --force
+      - name: Install Arduino CLI host dependencies
+        run: sudo apt install -y python-is-python3
+      - name: Install Arduino CLI python dependencies
+        run: pip3 install pyserial
+      - name: Setup Arduino CLI environment
+        run: make env
+      - name: Build the sketch
+        run: make VERBOSE=1
