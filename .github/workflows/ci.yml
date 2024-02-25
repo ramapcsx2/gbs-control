@@ -28,9 +28,14 @@ jobs:
         run: make env
       - name: Build the sketch
         run: make VERBOSE=1
+      - name: Download external Windows flashing tool to attach to the artifact
+        run: curl -LO https://github.com/espressif/esptool/releases/download/v4.7.0/esptool-v4.7.0-win64.zip && unzip -j esptool-v4.7.0-win64.zip -d esptool-win64
       - name: Upload the compiled sketch artifact
         uses: actions/upload-artifact@v4
         with:
-          name: compiled-sketch-binary
-          path: var/build/gbs-control.ino.bin
-          retention-days: 5
+          name: gbs-control-bin-esptool-win64
+          path: |
+            var/build/gbs-control.ino.bin
+            esptool-win64/esptool.exe
+            scripts/upload_sketch_only.bat
+            scripts/upload_sketch_erase_wifi.bat
