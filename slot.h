@@ -1,4 +1,5 @@
 #ifndef _SLOT_H_
+#define _SLOT_H_
 // SLOTS
 #define SLOTS_FILE "/slots.bin" // the file where to store slots metadata
 #define SLOTS_TOTAL 72          // max number of slots

@@ -287,7 +287,7 @@ const createWebSocket = () => {
 
         const toggleMethod = (
           button: HTMLTableCellElement | HTMLElement,
-          mode: boolean
+          mode: bool
         ) => {
           if (button.tagName === "TD") {
             button.innerText = mode ? "toggle_on" : "toggle_off";
@@ -443,7 +443,7 @@ const savePreset = () => {
         ).then(() => {
           loadUser("4").then(() => {
             setTimeout(() => {
-              fetchSlotNames().then((success: boolean) => {
+              fetchSlotNames().then((success: bool) => {
                 if (success) {
                   updateSlotNames();
                 }
@@ -606,7 +606,7 @@ const toggleCustomSlotFilters = () => {
   updateCustomSlotFilters(!customSlotFilters);
 };
 
-const updateHelp = (help: boolean) => {
+const updateHelp = (help: bool) => {
   if (help) {
     document.body.classList.remove("gbs-help-hide");
   } else {
@@ -614,7 +614,7 @@ const updateHelp = (help: boolean) => {
   }
 };
 
-const updateDeveloperMode = (developerMode: boolean) => {
+const updateDeveloperMode = (developerMode: bool) => {
   const el = document.querySelector('[gbs-section="developer"]') as HTMLElement;
   if (developerMode) {
     el.removeAttribute("hidden");
@@ -632,7 +632,7 @@ const updateDeveloperMode = (developerMode: boolean) => {
 };
 
 const updateCustomSlotFilters = (
-  customFilters: boolean = GBSStorage.read("customSlotFilters") === true
+  customFilters: bool = GBSStorage.read("customSlotFilters") === true
 ) => {
   if (customFilters) {
     GBSControl.ui.customSlotFilters.setAttribute("active", "");
@@ -655,7 +655,7 @@ const GBSStorage = {
       JSON.stringify(GBSStorage.lsObject)
     );
   },
-  read(key: string): string | number | boolean {
+  read(key: string): string | number | bool {
     GBSStorage.lsObject = JSON.parse(
       localStorage.getItem("GBSControlSlotNames") || "{}"
     );
@@ -683,7 +683,7 @@ const toggleButtonActive = (id: string) => (
   }
 };
 
-const displayWifiWarning = (mode: boolean) => {
+const displayWifiWarning = (mode: bool) => {
   GBSControl.ui.webSocketConnectionWarning.style.display = mode
     ? "block"
     : "none";
@@ -1271,7 +1271,7 @@ const initGeneralListeners = () => {
 };
 
 const initDeveloperMode = () => {
-  const devMode = GBSStorage.read("developerMode") as boolean;
+  const devMode = GBSStorage.read("developerMode") as bool;
   if (devMode === undefined) {
     GBSStorage.write("developerMode", false);
     updateDeveloperMode(false);
@@ -1281,7 +1281,7 @@ const initDeveloperMode = () => {
 };
 
 const initHelp = () => {
-  let help = GBSStorage.read("help") as boolean;
+  let help = GBSStorage.read("help") as bool;
   if (help === undefined) {
     help = false;
     GBSStorage.write("help", help);

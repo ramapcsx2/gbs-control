@@ -1,4 +1,8 @@
 #ifndef _USER_H_
+#define _USER_H_
+
+#define THIS_DEVICE_MASTER
+
 using Ascii8 = uint8_t;
 /// Output resolution requested by user, *given to* applyPresets().
 enum PresetPreference : uint8_t {

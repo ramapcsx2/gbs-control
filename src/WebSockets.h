@@ -29,7 +29,7 @@
 #include <application.h>
 #define bit(b) (1UL << (b))    // Taken directly from Arduino.h
 #else
-#include <Arduino.h>
+#include <ESP8266WiFi.h>
 #include <IPAddress.h>
 #endif
 

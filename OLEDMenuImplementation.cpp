@@ -1,6 +1,7 @@
 #define OSD_TIMEOUT 8000
 
-#include <ESP8266WiFi.h>
+#include <Arduino.h>
+#include <LittleFS.h>
 #include "OLEDMenuImplementation.h"
 #include "options.h"
 #include "tv5725.h"
@@ -138,7 +139,7 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
 bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool)
 {
     SlotMetaArray slotsObject;
-    File slotsBinaryFileRead = SPIFFS.open(SLOTS_FILE, "r");
+    File slotsBinaryFileRead = LittleFS.open(SLOTS_FILE, "r");
     manager->clearSubItems(item);
     int curNumSlot = 0;
     if (slotsBinaryFileRead) {
@@ -160,7 +161,7 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     if (curNumSlot > OLED_MENU_MAX_SUBITEMS_NUM) {
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_TOO_MANY_PRESETS));
     }
-    
+
     if (!item->numSubItem) {
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_NO_PRESETS));
     }
@@ -237,8 +238,8 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
         display.drawXbm(CENTER_IMAGE(TEXT_NO_INPUT));
     } else {
         // TODO translations
-        boolean vsyncActive = 0;
-        boolean hsyncActive = 0;
+        bool vsyncActive = 0;
+        bool hsyncActive = 0;
         float ofr = getOutputFrameRate();
         uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
         rto->presetID = GBS::GBS_PRESET_ID::read();

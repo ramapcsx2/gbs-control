@@ -1,6 +1,8 @@
 #ifndef FRAMESYNC_H_
 #define FRAMESYNC_H_
 
+#include "wifiman.h"
+
 // fast digitalRead()
 #if defined(ESP8266)
 #define digitalRead(x) ((GPIO_REG_READ(GPIO_IN_ADDRESS) >> x) & 1)
@@ -78,7 +80,7 @@ void setExternalClockGenFrequencySmooth(uint32_t freq) {
             while (current > (rto->freqExtClockGen + STEP_SIZE_HZ)) {
                 current -= STEP_SIZE_HZ;
                 Si.setFreq(0, current);
-                handleWiFi(0);
+                wifiLoop(0);
             }
         }
     } else if (current < rto->freqExtClockGen) {
@@ -86,7 +88,7 @@ void setExternalClockGenFrequencySmooth(uint32_t freq) {
             while ((current + STEP_SIZE_HZ) < rto->freqExtClockGen) {
                 current += STEP_SIZE_HZ;
                 Si.setFreq(0, current);
-                handleWiFi(0);
+                wifiLoop(0);
             }
         }
     }
