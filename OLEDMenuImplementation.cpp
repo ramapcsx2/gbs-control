@@ -2,12 +2,12 @@
 
 #include <Arduino.h>
 #include <LittleFS.h>
+#include <WebSockets.h>
+#include <WebSocketsServer.h>
 #include "OLEDMenuImplementation.h"
 #include "options.h"
 #include "tv5725.h"
 #include "slot.h"
-#include "src/WebSockets.h"
-#include "src/WebSocketsServer.h"
 #include "fonts.h"
 #include "OSDManager.h"
 
@@ -145,7 +145,7 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     if (slotsBinaryFileRead) {
         slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
         slotsBinaryFileRead.close();
-        for (int i; i < SLOTS_TOTAL; ++i) {
+        for (int i = 0; i < SLOTS_TOTAL; ++i) {
             const SlotMeta &slot = slotsObject.slot[i];
             if (strcmp(EMPTY_SLOT_NAME, slot.name) == 0 || !strlen(slot.name)) {
                 continue;
@@ -310,7 +310,7 @@ bool wifiMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, 
             // shouldn't happen?
             manager->registerItem(item, 0, IMAGE_ITEM(TEXT_WIFI_DISCONNECTED));
         }
-    } else if (wifiMode == WIFI_AP) {
+    } else if (wifiMode == WIFI_AP_STA) {
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_WIFI_CONNECT_TO));
         sprintf(ssid, "SSID: %s (%s)", ap_ssid, ap_password);
         manager->registerItem(item, 0, ssid);

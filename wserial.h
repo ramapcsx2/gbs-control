@@ -1,19 +1,19 @@
 /*
 #####################################################################################
-# File: serial.h                                                                    #
+# File: wserial.h                                                                    #
 # File Created: Friday, 19th April 2024 4:13:41 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Thursday, 25th April 2024 2:21:37 pm                               #
+# Last Modified: Thursday, 25th April 2024 4:44:49 pm                               #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
 #####################################################################################
 */
 
-#ifndef _ESPSERIAL_H_
-#define _ESPSERIAL_H_
+#ifndef _WSERIAL_H_
+#define _WSERIAL_H_
 
-#include "src/WebSocketsServer.h"
+#include <WebSocketsServer.h>
 
 extern char serialCommand;
 extern char userCommand;
@@ -21,6 +21,7 @@ extern WebSocketsServer webSocket;
 
 void discardSerialRxData();
 
+#if defined(ESP8266)
 // serial mirror class for websocket logs
 class SerialMirror : public Stream
 {
@@ -83,12 +84,7 @@ class SerialMirror : public Stream
     void flush() {}
 };
 
-#if defined(ESP8266)
-// serial mirror class for websocket logs
-SerialMirror SerialM;
-#else
-#define SerialM Serial
-#endif
+extern SerialMirror SerialM;
 
 #define LOGF(D, ...)                                                      \
 do {                                                                      \
@@ -103,6 +99,12 @@ do {                                                                            
     SerialM.print(D);                                                            \
 } while(0)
 
-// extern SerialMirror SerialM;
+#else                               // ESP8266
 
-#endif                              // _ESPSERIAL_H_
+#define LOGF(D, ...)    (void)0
+#define LOGN(D)         (void)0
+#define LOG(D)          (void)0
+
+#endif                              // ESP8266
+
+#endif                              // _WSERIAL_H_

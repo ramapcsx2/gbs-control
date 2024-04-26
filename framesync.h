@@ -216,12 +216,12 @@ private:
         // allow ~4 negative (inPeriod is < outPeriod) clock cycles jitter
         if ((inPeriod > outPeriod ? inPeriod - outPeriod : outPeriod - inPeriod) <= 4) {
             /*if (inPeriod >= outPeriod) {
-        Serial.print("inPeriod >= out: ");
-        Serial.println(inPeriod - outPeriod);
+        LOG("inPeriod >= out: ");
+        LOGN(inPeriod - outPeriod);
       }
       else {
-        Serial.print("inPeriod < out: ");
-        Serial.println(outPeriod - inPeriod);
+        LOG("inPeriod < out: ");
+        LOGN(outPeriod - inPeriod);
       }*/
             bestHtotal = inHtotal;
         } else {
@@ -235,14 +235,14 @@ private:
 
 #ifdef FS_DEBUG
         if (bestHtotal != inHtotal) {
-            Serial.print(F("                     wants new htotal, oldbest: "));
-            Serial.print(inHtotal);
-            Serial.print(F(" newbest: "));
-            Serial.println(bestHtotal);
-            Serial.print(F("                     inPeriod: "));
-            Serial.print(inPeriod);
-            Serial.print(F(" outPeriod: "));
-            Serial.println(outPeriod);
+            LOG(F("                     wants new htotal, oldbest: "));
+            LOG(inHtotal);
+            LOG(F(" newbest: "));
+            LOGN(bestHtotal);
+            LOG(F("                     inPeriod: "));
+            LOG(inPeriod);
+            LOG(F(" outPeriod: "));
+            LOGN(outPeriod);
         }
 #endif
         return true;
@@ -254,11 +254,11 @@ public:
     static void reset(uint8_t frameTimeLockMethod)
     {
 #ifdef FS_DEBUG
-        Serial.print("FS reset(), with correction: ");
+        LOG(F("FS reset(), with correction: "));
 #endif
         if (syncLastCorrection != 0) {
 #ifdef FS_DEBUG
-            Serial.println("Yes");
+            LOGN(F("Yes"));
 #endif
             uint16_t vtotal = 0, vsst = 0;
             VRST_SST::read(vtotal, vsst);
@@ -278,7 +278,7 @@ public:
         }
 #ifdef FS_DEBUG
         else {
-            Serial.println("No");
+            LOGN(F("No"));
         }
 #endif
         fsDebugPrintf("FrameSyncManager::reset(%d)\n", frameTimeLockMethod);
@@ -431,7 +431,7 @@ public:
         Serial.printf("phase: %7d target: %7d", phase, target);
         if (correction == syncLastCorrection) {
             // terminate line if returning early
-            Serial.println();
+            LOGN();
         }
 #endif
 #ifdef FS_DEBUG_LED
@@ -497,8 +497,8 @@ public:
     static bool runFrequency()
     {
         if (maybeFreqExt_per_videoFps < 0) {
-            SerialM.printf(
-                "Error: trying to tune external clock frequency while clock frequency uninitialized!\n");
+            LOGN(
+                "Error: trying to tune external clock frequency while clock frequency uninitialized!");
             return true;
         }
 
@@ -518,7 +518,7 @@ public:
             return true;
         }
         if (GBS::PLL648_CONTROL_01::read() != 0x75) {
-            SerialM.printf(
+            LOGF(
                 "Error: trying to tune external clock frequency while set to internal clock, PLL648_CONTROL_01=%d!\n",
                 GBS::PLL648_CONTROL_01::read());
             return true;
@@ -554,13 +554,13 @@ public:
             // TODO make vsyncPeriodAndPhase() restore TEST_BUS_SEL, not the caller?
             GBS::TEST_BUS_SEL::write(0x0);
             if (!ret) {
-                SerialM.printf("runFrequency(): vsyncPeriodAndPhase failed, retrying...\n");
+                LOGN("runFrequency(): vsyncPeriodAndPhase failed, retrying...");
                 continue;
             }
 
             fpsInput = esp8266_clock_freq / (float)periodInput;
             if (fpsInput < 47.0f || fpsInput > 86.0f) {
-                SerialM.printf(
+                LOGF(
                     "runFrequency(): fpsInput wrong: %f, retrying...\n",
                     fpsInput);
                 continue;
@@ -572,13 +572,13 @@ public:
             GBS::TEST_BUS_SEL::write(0x0);
             uint32_t periodInput2 = getPulseTicks();
             if (periodInput2 == 0) {
-                SerialM.printf("runFrequency(): getPulseTicks failed, retrying...\n");
+                LOGN("runFrequency(): getPulseTicks failed, retrying...");
                 continue;
             }
             float fpsInput2 = esp8266_clock_freq / (float)periodInput2;
             if (fpsInput2 < 47.0f || fpsInput2 > 86.0f) {
-                SerialM.printf(
-                    "runFrequency(): fpsInput2 wrong: %f, retrying...\n",
+                LOGF(
+                    "runFrequency(): fpsInput2 wrong: %f, retrying...",
                     fpsInput2);
                 continue;
             }
@@ -587,7 +587,7 @@ public:
             float diff = fabs(fpsInput2 - fpsInput);
             float relDiff = diff / std::min(fpsInput, fpsInput2);
             if (relDiff != relDiff || diff > 0.5f || relDiff > 0.00833f) {
-                SerialM.printf(
+                LOGF(
                     "FrameSyncManager::runFrequency() measured inconsistent FPS %f and %f, retrying...\n",
                     fpsInput,
                     fpsInput2);
@@ -598,7 +598,7 @@ public:
             break;
         }
         if (!success) {
-            SerialM.printf("FrameSyncManager::runFrequency() failed!\n");
+            LOGN("FrameSyncManager::runFrequency() failed!");
             return false;
         }
 
@@ -644,7 +644,7 @@ public:
         fpsOutput = std::max(fpsOutput, prevFpsOutput * (1 - MAX_FPS_CHANGE));
 
         if (fabs(rawFpsOutput - prevFpsOutput) >= 1.f) {
-            SerialM.printf(
+            LOGF(
                 "FPS excursion detected! Measured input FPS %f, previous output FPS %f",
                 fpsInput, prevFpsOutput);
         }

@@ -1,8 +1,6 @@
 #ifndef _USER_H_
 #define _USER_H_
 
-#define THIS_DEVICE_MASTER
-
 using Ascii8 = uint8_t;
 /// Output resolution requested by user, *given to* applyPresets().
 enum PresetPreference : uint8_t {
@@ -107,4 +105,12 @@ struct adcOptions
     uint8_t g_off;
     uint8_t b_off;
 };
-#endif
+
+/// Video processing mode, loaded into register GBS_PRESET_ID by applyPresets()
+/// and read to rto->presetID by doPostPresetLoadSteps(). Shown on web UI.
+enum PresetID : uint8_t {
+    PresetHdBypass = 0x21,
+    PresetBypassRGBHV = 0x22,
+};
+
+#endif                                  // _USER_H_

@@ -75,22 +75,22 @@ namespace tw
             }
 
 #if 0
-  Serial.print("READ "); Serial.print(addr, HEX); Serial.print("@"); Serial.print(reg, HEX); Serial.print(": ");
+  LOG(F("READ ")); LOGF("%04X", addr); LOG(F("@")); LOGF("%04X", reg); LOG(F(": "));
   for (uint8_t i = 0; i < size; ++i) {
-    Serial.print(output[i] >> 4, HEX); Serial.print(output[i] & 0xF, HEX);
+    LOG(output[i] >> 4, HEX); LOG(output[i] & 0xF, HEX);
   }
-  Serial.println();
+  LOGN();
 #endif
         }
 
         inline void rawWrite(uint8_t addr, uint8_t reg, uint8_t const *input, uint8_t size)
         {
 #if 0
-  Serial.print("WRITE "); Serial.print(addr, HEX); Serial.print("@"); Serial.print(reg, HEX); Serial.print(": ");
+  LOG(F("WRITE ")); LOGF("%04X", addr); LOG(F("@")); LOGF("%04X", reg); LOG(F(": "));
   for (uint8_t i = 0; i < size; ++i) {
-    Serial.print(input[i] >> 4, HEX); Serial.print(input[i] & 0xF, HEX);
+    LOG(input[i] >> 4, HEX); LOG(input[i] & 0xF, HEX);
   }
-  Serial.println();
+  LOGN();
 #endif
             Wire.beginTransmission(addr);
             Wire.write(reg);

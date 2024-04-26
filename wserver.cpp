@@ -1,16 +1,29 @@
 /*
 #####################################################################################
-# File: server.cpp                                                                  #
-# File Created: Friday, 19th April 2024 3:11:40 pm                                  #
+# fs::File: server.cpp                                                                  #
+# fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Thursday, 25th April 2024 3:50:47 pm                               #
+# Last Modified: Friday, 26th April 2024 12:04:49 am                                #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
 #####################################################################################
 */
 
-#include "server.h"
+#include "wserver.h"
+
+#define LOMEM                            ((ESP.getFreeHeap() < 10000UL))
+#define ASSERT_LOMEM_RETURN() do {                          \
+    if (LOMEM) {                                            \
+        char msg[128] = "";                                 \
+        sprintf_P(msg, lomemMessage, ESP.getFreeHeap());    \
+        server.send(200, mimeTextHtml, msg);                \
+        return;                                             \
+    }                                                       \
+} while(0)
+#define ASSERT_LOMEM_GOTO(G) do {                           \
+    if (LOMEM) goto G;                                      \
+} while(0)
 
 /**
  * @brief Initializer
@@ -49,47 +62,48 @@ void serverInit()
 void serverHome()
 {
     // Serial.println("sending web page");
-    if (ESP.getFreeHeap() > 10000) {
-        server.sendHeader(F("Content-Encoding"), "gzip");
-        server.send(200, mimeTextHtml, webui_html, sizeof(webui_html));
-    }
+    ASSERT_LOMEM_RETURN();
+    server.sendHeader(F("Content-Encoding"), "gzip");
+    server.send(200, mimeTextHtml, webui_html, sizeof(webui_html));
 }
 
 /**
- * @brief
+ * @brief Serial Command
  *
  */
 void serverSC()
 {
-    if (ESP.getFreeHeap() > 10000) {
-        if (server.args() > 0) {
-            String p = server.arg(0);
-            // Serial.println(p->name());
-            serialCommand = p.charAt(0);
+    ASSERT_LOMEM_RETURN();
+    if (server.args() > 0) {
+        const String p = server.arg(1);
 
-            // hack, problem with '+' command received via url param
-            if (serialCommand == ' ') {
-                serialCommand = '+';
-            }
+LOGF("SC: %s", p.c_str());
+        serialCommand = p.charAt(0);
+
+        // hack, problem with '+' command received via url param
+        if (serialCommand == ' ') {
+            serialCommand = '+';
         }
-        server.send(200); // reply
+        LOG(F("[w] serial command received: "));
+        LOGF("%c\n", serialCommand);
     }
+    server.send(200);
 }
 
 /**
- * @brief
+ * @brief User Command
  *
  */
 void serverUC()
 {
-    if (ESP.getFreeHeap() > 10000) {
-        if (server.args() > 0) {
-            String p = server.arg(0);
-            // Serial.println(p->name());
-            userCommand = p.charAt(0);
-        }
-        server.send(200); // reply
+    ASSERT_LOMEM_RETURN();
+    if (server.args() > 0) {
+        String p = server.arg(1);
+        userCommand = p.charAt(0);
+        LOG(F("[w] user command received: "));
+        LOGF("%c\n", userCommand);
     }
+    server.send(200);
 }
 
 /**
@@ -98,12 +112,14 @@ void serverUC()
  */
 void serverSlots()
 {
-    if (ESP.getFreeHeap() > 10000) {
-        SlotMetaArray slotsObject;
-        File slotsBinaryFileRead = LittleFS.open(SLOTS_FILE, "r");
+    ASSERT_LOMEM_RETURN();
+    fs::File slotsBinaryFile = LittleFS.open(SLOTS_FILE, "r");
 
-        if (!slotsBinaryFileRead) {
-            File slotsBinaryFileWrite = LittleFS.open(SLOTS_FILE, "w");
+    if (!slotsBinaryFile) {
+        LOGN(F("/slots.bin is not found, attempting to create"));
+        fs::File slotsBinaryFile = LittleFS.open(SLOTS_FILE, "w");
+        if(slotsBinaryFile) {
+            SlotMetaArray slotsObject;
             for (int i = 0; i < SLOTS_TOTAL; i++) {
                 slotsObject.slot[i].slot = i;
                 slotsObject.slot[i].presetID = 0;
@@ -115,13 +131,18 @@ void serverSlots()
                 char emptySlotName[25] = "Empty                   ";
                 strncpy(slotsObject.slot[i].name, emptySlotName, 25);
             }
-            slotsBinaryFileWrite.write((byte *)&slotsObject, sizeof(slotsObject));
+            slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
+        } else {
+            LOGN(F("unable to create /slots.bin"));
+            goto stream_slots_bin_failed;
         }
-
-        server.streamFile(slotsBinaryFileRead, String(mimeOctetStream));
-
-        slotsBinaryFileRead.close();
     }
+
+    server.streamFile(slotsBinaryFile, String(mimeOctetStream));
+    slotsBinaryFile.close();
+    return;
+stream_slots_bin_failed:
+    server.send(500);
 }
 
 /**
@@ -131,19 +152,20 @@ void serverSlots()
 void serverSlotSet()
 {
     bool result = false;
+    ASSERT_LOMEM_GOTO(server_slot_set_failure);
 
-    if (ESP.getFreeHeap() > 10000) {
-        if (server.args() > 0) {
-            String slotParamValue = server.arg(0);
-            char slotValue[2];
-            slotParamValue.toCharArray(slotValue, sizeof(slotValue));
-            uopt->presetSlot = (uint8_t)slotValue[0];
-            uopt->presetPreference = OutputCustomized;
-            saveUserPrefs();
-            result = true;
-        }
+    if (server.args() > 0) {
+        String slotParamValue = server.arg(1);
+        char slotValue[2];
+        slotParamValue.toCharArray(slotValue, sizeof(slotValue));
+        uopt->presetSlot = (uint8_t)slotValue[0];
+        uopt->presetPreference = OutputCustomized;
+        saveUserPrefs();
+        result = true;
+        LOG(F("[w] slot value upd. success: "));
+        LOGF("%s\n", slotValue);
     }
-
+server_slot_set_failure:
     server.send(200, mimeAppJson, result ? "true" : "false");
 }
 
@@ -154,65 +176,64 @@ void serverSlotSet()
 void serverSlotSave()
 {
     bool result = false;
+    ASSERT_LOMEM_GOTO(server_slot_save_failure);
 
-    if (ESP.getFreeHeap() > 10000) {
-        if (server.args() > 0) {
-            SlotMetaArray slotsObject;
-            File slotsBinaryFileRead = LittleFS.open(SLOTS_FILE, "r");
+    if (server.args() > 0) {
+        SlotMetaArray slotsObject;
+        fs::File slotsBinaryFileRead = LittleFS.open(SLOTS_FILE, "r");
 
-            if (slotsBinaryFileRead) {
-                slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
-                slotsBinaryFileRead.close();
-            } else {
-                File slotsBinaryFileWrite = LittleFS.open(SLOTS_FILE, "w");
+        if (slotsBinaryFileRead) {
+            slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
+            slotsBinaryFileRead.close();
+        } else {
+            fs::File slotsBinaryFileWrite = LittleFS.open(SLOTS_FILE, "w");
 
-                for (int i = 0; i < SLOTS_TOTAL; i++) {
-                    slotsObject.slot[i].slot = i;
-                    slotsObject.slot[i].presetID = 0;
-                    slotsObject.slot[i].scanlines = 0;
-                    slotsObject.slot[i].scanlinesStrength = 0;
-                    slotsObject.slot[i].wantVdsLineFilter = false;
-                    slotsObject.slot[i].wantStepResponse = true;
-                    slotsObject.slot[i].wantPeaking = true;
-                    char emptySlotName[25] = "Empty                   ";
-                    strncpy(slotsObject.slot[i].name, emptySlotName, 25);
-                }
-
-                slotsBinaryFileWrite.write((byte *)&slotsObject, sizeof(slotsObject));
-                slotsBinaryFileWrite.close();
+            for (int i = 0; i < SLOTS_TOTAL; i++) {
+                slotsObject.slot[i].slot = i;
+                slotsObject.slot[i].presetID = 0;
+                slotsObject.slot[i].scanlines = 0;
+                slotsObject.slot[i].scanlinesStrength = 0;
+                slotsObject.slot[i].wantVdsLineFilter = false;
+                slotsObject.slot[i].wantStepResponse = true;
+                slotsObject.slot[i].wantPeaking = true;
+                char emptySlotName[25] = "Empty                   ";
+                strncpy(slotsObject.slot[i].name, emptySlotName, 25);
             }
 
-            // index param
-            String slotIndexString = server.arg(0);
-            uint8_t slotIndex = lowByte(slotIndexString.toInt());
-            if (slotIndex >= SLOTS_TOTAL) {
-                goto fail;
-            }
-
-            // name param
-            String slotName = server.arg(1);
-
-            char emptySlotName[25] = "                        ";
-            strncpy(slotsObject.slot[slotIndex].name, emptySlotName, 25);
-
-            slotsObject.slot[slotIndex].slot = slotIndex;
-            slotName.toCharArray(slotsObject.slot[slotIndex].name, sizeof(slotsObject.slot[slotIndex].name));
-            slotsObject.slot[slotIndex].presetID = rto->presetID;
-            slotsObject.slot[slotIndex].scanlines = uopt->wantScanlines;
-            slotsObject.slot[slotIndex].scanlinesStrength = uopt->scanlineStrength;
-            slotsObject.slot[slotIndex].wantVdsLineFilter = uopt->wantVdsLineFilter;
-            slotsObject.slot[slotIndex].wantStepResponse = uopt->wantStepResponse;
-            slotsObject.slot[slotIndex].wantPeaking = uopt->wantPeaking;
-
-            File slotsBinaryOutputFile = LittleFS.open(SLOTS_FILE, "w");
-            slotsBinaryOutputFile.write((byte *)&slotsObject, sizeof(slotsObject));
-            slotsBinaryOutputFile.close();
-
-            result = true;
+            slotsBinaryFileWrite.write((byte *)&slotsObject, sizeof(slotsObject));
+            slotsBinaryFileWrite.close();
         }
+
+        // index param
+        String slotIndexString = server.arg(1);
+        uint8_t slotIndex = lowByte(slotIndexString.toInt());
+        if (slotIndex >= SLOTS_TOTAL) {
+            goto server_slot_save_failure;
+        }
+
+        // name param
+        String slotName = server.arg(1);
+
+        char emptySlotName[25] = "                        ";
+        strncpy(slotsObject.slot[slotIndex].name, emptySlotName, 25);
+
+        slotsObject.slot[slotIndex].slot = slotIndex;
+        slotName.toCharArray(slotsObject.slot[slotIndex].name, sizeof(slotsObject.slot[slotIndex].name));
+        slotsObject.slot[slotIndex].presetID = rto->presetID;
+        slotsObject.slot[slotIndex].scanlines = uopt->wantScanlines;
+        slotsObject.slot[slotIndex].scanlinesStrength = uopt->scanlineStrength;
+        slotsObject.slot[slotIndex].wantVdsLineFilter = uopt->wantVdsLineFilter;
+        slotsObject.slot[slotIndex].wantStepResponse = uopt->wantStepResponse;
+        slotsObject.slot[slotIndex].wantPeaking = uopt->wantPeaking;
+
+        fs::File slotsBinaryOutputFile = LittleFS.open(SLOTS_FILE, "w");
+        slotsBinaryOutputFile.write((byte *)&slotsObject, sizeof(slotsObject));
+        slotsBinaryOutputFile.close();
+
+        result = true;
     }
 
-fail:
+server_slot_save_failure:
     server.send(200, mimeAppJson, result ? "true" : "false");
 }
 
@@ -223,7 +244,7 @@ fail:
 void serverSlotRemove()
 {
     bool result = false;
-    char param = server.arg(0).charAt(0);
+    char param = server.arg(1).charAt(0);
     if (server.args() > 0) {
         if (param == '0') {
             LOG(F("Wait..."));
@@ -231,10 +252,10 @@ void serverSlotRemove()
         } else {
             Ascii8 slot = uopt->presetSlot;
             Ascii8 nextSlot;
-            auto currentSlot = slotIndexMap.indexOf(slot);
+            auto currentSlot = String(slotIndexMap).indexOf(slot);
 
             SlotMetaArray slotsObject;
-            File slotsBinaryFileRead = LittleFS.open(SLOTS_FILE, "r");
+            fs::File slotsBinaryFileRead = LittleFS.open(SLOTS_FILE, "r");
             slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
             slotsBinaryFileRead.close();
             String slotName = slotsObject.slot[currentSlot].name;
@@ -252,9 +273,10 @@ void serverSlotRemove()
 
             uint8_t loopCount = 0;
             uint8_t flag = 1;
+            String sInd = String(slotIndexMap);
             while (flag != 0) {
-                slot = slotIndexMap[currentSlot + loopCount];
-                nextSlot = slotIndexMap[currentSlot + loopCount + 1];
+                slot = sInd[currentSlot + loopCount];
+                nextSlot = sInd[currentSlot + loopCount + 1];
                 flag = 0;
                 flag += LittleFS.rename("/preset_ntsc." + String((char)(nextSlot)), "/preset_ntsc." + String((char)slot));
                 flag += LittleFS.rename("/preset_pal." + String((char)(nextSlot)), "/preset_pal." + String((char)slot));
@@ -278,7 +300,7 @@ void serverSlotRemove()
                 loopCount++;
             }
 
-            File slotsBinaryFileWrite = LittleFS.open(SLOTS_FILE, "w");
+            fs::File slotsBinaryFileWrite = LittleFS.open(SLOTS_FILE, "w");
             slotsBinaryFileWrite.write((byte *)&slotsObject, sizeof(slotsObject));
             slotsBinaryFileWrite.close();
             LOGF("Preset \"%s\" removed\n", slotName.c_str());
@@ -315,18 +337,18 @@ void serverFsUploadHandler()
     } else if (upload.status == UPLOAD_FILE_WRITE && upload.contentLength != 0 && !err) {
         if (_tempFile.write(upload.buf, upload.contentLength) != upload.contentLength) {
             err = true;
-            LOGN(F("upload file write faled"));
+            LOGN(F("[w] upload file write faled"));
         } else {
             LOG(F("."));
         }
     } else if (upload.status == UPLOAD_FILE_END && !err) {
         _tempFile.close();
-        LOGN(F("upload file complete"));
+        LOGN(F("[w] upload file complete"));
         err = false;
     } else if (upload.status == UPLOAD_FILE_ABORTED) {
         err = false;
         _tempFile.close();
-        LOGN(F("upload file aborted"));
+        LOGN(F("[w] upload file aborted"));
     }
 }
 
@@ -336,21 +358,21 @@ void serverFsUploadHandler()
  */
 void serverFsDownloadHandler()
 {
-    if (ESP.getFreeHeap() > 10000) {
-        if (server.args() > 0) {
-            String _fn = server.arg(0);
-            if (_fn.length() != 0) {
-                fs::File _f = LittleFS.open(_fn, "r");
-                if (_f) {
-                    server.streamFile(_f, mimeOctetStream);
-                    _f.close();
-                    goto fs_dl_hanle_pass;
-                }
+    ASSERT_LOMEM_GOTO(fs_dl_handle_fail);
+    if (server.args() > 0) {
+        String _fn = server.arg(1);
+        if (_fn.length() != 0) {
+            fs::File _f = LittleFS.open(_fn, "r");
+            if (_f) {
+                server.streamFile(_f, mimeOctetStream);
+                _f.close();
+                goto fs_dl_handle_pass;
             }
         }
     }
+fs_dl_handle_fail:
     server.send(200, mimeAppJson, "false");
-fs_dl_hanle_pass:
+fs_dl_handle_pass:
     return;
 }
 
@@ -360,24 +382,25 @@ fs_dl_hanle_pass:
  */
 void serverFsDir()
 {
-    if (ESP.getFreeHeap() > 10000) {
-        fs::Dir dir = LittleFS.openDir("/");
-        String output = "[";
+    String output = "[";
+    fs::Dir dir = LittleFS.openDir("/");
+    ASSERT_LOMEM_GOTO(server_fs_dir_failure);
 
-        while (dir.next()) {
-            output += "\"";
-            output += dir.fileName();
-            output += "\",";
-            delay(1); // wifi stack
-        }
-
-        output += "]";
-
-        output.replace(",]", "]");
-
-        server.send(200, mimeAppJson, output);
-        return;
+    while (dir.next()) {
+        output += "\"";
+        output += dir.fileName();
+        output += "\",";
+        delay(1); // wifi stack
     }
+
+    output += "]";
+
+    output.replace(",]", "]");
+
+    server.send(200, mimeAppJson, output);
+    return;
+
+server_fs_dir_failure:
     server.send(200, mimeAppJson, "false");
 }
 
@@ -397,7 +420,7 @@ void serverFsFormat()
 void serverWiFiStatus()
 {
     WiFiMode_t wifiMode = WiFi.getMode();
-    server.send(200, mimeAppJson, wifiMode == WIFI_AP ? "{\"mode\":\"ap\"}" : "{\"mode\":\"sta\",\"ssid\":\"" + WiFi.SSID() + "\"}");
+    server.send(200, mimeAppJson, wifiMode == WIFI_AP_STA ? "{\"mode\":\"ap\"}" : "{\"mode\":\"sta\",\"ssid\":\"" + WiFi.SSID() + "\"}");
 }
 
 /**
@@ -407,12 +430,12 @@ void serverWiFiStatus()
 void serverRestoreFilters()
 {
     SlotMetaArray slotsObject;
-    File slotsBinaryFileRead = LittleFS.open(SLOTS_FILE, "r");
+    fs::File slotsBinaryFileRead = LittleFS.open(SLOTS_FILE, "r");
     bool result = false;
     if (slotsBinaryFileRead) {
         slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
         slotsBinaryFileRead.close();
-        auto currentSlot = slotIndexMap.indexOf(uopt->presetSlot);
+        auto currentSlot = String(slotIndexMap).indexOf(uopt->presetSlot);
         if (currentSlot == -1) {
             goto fail;
         }
@@ -494,6 +517,10 @@ void serverWiFiList()
     server.chunkedResponseFinalize();
 }
 
+/**
+ * @brief
+ *
+ */
 void serverWiFiWPS()
 {
     if (WiFi.status() != WL_CONNECTED) {
@@ -524,8 +551,8 @@ void serverWiFiWPS()
 void serverWiFiConnect()
 {
     server.send(200, mimeAppJson, "true");
-    String ssid = server.arg(FPSTR("n"));
-    String pwd = server.arg(FPSTR("p"));
+    String ssid = server.arg(String(F("n")));
+    String pwd = server.arg(String(F("p")));
 
     if (ssid.length()) {
         if (pwd.length()) {
@@ -545,7 +572,7 @@ void serverWiFiAP()
 {
     wifiStartApMode();
     String msg = String(F("access point: "));
-    msg += ap_ssid;
+    msg += wifiGetApSSID();
     server.send(200, mimeTextHtml, msg.c_str());
 }
 

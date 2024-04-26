@@ -1,9 +1,9 @@
 /*
 #####################################################################################
-# File: server.h                                                                    #
+# File: wserver.h                                                                    #
 # File Created: Friday, 19th April 2024 3:11:47 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Thursday, 25th April 2024 3:50:47 pm                               #
+# Last Modified: Friday, 26th April 2024 12:03:41 am                                #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -18,7 +18,7 @@
 #include "webui_html.h"
 #include "options.h"
 #include "slot.h"
-#include "serial.h"
+#include "wserial.h"
 #include "wifiman.h"
 
 extern ESP8266WebServer server;
@@ -30,7 +30,8 @@ extern struct runTimeOptions *rto;
 extern void saveUserPrefs();
 extern void disableScanlines();
 
-String slotIndexMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
+const char slotIndexMap[] PROGMEM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
+const char lomemMessage[] PROGMEM = "%d it's not enough memory...";
 const char mimeTextHtml[] PROGMEM = "text/html";
 const char mimeOctetStream[] PROGMEM = "application/octet-stream";
 const char mimeAppJson[] PROGMEM = "application/json";
