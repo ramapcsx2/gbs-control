@@ -1,3 +1,12 @@
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 const Structs = {
     slots: [
         { name: "name", type: "string", size: 25 },
@@ -583,13 +592,13 @@ const doBackup = () => {
     let backupFiles;
     let done = 0;
     let total = 0;
-    fetch("/spiffs/dir")
+    fetch("/data/dir")
         .then((r) => r.json())
         .then((files) => {
         backupFiles = files;
         total = files.length;
         const funcs = files.map((path) => () => {
-            return fetch(`/spiffs/download?file=${path}&${+new Date()}`).then((response) => {
+            return fetch(`/data/download?file=${path}&${+new Date()}`).then((response) => {
                 GBSControl.ui.progressBackup.setAttribute("gbs-progress", `${done}/${total}`);
                 done++;
                 return checkFetchResponseStatus(response) && response.arrayBuffer();
@@ -649,11 +658,11 @@ const doRestore = (file) => {
     let pos = headerSize + 4;
     let total = files.length;
     let done = 0;
-    const funcs = files.map((fileName) => () => {
+    const funcs = files.map((fileName) => () => __awaiter(this, void 0, void 0, function* () {
         const fileContents = fileBuffer.slice(pos, pos + headerObject[fileName]);
         const formData = new FormData();
         formData.append("file", new Blob([fileContents], { type: "application/octet-stream" }), fileName.substr(1));
-        return fetch("/spiffs/upload", {
+        return yield fetch("/data/upload", {
             method: "POST",
             body: formData,
         }).then((response) => {
@@ -662,8 +671,9 @@ const doRestore = (file) => {
             pos += headerObject[fileName];
             return response;
         });
-    });
+    }));
     serial(funcs).then(() => {
+        //   serial(funcs).then(() => {
         GBSControl.ui.progressRestore.setAttribute("gbs-progress", ``);
         loadUser("a").then(() => {
             gbsAlert("Restarting GBSControl.\nPlease wait until wifi reconnects then click OK")
@@ -741,13 +751,17 @@ const wifiScanSSID = () => {
     GBSControl.ui.wifiStaButton.setAttribute("disabled", "");
     GBSControl.ui.wifiListTable.innerHTML = "";
     if (!GBSControl.scanSSIDDone) {
-        fetch(`/wifi/list?${+new Date()}`).then(() => {
+        fetch(`/wifi/list?${+new Date()}`, {
+            method: 'POST'
+        }).then(() => {
             GBSControl.scanSSIDDone = true;
             setTimeout(wifiScanSSID, 3000);
         });
         return;
     }
-    fetch(`/wifi/list?${+new Date()}`)
+    fetch(`/wifi/list?${+new Date()}`, {
+        method: 'POST'
+    })
         .then((e) => e.text())
         .then((result) => {
         GBSControl.scanSSIDDone = false;
@@ -789,17 +803,17 @@ const wifiSetAPMode = () => {
     if (GBSControl.wifi.mode === "ap") {
         return;
     }
-    const formData = new FormData();
-    formData.append("n", "dummy");
-    fetch("/wifi/connect", {
+    //   const formData = new FormData();
+    //   formData.append("n", "dummy");
+    return fetch("/wifi/ap", {
         method: "POST",
-        body: formData,
-    }).then(() => {
+    }).then((response) => {
         gbsAlert("Switching to AP mode. Please connect to gbscontrol SSID and then click OK")
             .then(() => {
             window.location.href = "http://192.168.4.1";
         })
             .catch(() => { });
+        return response;
     });
 };
 /** button click management */

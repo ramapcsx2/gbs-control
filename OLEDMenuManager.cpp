@@ -1,5 +1,5 @@
-/* 
-   See https://github.com/PSHarold/OLED-SSD1306-Menu 
+/*
+   See https://github.com/PSHarold/OLED-SSD1306-Menu
    for original code, license and documentation
 */
 #include "OLEDMenuManager.h"
@@ -18,6 +18,7 @@ OLEDMenuItem *OLEDMenuManager::allocItem()
     OLEDMenuItem *newItem = nullptr;
     for (int i = 0; i < OLED_MENU_MAX_ITEMS_NUM; ++i) {
         if (!this->allItems[i].used) {
+            // FIXME
             memset(&this->allItems[i], 0, sizeof(OLEDMenuItem));
             newItem = &this->allItems[i];
             newItem->used = true;

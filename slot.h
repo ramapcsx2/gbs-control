@@ -1,9 +1,11 @@
 #ifndef _SLOT_H_
 #define _SLOT_H_
 // SLOTS
-#define SLOTS_FILE "/slots.bin" // the file where to store slots metadata
 #define SLOTS_TOTAL 72          // max number of slots
-#define EMPTY_SLOT_NAME "Empty                   "
+const char SLOTS_FILE[] PROGMEM = "/slots.bin"; // the file where to store slots metadata
+const char EMPTY_SLOT_NAME[] PROGMEM = "Empty                   ";
+const char EMPTY_SLOT_LINE[] PROGMEM = "                        ";
+
 typedef struct
 {
     char name[25];

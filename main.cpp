@@ -32,10 +32,6 @@
 #include "images.h"
 #include "wserver.h"
 
-#define HAVE_BUTTONS 0
-#define USE_NEW_OLED_MENU 1
-
-
 static inline void writeBytes(uint8_t slaveRegister, uint8_t *values, uint8_t numValues);
 const uint8_t *loadPresetFromLFS(byte forVideoMode);
 
@@ -68,18 +64,6 @@ volatile int oled_main_pointer = 0; // volatile vars change done with ISR
 volatile int oled_pointer_count = 0;
 volatile int oled_sub_pointer = 0;
 #endif
-// PersWiFiManager library by Ryan Downing
-// https://github.com/r-downing/PersWiFiManager
-// included in project root folder to allow modifications within limitations of the Arduino framework
-// See 3rdparty/PersWiFiManager for unmodified source and license
-// #include "PersWiFiManager.h"
-
-// WebSockets library by Markus Sattler
-// https://github.com/Links2004/arduinoWebSockets
-// included in src folder to allow header modifications within limitations of the Arduino framework
-// See 3rdparty/WebSockets for unmodified source and license
-// #include <WebSockets.h>
-// #include <WebSocketsServer.h>
 
 // Optional:
 // ESP8266-ping library to aid debugging WiFi issues, install via Arduino library manager
@@ -114,7 +98,6 @@ ESP8266WebServer server(80);
 DNSServer dnsServer;
 WebSocketsServer webSocket(81);
 // AsyncWebSocket webSocket("/ws");
-//  PersWiFiManager persWM(server, dnsServer);
 
 #define DEBUG_IN_PIN D6 // marked "D12/MISO/D6" (Wemos D1) or D6 (Lolin NodeMCU)
 // SCL = D1 (Lolin), D15 (Wemos D1) // ESP8266 Arduino default map: SCL
@@ -1331,7 +1314,7 @@ bool optimizePhaseSP()
   if (lastLevelSOG != rto->currentLevelSOG) {
     LOG(F("Phase: ")); LOG(rto->phaseSP);
     LOG(F(" SOG: "));  LOG(rto->currentLevelSOG);
-    LOGN();
+    LOGN(F(""));
   }
   lastLevelSOG = rto->currentLevelSOG;*/
 
@@ -1514,7 +1497,7 @@ uint8_t detectAndSwitchToActiveInput()
                             delay(40);
                             rto->syncTypeCsync = true;
                         } else {
-                            LOGN();
+                            LOGN(F(""));
                             rto->syncTypeCsync = false;
                         }
 
@@ -2447,7 +2430,7 @@ void setCsVsStop(uint16_t stop)
 void printVideoTimings()
 {
     if (rto->presetID < 0x20) {
-        LOGN();
+        LOGN(F(""));
         LOG(F("HT / scale   : "));
         LOG(GBS::VDS_HSYNC_RST::read());
         LOG(F(" "));
@@ -2850,7 +2833,7 @@ bool applyBestHTotal(uint16_t bestHTotal)
                 LOG(F(", output Hz: "));
                 LOGF("%.3f", ofr); // prec. 3
             } else {
-                LOGN();
+                LOGN(F(""));
             }
         }
         return true; // nothing to do
@@ -3062,7 +3045,7 @@ bool applyBestHTotal(uint16_t bestHTotal)
             LOG(F(", output Hz: "));
             LOGF("%.3f", ofr); // prec. 3
         } else {
-            LOGN();
+            LOGN(F(""));
         }
     }
 
@@ -4244,7 +4227,7 @@ void applyPresets(uint8_t result)
         // if (uopt->preferScalingRgbhv) {
         //   LOG(F("(prefer scaling mode)");
         // }
-        LOGN();
+        LOGN(F(""));
         bypassModeSwitch_RGBHV();
         // don't go through doPostPresetLoadSteps
         return;
@@ -5436,7 +5419,7 @@ void runAutoGain()
                 limit_found++;
                 // 240p test suite (SNES ver): display vertical lines (hor. line test)
                 // LOG("g: "); LOGN(greenValue, HEX);
-                // LOG("--"); LOGN();
+                // LOG("--"); LOGN(F(""));
             } else
                 return;
 
@@ -5678,10 +5661,7 @@ void printInfo()
     static uint8_t lockCounterPrevious = 0;
     uint8_t lockCounter = 0;
 
-    int32_t wifi = 0;
-    if ((WiFi.status() == WL_CONNECTED) || (WiFi.getMode() == WIFI_AP_STA)) {
-        wifi = WiFi.RSSI();
-    }
+    int8_t wifi = wifiGetRSSI();
 
     uint16_t hperiod = GBS::HPERIOD_IF::read();
     uint16_t vperiod = GBS::VPERIOD_IF::read();
@@ -5697,7 +5677,8 @@ void printInfo()
     }
 
     // int charsToPrint =
-    sprintf(print, "h:%4u v:%4u PLL:%01u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d\n",
+    sprintf_P(print,
+            systemInfo,
             hperiod, vperiod, lockCounterPrevious,
             GBS::ADC_RGCTRL::read(), GBS::ADC_GGCTRL::read(), GBS::ADC_BGCTRL::read(),
             GBS::STATUS_00::read(), GBS::STATUS_05::read(), GBS::SP_CS_0x3E::read(),
@@ -5944,7 +5925,7 @@ void runSyncWatcher()
             LEDOFF; // LEDOFF on sync loss
 
             if (rto->noSyncCounter == 2) { // this usually repeats
-                // printInfo(); printInfo(); LOGN();
+                // printInfo(); printInfo(); LOGN(F(""));
                 // rto->printInfos = 0;
                 if ((millis() - lastSyncDrop) > 1500) { // minimum space between runs
                     if (rto->printInfos == false) {
@@ -6112,7 +6093,7 @@ void runSyncWatcher()
             rto->continousStableCounter = 0; // usually already 0, but occasionally not
             if (newVideoModeCounter > 1) {   // help debug a few commits worth
                 if (newVideoModeCounter == 2) {
-                    LOGN();
+                    LOGN(F(""));
                 }
                 LOG(newVideoModeCounter);
             }
@@ -6210,7 +6191,7 @@ void runSyncWatcher()
             rto->phaseIsSet = false;
             FrameSync::reset(uopt->frameTimeLockMethod);
             doFullRestore = 1;
-            LOGN();
+            LOGN(F(""));
         }
 
         rto->noSyncCounter = 0;
@@ -6881,7 +6862,7 @@ void runSyncWatcher()
         // restore initial conditions and move to input detect
         GBS::DAC_RGBS_PWDNZ::write(0); // 0 = disable DAC
         rto->noSyncCounter = 0;
-        LOGN();
+        LOGN(F(""));
         goLowPowerWithInputDetection(); // does not further nest, so it can be called here // sets reset parameters
     }
 }
@@ -7014,7 +6995,7 @@ void calibrateAdcOffset()
         if (i == 2) {
             adco->b_off = GBS::ADC_BOFCTRL::read();
         }
-        LOGN();
+        LOGN(F(""));
     }
 
     if (readout >= 0x52) {
@@ -7062,7 +7043,7 @@ void loadDefaultUserOptions()
 // }
 
 #if !USE_NEW_OLED_MENU
-void ICACHE_RAM_ATTR isrRotaryEncoder()
+void IRAM_ATTR isrRotaryEncoder()
 {
     static unsigned long lastInterruptTime = 0;
     unsigned long interruptTime = millis();
@@ -7089,7 +7070,7 @@ void ICACHE_RAM_ATTR isrRotaryEncoder()
 #endif
 
 #if USE_NEW_OLED_MENU
-void ICACHE_RAM_ATTR isrRotaryEncoderRotateForNewMenu()
+void IRAM_ATTR isrRotaryEncoderRotateForNewMenu()
 {
     unsigned long interruptTime = millis();
     static unsigned long lastInterruptTime = 0;
@@ -7113,7 +7094,7 @@ void ICACHE_RAM_ATTR isrRotaryEncoderRotateForNewMenu()
         lastInterruptTime = interruptTime;
     }
 }
-void ICACHE_RAM_ATTR isrRotaryEncoderPushForNewMenu()
+void IRAM_ATTR isrRotaryEncoderPushForNewMenu()
 {
     static unsigned long lastInterruptTime = 0;
     unsigned long interruptTime = millis();
@@ -7151,6 +7132,8 @@ void setup()
     Serial.begin(115200); // Arduino IDE Serial Monitor requires the same 115200 bauds!
     Serial.setTimeout(10);
 
+    LOGN(F("\nstartup"));
+
     startWire();
     // run some dummy commands to init I2C to GBS and cached segments
     GBS::SP_SOG_MODE::read();
@@ -7160,8 +7143,6 @@ void setup()
 
     if (rto->webServerEnabled) {
         rto->allowUpdatesOTA = false;       // need to initialize for wifiLoop()
-        WiFi.setSleepMode(WIFI_NONE_SLEEP); // low latency responses, less chance for missing packets
-        WiFi.setOutputPower(16.0f);         // float: min 0.0f, max 20.5f
         wifiInit();
         startWebserver();
         rto->webServerStarted = true;
@@ -7172,7 +7153,6 @@ void setup()
     pingLastTime = millis();
 #endif
 
-    LOGN(F("\nstartup"));
 
     loadDefaultUserOptions();
     // globalDelay = 0;
@@ -7226,8 +7206,8 @@ void setup()
     adco->g_off = 0;
     adco->b_off = 0;
 
-    serialCommand = '@'; // ASCII @ = 0
-    userCommand = '@';
+    // serialCommand = '@'; // ASCII @ = 0
+    // userCommand = '@';
 
     pinMode(DEBUG_IN_PIN, INPUT);
     pinMode(LED_BUILTIN, OUTPUT);
@@ -7256,16 +7236,17 @@ void setup()
         LOGN(F("FS mount failed! ((1M FS) selected?)"));
     } else {
         // load user preferences file
-        File f = LittleFS.open("/preferencesv2.txt", "r");
+        const String fn = String(preferencesFile);
+        File f = LittleFS.open(fn, "r");
         if (!f) {
             LOGN(F("no preferences file yet, create new"));
             loadDefaultUserOptions();
-            saveUserPrefs(); // if this fails, there must be a spiffs problem
+            saveUserPrefs(); // if this fails, there must be a data problem
         } else {
-            // on a fresh / spiffs not formatted yet MCU:  userprefs.txt open ok //result = 207
+            // on a fresh / data not formatted yet MCU:  userprefs.txt open ok //result = 207
             uopt->presetPreference = (PresetPreference)(f.read() - '0'); // #1
             if (uopt->presetPreference > 10)
-                uopt->presetPreference = Output960P; // fresh spiffs ?
+                uopt->presetPreference = Output960P; // fresh data ?
 
             uopt->enableFrameTimeLock = (uint8_t)(f.read() - '0');
             if (uopt->enableFrameTimeLock > 1)
@@ -8061,7 +8042,7 @@ void loop()
                     LOG(F("IF_HB_ST2: "));
                     LOGF("0x%04X", GBS::IF_HB_ST2::read());
                     LOG(F(" IF_HB_SP2: "));
-                    LOGF("0x%04X", GBS::IF_HB_SP2::read());
+                    LOGF("0x%04X\n", GBS::IF_HB_SP2::read());
                 }
                 break;
             case '7':
@@ -8083,7 +8064,7 @@ void loop()
                     LOG(F("IF_HB_ST2: "));
                     LOGF("0x%04X", GBS::IF_HB_ST2::read());
                     LOG(F(" IF_HB_SP2: "));
-                    LOGF("0x%04X", GBS::IF_HB_SP2::read());
+                    LOGF("0x%04X\n", GBS::IF_HB_SP2::read());
                 }
                 break;
             case '8':
@@ -8704,16 +8685,22 @@ void loop()
 #endif
     // web client handler
     server.handleClient();
+    // websocket event handler
+    webSocket.loop();
 }
 
 #if defined(ESP8266)
 // #include "webui_html.h"
 // gzip -c9 webui.html > webui_html && xxd -i webui_html > webui_html.h && rm webui_html && sed -i -e 's/unsigned char webui_html\[]/const uint8_t webui_html[] PROGMEM/' webui_html.h && sed -i -e 's/unsigned int webui_html_len/const unsigned int webui_html_len/' webui_html.h
-
+/**
+ * @brief Type2 == userCommand
+ *
+ * @param argument
+ */
 void handleType2Command(char argument)
 {
     LOGF("%s command %c at settings source %d, custom slot %d, status %x\n", "user",
-         argument, uopt->presetPreference, uopt->presetSlot, rto->presetID);
+            argument, uopt->presetPreference, uopt->presetSlot, rto->presetID);
     switch (argument) {
         case '0':
             LOG(F("pal force 60hz "));
@@ -8732,7 +8719,7 @@ void handleType2Command(char argument)
             loadDefaultUserOptions();
             saveUserPrefs();
             LOGN(F("options set to defaults, restarting"));
-            delay(60);
+            delay(100);
             ESP.reset(); // don't use restart(), messes up websocket reconnects
             //
             break;
@@ -8795,7 +8782,7 @@ void handleType2Command(char argument)
             delay(60);
             ESP.reset(); // don't use restart(), messes up websocket reconnects
             break;
-        case 'e': // print files on spiffs
+        case 'e': // print files on data
         {
             fs::Dir dir = LittleFS.openDir("/");
             while (dir.next()) {
@@ -8805,7 +8792,8 @@ void handleType2Command(char argument)
                 delay(1); // wifi stack
             }
             ////
-            File f = LittleFS.open("/preferencesv2.txt", "r");
+            const String fn = String(preferencesFile);
+            File f = LittleFS.open(fn, "r");
             if (!f) {
                 LOGN(F("failed opening preferences file"));
             } else {
@@ -9060,12 +9048,9 @@ void handleType2Command(char argument)
             break;
         case 'u':
             // restart to attempt wifi station mode connect
-            delay(30);
-            // WiFi.mode(WIFI_STA);
-            // WiFi.hostname(device_hostname_partial); // _full
             wifiStartStaMode("");
-            // delay(30);
-            // ESP.reset();
+            delay(100);
+            ESP.reset();
             break;
         case 'v': {
             uopt->wantFullHeight = !uopt->wantFullHeight;
@@ -9115,7 +9100,7 @@ void handleType2Command(char argument)
             LOG(rto->phaseSP);
             LOG(F(" SOG: "));
             LOG(rto->currentLevelSOG);
-            LOGN();
+            LOGN(F(""));
             break;
         case 'E':
             // test option for now
@@ -9287,10 +9272,8 @@ void handleType2Command(char argument)
 void startWebserver()
 {
     webSocket.begin(); // Websocket for interaction
-    serverInit();
-
     // webSocket.onEvent(webSocketEvent);
-
+    serverInit();
     yield();
 
 #ifdef HAVE_PINGER_LIBRARY
@@ -9377,10 +9360,12 @@ const uint8_t *loadPresetFromLFS(byte forVideoMode)
 {
     static uint8_t preset[432];
     String s = "";
-    Ascii8 slot = 0;
+    char slot;
+    char buffer[32] = "";
     File f;
 
-    f = LittleFS.open("/preferencesv2.txt", "r");
+    const String fn = String(preferencesFile);
+    f = LittleFS.open(fn, "r");
     if (f) {
         LOGN(F("preferencesv2.txt opened"));
         uint8_t result[3];
@@ -9389,7 +9374,7 @@ const uint8_t *loadPresetFromLFS(byte forVideoMode)
         result[2] = f.read();
 
         f.close();
-        slot = result[2];
+        slot = result[2] + '0';
     } else {
         // file not found, we don't know what preset to load
         LOGN(F("please select a preset slot first!")); // say "slot" here to make people save usersettings
@@ -9400,28 +9385,38 @@ const uint8_t *loadPresetFromLFS(byte forVideoMode)
     }
 
     LOG(F("loading from preset slot "));
-    LOG((char)slot);
+    LOG(slot);
     LOG(F(": "));
 
     if (forVideoMode == 1) {
-        f = LittleFS.open("/preset_ntsc." + String((char)slot), "r");
+        strcpy(buffer, PSTR("/preset_ntsc."));
+        strcat(buffer, &slot);
     } else if (forVideoMode == 2) {
-        f = LittleFS.open("/preset_pal." + String((char)slot), "r");
+        strcpy(buffer, PSTR("/preset_pal."));
+        strcat(buffer, &slot);
     } else if (forVideoMode == 3) {
-        f = LittleFS.open("/preset_ntsc_480p." + String((char)slot), "r");
+        strcpy(buffer, PSTR("/preset_ntsc_480p."));
+        strcat(buffer, &slot);
     } else if (forVideoMode == 4) {
-        f = LittleFS.open("/preset_pal_576p." + String((char)slot), "r");
+        strcpy(buffer, PSTR("/preset_pal_576p."));
+        strcat(buffer, &slot);
     } else if (forVideoMode == 5) {
-        f = LittleFS.open("/preset_ntsc_720p." + String((char)slot), "r");
+        strcpy(buffer, PSTR("/preset_ntsc_720p."));
+        strcat(buffer, &slot);
     } else if (forVideoMode == 6) {
-        f = LittleFS.open("/preset_ntsc_1080p." + String((char)slot), "r");
+        strcpy(buffer, PSTR("/preset_ntsc_1080p."));
+        strcat(buffer, &slot);
     } else if (forVideoMode == 8) {
-        f = LittleFS.open("/preset_medium_res." + String((char)slot), "r");
+        strcpy(buffer, PSTR("/preset_medium_res."));
+        strcat(buffer, &slot);
     } else if (forVideoMode == 14) {
-        f = LittleFS.open("/preset_vga_upscale." + String((char)slot), "r");
+        strcpy(buffer, PSTR("/preset_vga_upscale."));
+        strcat(buffer, &slot);
     } else if (forVideoMode == 0) {
-        f = LittleFS.open("/preset_unknown." + String((char)slot), "r");
+        strcpy(buffer, PSTR("/preset_unknown."));
+        strcat(buffer, &slot);
     }
+    f = LittleFS.open(buffer, "r");
 
     if (!f) {
         LOGN(F("no preset file for this slot and source"));
@@ -9451,10 +9446,12 @@ void savePresetToFS()
 {
     uint8_t readout = 0;
     File f;
-    Ascii8 slot = 0;
+    char slot;
+    char buffer[32] = "";
 
     // first figure out if the user has set a preferenced slot
-    f = LittleFS.open("/preferencesv2.txt", "r");
+    const String fn = String(preferencesFile);
+    f = LittleFS.open(fn, "r");
     if (f) {
         uint8_t result[3];
         result[0] = f.read(); // todo: move file cursor manually
@@ -9462,7 +9459,7 @@ void savePresetToFS()
         result[2] = f.read();
 
         f.close();
-        slot = result[2]; // got the slot to save to now
+        slot = result[2] + '0'; // got the slot to save to now
     } else {
         // file not found, we don't know where to save this preset
         LOGN(F("please select a preset slot first!"));
@@ -9470,27 +9467,37 @@ void savePresetToFS()
     }
 
     LOG(F("saving to preset slot "));
-    LOGN(String((char)slot));
+    LOGN(slot);
 
     if (rto->videoStandardInput == 1) {
-        f = LittleFS.open("/preset_ntsc." + String((char)slot), "w");
+        strcpy(buffer, PSTR("/preset_ntsc."));
+        strcat(buffer, &slot);
     } else if (rto->videoStandardInput == 2) {
-        f = LittleFS.open("/preset_pal." + String((char)slot), "w");
+        strcpy(buffer, PSTR("/preset_pal."));
+        strcat(buffer, &slot);
     } else if (rto->videoStandardInput == 3) {
-        f = LittleFS.open("/preset_ntsc_480p." + String((char)slot), "w");
+        strcpy(buffer, PSTR("/preset_ntsc_480p."));
+        strcat(buffer, &slot);
     } else if (rto->videoStandardInput == 4) {
-        f = LittleFS.open("/preset_pal_576p." + String((char)slot), "w");
+        strcpy(buffer, PSTR("/preset_pal_576p."));
+        strcat(buffer, &slot);
     } else if (rto->videoStandardInput == 5) {
-        f = LittleFS.open("/preset_ntsc_720p." + String((char)slot), "w");
+        strcpy(buffer, PSTR("/preset_ntsc_720p."));
+        strcat(buffer, &slot);
     } else if (rto->videoStandardInput == 6) {
-        f = LittleFS.open("/preset_ntsc_1080p." + String((char)slot), "w");
+        strcpy(buffer, PSTR("/preset_ntsc_1080p."));
+        strcat(buffer, &slot);
     } else if (rto->videoStandardInput == 8) {
-        f = LittleFS.open("/preset_medium_res." + String((char)slot), "w");
+        strcpy(buffer, PSTR("/preset_medium_res."));
+        strcat(buffer, &slot);
     } else if (rto->videoStandardInput == 14) {
-        f = LittleFS.open("/preset_vga_upscale." + String((char)slot), "w");
+        strcpy(buffer, PSTR("/preset_vga_upscale."));
+        strcat(buffer, &slot);
     } else if (rto->videoStandardInput == 0) {
-        f = LittleFS.open("/preset_unknown." + String((char)slot), "w");
+        strcpy(buffer, PSTR("/preset_unknown."));
+        strcat(buffer, &slot);
     }
+    f = LittleFS.open(buffer, "w");
 
     if (!f) {
         LOGN(F("open save file failed!"));
@@ -9566,7 +9573,8 @@ void savePresetToFS()
 
 void saveUserPrefs()
 {
-    File f = LittleFS.open("/preferencesv2.txt", "w");
+    const String fn = String(preferencesFile);
+    File f = LittleFS.open(fn, "w");
     if (!f) {
         LOGN(F("saveUserPrefs: open file failed"));
         return;

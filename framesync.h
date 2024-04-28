@@ -45,11 +45,11 @@ namespace MeasurePeriod {
         attachInterrupt(DEBUG_IN_PIN, _risingEdgeISR_prepare, RISING);
     }
 
-    void ICACHE_RAM_ATTR _risingEdgeISR_prepare()
+    void IRAM_ATTR _risingEdgeISR_prepare()
     {
         noInterrupts();
         //startTime = ESP.getCycleCount();
-        __asm__ __volatile__("rsr %0,ccount"
+        __asm__ __volatile__("rsr %0, ccount"
                             : "=a"(startTime));
         detachInterrupt(DEBUG_IN_PIN);
         armed = 1;
@@ -57,7 +57,7 @@ namespace MeasurePeriod {
         interrupts();
     }
 
-    void ICACHE_RAM_ATTR _risingEdgeISR_measure()
+    void IRAM_ATTR _risingEdgeISR_measure()
     {
         noInterrupts();
         //stopTime = ESP.getCycleCount();
@@ -431,7 +431,7 @@ public:
         Serial.printf("phase: %7d target: %7d", phase, target);
         if (correction == syncLastCorrection) {
             // terminate line if returning early
-            LOGN();
+            LOGN(F(""));
         }
 #endif
 #ifdef FS_DEBUG_LED

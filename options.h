@@ -1,7 +1,11 @@
 #ifndef _USER_H_
 #define _USER_H_
 
-using Ascii8 = uint8_t;
+#define HAVE_BUTTONS        0
+#define USE_NEW_OLED_MENU   1
+#define THIS_DEVICE_MASTER
+
+// using Ascii8 = uint8_t;
 /// Output resolution requested by user, *given to* applyPresets().
 enum PresetPreference : uint8_t {
     Output960P = 0,
@@ -20,7 +24,7 @@ struct userOptions
     // 0 - normal, 1 - x480/x576, 2 - customized, 3 - 1280x720, 4 - 1280x1024, 5 - 1920x1080,
     // 6 - downscale, 10 - bypass
     PresetPreference presetPreference;
-    Ascii8 presetSlot;
+    uint8_t presetSlot;
     uint8_t enableFrameTimeLock;
     uint8_t frameTimeLockMethod;
     uint8_t enableAutoGain;
@@ -112,5 +116,18 @@ enum PresetID : uint8_t {
     PresetHdBypass = 0x21,
     PresetBypassRGBHV = 0x22,
 };
+
+const char preferencesFile[] PROGMEM = "/preferencesv2.txt";
+const char systemInfo[] PROGMEM = "h:%4u v:%4u PLL:%01u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d\n";
+
+#ifdef THIS_DEVICE_MASTER
+const char ap_ssid[] PROGMEM = "gbscontrol";
+const char ap_password[] PROGMEM = "qqqqqqqq";
+const char gbsc_device_hostname[] PROGMEM = "gbscontrol"; // for MDNS
+#else
+const char ap_ssid[] PROGMEM = "gbsslave";
+const char ap_password[] PROGMEM = "qqqqqqqq";
+const char gbsc_device_hostname[] PROGMEM = "gbsslave"; // for MDNS
+#endif
 
 #endif                                  // _USER_H_

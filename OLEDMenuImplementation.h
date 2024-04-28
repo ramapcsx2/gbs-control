@@ -2,6 +2,7 @@
 #ifndef OLED_MENU_IMPLEMENTATION_H_
 #define OLED_MENU_IMPLEMENTATION_H_
 #include "OLEDMenuManager.h"
+#include "wifiman.h"
 enum MenuItemTag: uint16_t {
     // unique identifiers for sub-items
     MT_NULL, // null tag, used by root menu items, since they can be differentiated by handlers

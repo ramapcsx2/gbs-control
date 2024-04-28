@@ -2,7 +2,6 @@
 
 #include <Arduino.h>
 #include <LittleFS.h>
-#include <WebSockets.h>
 #include <WebSocketsServer.h>
 #include "OLEDMenuImplementation.h"
 #include "options.h"
@@ -20,9 +19,8 @@ extern void loadDefaultUserOptions();
 extern uint8_t getVideoMode();
 extern runTimeOptions *rto;
 extern userOptions *uopt;
-extern const char *ap_ssid;
-extern const char *ap_password;
-extern const char *device_hostname_full;
+// extern const char *ap_password;
+// extern const char *gbsc_device_hostname;
 extern WebSocketsServer webSocket;
 extern OLEDMenuManager oledMenu;
 extern OSDManager osdManager;
@@ -304,19 +302,19 @@ bool wifiMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, 
             manager->registerItem(item, 0, IMAGE_ITEM(TEXT_WIFI_URL));
             sprintf(ip, "http://%s", WiFi.localIP().toString().c_str());
             manager->registerItem(item, 0, ip);
-            sprintf(domain, "http://%s", device_hostname_full);
+            sprintf(domain, "http://%s", String(gbsc_device_hostname).c_str());
             manager->registerItem(item, 0, domain);
         } else {
             // shouldn't happen?
             manager->registerItem(item, 0, IMAGE_ITEM(TEXT_WIFI_DISCONNECTED));
         }
-    } else if (wifiMode == WIFI_AP_STA) {
+    } else if (wifiMode == WIFI_AP) {
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_WIFI_CONNECT_TO));
-        sprintf(ssid, "SSID: %s (%s)", ap_ssid, ap_password);
+        sprintf(ssid, "SSID: %s (%s)", wifiGetApSSID().c_str(), wifiGetApPASS().c_str());
         manager->registerItem(item, 0, ssid);
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_WIFI_URL));
         manager->registerItem(item, 0, "http://192.168.4.1");
-        sprintf(domain, "http://%s", device_hostname_full);
+        sprintf(domain, "http://%s.local", String(gbsc_device_hostname).c_str());
         manager->registerItem(item, 0, domain);
     } else {
         // shouldn't happen?

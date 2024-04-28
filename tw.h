@@ -79,7 +79,7 @@ namespace tw
   for (uint8_t i = 0; i < size; ++i) {
     LOG(output[i] >> 4, HEX); LOG(output[i] & 0xF, HEX);
   }
-  LOGN();
+  LOGN(F(""));
 #endif
         }
 
@@ -90,7 +90,7 @@ namespace tw
   for (uint8_t i = 0; i < size; ++i) {
     LOG(input[i] >> 4, HEX); LOG(input[i] & 0xF, HEX);
   }
-  LOGN();
+  LOGN(F(""));
 #endif
             Wire.beginTransmission(addr);
             Wire.write(reg);

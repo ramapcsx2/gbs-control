@@ -3,7 +3,7 @@
 # File: wifiman.h                                                                   #
 # File Created: Friday, 19th April 2024 2:25:42 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Thursday, 25th April 2024 11:26:56 pm                              #
+# Last Modified: Saturday, 27th April 2024 3:35:09 pm                               #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -42,7 +42,11 @@ void wifiInit();
 void wifiDisable();
 bool wifiStartStaMode(const String & ssid, const String & pass = "");
 bool wifiStartApMode();
+bool wifiStartWPS();
 void wifiLoop(bool instant);
-const char * wifiGetApSSID();
+const String wifiGetApSSID();
+const String wifiGetApPASS();
+int8_t wifiGetRSSI();
+// void wifiReset();
 
 #endif                                  // _WIFIMAN_H

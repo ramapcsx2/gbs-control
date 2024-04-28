@@ -3,37 +3,24 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Friday, 26th April 2024 12:01:36 am                                #
+# Last Modified: Saturday, 27th April 2024 3:34:31 pm                               #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
 #####################################################################################
 */
 
-
 #include "wifiman.h"
 
 static unsigned long _connectCheckTime = 0;
 static unsigned long _lastTimePing = 0;
 
-#define THIS_DEVICE_MASTER
 #ifdef THIS_DEVICE_MASTER
-const char *ap_ssid = "gbscontrol";
-const char *ap_password = "qqqqqqqq";
-// change device_hostname_full and device_hostname_partial to rename the device
-// (allows 2 or more on the same network)
-// new: only use _partial throughout, comply to standards
-const char *device_hostname_full = "gbscontrol.local";
-static const char *device_hostname_partial = "gbscontrol"; // for MDNS
 static const char ap_info_string[] PROGMEM =
     "(WiFi): AP mode (SSID: gbscontrol, pass 'qqqqqqqq'): Access 'gbscontrol.local' in your browser";
 const char st_info_string[] PROGMEM =
     "(WiFi): Access 'http://gbscontrol:80' or 'http://gbscontrol.local' (or device IP) in your browser";
 #else
-const char *ap_ssid = "gbsslave";
-const char *ap_password = "qqqqqqqq";
-const char *device_hostname_full = "gbsslave.local";
-const char *device_hostname_partial = "gbsslave"; // for MDNS
 static const char ap_info_string[] PROGMEM =
     "(WiFi): AP mode (SSID: gbsslave, pass 'qqqqqqqq'): Access 'gbsslave.local' in your browser";
 static const char st_info_string[] PROGMEM =
@@ -49,10 +36,14 @@ static void wifiEventHandler(System_Event_t *e)
 {
     if (e->event == WIFI_EVENT_STAMODE_CONNECTED)
     {
-        LOG(F("(WiFi): STA mode connected; IP: "));
+        // LOGN(F("(WiFi): STA mode connected"));
+        _connectCheckTime = 0;
+    }
+    else if(e->event == WIFI_EVENT_STAMODE_GOT_IP)
+    {
+        LOG(F("(WiFi): got IP: "));
         LOGN(WiFi.localIP().toString());
-        if (MDNS.begin(device_hostname_partial, WiFi.localIP())) { // MDNS request for gbscontrol.local
-            //Serial.println("MDNS started");
+        if (MDNS.begin(String(gbsc_device_hostname).c_str(), WiFi.localIP())) { // MDNS request for gbscontrol.local
             MDNS.addService("http", "tcp", 80); // Add service to MDNS-SD
             MDNS.announce();
         }
@@ -60,11 +51,14 @@ static void wifiEventHandler(System_Event_t *e)
     }
     else if(e->event == WIFI_EVENT_MODE_CHANGE)
     {
-            LOGF("WiFi mode changed, now: %d\n", WiFi.getMode());
+        if(e->event_info.opmode_changed.new_opmode == WIFI_AP) {
+            MDNS.end();
+        }
+        LOGF("(WiFi) mode changed, now: %d\n", WiFi.getMode());
     }
     else if(e->event == WIFI_EVENT_STAMODE_DISCONNECTED)
     {
-        _connectCheckTime = 0;
+        _connectCheckTime = millis();
         LOGN("disconnected from AP, reconnect...");
     }
     else if(e->event == WIFI_EVENT_SOFTAPMODE_STACONNECTED)
@@ -202,10 +196,16 @@ void updateWebSocketData()
  */
 void wifiInit() {
     wifi_set_event_handler_cb(wifiEventHandler);
+    WiFi.persistent(true);
+    WiFi.setAutoReconnect(false);
+    WiFi.hostname(String(gbsc_device_hostname).c_str());
+    WiFi.setSleepMode(WIFI_NONE_SLEEP);
+    WiFi.setOutputPower(16.0f);         // float: min 0.0f, max 20.5f
 
     if (!wifiStartStaMode("")) {
+        _connectCheckTime = millis();
         // no stored network to connect to > start AP mode right away
-        wifiStartApMode();
+        // wifiStartApMode();
     }
 }
 
@@ -224,23 +224,22 @@ void wifiDisable() {
  *
  */
 bool wifiStartStaMode(const String & ssid, const String & pass) {
-    // stop DNS
-    dnsServer.stop();
+    // int8_t cntr = 10;
     // and off we go...
     WiFi.mode(WIFI_STA);
-    WiFi.setAutoReconnect(false);
-    WiFi.hostname(device_hostname_partial);
-    WiFi.setSleepMode(WIFI_NONE_SLEEP);
     if (ssid.length()) {
-        if (pass.length())
-            WiFi.begin(ssid.c_str(), pass.c_str());
-        else
-            WiFi.begin(ssid.c_str());
+        WiFi.begin(ssid.c_str(), pass.c_str());
     } else {
-        const String ssid = WiFi.SSID();
-        if(ssid.length() != 0)
-            WiFi.begin(ssid.c_str());
+        // using credentials stored in flash
+        WiFi.begin();
     }
+    LOG(F("connecting to: "));
+    LOGF("%s...\n", ssid.c_str());
+    // no fancy stuffs here :)
+    // while(WiFi.status() == WL_DISCONNECTED && cntr != 0) {
+    //     delay(500);
+    //     cntr--;
+    // }
     delay(100);
     return (WiFi.status() == WL_CONNECTED);
 }
@@ -254,10 +253,10 @@ bool wifiStartApMode() {
     // WiFi.disconnect();
     // delay(100);
     IPAddress apIP(192, 168, 4, 1);
-    WiFi.mode(WIFI_AP_STA);
+    WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
 
-    ret = WiFi.softAP(ap_ssid, strlen(ap_password) != 0 ? ap_password : NULL, 1, 0 ,2);
+    ret = WiFi.softAP(wifiGetApSSID().c_str(), strlen_P(ap_password) != 0 ? wifiGetApPASS().c_str() : NULL, 1, 0 ,2);
     if(ret) {
         dnsServer.stop();
         dnsServer.setTTL(300); // (in seconds) as per example
@@ -272,20 +271,48 @@ bool wifiStartApMode() {
 }
 
 /**
+ * @brief
+ *
+ * @return true
+ * @return false
+ */
+bool wifiStartWPS() {
+    LOGN(F("starting WPS"));
+    WiFi.disconnect();
+    delay(100);
+    WiFi.mode(WIFI_STA);
+    bool ret = WiFi.beginWPSConfig();
+    if(ret) {
+        String newSSID = WiFi.SSID();
+        if(newSSID.length() > 0) {
+            LOGF("WPS connected to SSID: %s\n", newSSID.c_str());
+            ret = true;
+        } else {
+            LOGN(F("WPS failed. please try again"));
+            ret = false;
+        }
+    }
+    return ret;
+}
+
+/**
  * @brief Put this method inside of main loop
  *
  */
 void wifiLoop(bool instant) {
-    if(millis() > (_connectCheckTime + 5000U)) {
-        if(WiFi.getMode() != WIFI_AP_STA) {
-            // check WiFi connection status, switch to AP if not connected
-            if (WiFi.status() != WL_CONNECTED)
-                wifiStartApMode();
+    if(WiFi.status() != WL_CONNECTED
+        && _connectCheckTime != 0
+            && millis() > (_connectCheckTime + 10000UL)) {
+        // if empty - use last stored credentials
+        String s = WiFi.SSID();
+        LOGF("SSID: %s\n", WiFi.SSID().c_str());
+        if(s.length() != 0) {
+            _connectCheckTime = millis();
+            WiFi.reconnect();
+        } else {
+            wifiStartApMode();
+            _connectCheckTime = 0;
         }
-        // else {
-        //    scan and connect?
-        // }
-        _connectCheckTime = millis();
     }
     if (rto->webServerEnabled && rto->webServerStarted) {
         MDNS.update();
@@ -310,8 +337,41 @@ void wifiLoop(bool instant) {
  * @brief Temporary solution
  * @todo this function is used by wserver since ap_ssid is not available there.
  *
- * @return const char*
+ * @return String
  */
-const char * wifiGetApSSID() {
-    return ap_ssid;
+const String wifiGetApSSID() {
+    return String(ap_ssid);
 }
+
+/**
+ * @brief Temporary solution
+ *
+ * @return String
+ */
+const String wifiGetApPASS() {
+    return String(ap_password);
+}
+
+/**
+ * @brief Returns 0 if NOT connected to AP or NOT in AP_STA mode
+ *
+ * @param r
+ * @return true
+ * @return false
+ */
+int8_t wifiGetRSSI() {
+    if ((WiFi.status() == WL_CONNECTED) || (WiFi.getMode() == WIFI_AP)) {
+        return (int8_t)wifi_station_get_rssi();
+    }
+    return 0;
+}
+
+/**
+ * @brief Erase previous credentials and reset the device
+ *
+ */
+// void wifiReset() {
+//     WiFi.disconnect();
+//     delay(100);
+//     ESP.reset();
+// }

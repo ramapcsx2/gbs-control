@@ -731,13 +731,13 @@ const doBackup = () => {
   let backupFiles: string[];
   let done = 0;
   let total = 0;
-  fetch("/spiffs/dir")
+  fetch("/data/dir")
     .then((r) => r.json())
     .then((files: string[]) => {
       backupFiles = files;
       total = files.length;
       const funcs = files.map((path: string) => () => {
-        return fetch(`/spiffs/download?file=${path}&${+new Date()}`).then(
+        return fetch(`/data/download?file=${path}&${+new Date()}`).then(
           (response) => {
             GBSControl.ui.progressBackup.setAttribute(
               "gbs-progress",
@@ -819,7 +819,7 @@ const doRestore = (file: ArrayBuffer) => {
   let pos = headerSize + 4;
   let total = files.length;
   let done = 0;
-  const funcs = files.map((fileName) => () => {
+  const funcs = files.map((fileName) => async () => {
     const fileContents = fileBuffer.slice(pos, pos + headerObject[fileName]);
     const formData = new FormData();
     formData.append(
@@ -828,7 +828,7 @@ const doRestore = (file: ArrayBuffer) => {
       fileName.substr(1)
     );
 
-    return fetch("/spiffs/upload", {
+    return await fetch("/data/upload", {
       method: "POST",
       body: formData,
     }).then((response) => {
@@ -842,7 +842,8 @@ const doRestore = (file: ArrayBuffer) => {
     });
   });
 
-  serial(funcs).then(() => {
+   serial(funcs).then(() => {
+//   serial(funcs).then(() => {
     GBSControl.ui.progressRestore.setAttribute("gbs-progress", ``);
     loadUser("a").then(() => {
       gbsAlert(
@@ -938,14 +939,18 @@ const wifiScanSSID = () => {
   GBSControl.ui.wifiListTable.innerHTML = "";
 
   if (!GBSControl.scanSSIDDone) {
-    fetch(`/wifi/list?${+new Date()}`).then(() => {
+    fetch(`/wifi/list?${+new Date()}`, {
+        method: 'POST'
+    }).then(() => {
       GBSControl.scanSSIDDone = true;
       setTimeout(wifiScanSSID, 3000);
     });
     return;
   }
 
-  fetch(`/wifi/list?${+new Date()}`)
+  fetch(`/wifi/list?${+new Date()}`, {
+        method: 'POST'
+    })
     .then((e) => e.text())
     .then((result) => {
       GBSControl.scanSSIDDone = false;
@@ -995,13 +1000,13 @@ const wifiSetAPMode = () => {
     return;
   }
 
-  const formData = new FormData();
-  formData.append("n", "dummy");
+//   const formData = new FormData();
+//   formData.append("n", "dummy");
 
-  fetch("/wifi/connect", {
+  return fetch("/wifi/ap", {
     method: "POST",
-    body: formData,
-  }).then(() => {
+    // body: formData,
+  }).then((response) => {
     gbsAlert(
       "Switching to AP mode. Please connect to gbscontrol SSID and then click OK"
     )
@@ -1009,6 +1014,7 @@ const wifiSetAPMode = () => {
         window.location.href = "http://192.168.4.1";
       })
       .catch(() => {});
+      return response;
   });
 };
 
