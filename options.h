@@ -119,6 +119,7 @@ enum PresetID : uint8_t {
 
 const char preferencesFile[] PROGMEM = "/preferencesv2.txt";
 const char systemInfo[] PROGMEM = "h:%4u v:%4u PLL:%01u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d\n";
+const char commandDescr[] PROGMEM = "%s command %c (0x%02X) at settings source %d, custom slot %d, status %x\n";
 
 #ifdef THIS_DEVICE_MASTER
 const char ap_ssid[] PROGMEM = "gbscontrol";

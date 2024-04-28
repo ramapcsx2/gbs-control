@@ -3,7 +3,7 @@
 # File: wserial.h                                                                    #
 # File Created: Friday, 19th April 2024 4:13:41 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Thursday, 25th April 2024 4:44:49 pm                               #
+# Last Modified: Sunday, 28th April 2024 12:46:44 am                                #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -19,6 +19,12 @@ extern char serialCommand;
 extern char userCommand;
 extern WebSocketsServer webSocket;
 
+// TODO: useless ?
+#define LOMEM_SP                        ((ESP.getFreeHeap() > 10000))
+#define ASSERT_LOMEM_SP()   do {                                    \
+    if(LOMEM_SP) webSocket.disconnect();                            \
+} while(0)
+
 void discardSerialRxData();
 
 #if defined(ESP8266)
@@ -27,44 +33,28 @@ class SerialMirror : public Stream
 {
     size_t write(const uint8_t *data, size_t size)
     {
-        if (ESP.getFreeHeap() > 20000) {
-            webSocket.broadcastTXT(data, size);
-        } else {
-            webSocket.disconnect();
-        }
+        webSocket.broadcastTXT(data, size);
         Serial.write(data, size);
         return size;
     }
 
     size_t write(const char *data, size_t size)
     {
-        if (ESP.getFreeHeap() > 20000) {
-            webSocket.broadcastTXT(data, size);
-        } else {
-            webSocket.disconnect();
-        }
+        webSocket.broadcastTXT(data, size);
         Serial.write(data, size);
         return size;
     }
 
     size_t write(uint8_t data)
     {
-        if (ESP.getFreeHeap() > 20000) {
-            webSocket.broadcastTXT(&data, 1);
-        } else {
-            webSocket.disconnect();
-        }
+        webSocket.broadcastTXT(&data, 1);
         Serial.write(data);
         return 1;
     }
 
     size_t write(char data)
     {
-        if (ESP.getFreeHeap() > 20000) {
-            webSocket.broadcastTXT(&data, 1);
-        } else {
-            webSocket.disconnect();
-        }
+        webSocket.broadcastTXT(&data, 1);
         Serial.write(data);
         return 1;
     }
@@ -86,25 +76,40 @@ class SerialMirror : public Stream
 
 extern SerialMirror SerialM;
 
-#define LOGF(D, ...)                                                      \
-do {                                                                      \
-    SerialM.printf(D, ##__VA_ARGS__);                                     \
+// console at websocket
+#define _WSF(D, ...)                                                        \
+do {                                                                        \
+    SerialM.printf(D, ##__VA_ARGS__);                                       \
 } while(0)
-#define LOGN(D)                                                             \
+#define _WSN(D)                                                             \
 do {                                                                        \
     SerialM.println(D);                                                     \
 } while(0)
-#define LOG(D)                                                                  \
-do {                                                                             \
-    SerialM.print(D);                                                            \
+#define _WS(D)                                                              \
+do {                                                                        \
+    SerialM.print(D);                                                       \
 } while(0)
 
 #else                               // ESP8266
 
-#define LOGF(D, ...)    (void)0
-#define LOGN(D)         (void)0
-#define LOG(D)          (void)0
+#define _WSF(D, ...)    (void)0
+#define _WSN(D)         (void)0
+#define _WS(D)          (void)0
 
 #endif                              // ESP8266
+
+// logging via Serial
+#define _DBGF(D, ...)                                                        \
+do {                                                                        \
+    Serial.printf(D, ##__VA_ARGS__);                                       \
+} while(0)
+#define _DBGN(D)                                                             \
+do {                                                                        \
+    Serial.println(D);                                                     \
+} while(0)
+#define _DBG(D)                                                              \
+do {                                                                        \
+    Serial.print(D);                                                       \
+} while(0)
 
 #endif                              // _WSERIAL_H_

@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Saturday, 27th April 2024 3:34:31 pm                               #
+# Last Modified: Sunday, 28th April 2024 12:23:56 am                                #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -16,15 +16,19 @@ static unsigned long _connectCheckTime = 0;
 static unsigned long _lastTimePing = 0;
 
 #ifdef THIS_DEVICE_MASTER
+
 static const char ap_info_string[] PROGMEM =
     "(WiFi): AP mode (SSID: gbscontrol, pass 'qqqqqqqq'): Access 'gbscontrol.local' in your browser";
 const char st_info_string[] PROGMEM =
     "(WiFi): Access 'http://gbscontrol:80' or 'http://gbscontrol.local' (or device IP) in your browser";
+
 #else
+
 static const char ap_info_string[] PROGMEM =
     "(WiFi): AP mode (SSID: gbsslave, pass 'qqqqqqqq'): Access 'gbsslave.local' in your browser";
 static const char st_info_string[] PROGMEM =
     "(WiFi): Access 'http://gbsslave:80' or 'http://gbsslave.local' (or device IP) in your browser";
+
 #endif
 
 /**
@@ -36,41 +40,41 @@ static void wifiEventHandler(System_Event_t *e)
 {
     if (e->event == WIFI_EVENT_STAMODE_CONNECTED)
     {
-        // LOGN(F("(WiFi): STA mode connected"));
+        // _DBGN(F("(WiFi): STA mode connected"));
         _connectCheckTime = 0;
     }
     else if(e->event == WIFI_EVENT_STAMODE_GOT_IP)
     {
-        LOG(F("(WiFi): got IP: "));
-        LOGN(WiFi.localIP().toString());
+        _DBG(F("(WiFi): got IP: "));
+        _DBGN(WiFi.localIP().toString());
         if (MDNS.begin(String(gbsc_device_hostname).c_str(), WiFi.localIP())) { // MDNS request for gbscontrol.local
             MDNS.addService("http", "tcp", 80); // Add service to MDNS-SD
             MDNS.announce();
         }
-        LOGN(FPSTR(st_info_string));
+        _DBGN(FPSTR(st_info_string));
     }
     else if(e->event == WIFI_EVENT_MODE_CHANGE)
     {
         if(e->event_info.opmode_changed.new_opmode == WIFI_AP) {
             MDNS.end();
         }
-        LOGF("(WiFi) mode changed, now: %d\n", WiFi.getMode());
+        _DBGF("(WiFi) mode changed, now: %d\n", WiFi.getMode());
     }
     else if(e->event == WIFI_EVENT_STAMODE_DISCONNECTED)
     {
         _connectCheckTime = millis();
-        LOGN("disconnected from AP, reconnect...");
+        _DBGN("disconnected from AP, reconnect...");
     }
     else if(e->event == WIFI_EVENT_SOFTAPMODE_STACONNECTED)
     {
         uint8_t * mac = e->event_info.sta_connected.mac;
-        LOGF("station connected, MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+        _DBGF("station connected, MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     }
     else if(e->event == WIFI_EVENT_SOFTAPMODE_STADISCONNECTED)
     {
         uint8_t * mac = e->event_info.sta_disconnected.mac;
-        LOGF("station disconnected, MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+        _DBGF("station disconnected, MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     }
 }
@@ -233,8 +237,8 @@ bool wifiStartStaMode(const String & ssid, const String & pass) {
         // using credentials stored in flash
         WiFi.begin();
     }
-    LOG(F("connecting to: "));
-    LOGF("%s...\n", ssid.c_str());
+    _DBG(F("connecting to: "));
+    _DBGF("%s...\n", ssid.c_str());
     // no fancy stuffs here :)
     // while(WiFi.status() == WL_DISCONNECTED && cntr != 0) {
     //     delay(500);
@@ -263,9 +267,9 @@ bool wifiStartApMode() {
         dnsServer.start(53, "*", apIP);
         dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
         if(!dnsServer.start((byte)53, "*", apIP)) //used for captive portal in AP mode
-            LOGN(F("DNS no sockets available..."));
+            _DBGN(F("DNS no sockets available..."));
 
-        LOGN(FPSTR(ap_info_string));
+        _DBGN(FPSTR(ap_info_string));
     }
     return ret;
 }
@@ -277,7 +281,7 @@ bool wifiStartApMode() {
  * @return false
  */
 bool wifiStartWPS() {
-    LOGN(F("starting WPS"));
+    _DBGN(F("starting WPS"));
     WiFi.disconnect();
     delay(100);
     WiFi.mode(WIFI_STA);
@@ -285,10 +289,10 @@ bool wifiStartWPS() {
     if(ret) {
         String newSSID = WiFi.SSID();
         if(newSSID.length() > 0) {
-            LOGF("WPS connected to SSID: %s\n", newSSID.c_str());
+            _DBGF("WPS connected to SSID: %s\n", newSSID.c_str());
             ret = true;
         } else {
-            LOGN(F("WPS failed. please try again"));
+            _DBGN(F("WPS failed. please try again"));
             ret = false;
         }
     }
@@ -305,7 +309,7 @@ void wifiLoop(bool instant) {
             && millis() > (_connectCheckTime + 10000UL)) {
         // if empty - use last stored credentials
         String s = WiFi.SSID();
-        LOGF("SSID: %s\n", WiFi.SSID().c_str());
+        _DBGF("SSID: %s\n", WiFi.SSID().c_str());
         if(s.length() != 0) {
             _connectCheckTime = millis();
             WiFi.reconnect();

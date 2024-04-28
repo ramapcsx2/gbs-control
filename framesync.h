@@ -25,11 +25,11 @@
 //#define FS_DEBUG_LED
 // #define FRAMESYNC_DEBUG
 
-#ifdef FRAMESYNC_DEBUG
-#define fsDebugPrintf(...) SerialM.printf(__VA_ARGS__)
-#else
-#define fsDebugPrintf(...)
-#endif
+// #ifdef FRAMESYNC_DEBUG
+// #define fsDebugPrintf(...) SerialM.printf(__VA_ARGS__)
+// #else
+// #define fsDebugPrintf(...)
+// #endif
 
 namespace MeasurePeriod {
     volatile uint32_t stopTime, startTime;
@@ -153,7 +153,7 @@ private:
     // difference in microseconds
     static bool vsyncPeriodAndPhase(int32_t *periodInput, int32_t *periodOutput, int32_t *phase)
     {
-        fsDebugPrintf("vsyncPeriodAndPhase(), TEST_BUS_SEL=%d\n", GBS::TEST_BUS_SEL::read());
+        _WSF(PSTR("vsyncPeriodAndPhase(), TEST_BUS_SEL=%d\n"), GBS::TEST_BUS_SEL::read());
 
         uint32_t inStart, inStop, outStart, outStop;
         uint32_t inPeriod, outPeriod, diff;
@@ -216,12 +216,12 @@ private:
         // allow ~4 negative (inPeriod is < outPeriod) clock cycles jitter
         if ((inPeriod > outPeriod ? inPeriod - outPeriod : outPeriod - inPeriod) <= 4) {
             /*if (inPeriod >= outPeriod) {
-        LOG("inPeriod >= out: ");
-        LOGN(inPeriod - outPeriod);
+        _WS("inPeriod >= out: ");
+        _WSN(inPeriod - outPeriod);
       }
       else {
-        LOG("inPeriod < out: ");
-        LOGN(outPeriod - inPeriod);
+        _WS("inPeriod < out: ");
+        _WSN(outPeriod - inPeriod);
       }*/
             bestHtotal = inHtotal;
         } else {
@@ -235,14 +235,14 @@ private:
 
 #ifdef FS_DEBUG
         if (bestHtotal != inHtotal) {
-            LOG(F("                     wants new htotal, oldbest: "));
-            LOG(inHtotal);
-            LOG(F(" newbest: "));
-            LOGN(bestHtotal);
-            LOG(F("                     inPeriod: "));
-            LOG(inPeriod);
-            LOG(F(" outPeriod: "));
-            LOGN(outPeriod);
+            _WS(F("                     wants new htotal, oldbest: "));
+            _WS(inHtotal);
+            _WS(F(" newbest: "));
+            _WSN(bestHtotal);
+            _WS(F("                     inPeriod: "));
+            _WS(inPeriod);
+            _WS(F(" outPeriod: "));
+            _WSN(outPeriod);
         }
 #endif
         return true;
@@ -254,11 +254,11 @@ public:
     static void reset(uint8_t frameTimeLockMethod)
     {
 #ifdef FS_DEBUG
-        LOG(F("FS reset(), with correction: "));
+        _WS(F("FS reset(), with correction: "));
 #endif
         if (syncLastCorrection != 0) {
 #ifdef FS_DEBUG
-            LOGN(F("Yes"));
+            _WSN(F("Yes"));
 #endif
             uint16_t vtotal = 0, vsst = 0;
             VRST_SST::read(vtotal, vsst);
@@ -278,10 +278,10 @@ public:
         }
 #ifdef FS_DEBUG
         else {
-            LOGN(F("No"));
+            _WSN(F("No"));
         }
 #endif
-        fsDebugPrintf("FrameSyncManager::reset(%d)\n", frameTimeLockMethod);
+        _WSF(PSTR("FrameSyncManager::reset(%d)\n"), frameTimeLockMethod);
 
         syncLockReady = false;
         syncLastCorrection = 0;
@@ -344,7 +344,7 @@ public:
 
     static void cleanup()
     {
-        fsDebugPrintf("FrameSyncManager::cleanup(), resetting video frequency\n");
+        _WSN(F("FrameSyncManager::cleanup(), resetting video frequency"));
 
         syncLastCorrection = 0; // the important bit
         syncLockReady = 0;
@@ -431,7 +431,7 @@ public:
         Serial.printf("phase: %7d target: %7d", phase, target);
         if (correction == syncLastCorrection) {
             // terminate line if returning early
-            LOGN(F(""));
+            _WSN();
         }
 #endif
 #ifdef FS_DEBUG_LED
@@ -497,8 +497,8 @@ public:
     static bool runFrequency()
     {
         if (maybeFreqExt_per_videoFps < 0) {
-            LOGN(
-                "Error: trying to tune external clock frequency while clock frequency uninitialized!");
+            _WSN(
+                F("Error: trying to tune external clock frequency while clock frequency uninitialized!"));
             return true;
         }
 
@@ -507,26 +507,23 @@ public:
             // Failed due to external factors (PAD_CKIN_ENZ=0 on
             // startup), not bad input signal, don't return frame sync
             // error.
-            fsDebugPrintf(
-                "Skipping FrameSyncManager::runFrequency(), GBS::PAD_CKIN_ENZ::read() != 0\n");
+            _WSN(F("Skipping FrameSyncManager::runFrequency(), GBS::PAD_CKIN_ENZ::read() != 0"));
             return true;
         }
 
         if (rto->outModeHdBypass) {
-            fsDebugPrintf(
-                "Skipping FrameSyncManager::runFrequency(), rto->outModeHdBypass\n");
+            _WSN(F("Skipping FrameSyncManager::runFrequency(), rto->outModeHdBypass"));
             return true;
         }
         if (GBS::PLL648_CONTROL_01::read() != 0x75) {
-            LOGF(
-                "Error: trying to tune external clock frequency while set to internal clock, PLL648_CONTROL_01=%d!\n",
+            _WSF(
+                PSTR("Error: trying to tune external clock frequency while set to internal clock, PLL648_CONTROL_01=%d!\n"),
                 GBS::PLL648_CONTROL_01::read());
             return true;
         }
 
         if (!syncLockReady) {
-            fsDebugPrintf(
-                "Skipping FrameSyncManager::runFrequency(), !syncLockReady\n");
+            _WSN(F("Skipping FrameSyncManager::runFrequency(), !syncLockReady"));
             return false;
         }
 
@@ -554,14 +551,14 @@ public:
             // TODO make vsyncPeriodAndPhase() restore TEST_BUS_SEL, not the caller?
             GBS::TEST_BUS_SEL::write(0x0);
             if (!ret) {
-                LOGN("runFrequency(): vsyncPeriodAndPhase failed, retrying...");
+                _WSN(F("runFrequency(): vsyncPeriodAndPhase failed, retrying..."));
                 continue;
             }
 
             fpsInput = esp8266_clock_freq / (float)periodInput;
             if (fpsInput < 47.0f || fpsInput > 86.0f) {
-                LOGF(
-                    "runFrequency(): fpsInput wrong: %f, retrying...\n",
+                _WSF(
+                    PSTR("runFrequency(): fpsInput wrong: %f, retrying...\n"),
                     fpsInput);
                 continue;
             }
@@ -572,13 +569,13 @@ public:
             GBS::TEST_BUS_SEL::write(0x0);
             uint32_t periodInput2 = getPulseTicks();
             if (periodInput2 == 0) {
-                LOGN("runFrequency(): getPulseTicks failed, retrying...");
+                _WSN(F("runFrequency(): getPulseTicks failed, retrying..."));
                 continue;
             }
             float fpsInput2 = esp8266_clock_freq / (float)periodInput2;
             if (fpsInput2 < 47.0f || fpsInput2 > 86.0f) {
-                LOGF(
-                    "runFrequency(): fpsInput2 wrong: %f, retrying...",
+                _WSF(
+                    PSTR("runFrequency(): fpsInput2 wrong: %f, retrying...\n"),
                     fpsInput2);
                 continue;
             }
@@ -587,8 +584,8 @@ public:
             float diff = fabs(fpsInput2 - fpsInput);
             float relDiff = diff / std::min(fpsInput, fpsInput2);
             if (relDiff != relDiff || diff > 0.5f || relDiff > 0.00833f) {
-                LOGF(
-                    "FrameSyncManager::runFrequency() measured inconsistent FPS %f and %f, retrying...\n",
+                _WSF(
+                    PSTR("FrameSyncManager::runFrequency() measured inconsistent FPS %f and %f, retrying...\n"),
                     fpsInput,
                     fpsInput2);
                 continue;
@@ -598,7 +595,7 @@ public:
             break;
         }
         if (!success) {
-            LOGN("FrameSyncManager::runFrequency() failed!");
+            _WSN(F("FrameSyncManager::runFrequency() failed!"));
             return false;
         }
 
@@ -644,21 +641,19 @@ public:
         fpsOutput = std::max(fpsOutput, prevFpsOutput * (1 - MAX_FPS_CHANGE));
 
         if (fabs(rawFpsOutput - prevFpsOutput) >= 1.f) {
-            LOGF(
-                "FPS excursion detected! Measured input FPS %f, previous output FPS %f",
+            _WSF(
+                PSTR("FPS excursion detected! Measured input FPS %f, previous output FPS %f"),
                 fpsInput, prevFpsOutput);
         }
 
-        fsDebugPrintf(
-            "periodInput=%d, fpsInput=%f, latency_err_frames=%f from %f, "
-            "fpsOutput=%f := %f\n",
+        _WSF(
+            PSTR("periodInput=%d, fpsInput=%f, latency_err_frames=%f from %f, fpsOutput=%f := %f\n"),
             periodInput, fpsInput, latency_err_frames, (float)syncTargetPhase / 360.f,
             prevFpsOutput, fpsOutput);
 
         const auto freqExtClockGen = (uint32_t)(maybeFreqExt_per_videoFps * fpsOutput);
 
-        fsDebugPrintf(
-            "Setting clock frequency from %u to %u\n",
+        _WSF(PSTR("Setting clock frequency from %u to %u\n"),
             rto->freqExtClockGen, freqExtClockGen);
 
         setExternalClockGenFrequencySmooth(freqExtClockGen);

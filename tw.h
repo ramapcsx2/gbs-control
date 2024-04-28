@@ -75,22 +75,22 @@ namespace tw
             }
 
 #if 0
-  LOG(F("READ ")); LOGF("%04X", addr); LOG(F("@")); LOGF("%04X", reg); LOG(F(": "));
+  _WS(F("READ ")); _WSF("%04X", addr); _WS(F("@")); _WSF("%04X", reg); _WS(F(": "));
   for (uint8_t i = 0; i < size; ++i) {
-    LOG(output[i] >> 4, HEX); LOG(output[i] & 0xF, HEX);
+    _WS(output[i] >> 4, HEX); _WS(output[i] & 0xF, HEX);
   }
-  LOGN(F(""));
+  _WSN();
 #endif
         }
 
         inline void rawWrite(uint8_t addr, uint8_t reg, uint8_t const *input, uint8_t size)
         {
 #if 0
-  LOG(F("WRITE ")); LOGF("%04X", addr); LOG(F("@")); LOGF("%04X", reg); LOG(F(": "));
+  _WS(F("WRITE ")); _WSF("%04X", addr); _WS(F("@")); _WSF("%04X", reg); _WS(F(": "));
   for (uint8_t i = 0; i < size; ++i) {
-    LOG(input[i] >> 4, HEX); LOG(input[i] & 0xF, HEX);
+    _WS(input[i] >> 4, HEX); _WS(input[i] & 0xF, HEX);
   }
-  LOGN(F(""));
+  _WSN();
 #endif
             Wire.beginTransmission(addr);
             Wire.write(reg);

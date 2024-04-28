@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Saturday, 27th April 2024 6:33:54 pm                               #
+# Last Modified: Sunday, 28th April 2024 1:35:31 am                                 #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -12,9 +12,9 @@
 
 #include "wserver.h"
 
-#define LOMEM                            ((ESP.getFreeHeap() < 10000UL))
+#define LOMEM_WEB             ((ESP.getFreeHeap() < 10000UL))
 #define ASSERT_LOMEM_RETURN() do {                          \
-    if (LOMEM) {                                            \
+    if (LOMEM_WEB) {                                        \
         char msg[128] = "";                                 \
         sprintf_P(msg, lomemMessage, ESP.getFreeHeap());    \
         server.send(200, mimeTextHtml, msg);                \
@@ -22,7 +22,7 @@
     }                                                       \
 } while(0)
 #define ASSERT_LOMEM_GOTO(G) do {                           \
-    if (LOMEM) goto G;                                      \
+    if (LOMEM_WEB) goto G;                                  \
 } while(0)
 
 /**
@@ -83,8 +83,8 @@ void serverSC()
         if (serialCommand == ' ') {
             serialCommand = '+';
         }
-        // LOG(F("[w] serial command received: "));
-        // LOGF("%c\n", serialCommand);
+        // _DBG(F("[w] serial command received: "));
+        // _DBGF("%c\n", serialCommand);
     }
     server.send(200, mimeAppJson, F("{}"));
 }
@@ -99,8 +99,8 @@ void serverUC()
     if (server.args() > 0) {
         String p = server.argName(0);
         userCommand = p.charAt(0);
-        // LOG(F("[w] user command received: "));
-        // LOGF("%c\n", userCommand);
+        // _DBG(F("[w] user command received: "));
+        // _DBGF("%c\n", userCommand);
     }
     server.send(200, mimeAppJson, F("{}"));
 }
@@ -115,7 +115,7 @@ void serverSlots()
     fs::File slotsBinaryFile = LittleFS.open(FPSTR(SLOTS_FILE), "r");
 
     if (!slotsBinaryFile) {
-        LOGN(F("/slots.bin not found, attempting to create"));
+        _DBGN(F("/slots.bin not found, attempting to create"));
         fs::File slotsBinaryFile = LittleFS.open(FPSTR(SLOTS_FILE), "w");
         if(slotsBinaryFile) {
             SlotMetaArray slotsObject;
@@ -132,7 +132,7 @@ void serverSlots()
             }
             slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
         } else {
-            LOGN(F("unable to create /slots.bin"));
+            _DBGN(F("unable to create /slots.bin"));
             goto stream_slots_bin_failed;
         }
     }
@@ -161,8 +161,8 @@ void serverSlotSet()
         uopt->presetPreference = OutputCustomized;
         saveUserPrefs();
         result = true;
-        // LOG(F("[w] slot value upd. success: "));
-        // LOGF("%s\n", slotValue);
+        // _DBG(F("[w] slot value upd. success: "));
+        // _DBGF("%s\n", slotValue);
     }
 server_slot_set_failure:
     server.send(200, mimeAppJson, result ? F("true") : F("false"));
@@ -247,7 +247,7 @@ void serverSlotRemove()
     char param = server.argName(0).charAt(0);
     if (server.args() > 0) {
         if (param == '0') {
-            LOG(F("Wait..."));
+            _DBGN(F("Wait..."));
             result = true;
         } else {
             uint8_t slot = uopt->presetSlot;
@@ -303,7 +303,7 @@ void serverSlotRemove()
             fs::File slotsBinaryFileWrite = LittleFS.open(FPSTR(SLOTS_FILE), "w");
             slotsBinaryFileWrite.write((byte *)&slotsObject, sizeof(slotsObject));
             slotsBinaryFileWrite.close();
-            LOGF("Preset \"%s\" removed\n", slotName.c_str());
+            _DBGF("Preset \"%s\" removed\n", slotName.c_str());
             result = true;
         }
     }
@@ -335,25 +335,25 @@ void serverFsUploadHandler()
         dnsServer.stop();
         const String fname = "/" + upload.filename;
         _tempFile = LittleFS.open(fname, "w");
-        LOG(F("[w] upload "));
-        LOGF("%s ", upload.filename.c_str());
+        _DBG(F("[w] upload "));
+        _DBGF("%s ", upload.filename.c_str());
         err = false;
     } else if (upload.status == UPLOAD_FILE_WRITE && upload.contentLength != 0 && !err) {
         if (_tempFile.write(upload.buf, upload.contentLength) != upload.contentLength) {
             err = true;
-            LOGN(F(" write failed, abort"));
+            _DBGN(F(" write failed, abort"));
             goto upload_file_close;
         } else {
-            LOG(F("."));
+            _DBG(F("."));
         }
     } else if (upload.status == UPLOAD_FILE_END && !err) {
-        LOGN(F(" complete"));
+        _DBGN(F(" complete"));
         err = false;
         goto upload_file_close;
     } else if (upload.status == UPLOAD_FILE_ABORTED) {
         err = false;
         LittleFS.remove(String("/" + upload.filename));
-        LOGN(F(" aborted"));
+        _DBGN(F(" aborted"));
         goto upload_file_close;
     }
     return;
@@ -455,14 +455,14 @@ void serverRestoreFilters()
 
         uopt->wantScanlines = slotsObject.slot[currentSlot].scanlines;
 
-        LOG(F("slot: "));
-        LOG(uopt->presetSlot);
-        LOG(F("scanlines: "));
+        _WS(F("slot: "));
+        _WS(uopt->presetSlot);
+        _WS(F("scanlines: "));
         if (uopt->wantScanlines) {
-            LOG(F("on (Line Filter recommended)"));
+            _WS(F("on (Line Filter recommended)"));
         } else {
             disableScanlines();
-            LOG(F("off"));
+            _WS(F("off"));
         }
         saveUserPrefs();
 
@@ -525,7 +525,7 @@ void serverWiFiList()
         }
         server.chunkedResponseFinalize();
     } else
-        server.send(200, mimeTextHtml, F(""));
+        server.send(200, mimeTextHtml, F("{}"));
 }
 
 /**
@@ -572,6 +572,10 @@ void serverWiFiConnect()
     // userCommand = 'u'; // next loop, set wifi station mode and restart device
 }
 
+/**
+ * @brief
+ *
+ */
 void serverWiFiAP()
 {
     String msg = String(F("access point: "));
@@ -580,6 +584,10 @@ void serverWiFiAP()
     wifiStartApMode();
 }
 
+/**
+ * @brief
+ *
+ */
 void serverWiFiReset()
 {
     server.send(200, mimeTextHtml, PSTR("Rebooting..."));
