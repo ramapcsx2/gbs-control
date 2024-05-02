@@ -1,13 +1,9 @@
-import json
-
-from PIL import Image, ImageDraw, ImageFont
+# -*- coding: utf-8 -*-
 
 import json
-import os.path
+import os
 import pathlib
-import sys
 from argparse import ArgumentParser
-
 from PIL import Image, ImageDraw, ImageFont
 
 MENU_WIDTH = 128
@@ -19,120 +15,9 @@ X_OFFSET = 0
 Y_OFFSET = -1
 DEFAULT_FONT_SIZE = 12
 
-menu_items = [
-    {
-        "tag": "OM_STATUS_CUSTOM",
-        "en-US": "Main Menu",
-        "zh-CN": "主菜单",
-        # should not be larger than 12 (or adjust according to MENU_STATUS_BAR_HEIGHT)
-        "size": 12,
-    },
-    {
-        "tag": "OM_STATUS_BAR_BACK",
-        "en-US": "←Back",
-        # should not be larger than 12 (or adjust according to MENU_STATUS_BAR_HEIGHT)
-        "size": 12
-    },
-    {
-        "tag": "OM_SCREEN_SAVER",
-        "en-US": "Press Any Key",
-    },
-    {
-        "tag": "OM_RESOLUTION",
-        "en-US": "Resolutions",
-    },
-    {
-        "tag": "OM_PASSTHROUGH",
-        "en-US": "Passthrough",
-    },
-    {
-        "tag": "OM_DOWNSCALE",
-        "en-US": "Down-Scale",
-    },
-    {
-        "tag": "OM_PRESET",
-        "en-US": "Presets",
-    },
-    {
-        "tag": "OM_RESET_RESTORE",
-        "en-US": "Reset/Restore",
-    },
-    {
-        "tag": "OM_RESET_GBS",
-        "en-US": "Reset GBS",
-    },
-    {
-        "tag": "OM_RESET_WIFI",
-        "en-US": "Clear WiFi Connections",
-    },
-    {
-        "tag": "OM_RESTORE_FACTORY",
-        "en-US": "Restore Factory",
-    },
-    {
-        "tag": "OM_CURRENT",
-        "en-US": "Current Output",
-    },
-    {
-        "tag": "OM_WIFI",
-        "en-US": "WiFi Info",
-    },
-    {
-        "tag": "TEXT_NO_PRESETS",
-        "en-US": "No Presets. Please use the Web UI to create one first.",
-    },
-    {
-        "tag": "TEXT_TOO_MANY_PRESETS",
-        "en-US": "Please use WebUI to access more presets.",
-    },
-    {
-        "tag": "TEXT_RESETTING_GBS",
-        "en-US": "Resetting GBS\nPlease wait\n...",
-        "size": 16,
-    },
-    {
-        "tag": "TEXT_RESETTING_WIFI",
-        "en-US": "Resetting WiFi\nPlease wait\n...",
-        "size": 16,
-    },
-    {
-        "tag": "TEXT_RESTORING",
-        "en-US": "Factory Restoring\nPlease wait\n...",
-        "size": 16,
-    },
-    {
-        "tag": "TEXT_WIFI_CONNECT_TO",
-        "en-US": "Connect to the following SSID (password) before using the Web UI",
-    },
-    {
-        "tag": "TEXT_WIFI_CONNECTED",
-        "en-US": "Status: Connected",
-    },
-    {
-        "tag": "TEXT_WIFI_DISCONNECTED",
-        "en-US": "Status: Disconnected",
-    },
-    {
-        "tag": "TEXT_WIFI_URL",
-        "en-US": "Use one of the following URLs to use the Web UI",
-    },
-    {
-        "tag": "TEXT_LOADED",
-        "en-US": "Loaded",
-        "size": 16
-    },
-    {
-        "tag": "TEXT_NO_INPUT",
-        "en-US": "No Input",
-        "size": 16
-    },
-    {
-        "tag": "OM_OSD",
-        "en-US": "Open OSD Menu",
-    },
-
-
-]
+# load translations
+with open(os.getcwd() + '/translation.json', 'r') as data:
+    menu_items = json.load(data)
 
 res = """
 #define %(name)s_WIDTH %(width)s
@@ -146,6 +31,10 @@ tags_map = {}
 fonts_map = {}
 default_font = None
 
+# we need a temporary directory to exist
+i18npath = os.path.join(os.getcwd(), 'i18n')
+if os.path.isdir(i18npath) == False :
+    os.mkdir(i18npath)
 
 def convert(text, font):
     img = Image.new('L', (0, 0), color=0)
@@ -175,7 +64,7 @@ def convert(text, font):
             bytes_arr.append(number)
             number = 0
             byte_index = 0
-    img.save(f'i18n_preview_{tag}.jpg')
+    img.save(os.path.join(i18npath, f'i18n_preview_{tag}.jpg'))
     return width, height, bytes_arr
 
 
