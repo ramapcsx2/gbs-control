@@ -3,15 +3,15 @@
 # File: utils.h                                                                    #
 # File Created: Thursday, 2nd May 2024 5:38:14 pm                                   #
 # Author:                                                                           #
-# Last Modified: Sunday, 5th May 2024 1:17:03 pm                          #
+# Last Modified: Sunday, 5th May 2024 5:35:43 pm                          #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
 #####################################################################################
 */
 
-#ifndef _HWCTRL_H_
-#define _HWCTRL_H_
+#ifndef _UTILS_H_
+#define _UTILS_H_
 
 #include <si5351mcu.h>
 #include "options.h"
@@ -19,19 +19,6 @@
 #include "wifiman.h"
 #include "wserial.h"
 #include "presetHdBypassSection.h"
-
-#define DEBUG_IN_PIN D6 // marked "D12/MISO/D6" (Wemos D1) or D6 (Lolin NodeMCU)
-// SCL = D1 (Lolin), D15 (Wemos D1) // ESP8266 Arduino default map: SCL
-// SDA = D2 (Lolin), D14 (Wemos D1) // ESP8266 Arduino default map: SDA
-#define LEDON                     \
-    pinMode(LED_BUILTIN, OUTPUT); \
-    digitalWrite(LED_BUILTIN, LOW)
-#define LEDOFF                       \
-    digitalWrite(LED_BUILTIN, HIGH); \
-    pinMode(LED_BUILTIN, INPUT)
-// fast ESP8266 digitalRead (21 cycles vs 77), *should* work with all possible input pins
-// but only "D7" and "D6" have been tested so far
-#define digitalRead(x) ((GPIO_REG_READ(GPIO_IN_ADDRESS) >> x) & 1)
 
 extern Si5351mcu Si;
 
@@ -66,4 +53,4 @@ bool checkBoardPower();
 void calibrateAdcOffset();
 
 
-#endif                                      // _HWCTRL_H_
+#endif                                      // _UTILS_H_

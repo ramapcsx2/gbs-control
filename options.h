@@ -29,13 +29,26 @@
 #define AUTO_GAIN_INIT                  0x48
 #define THIS_DEVICE_MASTER
 #ifndef DEBUG_IN_PIN
-#define DEBUG_IN_PIN                    D6
-#endif
+// marked "D12/MISO/D6" (Wemos D1) or D6 (Lolin NodeMCU)
+// SCL = D1 (Lolin), D15 (Wemos D1) // ESP8266 Arduino default map: SCL
+// SDA = D2 (Lolin), D14 (Wemos D1) // ESP8266 Arduino default map: SDA
+#define DEBUG_IN_PIN                    D6   // 12
+#endif                      // DEBUG_IN_PIN
 // for OLED menu config, see: OLEDMenuConfig.h
 // #define HAVE_PINGER_LIBRARY
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) > (b) ? (b) : (a))
+
+#define LEDON                     \
+    pinMode(LED_BUILTIN, OUTPUT); \
+    digitalWrite(LED_BUILTIN, LOW)
+#define LEDOFF                       \
+    digitalWrite(LED_BUILTIN, HIGH); \
+    pinMode(LED_BUILTIN, INPUT)
+// fast ESP8266 digitalRead (21 cycles vs 77), *should* work with all possible input pins
+// but only "D7" and "D6" have been tested so far
+#define digitalRead(x) ((GPIO_REG_READ(GPIO_IN_ADDRESS) >> x) & 1)
 
 // using Ascii8 = uint8_t;
 /// Output resolution requested by user, *given to* applyPresets().

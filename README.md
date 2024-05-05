@@ -27,3 +27,32 @@ https://www.youtube.com/watch?v=fmfR0XI5czI
 Development threads:  
 https://shmups.system11.org/viewtopic.php?f=6&t=52172   
 https://circuit-board.de/forum/index.php/Thread/15601-GBS-8220-Custom-Firmware-in-Arbeit/   
+
+## Compileation
+
+### Using ArduinoIDE
+
+1. Open Preferences in ArduinoIDE. In "Additional Boards Manager URLs" put the following source links:
+
+```
+https://dl.espressif.com/dl/package_esp32_index.json, http://arduino.esp8266.com/stable/package_esp8266com_index.json
+```
+
+2. Save and close Preferences window. Go to the "Board Manager" and search for ESP8266. Make sure that the latest version of the framework is installed.
+
+3. Download/clone the following repositories into your Arduino libraries directory (see: "Preferences - Sketchbook location" + libraries). 
+For more intfrmation please refer to http://www.arduino.cc/en/Guide/Libraries
+
+```
+https://github.com/Links2004/arduinoWebSockets.git
+https://github.com/pavelmc/Si5351mcu.git
+https://github.com/ThingPulse/esp8266-oled-ssd1306.git
+```
+
+If you plan to be using ping-library (see: HAVE_PINGER_LIBRARY in options.h) in addition to the above add the following link:
+
+```
+https://github.com/bluemurder/esp8266-ping.git
+```
+
+4. In menu "Tools" select the board "LOLIN(WEMOS) D1 R2 & mini". Then change "Flash size" to "4MB (FS:1MB OTA:~1019KB).
