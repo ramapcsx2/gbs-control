@@ -1,3 +1,6 @@
+//
+// !UNUSED
+//
 const uint8_t ofw_RGBS[] PROGMEM = {
     0x7C, // s0_40
     0x45, // s0_41

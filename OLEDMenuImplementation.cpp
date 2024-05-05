@@ -1,32 +1,17 @@
-#define OSD_TIMEOUT 8000
-
-#include <Arduino.h>
-#include <LittleFS.h>
-#include <WebSocketsServer.h>
 #include "OLEDMenuImplementation.h"
-#include "options.h"
-#include "tv5725.h"
-#include "slot.h"
-#include "fonts.h"
-#include "OSDManager.h"
 
-typedef TV5725<GBS_ADDR> GBS;
-extern void applyPresets(uint8_t videoMode);
-extern void setOutModeHdBypass(bool bypass);
-extern void saveUserPrefs();
-extern float getOutputFrameRate();
-extern void loadDefaultUserOptions();
-extern uint8_t getVideoMode();
-extern runTimeOptions *rto;
-extern userOptions *uopt;
-// extern const char *ap_password;
-// extern const char *gbsc_device_hostname;
-extern WebSocketsServer webSocket;
-extern OLEDMenuManager oledMenu;
-extern OSDManager osdManager;
-unsigned long oledMenuFreezeStartTime;
-unsigned long oledMenuFreezeTimeoutInMS;
+static unsigned long oledMenuFreezeStartTime = 0;
+static unsigned long oledMenuFreezeTimeoutInMS = 0;
 
+/**
+ * @brief
+ *
+ * @param manager
+ * @param item
+ * @param isFirstTime
+ * @return true
+ * @return false
+ */
 bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool isFirstTime)
 {
     if (!isFirstTime) {
@@ -137,7 +122,7 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
 bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool)
 {
     SlotMetaArray slotsObject;
-    File slotsBinaryFileRead = LittleFS.open(SLOTS_FILE, "r");
+    File slotsBinaryFileRead = LittleFS.open(slotsFile, "r");
     manager->clearSubItems(item);
     int curNumSlot = 0;
     if (slotsBinaryFileRead) {
@@ -145,7 +130,7 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
         slotsBinaryFileRead.close();
         for (int i = 0; i < SLOTS_TOTAL; ++i) {
             const SlotMeta &slot = slotsObject.slot[i];
-            if (strcmp(EMPTY_SLOT_NAME, slot.name) == 0 || !strlen(slot.name)) {
+            if (strcmp(emptySlotName, slot.name) == 0 || !strlen(slot.name)) {
                 continue;
             }
             curNumSlot++;

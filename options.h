@@ -1,9 +1,41 @@
-#ifndef _USER_H_
-#define _USER_H_
+#ifndef _OPTIONS_H_
+#define _OPTIONS_H_
 
-#define HAVE_BUTTONS        0
-#define USE_NEW_OLED_MENU   1
+#if defined(ESP8266)
+    #include <ESP8266WiFi.h>
+#else
+    #include <Arduino.h>
+#endif
+
+// options
+// #define FRAMESYNC_DEBUG
+// #define FRAMESYNC_DEBUG_LED                  // just blink LED (off = adjust phase, on = normal phase)
+// #define HAVE_BUTTONS
+#ifdef HAVE_BUTTONS
+#define INPUT_SHIFT 0
+#define DOWN_SHIFT 1
+#define UP_SHIFT 2
+#define MENU_SHIFT 3
+#define BACK_SHIFT 4
+#endif                      // HAVE_BUTTONS
+#define USE_NEW_OLED_MENU               1
+#define PIN_CLK                         14   // D5 = GPIO14 (input of one direction for encoder)
+#define PIN_DATA                        13   // D7 = GPIO13	(input of one direction for encoder)
+#define PIN_SWITCH                      0    // D3 = GPIO0 pulled HIGH, else boot fail (middle push button for encoder)
+#define MENU_WIDTH                      131
+#define MENU_HEIGHT                     19
+#define SLOTS_TOTAL                     72   // max number of slots
+#define OSD_TIMEOUT                     8000
+#define AUTO_GAIN_INIT                  0x48
 #define THIS_DEVICE_MASTER
+#ifndef DEBUG_IN_PIN
+#define DEBUG_IN_PIN                    D6
+#endif
+// for OLED menu config, see: OLEDMenuConfig.h
+// #define HAVE_PINGER_LIBRARY
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) > (b) ? (b) : (a))
 
 // using Ascii8 = uint8_t;
 /// Output resolution requested by user, *given to* applyPresets().
@@ -43,7 +75,6 @@ struct userOptions
     uint8_t enableCalibrationADC;
     uint8_t scanlineStrength;
 };
-
 
 // runTimeOptions holds system variables
 struct runTimeOptions
@@ -117,6 +148,10 @@ enum PresetID : uint8_t {
     PresetBypassRGBHV = 0x22,
 };
 
+extern struct runTimeOptions *rto;
+extern struct userOptions *uopt;
+extern struct adcOptions *adco;
+
 const char preferencesFile[] PROGMEM = "/preferencesv2.txt";
 const char systemInfo[] PROGMEM = "h:%4u v:%4u PLL:%01u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d\n";
 const char commandDescr[] PROGMEM = "%s command %c (0x%02X) at settings source %d, custom slot %d, status %x\n";
@@ -131,4 +166,4 @@ const char ap_password[] PROGMEM = "qqqqqqqq";
 const char gbsc_device_hostname[] PROGMEM = "gbsslave"; // for MDNS
 #endif
 
-#endif                                  // _USER_H_
+#endif                                  // _OPTIONS_H_

@@ -1,19 +1,16 @@
 #include "OSDManager.h"
-#include "options.h"
-extern userOptions *uopt;
-extern void saveUserPrefs();
-extern void shiftHorizontalRight();
-extern void shiftHorizontalLeft();
-extern void shiftVerticalDownIF();
-extern void shiftVerticalUpIF();
-extern void scaleVertical(uint16_t, bool);
-extern void scaleHorizontal(uint16_t, bool);
-extern OSDManager osdManager;
 
+/**
+ * @brief
+ *
+ * @param config
+ * @return true
+ * @return false
+ */
 bool osdBrightness(OSDMenuConfig &config)
 {
     const int16_t STEP = 8;
-    int8_t cur =  GBS::VDS_Y_OFST::read();
+    int8_t cur = GBS::VDS_Y_OFST::read();
     if (config.onChange) {
         if (config.inc) {
             cur = MIN(cur + STEP, 127);
@@ -21,7 +18,7 @@ bool osdBrightness(OSDMenuConfig &config)
             cur = MAX(-128, cur - STEP);
         }
         GBS::VDS_Y_OFST::write(cur);
-    } 
+    }
     config.barLength = 256 / STEP;
     config.barActiveLength = (cur + 128 + 1) / STEP;
     return true;

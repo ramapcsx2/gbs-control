@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Sunday, 28th April 2024 1:35:31 am                                 #
+# Last Modified: Sunday, 5th May 2024 3:44:01 pm                          #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -112,11 +112,11 @@ void serverUC()
 void serverSlots()
 {
     ASSERT_LOMEM_RETURN();
-    fs::File slotsBinaryFile = LittleFS.open(FPSTR(SLOTS_FILE), "r");
+    fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "r");
 
     if (!slotsBinaryFile) {
         _DBGN(F("/slots.bin not found, attempting to create"));
-        fs::File slotsBinaryFile = LittleFS.open(FPSTR(SLOTS_FILE), "w");
+        fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "w");
         if(slotsBinaryFile) {
             SlotMetaArray slotsObject;
             for (int i = 0; i < SLOTS_TOTAL; i++) {
@@ -127,7 +127,7 @@ void serverSlots()
                 slotsObject.slot[i].wantVdsLineFilter = false;
                 slotsObject.slot[i].wantStepResponse = true;
                 slotsObject.slot[i].wantPeaking = true;
-                String emptySlotName = String(EMPTY_SLOT_NAME);
+                String emptySlotName = String(emptySlotName);
                 strncpy(slotsObject.slot[i].name, emptySlotName.c_str(), 25);
             }
             slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
@@ -179,13 +179,13 @@ void serverSlotSave()
 
     if (server.args() > 0) {
         SlotMetaArray slotsObject;
-        fs::File slotsBinaryFileRead = LittleFS.open(FPSTR(SLOTS_FILE), "r");
+        fs::File slotsBinaryFileRead = LittleFS.open(FPSTR(slotsFile), "r");
 
         if (slotsBinaryFileRead) {
             slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
             slotsBinaryFileRead.close();
         } else {
-            fs::File slotsBinaryFileWrite = LittleFS.open(FPSTR(SLOTS_FILE), "w");
+            fs::File slotsBinaryFileWrite = LittleFS.open(FPSTR(slotsFile), "w");
 
             for (int i = 0; i < SLOTS_TOTAL; i++) {
                 slotsObject.slot[i].slot = i;
@@ -196,7 +196,7 @@ void serverSlotSave()
                 slotsObject.slot[i].wantStepResponse = true;
                 slotsObject.slot[i].wantPeaking = true;
                 char emptySlotName[25] = "";
-                strcpy_P(emptySlotName, EMPTY_SLOT_NAME);
+                strcpy_P(emptySlotName, emptySlotName);
                 strncpy(slotsObject.slot[i].name, emptySlotName, 25);
             }
 
@@ -214,7 +214,7 @@ void serverSlotSave()
         // name param
         String slotName = server.arg(1);
 
-        String emptySlotName = String(EMPTY_SLOT_LINE);
+        String emptySlotName = String(emptySlotLine);
         strncpy(slotsObject.slot[slotIndex].name, emptySlotName.c_str(), 25);
 
         slotsObject.slot[slotIndex].slot = slotIndex;
@@ -226,7 +226,7 @@ void serverSlotSave()
         slotsObject.slot[slotIndex].wantStepResponse = uopt->wantStepResponse;
         slotsObject.slot[slotIndex].wantPeaking = uopt->wantPeaking;
 
-        fs::File slotsBinaryOutputFile = LittleFS.open(FPSTR(SLOTS_FILE), "w");
+        fs::File slotsBinaryOutputFile = LittleFS.open(FPSTR(slotsFile), "w");
         slotsBinaryOutputFile.write((byte *)&slotsObject, sizeof(slotsObject));
         slotsBinaryOutputFile.close();
 
@@ -255,7 +255,7 @@ void serverSlotRemove()
             auto currentSlot = String(slotIndexMap).indexOf(slot);
 
             SlotMetaArray slotsObject;
-            fs::File slotsBinaryFileRead = LittleFS.open(FPSTR(SLOTS_FILE), "r");
+            fs::File slotsBinaryFileRead = LittleFS.open(FPSTR(slotsFile), "r");
             slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
             slotsBinaryFileRead.close();
             String slotName = slotsObject.slot[currentSlot].name;
@@ -300,7 +300,7 @@ void serverSlotRemove()
                 loopCount++;
             }
 
-            fs::File slotsBinaryFileWrite = LittleFS.open(FPSTR(SLOTS_FILE), "w");
+            fs::File slotsBinaryFileWrite = LittleFS.open(FPSTR(slotsFile), "w");
             slotsBinaryFileWrite.write((byte *)&slotsObject, sizeof(slotsObject));
             slotsBinaryFileWrite.close();
             _DBGF("Preset \"%s\" removed\n", slotName.c_str());
@@ -443,7 +443,7 @@ void serverWiFiStatus()
 void serverRestoreFilters()
 {
     SlotMetaArray slotsObject;
-    fs::File slotsBinaryFileRead = LittleFS.open(FPSTR(SLOTS_FILE), "r");
+    fs::File slotsBinaryFileRead = LittleFS.open(FPSTR(slotsFile), "r");
     bool result = false;
     if (slotsBinaryFileRead) {
         slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
@@ -594,3 +594,798 @@ void serverWiFiReset()
     delay(100);
     ESP.restart();
 }
+
+/**
+ * @brief
+ *
+ */
+void printInfo()
+{
+    static char print[121]; // Increase if compiler complains about sprintf
+    static uint8_t clearIrqCounter = 0;
+    static uint8_t lockCounterPrevious = 0;
+    uint8_t lockCounter = 0;
+
+    int8_t wifi = wifiGetRSSI();
+
+    uint16_t hperiod = GBS::HPERIOD_IF::read();
+    uint16_t vperiod = GBS::VPERIOD_IF::read();
+    uint8_t stat0FIrq = GBS::STATUS_0F::read();
+    char HSp = GBS::STATUS_SYNC_PROC_HSPOL::read() ? '+' : '-'; // 0 = neg, 1 = pos
+    char VSp = GBS::STATUS_SYNC_PROC_VSPOL::read() ? '+' : '-'; // 0 = neg, 1 = pos
+    char h = 'H', v = 'V';
+    if (!GBS::STATUS_SYNC_PROC_HSACT::read()) {
+        h = HSp = ' ';
+    }
+    if (!GBS::STATUS_SYNC_PROC_VSACT::read()) {
+        v = VSp = ' ';
+    }
+
+    // int charsToPrint =
+    sprintf_P(print,
+            systemInfo,
+            hperiod, vperiod, lockCounterPrevious,
+            GBS::ADC_RGCTRL::read(), GBS::ADC_GGCTRL::read(), GBS::ADC_BGCTRL::read(),
+            GBS::STATUS_00::read(), GBS::STATUS_05::read(), GBS::SP_CS_0x3E::read(),
+            h, HSp, v, VSp, stat0FIrq, GBS::TEST_BUS::read(), getVideoMode(),
+            GBS::STATUS_SYNC_PROC_HTOTAL::read(), GBS::STATUS_SYNC_PROC_VTOTAL::read() /*+ 1*/, // emucrt: without +1 is correct line count
+            GBS::STATUS_SYNC_PROC_HLOW_LEN::read(), rto->noSyncCounter, rto->continousStableCounter,
+            rto->currentLevelSOG, wifi);
+
+    // _WS(F("charsToPrint: ")); _WSN(charsToPrint);
+    _WS(print);
+
+    if (stat0FIrq != 0x00) {
+        // clear 0_0F interrupt bits regardless of syncwatcher status
+        clearIrqCounter++;
+        if (clearIrqCounter >= 50) {
+            clearIrqCounter = 0;
+            GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
+            GBS::INTERRUPT_CONTROL_00::write(0x00);
+        }
+    }
+
+    yield();
+    if (GBS::STATUS_SYNC_PROC_HSACT::read()) { // else source might not be active
+        for (uint8_t i = 0; i < 9; i++) {
+            if (GBS::STATUS_MISC_PLLAD_LOCK::read() == 1) {
+                lockCounter++;
+            } else {
+                for (int i = 0; i < 10; i++) {
+                    if (GBS::STATUS_MISC_PLLAD_LOCK::read() == 1) {
+                        lockCounter++;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    lockCounterPrevious = getMovingAverage(lockCounter);
+}
+
+/**
+ * @brief
+ *
+ */
+void printVideoTimings()
+{
+    if (rto->presetID < 0x20) {
+        _WS(F("\nHT / scale   : "));
+        _WS(GBS::VDS_HSYNC_RST::read());
+        _WS(F(" "));
+        _WSN(GBS::VDS_HSCALE::read());
+        _WS(F("HS ST/SP     : "));
+        _WS(GBS::VDS_HS_ST::read());
+        _WS(F(" "));
+        _WSN(GBS::VDS_HS_SP::read());
+        _WS(F("HB ST/SP(d)  : "));
+        _WS(GBS::VDS_DIS_HB_ST::read());
+        _WS(F(" "));
+        _WSN(GBS::VDS_DIS_HB_SP::read());
+        _WS(F("HB ST/SP     : "));
+        _WS(GBS::VDS_HB_ST::read());
+        _WS(F(" "));
+        _WSN(GBS::VDS_HB_SP::read());
+        _WSN(F("------"));
+        // vertical
+        _WS(F("VT / scale   : "));
+        _WS(GBS::VDS_VSYNC_RST::read());
+        _WS(F(" "));
+        _WSN(GBS::VDS_VSCALE::read());
+        _WS(F("VS ST/SP     : "));
+        _WS(GBS::VDS_VS_ST::read());
+        _WS(F(" "));
+        _WSN(GBS::VDS_VS_SP::read());
+        _WS(F("VB ST/SP(d)  : "));
+        _WS(GBS::VDS_DIS_VB_ST::read());
+        _WS(F(" "));
+        _WSN(GBS::VDS_DIS_VB_SP::read());
+        _WS(F("VB ST/SP     : "));
+        _WS(GBS::VDS_VB_ST::read());
+        _WS(F(" "));
+        _WSN(GBS::VDS_VB_SP::read());
+        // IF V offset
+        _WS(F("IF VB ST/SP  : "));
+        _WS(GBS::IF_VB_ST::read());
+        _WS(F(" "));
+        _WSN(GBS::IF_VB_SP::read());
+    } else {
+        _WSN();
+        _WS(F("HD_HSYNC_RST : "));
+        _WSN(GBS::HD_HSYNC_RST::read());
+        _WS(F("HD_INI_ST    : "));
+        _WSN(GBS::HD_INI_ST::read());
+        _WS(F("HS ST/SP     : "));
+        _WS(GBS::SP_CS_HS_ST::read());
+        _WS(F(" "));
+        _WSN(GBS::SP_CS_HS_SP::read());
+        _WS(F("HB ST/SP     : "));
+        _WS(GBS::HD_HB_ST::read());
+        _WS(F(" "));
+        _WSN(GBS::HD_HB_SP::read());
+        _WSN(F("------"));
+        // vertical
+        _WS(F("VS ST/SP     : "));
+        _WS(GBS::HD_VS_ST::read());
+        _WS(F(" "));
+        _WSN(GBS::HD_VS_SP::read());
+        _WS(F("VB ST/SP     : "));
+        _WS(GBS::HD_VB_ST::read());
+        _WS(F(" "));
+        _WSN(GBS::HD_VB_SP::read());
+    }
+
+    _WS(F("CsVT         : "));
+    _WSN(GBS::STATUS_SYNC_PROC_VTOTAL::read());
+    _WS(F("CsVS_ST/SP   : "));
+    _WS(getCsVsStart());
+    _WS(F(" "));
+    _WSN(getCsVsStop());
+}
+
+/**
+ * @brief
+ *
+ */
+void fastGetBestHtotal()
+{
+    uint32_t inStart, inStop;
+    signed long inPeriod = 1;
+    double inHz = 1.0;
+    GBS::TEST_BUS_SEL::write(0xa);
+    if (FrameSync::vsyncInputSample(&inStart, &inStop)) {
+        inPeriod = (inStop - inStart) >> 1;
+        if (inPeriod > 1) {
+            inHz = (double)1000000 / (double)inPeriod;
+        }
+        _WSF(PSTR("inPeriod: %ld in Hz: %d\n"), inPeriod, inHz);
+    } else {
+        _WSN(F("error"));
+    }
+
+    uint16_t newVtotal = GBS::VDS_VSYNC_RST::read();
+    double bestHtotal = 108000000 / ((double)newVtotal * inHz); // 107840000
+    double bestHtotal50 = 108000000 / ((double)newVtotal * 50);
+    double bestHtotal60 = 108000000 / ((double)newVtotal * 60);
+    _WS(F("newVtotal: "));
+    _WSN(newVtotal);
+    // display clock probably not exact 108mhz
+    _WS(F("bestHtotal: "));
+    _WSN(bestHtotal);
+    _WS(F("bestHtotal50: "));
+    _WSN(bestHtotal50);
+    _WS(F("bestHtotal60: "));
+    _WSN(bestHtotal60);
+    if (bestHtotal > 800 && bestHtotal < 3200) {
+        // applyBestHTotal((uint16_t)bestHtotal);
+        // FrameSync::resetWithoutRecalculation(); // was single use of this function, function has changed since
+    }
+}
+
+#if defined(ESP8266)
+
+/**
+ * @brief Type2 == userCommand
+ *
+ * @param argument
+ */
+void handleType2Command(char argument)
+{
+    _WSF(commandDescr,
+        "user", argument, argument, uopt->presetPreference, uopt->presetSlot, rto->presetID);
+    switch (argument) {
+        case '0':
+            _WS(F("pal force 60hz "));
+            if (uopt->PalForce60 == 0) {
+                uopt->PalForce60 = 1;
+                _WSN(F("on"));
+            } else {
+                uopt->PalForce60 = 0;
+                _WSN(F("off"));
+            }
+            saveUserPrefs();
+            break;
+        case '1':
+            // reset to defaults button
+            webSocket.close();
+            loadDefaultUserOptions();
+            saveUserPrefs();
+            _WSN(F("options set to defaults, restarting"));
+            delay(100);
+            ESP.reset(); // don't use restart(), messes up websocket reconnects
+            //
+            break;
+        case '2':
+            //
+            break;
+        case '3': // load custom preset
+        {
+            uopt->presetPreference = OutputCustomized; // custom
+            if (rto->videoStandardInput == 14) {
+                // vga upscale path: let synwatcher handle it
+                rto->videoStandardInput = 15;
+            } else {
+                // normal path
+                applyPresets(rto->videoStandardInput);
+            }
+            saveUserPrefs();
+        } break;
+        case '4': // save custom preset
+            savePresetToFS();
+            uopt->presetPreference = OutputCustomized; // custom
+            saveUserPrefs();
+            break;
+        case '5':
+            // Frame Time Lock toggle
+            uopt->enableFrameTimeLock = !uopt->enableFrameTimeLock;
+            saveUserPrefs();
+            if (uopt->enableFrameTimeLock) {
+                _WSN(F("FTL on"));
+            } else {
+                _WSN(F("FTL off"));
+            }
+            if (!rto->extClockGenDetected) {
+                FrameSync::reset(uopt->frameTimeLockMethod);
+            }
+            if (uopt->enableFrameTimeLock) {
+                activeFrameTimeLockInitialSteps();
+            }
+            break;
+        case '6':
+            //
+            break;
+        case '7':
+            uopt->wantScanlines = !uopt->wantScanlines;
+            _WS(F("scanlines: "));
+            if (uopt->wantScanlines) {
+                _WSN(F("on (Line Filter recommended)"));
+            } else {
+                disableScanlines();
+                _WSN(F("off"));
+            }
+            saveUserPrefs();
+            break;
+        case '9':
+            //
+            break;
+        case 'a':
+            webSocket.close();
+            _WSN(F("restart"));
+            delay(60);
+            ESP.reset(); // don't use restart(), messes up websocket reconnects
+            break;
+        case 'e': // print files on data
+        {
+            fs::Dir dir = LittleFS.openDir("/");
+            while (dir.next()) {
+                _WS(dir.fileName());
+                _WS(F(" "));
+                _WSN(dir.fileSize());
+                delay(1); // wifi stack
+            }
+            ////
+            const String fn = String(preferencesFile);
+            File f = LittleFS.open(fn, "r");
+            if (!f) {
+                _WSN(F("failed opening preferences file"));
+            } else {
+                _WS(F("preset preference = "));
+                _WSN((uint8_t)(f.read() - '0'));
+                _WS(F("frame time lock = "));
+                _WSN((uint8_t)(f.read() - '0'));
+                _WS(F("preset slot = "));
+                _WSN((uint8_t)(f.read()));
+                _WS(F("frame lock method = "));
+                _WSN((uint8_t)(f.read() - '0'));
+                _WS(F("auto gain = "));
+                _WSN((uint8_t)(f.read() - '0'));
+                _WS(F("scanlines = "));
+                _WSN((uint8_t)(f.read() - '0'));
+                _WS(F("component output = "));
+                _WSN((uint8_t)(f.read() - '0'));
+                _WS(F("deinterlacer mode = "));
+                _WSN((uint8_t)(f.read() - '0'));
+                _WS(F("line filter = "));
+                _WSN((uint8_t)(f.read() - '0'));
+                _WS(F("peaking = "));
+                _WSN((uint8_t)(f.read() - '0'));
+                _WS(F("preferScalingRgbhv = "));
+                _WSN((uint8_t)(f.read() - '0'));
+                _WS(F("6-tap = "));
+                _WSN((uint8_t)(f.read() - '0'));
+                _WS(F("pal force60 = "));
+                _WSN((uint8_t)(f.read() - '0'));
+                _WS(F("matched = "));
+                _WSN((uint8_t)(f.read() - '0'));
+                _WS(F("step response = "));
+                _WSN((uint8_t)(f.read() - '0'));
+                _WS(F("disable external clock generator = "));
+                _WSN((uint8_t)(f.read() - '0'));
+
+                f.close();
+            }
+        } break;
+        case 'f':
+        case 'g':
+        case 'h':
+        case 'p':
+        case 's':
+        case 'L': {
+            // load preset via webui
+            uint8_t videoMode = getVideoMode();
+            if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
+                videoMode = rto->videoStandardInput; // last known good as fallback
+            // else videoMode stays 0 and we'll apply via some assumptions
+
+            if (argument == 'f')
+                uopt->presetPreference = Output960P; // 1280x960
+            if (argument == 'g')
+                uopt->presetPreference = Output720P; // 1280x720
+            if (argument == 'h')
+                uopt->presetPreference = Output480P; // 720x480/768x576
+            if (argument == 'p')
+                uopt->presetPreference = Output1024P; // 1280x1024
+            if (argument == 's')
+                uopt->presetPreference = Output1080P; // 1920x1080
+            if (argument == 'L')
+                uopt->presetPreference = OutputDownscale; // downscale
+
+            rto->useHdmiSyncFix = 1; // disables sync out when programming preset
+            if (rto->videoStandardInput == 14) {
+                // vga upscale path: let synwatcher handle it
+                rto->videoStandardInput = 15;
+            } else {
+                // normal path
+                applyPresets(videoMode);
+            }
+            saveUserPrefs();
+        } break;
+        case 'i':
+            // toggle active frametime lock method
+            if (!rto->extClockGenDetected) {
+                FrameSync::reset(uopt->frameTimeLockMethod);
+            }
+            if (uopt->frameTimeLockMethod == 0) {
+                uopt->frameTimeLockMethod = 1;
+            } else if (uopt->frameTimeLockMethod == 1) {
+                uopt->frameTimeLockMethod = 0;
+            }
+            saveUserPrefs();
+            activeFrameTimeLockInitialSteps();
+            break;
+        case 'l':
+            // cycle through available SDRAM clocks
+            {
+                uint8_t PLL_MS = GBS::PLL_MS::read();
+                uint8_t memClock = 0;
+
+                if (PLL_MS == 0)
+                    PLL_MS = 2;
+                else if (PLL_MS == 2)
+                    PLL_MS = 7;
+                else if (PLL_MS == 7)
+                    PLL_MS = 4;
+                else if (PLL_MS == 4)
+                    PLL_MS = 3;
+                else if (PLL_MS == 3)
+                    PLL_MS = 5;
+                else if (PLL_MS == 5)
+                    PLL_MS = 0;
+
+                switch (PLL_MS) {
+                    case 0:
+                        memClock = 108;
+                        break;
+                    case 1:
+                        memClock = 81;
+                        break; // goes well with 4_2C = 0x14, 4_2D = 0x27
+                    case 2:
+                        memClock = 10;
+                        break; // feedback clock
+                    case 3:
+                        memClock = 162;
+                        break;
+                    case 4:
+                        memClock = 144;
+                        break;
+                    case 5:
+                        memClock = 185;
+                        break; // slight OC
+                    case 6:
+                        memClock = 216;
+                        break; // !OC!
+                    case 7:
+                        memClock = 129;
+                        break;
+                    default:
+                        break;
+                }
+                GBS::PLL_MS::write(PLL_MS);
+                ResetSDRAM();
+                if (memClock != 10) {
+                    _WS(F("SDRAM clock: "));
+                    _WS(memClock);
+                    _WSN(F("Mhz"));
+                } else {
+                    _WS(F("SDRAM clock: "));
+                    _WSN(F("Feedback clock"));
+                }
+            }
+            break;
+        case 'm':
+            _WS(F("Line Filter: "));
+            if (uopt->wantVdsLineFilter) {
+                uopt->wantVdsLineFilter = 0;
+                GBS::VDS_D_RAM_BYPS::write(1);
+                _WSN(F("off"));
+            } else {
+                uopt->wantVdsLineFilter = 1;
+                GBS::VDS_D_RAM_BYPS::write(0);
+                _WSN(F("on"));
+            }
+            saveUserPrefs();
+            break;
+        case 'n':
+            uopt->enableAutoGain = 0;
+            setAdcGain(GBS::ADC_RGCTRL::read() - 1);
+            _WSF(PSTR("ADC gain++ : 0x%04X\n"), GBS::ADC_RGCTRL::read());
+            break;
+        case 'o':
+            uopt->enableAutoGain = 0;
+            setAdcGain(GBS::ADC_RGCTRL::read() + 1);
+            _WSF(PSTR("ADC gain-- : 0x%04X\n"), GBS::ADC_RGCTRL::read());
+            break;
+        case 'A': {
+            uint16_t htotal = GBS::VDS_HSYNC_RST::read();
+            uint16_t hbstd = GBS::VDS_DIS_HB_ST::read();
+            uint16_t hbspd = GBS::VDS_DIS_HB_SP::read();
+            if ((hbstd > 4) && (hbspd < (htotal - 4))) {
+                GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() - 4);
+                GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() + 4);
+            } else {
+                _WSN(F("limit"));
+            }
+        } break;
+        case 'B': {
+            uint16_t htotal = GBS::VDS_HSYNC_RST::read();
+            uint16_t hbstd = GBS::VDS_DIS_HB_ST::read();
+            uint16_t hbspd = GBS::VDS_DIS_HB_SP::read();
+            if ((hbstd < (htotal - 4)) && (hbspd > 4)) {
+                GBS::VDS_DIS_HB_ST::write(GBS::VDS_DIS_HB_ST::read() + 4);
+                GBS::VDS_DIS_HB_SP::write(GBS::VDS_DIS_HB_SP::read() - 4);
+            } else {
+                _WSN(F("limit"));
+            }
+        } break;
+        case 'C': {
+            // vert mask +
+            uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
+            uint16_t vbstd = GBS::VDS_DIS_VB_ST::read();
+            uint16_t vbspd = GBS::VDS_DIS_VB_SP::read();
+            if ((vbstd > 6) && (vbspd < (vtotal - 4))) {
+                GBS::VDS_DIS_VB_ST::write(vbstd - 2);
+                GBS::VDS_DIS_VB_SP::write(vbspd + 2);
+            } else {
+                _WSN(F("limit"));
+            }
+        } break;
+        case 'D': {
+            // vert mask -
+            uint16_t vtotal = GBS::VDS_VSYNC_RST::read();
+            uint16_t vbstd = GBS::VDS_DIS_VB_ST::read();
+            uint16_t vbspd = GBS::VDS_DIS_VB_SP::read();
+            if ((vbstd < (vtotal - 4)) && (vbspd > 6)) {
+                GBS::VDS_DIS_VB_ST::write(vbstd + 2);
+                GBS::VDS_DIS_VB_SP::write(vbspd - 2);
+            } else {
+                _WSN(F("limit"));
+            }
+        } break;
+        case 'q':
+            if (uopt->deintMode != 1) {
+                uopt->deintMode = 1;
+                disableMotionAdaptDeinterlace();
+                if (GBS::GBS_OPTION_SCANLINES_ENABLED::read()) {
+                    disableScanlines();
+                }
+                saveUserPrefs();
+            }
+            _WSN(F("Deinterlacer: Bob"));
+            break;
+        case 'r':
+            if (uopt->deintMode != 0) {
+                uopt->deintMode = 0;
+                saveUserPrefs();
+                // will enable next loop()
+            }
+            _WSN(F("Deinterlacer: Motion Adaptive"));
+            break;
+        case 't':
+            // unused now
+            _WS(F("6-tap: "));
+            if (uopt->wantTap6 == 0) {
+                uopt->wantTap6 = 1;
+                GBS::VDS_TAP6_BYPS::write(0);
+                GBS::MADPT_Y_DELAY_UV_DELAY::write(GBS::MADPT_Y_DELAY_UV_DELAY::read() - 1);
+                _WSN(F("on"));
+            } else {
+                uopt->wantTap6 = 0;
+                GBS::VDS_TAP6_BYPS::write(1);
+                GBS::MADPT_Y_DELAY_UV_DELAY::write(GBS::MADPT_Y_DELAY_UV_DELAY::read() + 1);
+                _WSN(F("off"));
+            }
+            saveUserPrefs();
+            break;
+        case 'u':
+            // restart to attempt wifi station mode connect
+            wifiStartStaMode("");
+            delay(100);
+            ESP.reset();
+            break;
+        case 'v': {
+            uopt->wantFullHeight = !uopt->wantFullHeight;
+            saveUserPrefs();
+            uint8_t vidMode = getVideoMode();
+            if (uopt->presetPreference == 5) {
+                if (GBS::GBS_PRESET_ID::read() == 0x05 || GBS::GBS_PRESET_ID::read() == 0x15) {
+                    applyPresets(vidMode);
+                }
+            }
+        } break;
+        case 'w':
+            uopt->enableCalibrationADC = !uopt->enableCalibrationADC;
+            saveUserPrefs();
+            break;
+        case 'x':
+            uopt->preferScalingRgbhv = !uopt->preferScalingRgbhv;
+            _WS(F("preferScalingRgbhv: "));
+            if (uopt->preferScalingRgbhv) {
+                _WSN(F("on"));
+            } else {
+                _WSN(F("off"));
+            }
+            saveUserPrefs();
+            break;
+        case 'X':
+            _WS(F("ExternalClockGenerator "));
+            if (uopt->disableExternalClockGenerator == 0) {
+                uopt->disableExternalClockGenerator = 1;
+                _WSN(F("disabled"));
+            } else {
+                uopt->disableExternalClockGenerator = 0;
+                _WSN("enabled");
+            }
+            saveUserPrefs();
+            break;
+        case 'z':
+            // sog slicer level
+            if (rto->currentLevelSOG > 0) {
+                rto->currentLevelSOG -= 1;
+            } else {
+                rto->currentLevelSOG = 16;
+            }
+            setAndUpdateSogLevel(rto->currentLevelSOG);
+            optimizePhaseSP();
+            _WS(F("Phase: "));
+            _WS(rto->phaseSP);
+            _WS(F(" SOG: "));
+            _WS(rto->currentLevelSOG);
+            _WSN();
+            break;
+        case 'E':
+            // test option for now
+            _WS(F("IF Auto Offset: "));
+            toggleIfAutoOffset();
+            if (GBS::IF_AUTO_OFST_EN::read()) {
+                _WSN(F("on"));
+            } else {
+                _WSN(F("off"));
+            }
+            break;
+        case 'F':
+            // freeze pic
+            if (GBS::CAPTURE_ENABLE::read()) {
+                GBS::CAPTURE_ENABLE::write(0);
+            } else {
+                GBS::CAPTURE_ENABLE::write(1);
+            }
+            break;
+        case 'K':
+            // scanline strength
+            if (uopt->scanlineStrength >= 0x10) {
+                uopt->scanlineStrength -= 0x10;
+            } else {
+                uopt->scanlineStrength = 0x50;
+            }
+            if (rto->scanlinesEnabled) {
+                GBS::MADPT_Y_MI_OFFSET::write(uopt->scanlineStrength);
+                GBS::MADPT_UV_MI_OFFSET::write(uopt->scanlineStrength);
+            }
+            saveUserPrefs();
+            _WSF(PSTR("Scanline Brightness: 0x%04X\n"), uopt->scanlineStrength);
+            break;
+        case 'Z':
+            // brightness++
+            GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 1);
+            _WS(F("Brightness++ : "));
+            _WSN(GBS::VDS_Y_OFST::read());
+            break;
+        case 'T':
+            // brightness--
+            GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() - 1);
+            _WS(F("Brightness-- : "));
+            _WSN(GBS::VDS_Y_OFST::read());
+            break;
+        case 'N':
+            // contrast++
+            GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 1);
+            _WS(F("Contrast++ : "));
+            _WSN(GBS::VDS_Y_GAIN::read());
+            break;
+        case 'M':
+            // contrast--
+            GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 1);
+            _WS(F("Contrast-- : "));
+            _WSN(GBS::VDS_Y_GAIN::read());
+            break;
+        case 'Q':
+            // pb/u gain++
+            GBS::VDS_UCOS_GAIN::write(GBS::VDS_UCOS_GAIN::read() + 1);
+            _WS(F("Pb/U gain++ : "));
+            _WSN(GBS::VDS_UCOS_GAIN::read());
+            break;
+        case 'H':
+            // pb/u gain--
+            GBS::VDS_UCOS_GAIN::write(GBS::VDS_UCOS_GAIN::read() - 1);
+            _WS(F("Pb/U gain-- : "));
+            _WSN(GBS::VDS_UCOS_GAIN::read());
+            break;
+            break;
+        case 'P':
+            // pr/v gain++
+            GBS::VDS_VCOS_GAIN::write(GBS::VDS_VCOS_GAIN::read() + 1);
+            _WS(F("Pr/V gain++ : "));
+            _WSN(GBS::VDS_VCOS_GAIN::read());
+            break;
+        case 'S':
+            // pr/v gain--
+            GBS::VDS_VCOS_GAIN::write(GBS::VDS_VCOS_GAIN::read() - 1);
+            _WS(F("Pr/V gain-- : "));
+            _WSN(GBS::VDS_VCOS_GAIN::read());
+            break;
+        case 'O':
+            // info
+            if (GBS::ADC_INPUT_SEL::read() == 1) {
+                _WSN(F("RGB reg"));
+                _WSN(F("------------ "));
+                _WS(F("Y_OFFSET: "));
+                _WSN(GBS::VDS_Y_OFST::read());
+                _WS(F("U_OFFSET: "));
+                _WSN(GBS::VDS_U_OFST::read());
+                _WS(F("V_OFFSET: "));
+                _WSN(GBS::VDS_V_OFST::read());
+                _WS(F("Y_GAIN: "));
+                _WSN(GBS::VDS_Y_GAIN::read());
+                _WS(F("USIN_GAIN: "));
+                _WSN(GBS::VDS_USIN_GAIN::read());
+                _WS(F("UCOS_GAIN: "));
+                _WSN(GBS::VDS_UCOS_GAIN::read());
+            } else {
+                _WSN(F("YPbPr reg"));
+                _WSN(F("------------ "));
+                _WS(F("Y_OFFSET: "));
+                _WSN(GBS::VDS_Y_OFST::read());
+                _WS(F("U_OFFSET: "));
+                _WSN(GBS::VDS_U_OFST::read());
+                _WS(F("V_OFFSET: "));
+                _WSN(GBS::VDS_V_OFST::read());
+                _WS(F("Y_GAIN: "));
+                _WSN(GBS::VDS_Y_GAIN::read());
+                _WS(F("USIN_GAIN: "));
+                _WSN(GBS::VDS_USIN_GAIN::read());
+                _WS(F("UCOS_GAIN: "));
+                _WSN(GBS::VDS_UCOS_GAIN::read());
+            }
+            break;
+        case 'U':
+            // default
+            if (GBS::ADC_INPUT_SEL::read() == 1) {
+                GBS::VDS_Y_GAIN::write(128);
+                GBS::VDS_UCOS_GAIN::write(28);
+                GBS::VDS_VCOS_GAIN::write(41);
+                GBS::VDS_Y_OFST::write(0);
+                GBS::VDS_U_OFST::write(0);
+                GBS::VDS_V_OFST::write(0);
+                GBS::ADC_ROFCTRL::write(adco->r_off);
+                GBS::ADC_GOFCTRL::write(adco->g_off);
+                GBS::ADC_BOFCTRL::write(adco->b_off);
+                _WSN(F("RGB:defauit"));
+            } else {
+                GBS::VDS_Y_GAIN::write(128);
+                GBS::VDS_UCOS_GAIN::write(28);
+                GBS::VDS_VCOS_GAIN::write(41);
+                GBS::VDS_Y_OFST::write(254);
+                GBS::VDS_U_OFST::write(3);
+                GBS::VDS_V_OFST::write(3);
+                GBS::ADC_ROFCTRL::write(adco->r_off);
+                GBS::ADC_GOFCTRL::write(adco->g_off);
+                GBS::ADC_BOFCTRL::write(adco->b_off);
+                _WSN(F("YPbPr:defauit"));
+            }
+            break;
+        default:
+            break;
+    }
+}
+
+/**
+ * @brief
+ *
+ */
+void initUpdateOTA()
+{
+    ArduinoOTA.setHostname("GBS OTA");
+
+    // ArduinoOTA.setPassword("admin");
+    // Password can be set with it's md5 value as well
+    // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+    // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+
+    // update: no password is as (in)secure as this publicly stated hash..
+    // rely on the user having to enable the OTA feature on the web ui
+
+    ArduinoOTA.onStart([]() {
+        String type;
+        if (ArduinoOTA.getCommand() == U_FLASH)
+            type = "sketch";
+        else // U_SPIFFS
+            type = "filesystem";
+
+        // NOTE: if updating LittleFS this would be the place to unmount LittleFS using LittleFS.end()
+        LittleFS.end();
+        _WSN(String(F("Start updating ")) + type);
+    });
+    ArduinoOTA.onEnd([]() {
+        _WSN(F("\nEnd"));
+    });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+        _WSF(PSTR("Progress: %u%%\n"), (progress / (total / 100)));
+    });
+    ArduinoOTA.onError([](ota_error_t error) {
+        _WSF(PSTR("Error[%u]: "), error);
+        if (error == OTA_AUTH_ERROR)
+            _WSN(F("Auth Failed"));
+        else if (error == OTA_BEGIN_ERROR)
+            _WSN(F("Begin Failed"));
+        else if (error == OTA_CONNECT_ERROR)
+            _WSN(F("Connect Failed"));
+        else if (error == OTA_RECEIVE_ERROR)
+            _WSN(F("Receive Failed"));
+        else if (error == OTA_END_ERROR)
+            _WSN(F("End Failed"));
+    });
+    ArduinoOTA.begin();
+    yield();
+}
+
+#endif                                      // defined(ESP8266)

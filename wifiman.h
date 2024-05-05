@@ -3,15 +3,15 @@
 # File: wifiman.h                                                                   #
 # File Created: Friday, 19th April 2024 2:25:42 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Sunday, 28th April 2024 12:11:15 am                                #
+# Last Modified: Sunday, 5th May 2024 3:33:20 pm                          #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
 #####################################################################################
 */
 
-#ifndef _WIFIMAN_H
-#define _WIFIMAN_H
+#ifndef _WIFIMAN_H_
+#define _WIFIMAN_H_
 
 #include <ESP8266WebServer.h>
 #include <DNSServer.h>
@@ -49,4 +49,4 @@ const String wifiGetApPASS();
 int8_t wifiGetRSSI();
 // void wifiReset();
 
-#endif                                  // _WIFIMAN_H
+#endif                                  // _WIFIMAN_H_

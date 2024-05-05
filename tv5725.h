@@ -806,4 +806,6 @@ public:
     static const uint8_t OSD_FORMAT_RGB = 0;
 };
 
+typedef TV5725<GBS_ADDR> GBS;
+
 #endif

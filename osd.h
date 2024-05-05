@@ -1,13 +1,16 @@
 #ifndef OSD_H_
 #define OSD_H_
 
+// #include "video.h"
+
 // FIXME: Geometry should really be controlled by a manager class
 // which we reference by template argument, but in the meantime use
 // forward declarations to functions in the main file
-extern void shiftHorizontal(uint16_t amountToAdd, bool subtracting);
-extern void shiftVertical(uint16_t amountToAdd, bool subtracting);
-extern void scaleHorizontal(uint16_t amountToAdd, bool subtracting);
-extern void scaleVertical(uint16_t amountToAdd, bool subtracting);
+
+// extern void shiftHorizontal(uint16_t amountToAdd, bool subtracting);
+// extern void shiftVertical(uint16_t amountToAdd, bool subtracting);
+// extern void scaleHorizontal(uint16_t amountToAdd, bool subtracting);
+// extern void scaleVertical(uint16_t amountToAdd, bool subtracting);
 
 enum class MenuInput {
     UP,
@@ -212,6 +215,18 @@ public:
         }
     }
 };
+
+struct MenuAttrs
+{
+    static const int8_t shiftDelta = 4;
+    static const int8_t scaleDelta = 4;
+    static const int16_t vertShiftRange = 300;
+    static const int16_t horizShiftRange = 400;
+    static const int16_t vertScaleRange = 100;
+    static const int16_t horizScaleRange = 130;
+    static const int16_t barLength = 100;
+};
+typedef MenuManager<GBS, MenuAttrs> Menu;
 
 template <class GBS, class Attrs>
 const typename MenuManager<GBS, Attrs>::MenuParam MenuManager<GBS, Attrs>::menuParams[GBS::OSD_ICON_COUNT] = {

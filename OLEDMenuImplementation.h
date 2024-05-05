@@ -1,8 +1,24 @@
 // define menu items and handlers here
 #ifndef OLED_MENU_IMPLEMENTATION_H_
 #define OLED_MENU_IMPLEMENTATION_H_
+
+#include <LittleFS.h>
 #include "OLEDMenuManager.h"
-#include "wifiman.h"
+#include "OSDManager.h"
+#include "fonts.h"
+#include "slot.h"
+
+extern void applyPresets(uint8_t videoMode);
+extern void setOutModeHdBypass(bool bypass);
+extern void saveUserPrefs();
+extern float getOutputFrameRate();
+extern void loadDefaultUserOptions();
+extern uint8_t getVideoMode();
+extern runTimeOptions *rto;
+extern userOptions *uopt;
+
+// typedef TV5725<GBS_ADDR> GBS;
+
 enum MenuItemTag: uint16_t {
     // unique identifiers for sub-items
     MT_NULL, // null tag, used by root menu items, since they can be differentiated by handlers

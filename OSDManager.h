@@ -1,11 +1,10 @@
 #ifndef OSD_MANAGER_H_
 #define OSD_MANAGER_H_
+
+#include "options.h"
 #include "tv5725.h"
-#define MENU_WIDTH 131
-#define MENU_HEIGHT 19
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define MIN(a, b) ((a) > (b) ? (b) : (a))
-typedef TV5725<GBS_ADDR> GBS;
+#include "presets.h"
+
 struct OSDMenuConfig
 {
     uint8_t barLength;
@@ -55,7 +54,8 @@ enum class OSDNav {
     MENU,
     BACK
 };
-typedef TV5725<GBS_ADDR> GBS;
+
+
 class OSDManager
 {
 private:
@@ -63,7 +63,7 @@ private:
         BRIGHTNESS = 0x1, // 4'b0001
         CONTRAST = 0x2,   // 4'b0010
         HUE = 0x3,        // 4'b0011
-        VOLUME = 0x4,      // 4'b0100
+        VOLUME = 0x4,     // 4'b0100
         UP_DOWN = 0x8,    // 4'b1000
         LEFT_RIGHT = 0x9, // 4'b1001
         VERTICAL = 0xA,   // 4'b1010
@@ -277,4 +277,7 @@ public:
         GBS::OSD_COMMAND_FINISH::write(true);
     }
 };
-#endif
+
+extern OSDManager osdManager;
+
+#endif // OSD_MANAGER_H_

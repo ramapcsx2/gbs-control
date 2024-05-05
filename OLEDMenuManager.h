@@ -1,11 +1,13 @@
-/* 
-   See https://github.com/PSHarold/OLED-SSD1306-Menu 
+/*
+   See https://github.com/PSHarold/OLED-SSD1306-Menu
    for original code, license and documentation
 */
 #ifndef OLED_MENU_MANAGER_H_
 #define OLED_MENU_MANAGER_H_
+
 #include "OLEDMenuItem.h"
 #include "OLEDMenuConfig.h"
+
 #define IMAGE_ITEM(name) name##_WIDTH, name##_HEIGHT, name
 #define CENTER_IMAGE(name) (OLED_MENU_WIDTH - name##_WIDTH) / 2, (OLED_MENU_HEIGHT - name##_HEIGHT) / 2, name##_WIDTH, name##_HEIGHT, name
 enum class OLEDMenuState
@@ -143,4 +145,7 @@ public:
         this->disabled = false;
     }
 };
+
+extern OLEDMenuManager oledMenu;
+
 #endif
