@@ -47,11 +47,18 @@ env.Append(CPPDEFINES=defs)
 
 # prepare for ArduinoIDE
 def after_build(source, target, env):
+    fino = f"{root}/gbs-control.ino"
     try:
-        os.remove(root + "/gbs-control.ino")
+        os.remove(fino)
     except FileNotFoundError:
         pass
-    shutil.copyfile(root + "/src/main.cpp", root + "/gbs-control.ino")
-    print("\n[\U0001F37A] gbs-control.ino created\n")
+    shutil.copyfile(f"{root}/src/main.cpp", fino)
+    ## fix include paths
+    with open(fino, 'r') as f:
+        ino = f.read()
+    ino = ino.replace('#include "', '#include "src/')
+    with open(fino, 'w') as f:
+        f.write(ino)
+    print("\n[\U0001F37A] gbs-control.ino updated\n")
 
 env.AddPostAction("$PROGPATH", after_build)
