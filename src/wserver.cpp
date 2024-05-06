@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Sunday, 5th May 2024 3:44:01 pm                          #
+# Last Modified: Sunday, 5th May 2024 6:08:19 pm                          #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -119,7 +119,8 @@ void serverSlots()
         fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "w");
         if(slotsBinaryFile) {
             SlotMetaArray slotsObject;
-            for (int i = 0; i < SLOTS_TOTAL; i++) {
+            // 2 slots will be created at the very first time (replaced SLOTS_TOTAL)
+            for (int i = 0; i < 2; i++) {
                 slotsObject.slot[i].slot = i;
                 slotsObject.slot[i].presetID = 0;
                 slotsObject.slot[i].scanlines = 0;

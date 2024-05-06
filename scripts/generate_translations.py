@@ -99,7 +99,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('lang', help='Language code', nargs='?')
     parser.add_argument('--fonts', '-f', nargs='*', default=[])
-    parser.add_argument('--output', '-o', default='OLEDMenuTranslations.h')
+    parser.add_argument('--output', '-o', default='src/OLEDMenuTranslations.h')
     args = parser.parse_args()
     for font in args.fonts:
         tokens = font.split('@')
