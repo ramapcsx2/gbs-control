@@ -25,7 +25,7 @@ const manifest = fs
   .replace(/\$\{icon1024\}/g, `data:image/png;base64,${icon1024}`);
 
 fs.writeFileSync(
-  "./../../webui.html",
+  "./../../src/webui.html",
   html
     .replace("${styles}", css)
     .replace("${js}", js)
