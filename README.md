@@ -1,5 +1,11 @@
 # gbs-control
 
+<p>
+
+![Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fway5%2Fgbs-control%2Fpio%2Fconfigure.json&query=%24.version&logo=C%2B%2B&logoColor=white&style=flat&label=%20Version%3A&color=red)
+
+</p>
+
 Documentation: https://ramapcsx2.github.io/gbs-control/
 
 Gbscontrol is an alternative firmware for Tvia Trueview5725 based upscalers / video converter boards.  
@@ -87,7 +93,7 @@ If you're still using Arduino IDE you need to do a few extra steps to generate/c
 
 1. Make necessary changes in ```translation.json```
 2. Make sure you have installed the latest version of Python on your machine
-3. Install pillow:
+3. Install ***pillow***:
    
 ```
 python -m pip install pillow
@@ -102,4 +108,13 @@ python /scripts/generate_translations.py --fonts=YOUR_FONT your-LOCALE
 5. Now you're ready to build and upload the firmware.
 
 
+## Web-interface
+
+Make sure the latest version of ```node-js``` installed on your machine. The following will do all the preparations automatically and it's the same in all environments, however the conversion scripts for Windows are not ready yet (see: public/scripts).
+
+If any changes were made, run the following command in Project root directory to update the web-interface:
+
+```
+npm run build
+```
 

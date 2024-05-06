@@ -128,9 +128,10 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     if (slotsBinaryFileRead) {
         slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
         slotsBinaryFileRead.close();
+        String slot_name = String(emptySlotName);
         for (int i = 0; i < SLOTS_TOTAL; ++i) {
             const SlotMeta &slot = slotsObject.slot[i];
-            if (strcmp(emptySlotName, slot.name) == 0 || !strlen(slot.name)) {
+            if (strcmp(slot_name.c_str(), slot.name) == 0 || !strlen(slot.name)) {
                 continue;
             }
             curNumSlot++;

@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Monday, 6th May 2024 12:49:37 am                         #
+# Last Modified: Monday, 6th May 2024 1:10:22 am                          #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -127,8 +127,8 @@ void serverSlots()
                 slotsObject.slot[i].wantVdsLineFilter = false;
                 slotsObject.slot[i].wantStepResponse = true;
                 slotsObject.slot[i].wantPeaking = true;
-                String emptySlotName = String(emptySlotName);
-                strncpy(slotsObject.slot[i].name, emptySlotName.c_str(), 25);
+                String slot_name = String(emptySlotName);
+                strncpy(slotsObject.slot[i].name, slot_name.c_str(), 25);
             }
             slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
         } else {
@@ -195,9 +195,8 @@ void serverSlotSave()
                 slotsObject.slot[i].wantVdsLineFilter = false;
                 slotsObject.slot[i].wantStepResponse = true;
                 slotsObject.slot[i].wantPeaking = true;
-                char emptySlotName[25] = "";
-                strcpy_P(emptySlotName, emptySlotName);
-                strncpy(slotsObject.slot[i].name, emptySlotName, 25);
+                String slot_name = String(emptySlotName);
+                strncpy(slotsObject.slot[i].name, slot_name.c_str(), 25);
             }
 
             slotsBinaryFileWrite.write((byte *)&slotsObject, sizeof(slotsObject));
@@ -214,8 +213,8 @@ void serverSlotSave()
         // name param
         String slotName = server.arg(1);
 
-        String emptySlotName = String(emptySlotLine);
-        strncpy(slotsObject.slot[slotIndex].name, emptySlotName.c_str(), 25);
+        String slot_line = String(emptySlotLine);
+        strncpy(slotsObject.slot[slotIndex].name, slot_line.c_str(), 25);
 
         slotsObject.slot[slotIndex].slot = slotIndex;
         slotName.toCharArray(slotsObject.slot[slotIndex].name, sizeof(slotsObject.slot[slotIndex].name));

@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Sunday, 5th May 2024 4:16:01 pm                          #
+# Last Modified: Monday, 6th May 2024 1:20:27 am                          #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -395,7 +395,8 @@ void setup()
             // enabled by default
             calibrateAdcOffset();
         }
-        setResetParameters();
+        // FIXME double reset?
+        // setResetParameters();
 
         delay(4); // help wifi (presets are unloaded now)
         wifiLoop(1);

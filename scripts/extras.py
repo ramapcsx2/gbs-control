@@ -25,7 +25,7 @@ env.AddPreAction("$BUILD_DIR/littlefs.bin", before_buildfs)
 subprocess.call([sys.executable, '-m', 'pip', 'install', 'pillow'],
                     stdout=subprocess.DEVNULL)
 # starting with i18n
-print("\n[\U0001F37A] generating I18N\n")
+print(f'\n[\U0001F37A] generating locale data ({conf["ui-lang"]})\n')
 r = subprocess.Popen([
         sys.executable,
         f'{root}/scripts/generate_translations.py',

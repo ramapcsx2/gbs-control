@@ -4,6 +4,7 @@
         "plyconfig.json": "jsonc",
         "*.tcc": "cpp",
         "fstream": "cpp",
-        "functional": "cpp"
+        "functional": "cpp",
+        "string": "cpp"
     }
 }
