@@ -25,17 +25,17 @@
 ###########################################################################
 */
 
-#include "options.h"
+#include "src/options.h"
 #include <SSD1306.h>
 #include <Wire.h>
-#include "wserial.h"
-// #include "video.h"
-#include "presets.h"
-// #include "utils.h"
-#include "images.h"
-#include "wifiman.h"
-#include "menu.h"
-#include "wserver.h"
+#include "src/wserial.h"
+// #include "src/video.h"
+#include "src/presets.h"
+// #include "src/utils.h"
+#include "src/images.h"
+#include "src/wifiman.h"
+#include "src/menu.h"
+#include "src/wserver.h"
 // ESP8266-ping library to aid debugging WiFi issues, install via Arduino library manager
 #ifdef HAVE_PINGER_LIBRARY
 #include <Pinger.h>

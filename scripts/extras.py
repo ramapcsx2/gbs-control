@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import json
+import shutil
 
 root = os.getcwd()
 
@@ -24,7 +25,7 @@ env.AddPreAction("$BUILD_DIR/littlefs.bin", before_buildfs)
 subprocess.call([sys.executable, '-m', 'pip', 'install', 'pillow'],
                     stdout=subprocess.DEVNULL)
 # starting with i18n
-print("\n[\U0001F37A] generating I18N\n")
+print(f'\n[\U0001F37A] generating locale data ({conf["ui-lang"]})\n')
 r = subprocess.Popen([
         sys.executable,
         f'{root}/scripts/generate_translations.py',
@@ -43,3 +44,21 @@ print("\n[\U0001F37A] running build\n")
 
 defs = [('VERSION', conf['version'])]
 env.Append(CPPDEFINES=defs)
+
+# prepare for ArduinoIDE
+def after_build(source, target, env):
+    fino = f"{root}/gbs-control.ino"
+    try:
+        os.remove(fino)
+    except FileNotFoundError:
+        pass
+    shutil.copyfile(f"{root}/src/main.cpp", fino)
+    ## fix include paths
+    with open(fino, 'r') as f:
+        ino = f.read()
+    ino = ino.replace('#include "', '#include "src/')
+    with open(fino, 'w') as f:
+        f.write(ino)
+    print("\n[\U0001F37A] gbs-control.ino updated\n")
+
+env.AddPostAction("$PROGPATH", after_build)

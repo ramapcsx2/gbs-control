@@ -614,9 +614,9 @@ const doBackup = () => {
         const backupFilesJSON = JSON.stringify(headerDescriptor);
         const backupFilesJSONSize = backupFilesJSON.length;
         const mainHeader = [
-            (backupFilesJSONSize >> 24) & 255,
-            (backupFilesJSONSize >> 16) & 255,
-            (backupFilesJSONSize >> 8) & 255,
+            (backupFilesJSONSize >> 24) & 255, // size
+            (backupFilesJSONSize >> 16) & 255, // size
+            (backupFilesJSONSize >> 8) & 255, // size
             (backupFilesJSONSize >> 0) & 255,
         ];
         const outputArray = [
@@ -807,6 +807,7 @@ const wifiSetAPMode = () => {
     //   formData.append("n", "dummy");
     return fetch("/wifi/ap", {
         method: "POST",
+        // body: formData,
     }).then((response) => {
         gbsAlert("Switching to AP mode. Please connect to gbscontrol SSID and then click OK")
             .then(() => {

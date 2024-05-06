@@ -18,6 +18,18 @@
 #define MENU_SHIFT 3
 #define BACK_SHIFT 4
 #endif                      // HAVE_BUTTONS
+#if !defined(DISPLAY_SDA)
+// SDA = D2 (Lolin), D14 (Wemos D1) // ESP8266 Arduino default map: SDA
+#define DISPLAY_SDA                     D2
+#endif                      // DISPLAY_SDA
+#if !defined(DISPLAY_SCL)
+// SCL = D1 (Lolin), D15 (Wemos D1) // ESP8266 Arduino default map: SCL
+#define DISPLAY_SCL                     D1
+#endif                      // DISPLAY_SCL
+#if !defined(DEBUG_IN_PIN)
+// marked "D12/MISO/D6" (Wemos D1) or D6 (Lolin NodeMCU)
+#define DEBUG_IN_PIN                    D6   // 12
+#endif                      // DEBUG_IN_PIN
 #define USE_NEW_OLED_MENU               1
 #define PIN_CLK                         14   // D5 = GPIO14 (input of one direction for encoder)
 #define PIN_DATA                        13   // D7 = GPIO13	(input of one direction for encoder)
@@ -28,12 +40,6 @@
 #define OSD_TIMEOUT                     8000
 #define AUTO_GAIN_INIT                  0x48
 #define THIS_DEVICE_MASTER
-#ifndef DEBUG_IN_PIN
-// marked "D12/MISO/D6" (Wemos D1) or D6 (Lolin NodeMCU)
-// SCL = D1 (Lolin), D15 (Wemos D1) // ESP8266 Arduino default map: SCL
-// SDA = D2 (Lolin), D14 (Wemos D1) // ESP8266 Arduino default map: SDA
-#define DEBUG_IN_PIN                    D6   // 12
-#endif                      // DEBUG_IN_PIN
 // for OLED menu config, see: OLEDMenuConfig.h
 // #define HAVE_PINGER_LIBRARY
 
