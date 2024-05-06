@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import json
+import shutil
 
 root = os.getcwd()
 
@@ -43,3 +44,14 @@ print("\n[\U0001F37A] running build\n")
 
 defs = [('VERSION', conf['version'])]
 env.Append(CPPDEFINES=defs)
+
+# prepare for ArduinoIDE
+def after_build(source, target, env):
+    try:
+        os.remove(root + "/gbs-control.ino")
+    except FileNotFoundError:
+        pass
+    shutil.copyfile(root + "/src/main.cpp", root + "/gbs-control.ino")
+    print("\n[\U0001F37A] gbs-control.ino created\n")
+
+env.AddPostAction("$PROGPATH", after_build)
