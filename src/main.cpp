@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Monday, 6th May 2024 1:20:27 am                          #
+# Last Modified: Tuesday, 7th May 2024 2:07:08 am                         #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -458,7 +458,13 @@ void loop()
     }
     if (serialCommand != '@') {
         _WSF(commandDescr,
-            "serial", serialCommand, serialCommand, uopt->presetPreference, uopt->presetSlot, rto->presetID);
+            "serial",
+            serialCommand,
+            serialCommand,
+            uopt->presetPreference,
+            uopt->presetSlot,
+            rto->presetID
+        );
         // multistage with bad characters?
         if (inputStage > 0) {
             // need 's', 't' or 'g'
@@ -1301,7 +1307,10 @@ void loop()
                 GBS::TEST_BUS_SEL::write(0x0);
             }
             // unsigned long startTime = millis();
-            _WSF(PSTR("running frame sync, clock gen enabled = %d\n"), rto->extClockGenDetected);
+            _WSF(
+                PSTR("running frame sync, clock gen enabled = %d\n"),
+                rto->extClockGenDetected
+            );
             bool success = rto->extClockGenDetected ? FrameSync::runFrequency() : FrameSync::runVsync(uopt->frameTimeLockMethod);
             if (!success) {
                 if (rto->syncLockFailIgnore-- == 0) {

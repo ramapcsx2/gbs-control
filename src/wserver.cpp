@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Monday, 6th May 2024 1:57:07 am                          #
+# Last Modified: Tuesday, 7th May 2024 2:01:35 am                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -454,9 +454,7 @@ void serverRestoreFilters()
 
         uopt->wantScanlines = slotsObject.slot[currentSlot].scanlines;
 
-        _WS(F("slot: "));
-        _WS(uopt->presetSlot);
-        _WS(F("scanlines: "));
+        _WSF(PSTR("slot: %d scanlines: "), uopt->presetSlot);
         if (uopt->wantScanlines) {
             _WS(F("on (Line Filter recommended)"));
         } else {
@@ -600,7 +598,7 @@ void serverWiFiReset()
  */
 void printInfo()
 {
-    static char print[121]; // Increase if compiler complains about sprintf
+    char print[128] = ""; // Increase if compiler complains about sprintf
     static uint8_t clearIrqCounter = 0;
     static uint8_t lockCounterPrevious = 0;
     uint8_t lockCounter = 0;
@@ -669,77 +667,62 @@ void printInfo()
 void printVideoTimings()
 {
     if (rto->presetID < 0x20) {
-        _WS(F("\nHT / scale   : "));
-        _WS(GBS::VDS_HSYNC_RST::read());
-        _WS(F(" "));
-        _WSN(GBS::VDS_HSCALE::read());
-        _WS(F("HS ST/SP     : "));
-        _WS(GBS::VDS_HS_ST::read());
-        _WS(F(" "));
-        _WSN(GBS::VDS_HS_SP::read());
-        _WS(F("HB ST/SP(d)  : "));
-        _WS(GBS::VDS_DIS_HB_ST::read());
-        _WS(F(" "));
-        _WSN(GBS::VDS_DIS_HB_SP::read());
-        _WS(F("HB ST/SP     : "));
-        _WS(GBS::VDS_HB_ST::read());
-        _WS(F(" "));
-        _WSN(GBS::VDS_HB_SP::read());
-        _WSN(F("------"));
+        // horizontal
+        _WSF(
+            PSTR("\nHT / scale   : %d %d\nHS ST/SP     : %d %d\nHB ST/SP(d)  : %d %d\nHB ST/SP     : %d %d\n------\n"),
+            GBS::VDS_HSYNC_RST::read(),
+            GBS::VDS_HSCALE::read(),
+            GBS::VDS_HS_ST::read(),
+            GBS::VDS_HS_SP::read(),
+            GBS::VDS_DIS_HB_ST::read(),
+            GBS::VDS_DIS_HB_SP::read(),
+            GBS::VDS_HB_ST::read(),
+            GBS::VDS_HB_SP::read()
+            );
         // vertical
-        _WS(F("VT / scale   : "));
-        _WS(GBS::VDS_VSYNC_RST::read());
-        _WS(F(" "));
-        _WSN(GBS::VDS_VSCALE::read());
-        _WS(F("VS ST/SP     : "));
-        _WS(GBS::VDS_VS_ST::read());
-        _WS(F(" "));
-        _WSN(GBS::VDS_VS_SP::read());
-        _WS(F("VB ST/SP(d)  : "));
-        _WS(GBS::VDS_DIS_VB_ST::read());
-        _WS(F(" "));
-        _WSN(GBS::VDS_DIS_VB_SP::read());
-        _WS(F("VB ST/SP     : "));
-        _WS(GBS::VDS_VB_ST::read());
-        _WS(F(" "));
-        _WSN(GBS::VDS_VB_SP::read());
+        _WSF(
+            PSTR("VT / scale   : %d %d\nVS ST/SP     : %d %d\nVB ST/SP(d)  : %d %d\nVB ST/SP     : %d %d\n"),
+            GBS::VDS_VSYNC_RST::read(),
+            GBS::VDS_VSCALE::read(),
+            GBS::VDS_VS_ST::read(),
+            GBS::VDS_VS_SP::read(),
+            GBS::VDS_DIS_VB_ST::read(),
+            GBS::VDS_DIS_VB_SP::read(),
+            GBS::VDS_VB_ST::read(),
+            GBS::VDS_VB_SP::read()
+            );
         // IF V offset
-        _WS(F("IF VB ST/SP  : "));
-        _WS(GBS::IF_VB_ST::read());
-        _WS(F(" "));
-        _WSN(GBS::IF_VB_SP::read());
+        _WSF(
+            PSTR("IF VB ST/SP  : %d %d\n"),
+            GBS::IF_VB_ST::read(),
+            GBS::IF_VB_SP::read()
+            );
     } else {
-        _WSN();
-        _WS(F("HD_HSYNC_RST : "));
-        _WSN(GBS::HD_HSYNC_RST::read());
-        _WS(F("HD_INI_ST    : "));
-        _WSN(GBS::HD_INI_ST::read());
-        _WS(F("HS ST/SP     : "));
-        _WS(GBS::SP_CS_HS_ST::read());
-        _WS(F(" "));
-        _WSN(GBS::SP_CS_HS_SP::read());
-        _WS(F("HB ST/SP     : "));
-        _WS(GBS::HD_HB_ST::read());
-        _WS(F(" "));
-        _WSN(GBS::HD_HB_SP::read());
-        _WSN(F("------"));
+        _WSF(
+            PSTR("\nHD_HSYNC_RST : %d\nHD_INI_ST    : %d\nHS ST/SP     : %d %d\nHB ST/SP     : %d %d\n------\n"),
+            GBS::HD_HSYNC_RST::read(),
+            GBS::HD_INI_ST::read(),
+            GBS::SP_CS_HS_ST::read(),
+            GBS::SP_CS_HS_SP::read(),
+            GBS::HD_HB_ST::read(),
+            GBS::HD_HB_SP::read()
+            );
         // vertical
-        _WS(F("VS ST/SP     : "));
-        _WS(GBS::HD_VS_ST::read());
-        _WS(F(" "));
-        _WSN(GBS::HD_VS_SP::read());
-        _WS(F("VB ST/SP     : "));
-        _WS(GBS::HD_VB_ST::read());
-        _WS(F(" "));
-        _WSN(GBS::HD_VB_SP::read());
+        _WSF(
+            PSTR("VS ST/SP     : %d %d\nVB ST/SP     : %d %d\n"),
+            GBS::HD_VS_ST::read(),
+            GBS::HD_VS_SP::read(),
+            GBS::HD_VB_ST::read(),
+            GBS::HD_VB_SP::read()
+            );
     }
 
-    _WS(F("CsVT         : "));
-    _WSN(GBS::STATUS_SYNC_PROC_VTOTAL::read());
-    _WS(F("CsVS_ST/SP   : "));
-    _WS(getCsVsStart());
-    _WS(F(" "));
-    _WSN(getCsVsStop());
+    _WSF(
+        PSTR("CsVT         : %d\nCsVS_ST/SP   : %d %d\n"),
+        GBS::STATUS_SYNC_PROC_VTOTAL::read(),
+        getCsVsStart(),
+        getCsVsStop()
+        );
 }
 
 /**
@@ -766,19 +749,18 @@ void fastGetBestHtotal()
     double bestHtotal = 108000000 / ((double)newVtotal * inHz); // 107840000
     double bestHtotal50 = 108000000 / ((double)newVtotal * 50);
     double bestHtotal60 = 108000000 / ((double)newVtotal * 60);
-    _WS(F("newVtotal: "));
-    _WSN(newVtotal);
-    // display clock probably not exact 108mhz
-    _WS(F("bestHtotal: "));
-    _WSN(bestHtotal);
-    _WS(F("bestHtotal50: "));
-    _WSN(bestHtotal50);
-    _WS(F("bestHtotal60: "));
-    _WSN(bestHtotal60);
-    if (bestHtotal > 800 && bestHtotal < 3200) {
+    _WSF(
+        PSTR("newVtotal: %d\nbestHtotal: %d\nbestHtotal50: %d\nbestHtotal60: %d\n"),
+        newVtotal,
+        // display clock probably not exact 108mhz
+        bestHtotal,
+        bestHtotal50,
+        bestHtotal60
+    );
+    // if (bestHtotal > 800 && bestHtotal < 3200) {
         // applyBestHTotal((uint16_t)bestHtotal);
         // FrameSync::resetWithoutRecalculation(); // was single use of this function, function has changed since
-    }
+    // }
 }
 
 #if defined(ESP8266)
@@ -790,8 +772,15 @@ void fastGetBestHtotal()
  */
 void handleType2Command(char argument)
 {
-    _WSF(commandDescr,
-        "user", argument, argument, uopt->presetPreference, uopt->presetSlot, rto->presetID);
+    _WSF(
+        commandDescr,
+        "user",
+        argument,
+        argument,
+        uopt->presetPreference,
+        uopt->presetSlot,
+        rto->presetID
+    );
     switch (argument) {
         case '0':
             _WS(F("pal force 60hz "));
@@ -877,9 +866,11 @@ void handleType2Command(char argument)
         {
             fs::Dir dir = LittleFS.openDir("/");
             while (dir.next()) {
-                _WS(dir.fileName());
-                _WS(F(" "));
-                _WSN(dir.fileSize());
+                _WSF(
+                    PSTR("%s %ld\n"),
+                    dir.fileName().c_str(),
+                    dir.fileSize()
+                    );
                 delay(1); // wifi stack
             }
             ////
@@ -888,38 +879,30 @@ void handleType2Command(char argument)
             if (!f) {
                 _WSN(F("failed opening preferences file"));
             } else {
-                _WS(F("preset preference = "));
-                _WSN((uint8_t)(f.read() - '0'));
-                _WS(F("frame time lock = "));
-                _WSN((uint8_t)(f.read() - '0'));
-                _WS(F("preset slot = "));
-                _WSN((uint8_t)(f.read()));
-                _WS(F("frame lock method = "));
-                _WSN((uint8_t)(f.read() - '0'));
-                _WS(F("auto gain = "));
-                _WSN((uint8_t)(f.read() - '0'));
-                _WS(F("scanlines = "));
-                _WSN((uint8_t)(f.read() - '0'));
-                _WS(F("component output = "));
-                _WSN((uint8_t)(f.read() - '0'));
-                _WS(F("deinterlacer mode = "));
-                _WSN((uint8_t)(f.read() - '0'));
-                _WS(F("line filter = "));
-                _WSN((uint8_t)(f.read() - '0'));
-                _WS(F("peaking = "));
-                _WSN((uint8_t)(f.read() - '0'));
-                _WS(F("preferScalingRgbhv = "));
-                _WSN((uint8_t)(f.read() - '0'));
-                _WS(F("6-tap = "));
-                _WSN((uint8_t)(f.read() - '0'));
-                _WS(F("pal force60 = "));
-                _WSN((uint8_t)(f.read() - '0'));
-                _WS(F("matched = "));
-                _WSN((uint8_t)(f.read() - '0'));
-                _WS(F("step response = "));
-                _WSN((uint8_t)(f.read() - '0'));
-                _WS(F("disable external clock generator = "));
-                _WSN((uint8_t)(f.read() - '0'));
+                _WSF(
+                    PSTR("preset preference = %c\nframe time lock = %c\n"\
+                    "preset slot = %c\nframe lock method = %c\nauto gain = %c\n"\
+                    "scanlines = %c\ncomponent output = %c\ndeinterlacer mode = %c\n"\
+                    "line filter = %c\npeaking = %c\npreferScalingRgbhv = %c\n"\
+                    "6-tap = %c\npal force60 = %c\nmatched = %c\n"\
+                    "step response = %c\ndisable external clock generator = %c\n"),
+                    f.read(),
+                    f.read(),
+                    f.read(),
+                    f.read(),
+                    f.read(),
+                    f.read(),
+                    f.read(),
+                    f.read(),
+                    f.read(),
+                    f.read(),
+                    f.read(),
+                    f.read(),
+                    f.read(),
+                    f.read(),
+                    f.read(),
+                    f.read()
+                );
 
                 f.close();
             }
@@ -1022,12 +1005,9 @@ void handleType2Command(char argument)
                 GBS::PLL_MS::write(PLL_MS);
                 ResetSDRAM();
                 if (memClock != 10) {
-                    _WS(F("SDRAM clock: "));
-                    _WS(memClock);
-                    _WSN(F("Mhz"));
+                    _WSF(PSTR("SDRAM clock: %dMhz\n"), memClock);
                 } else {
-                    _WS(F("SDRAM clock: "));
-                    _WSN(F("Feedback clock"));
+                    _WSN(F("SDRAM clock: feedback clock"));
                 }
             }
             break;
@@ -1185,11 +1165,11 @@ void handleType2Command(char argument)
             }
             setAndUpdateSogLevel(rto->currentLevelSOG);
             optimizePhaseSP();
-            _WS(F("Phase: "));
-            _WS(rto->phaseSP);
-            _WS(F(" SOG: "));
-            _WS(rto->currentLevelSOG);
-            _WSN();
+            _WSF(
+                PSTR("Phase: %d SOG: %d\n"),
+                rto->phaseSP,
+                rto->currentLevelSOG
+            );
             break;
         case 'E':
             // test option for now
@@ -1226,84 +1206,94 @@ void handleType2Command(char argument)
         case 'Z':
             // brightness++
             GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 1);
-            _WS(F("Brightness++ : "));
-            _WSN(GBS::VDS_Y_OFST::read());
+            _WSF(
+                PSTR("Brightness++ : %d\n"),
+                GBS::VDS_Y_OFST::read()
+            );
             break;
         case 'T':
             // brightness--
             GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() - 1);
-            _WS(F("Brightness-- : "));
-            _WSN(GBS::VDS_Y_OFST::read());
+            _WSF(
+                PSTR("Brightness-- : %d\n"),
+                GBS::VDS_Y_OFST::read()
+            );
             break;
         case 'N':
             // contrast++
             GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 1);
-            _WS(F("Contrast++ : "));
-            _WSN(GBS::VDS_Y_GAIN::read());
+            _WSF(
+                PSTR("Contrast++ : %d\n"),
+                GBS::VDS_Y_GAIN::read()
+            );
             break;
         case 'M':
             // contrast--
             GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 1);
-            _WS(F("Contrast-- : "));
-            _WSN(GBS::VDS_Y_GAIN::read());
+            _WSF(
+                PSTR("Contrast-- : %d\n"),
+                GBS::VDS_Y_GAIN::read()
+            );
             break;
         case 'Q':
             // pb/u gain++
             GBS::VDS_UCOS_GAIN::write(GBS::VDS_UCOS_GAIN::read() + 1);
-            _WS(F("Pb/U gain++ : "));
-            _WSN(GBS::VDS_UCOS_GAIN::read());
+            _WSF(
+                PSTR("Pb/U gain++ : %d\n"),
+                GBS::VDS_UCOS_GAIN::read()
+            );
             break;
         case 'H':
             // pb/u gain--
             GBS::VDS_UCOS_GAIN::write(GBS::VDS_UCOS_GAIN::read() - 1);
-            _WS(F("Pb/U gain-- : "));
-            _WSN(GBS::VDS_UCOS_GAIN::read());
+            _WSF(
+                PSTR("Pb/U gain-- : %d\n"),
+                GBS::VDS_UCOS_GAIN::read()
+            );
             break;
             break;
         case 'P':
             // pr/v gain++
             GBS::VDS_VCOS_GAIN::write(GBS::VDS_VCOS_GAIN::read() + 1);
-            _WS(F("Pr/V gain++ : "));
-            _WSN(GBS::VDS_VCOS_GAIN::read());
+            _WSF(
+                PSTR("Pr/V gain++ : %d\n"),
+                GBS::VDS_VCOS_GAIN::read()
+            );
             break;
         case 'S':
             // pr/v gain--
             GBS::VDS_VCOS_GAIN::write(GBS::VDS_VCOS_GAIN::read() - 1);
-            _WS(F("Pr/V gain-- : "));
-            _WSN(GBS::VDS_VCOS_GAIN::read());
+            _WSF(
+                PSTR("Pr/V gain-- : %d\n"),
+                GBS::VDS_VCOS_GAIN::read()
+            );
             break;
         case 'O':
             // info
             if (GBS::ADC_INPUT_SEL::read() == 1) {
-                _WSN(F("RGB reg"));
-                _WSN(F("------------ "));
-                _WS(F("Y_OFFSET: "));
-                _WSN(GBS::VDS_Y_OFST::read());
-                _WS(F("U_OFFSET: "));
-                _WSN(GBS::VDS_U_OFST::read());
-                _WS(F("V_OFFSET: "));
-                _WSN(GBS::VDS_V_OFST::read());
-                _WS(F("Y_GAIN: "));
-                _WSN(GBS::VDS_Y_GAIN::read());
-                _WS(F("USIN_GAIN: "));
-                _WSN(GBS::VDS_USIN_GAIN::read());
-                _WS(F("UCOS_GAIN: "));
-                _WSN(GBS::VDS_UCOS_GAIN::read());
+                _WSF(
+                    PSTR("RGB reg\n------------\nY_OFFSET: %d\n"\
+                    "U_OFFSET: %d\nV_OFFSET: %d\nY_GAIN: %d\n"\
+                    "USIN_GAIN: %d\nUCOS_GAIN: %d\n"),
+                    GBS::VDS_Y_OFST::read(),
+                    GBS::VDS_U_OFST::read(),
+                    GBS::VDS_V_OFST::read(),
+                    GBS::VDS_Y_GAIN::read(),
+                    GBS::VDS_USIN_GAIN::read(),
+                    GBS::VDS_UCOS_GAIN::read()
+                );
             } else {
-                _WSN(F("YPbPr reg"));
-                _WSN(F("------------ "));
-                _WS(F("Y_OFFSET: "));
-                _WSN(GBS::VDS_Y_OFST::read());
-                _WS(F("U_OFFSET: "));
-                _WSN(GBS::VDS_U_OFST::read());
-                _WS(F("V_OFFSET: "));
-                _WSN(GBS::VDS_V_OFST::read());
-                _WS(F("Y_GAIN: "));
-                _WSN(GBS::VDS_Y_GAIN::read());
-                _WS(F("USIN_GAIN: "));
-                _WSN(GBS::VDS_USIN_GAIN::read());
-                _WS(F("UCOS_GAIN: "));
-                _WSN(GBS::VDS_UCOS_GAIN::read());
+                _WSF(
+                    PSTR("YPbPr reg\n------------\nY_OFFSET: %d\n"\
+                    "U_OFFSET: %d\nV_OFFSET: %d\nY_GAIN: %d\n"\
+                    "USIN_GAIN: %d\nUCOS_GAIN: %d\n"),
+                    GBS::VDS_Y_OFST::read(),
+                    GBS::VDS_U_OFST::read(),
+                    GBS::VDS_V_OFST::read(),
+                    GBS::VDS_Y_GAIN::read(),
+                    GBS::VDS_USIN_GAIN::read(),
+                    GBS::VDS_UCOS_GAIN::read()
+                );
             }
             break;
         case 'U':
@@ -1362,7 +1352,11 @@ void initUpdateOTA()
 
         // NOTE: if updating LittleFS this would be the place to unmount LittleFS using LittleFS.end()
         LittleFS.end();
-        _WSN(String(F("Start updating ")) + type);
+        _WSF(
+            PSTR("%s %s\n"),
+            String(F("Start updating ")).c_str(),
+            type.c_str()
+        );
     });
     ArduinoOTA.onEnd([]() {
         _WSN(F("\nEnd"));

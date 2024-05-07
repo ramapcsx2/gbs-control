@@ -112,6 +112,12 @@ python /scripts/generate_translations.py --fonts=YOUR_FONT your-LOCALE
 
 Make sure the latest version of ```node-js``` installed on your machine. The following will do all the preparations automatically and it's the same in all environments, however the conversion scripts for Windows are not ready yet (see: public/scripts).
 
+### Using Platformio IDE (recommended)
+
+You can use "Platform - Build Filesystem Image" command in Platformio menu to get the web-interface re-generated.
+
+### Using Arduino IDE and others
+
 If any changes were made, run the following command in Project root directory to update the web-interface:
 
 ```
