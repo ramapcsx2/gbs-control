@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Tuesday, 7th May 2024 2:01:35 am                         #
+# Last Modified: Tuesday, 7th May 2024 4:36:57 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -61,7 +61,6 @@ void serverInit()
  */
 void serverHome()
 {
-    // Serial.println("sending web page");
     ASSERT_LOMEM_RETURN();
     server.sendHeader(F("Content-Encoding"), "gzip");
     server.send(200, mimeTextHtml, webui_html, sizeof(webui_html));
@@ -150,7 +149,6 @@ stream_slots_bin_failed:
  */
 void serverSlotSet()
 {
-    bool result = false;
     ASSERT_LOMEM_GOTO(server_slot_set_failure);
 
     if (server.args() > 0) {
@@ -160,12 +158,13 @@ void serverSlotSet()
         uopt->presetSlot = (uint8_t)slotValue[0];
         uopt->presetPreference = OutputCustomized;
         saveUserPrefs();
-        result = true;
         // _DBG(F("[w] slot value upd. success: "));
         // _DBGF("%s\n", slotValue);
+        server.send(200, mimeAppJson, F("true"));
+        return;
     }
 server_slot_set_failure:
-    server.send(200, mimeAppJson, result ? F("true") : F("false"));
+    server.send(500, mimeAppJson, F("false"));
 }
 
 /**
@@ -873,9 +872,8 @@ void handleType2Command(char argument)
                     );
                 delay(1); // wifi stack
             }
-            ////
-            const String fn = String(preferencesFile);
-            File f = LittleFS.open(fn, "r");
+            //
+            fs::File f = LittleFS.open(FPSTR(preferencesFile), "r");
             if (!f) {
                 _WSN(F("failed opening preferences file"));
             } else {

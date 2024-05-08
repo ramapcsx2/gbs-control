@@ -6,7 +6,8 @@
 #define OLED_MENU_ITEM_H_
 #include <string.h>
 #include "SSD1306Wire.h"
-#include "OLEDMenuConfig.h"
+#include "OLEDMenuTranslations.h"
+#include "options.h"
 
 class OLEDMenuItem;
 class OLEDMenuManager;

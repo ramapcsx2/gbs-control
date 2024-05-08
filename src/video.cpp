@@ -3,7 +3,7 @@
 # File: video.cpp                                                                   #
 # File Created: Thursday, 2nd May 2024 4:07:57 pm                                   #
 # Author:                                                                           #
-# Last Modified: Sunday, 5th May 2024 3:44:15 pm                          #
+# Last Modified: Tuesday, 7th May 2024 2:20:25 am                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -3906,7 +3906,7 @@ void runSyncWatcher()
                             setCsVsStart(thisStableLineCount - 9);
                         }
 
-                        Serial.printf("HDBypass CsVsSt: %d\n", getCsVsStart());
+                        _DBGF(PSTR("HDBypass CsVsSt: %d\n"), getCsVsStart());
                         delay(150);
                     }
                 }

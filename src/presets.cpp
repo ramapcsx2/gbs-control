@@ -3,7 +3,7 @@
 # File: preset.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 6:38:23 pm                                   #
 # Author:                                                                           #
-# Last Modified: Sunday, 5th May 2024 3:53:16 pm                          #
+# Last Modified: Tuesday, 7th May 2024 4:35:51 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -1327,10 +1327,9 @@ const uint8_t *loadPresetFromLFS(byte forVideoMode)
     String s = "";
     char slot;
     char buffer[32] = "";
-    File f;
+    fs::File f;
 
-    const String fn = String(preferencesFile);
-    f = LittleFS.open(fn, "r");
+    f = LittleFS.open(FPSTR(preferencesFile), "r");
     if (f) {
         _WSN(F("preferencesv2.txt opened"));
         uint8_t result[3];
@@ -1412,13 +1411,12 @@ const uint8_t *loadPresetFromLFS(byte forVideoMode)
 void savePresetToFS()
 {
     uint8_t readout = 0;
-    File f;
+    fs::File f;
     char slot;
     char buffer[32] = "";
 
     // first figure out if the user has set a preferenced slot
-    const String fn = String(preferencesFile);
-    f = LittleFS.open(fn, "r");
+    f = LittleFS.open(FPSTR(preferencesFile), "r");
     if (f) {
         uint8_t result[3];
         result[0] = f.read(); // todo: move file cursor manually
@@ -1542,8 +1540,7 @@ void savePresetToFS()
  */
 void saveUserPrefs()
 {
-    const String fn = String(preferencesFile);
-    File f = LittleFS.open(fn, "w");
+    fs::File f = LittleFS.open(FPSTR(preferencesFile), "w");
     if (!f) {
         _WSN(F("saveUserPrefs: open file failed"));
         return;

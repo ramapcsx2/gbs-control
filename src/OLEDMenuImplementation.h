@@ -3,6 +3,7 @@
 #define OLED_MENU_IMPLEMENTATION_H_
 
 #include <LittleFS.h>
+#include "OLEDMenuTranslations.h"
 #include "OLEDMenuManager.h"
 #include "OSDManager.h"
 #include "fonts.h"

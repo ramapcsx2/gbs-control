@@ -3,7 +3,7 @@
 # File: framesync.cpp                                                     #
 # File Created: Sunday, 5th May 2024 12:52:08 pm                          #
 # Author:                                                                 #
-# Last Modified: Sunday, 5th May 2024 3:24:33 pm                          #
+# Last Modified: Tuesday, 7th May 2024 2:20:25 am                         #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -159,10 +159,10 @@ bool FrameSyncManager::runVsync(uint8_t frameTimeLockMethod)
         correction = syncCorrection;
 
 #ifdef FRAMESYNC_DEBUG
-    Serial.printf("phase: %7d target: %7d", phase, target);
+    _DBGF(PSTR("phase: %7d target: %7d"), phase, target);
     if (correction == syncLastCorrection) {
         // terminate line if returning early
-        _WSN();
+        _DBGN();
     }
 #endif
 #ifdef FRAMESYNC_DEBUG_LED
@@ -199,7 +199,7 @@ bool FrameSyncManager::runVsync(uint8_t frameTimeLockMethod)
     syncLastCorrection = correction;
 
 #ifdef FRAMESYNC_DEBUG
-    Serial.printf("  vtotal: %4d\n", vtotal);
+    _DBGF(PSTR("  vtotal: %4d\n"), vtotal);
 #endif
 
     return true;

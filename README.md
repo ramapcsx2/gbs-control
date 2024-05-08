@@ -34,19 +34,19 @@ Development threads:
 https://shmups.system11.org/viewtopic.php?f=6&t=52172   
 https://circuit-board.de/forum/index.php/Thread/15601-GBS-8220-Custom-Firmware-in-Arbeit/   
 
-## Build and Upload
+## Build and Upload<a id="build-n-upload"></a>
 
 ### Using Platformio IDE (preferred)
 
->Please note:\
+>***Please note:***\
 If your objective is to make changes to the Project, please use VSCode + Platformio IDE.
 
 1. Just clone the repository, open it with your VSCode and press Build/Upload. It's never been easier :)
 
->Please note:\
+>***Please note:***\
 Platformio IDE enables upload speed limitation on ESP8266. Upload process at any higher upload speed will fail.
 
-### Using ArduinoIDE
+### Using ArduinoIDE<a id="build-n-upload-arduino"></a>
 
 1. Open "Preferences" in ArduinoIDE. In "Additional Boards Manager URLs" put the following source links:
 
@@ -84,7 +84,7 @@ GBS-C's UI ***(not the web interface yet)*** currently can be translated using `
 
 By changing value of "ui-lang" parameter in ```configure.json``` you're changing current UI translation. You also may change the UI font the same way ("ui-font").
 
->Please note:\
+>***Please note:***\
 The default translation is "en-US".
 
 ### Arduino IDE
@@ -114,7 +114,7 @@ Make sure the latest version of ```node-js``` installed on your machine. The fol
 
 ### Using Platformio IDE (recommended)
 
-You can use "Platform - Build Filesystem Image" command in Platformio menu to get the web-interface re-generated.
+You can use "Platform - Build Filesystem Image" command in Platformio menu to get the web-interface re-generated. Either you may use the direct method described below.
 
 ### Using Arduino IDE and others
 
@@ -124,3 +124,22 @@ If any changes were made, run the following command in Project root directory to
 npm run build
 ```
 
+## OTA update
+
+>***A work of warning:***\
+Do not interrupt the network connection or upload process while updating via OTA. Your device may stop working properly.
+
+Make sure you've enabled OTA mode in Control panel of GBSС.
+
+### Using Platformio IDE
+
+1. Open [platformio.ini](./platformio.ini) and uncomment ```upload_protocol, upload_port``` options. Options ```upload_port``` should be equal to the IP address of your GBSС (ex.: upload_port = 192.168.4.1)
+2. Now go to "Platformio - Build and Upload" the firmware.
+
+### Using Arduino IDE
+
+1. Open sketch (gbs-control.ino). Make sure you already completed the steps 1-5 from ["Build and Upload - Using Arduino IDE"](#build-n-upload-arduino)
+2. Go to "Tools - Ports". At the very end of dropdown menu find and chouse your device.
+3. Proceed with build/upload.
+
+For more details visit: https://github.com/JAndrassy/ArduinoOTA/blob/master/README.md

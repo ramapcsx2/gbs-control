@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Sunday, 5th May 2024 4:16:01 pm                          #
+# Last Modified: Tuesday, 7th May 2024 6:08:07 pm                         #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -109,14 +109,14 @@ void setup()
         // pinger library
         pinger.OnReceive([](const PingerResponse &response) {
             if (response.ReceivedResponse) {
-                Serial.printf(
-                    "Reply from %s: time=%lums\n",
+                _DBGF(
+                    PSTR("Reply from %s: time=%lums\n"),
                     response.DestIPAddress.toString().c_str(),
                     response.ResponseTime);
 
                 pingLastTime = millis() - 900; // produce a fast stream of pings if connection is good
             } else {
-                Serial.printf("Request timed out.\n");
+                _DBGN(F("Request timed out."));
             }
 
             // Return true to continue the ping sequence.
@@ -221,7 +221,7 @@ void setup()
     } else {
         // load user preferences file
         const String fn = String(preferencesFile);
-        File f = LittleFS.open(fn, "r");
+        fs::File f = LittleFS.open(fn, "r");
         if (!f) {
             _WSN(F("no preferences file yet, create new"));
             loadDefaultUserOptions();
@@ -395,7 +395,8 @@ void setup()
             // enabled by default
             calibrateAdcOffset();
         }
-        setResetParameters();
+        // FIXME double reset?
+        // setResetParameters();
 
         delay(4); // help wifi (presets are unloaded now)
         wifiLoop(1);
@@ -457,7 +458,13 @@ void loop()
     }
     if (serialCommand != '@') {
         _WSF(commandDescr,
-            "serial", serialCommand, serialCommand, uopt->presetPreference, uopt->presetSlot, rto->presetID);
+            "serial",
+            serialCommand,
+            serialCommand,
+            uopt->presetPreference,
+            uopt->presetSlot,
+            rto->presetID
+        );
         // multistage with bad characters?
         if (inputStage > 0) {
             // need 's', 't' or 'g'
@@ -788,9 +795,9 @@ void loop()
                 rto->printInfos = !rto->printInfos;
                 break;
             case 'c':
-                _WSN(F("OTA Updates on"));
                 initUpdateOTA();
                 rto->allowUpdatesOTA = true;
+                _WSN(F("OTA Updates on"));
                 break;
             case 'G':
                 _WS(F("Debug Pings "));
@@ -1300,7 +1307,10 @@ void loop()
                 GBS::TEST_BUS_SEL::write(0x0);
             }
             // unsigned long startTime = millis();
-            _WSF(PSTR("running frame sync, clock gen enabled = %d\n"), rto->extClockGenDetected);
+            _WSF(
+                PSTR("running frame sync, clock gen enabled = %d\n"),
+                rto->extClockGenDetected
+            );
             bool success = rto->extClockGenDetected ? FrameSync::runFrequency() : FrameSync::runVsync(uopt->frameTimeLockMethod);
             if (!success) {
                 if (rto->syncLockFailIgnore-- == 0) {

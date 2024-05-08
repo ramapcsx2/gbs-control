@@ -119,12 +119,21 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
 
     return false;
 }
+
+/**
+ * @brief hardware menu for profile/presets management
+ *
+ * @param manager
+ * @param item
+ * @return true
+ * @return false
+ */
 bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool)
 {
-    SlotMetaArray slotsObject;
-    File slotsBinaryFileRead = LittleFS.open(slotsFile, "r");
-    manager->clearSubItems(item);
     int curNumSlot = 0;
+    manager->clearSubItems(item);
+    SlotMetaArray slotsObject;
+    fs::File slotsBinaryFileRead = LittleFS.open(FPSTR(slotsFile), "r");
     if (slotsBinaryFileRead) {
         slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
         slotsBinaryFileRead.close();
@@ -141,11 +150,9 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
             manager->registerItem(item, slot.slot, slot.name, presetSelectionMenuHandler);
         }
     }
-
     if (curNumSlot > OLED_MENU_MAX_SUBITEMS_NUM) {
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_TOO_MANY_PRESETS));
     }
-
     if (!item->numSubItem) {
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_NO_PRESETS));
     }

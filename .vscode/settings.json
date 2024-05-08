@@ -5,6 +5,8 @@
         "*.tcc": "cpp",
         "fstream": "cpp",
         "functional": "cpp",
-        "string": "cpp"
+        "string": "cpp",
+        "typeinfo": "cpp",
+        "random": "cpp"
     }
 }

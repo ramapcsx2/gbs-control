@@ -388,3 +388,4 @@ ASALocalRun/
 .vscode/ipch
 i18n/
 data/
+**/*.html

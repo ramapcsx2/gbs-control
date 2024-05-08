@@ -23,8 +23,8 @@
     {
         "tag": "OM_RESOLUTION",
         "en-US": "Resolutions",
-        "es-ES": "Resolución",
-        "ru-RU": "Разрешения"
+        "es-ES": "Resolución de imagen",
+        "ru-RU": "Выходное разрешение"
     },
     {
         "tag": "OM_PASSTHROUGH",
@@ -35,14 +35,14 @@
     {
         "tag": "OM_DOWNSCALE",
         "en-US": "Down-Scale",
-        "es-ES": "Reducir",
-        "ru-RU": "Уменьшить"
+        "es-ES": "Imagen reducida",
+        "ru-RU": "Меньший размер картинки"
     },
     {
         "tag": "OM_PRESET",
         "en-US": "Presets",
         "es-ES": "Perfiles",
-        "ru-RU": "Профили оборудования"
+        "ru-RU": "Профили настроек"
     },
     {
         "tag": "OM_RESET_RESTORE",
@@ -72,7 +72,7 @@
         "tag": "OM_CURRENT",
         "en-US": "Current Output",
         "es-ES": "Salida actual",
-        "ru-RU": "Выход"
+        "ru-RU": "Выходной сигнал"
     },
     {
         "tag": "OM_WIFI",
@@ -140,8 +140,8 @@
     {
         "tag": "TEXT_LOADED",
         "en-US": "Loaded",
-        "es-ES": "Cargado",
-        "ru-RU": "Загружено",
+        "es-ES": "activado",
+        "ru-RU": "активирован",
         "size": 16
     },
     {

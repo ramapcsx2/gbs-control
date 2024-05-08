@@ -6,7 +6,8 @@
 #define OLED_MENU_MANAGER_H_
 
 #include "OLEDMenuItem.h"
-#include "OLEDMenuConfig.h"
+#include "OLEDMenuTranslations.h"
+#include "options.h"
 
 #define IMAGE_ITEM(name) name##_WIDTH, name##_HEIGHT, name
 #define CENTER_IMAGE(name) (OLED_MENU_WIDTH - name##_WIDTH) / 2, (OLED_MENU_HEIGHT - name##_HEIGHT) / 2, name##_WIDTH, name##_HEIGHT, name
@@ -87,13 +88,32 @@ private:
         while (1);
     }
 
+    /**
+     * @brief Display screen saver
+     *
+     */
     void drawScreenSaver()
     {
         display->clear();
         display->setColor(OLEDDISPLAY_COLOR::WHITE);
+        int16_t versionX = 0;
+        const uint8_t versionStrHeight = 10;
+        const String versionStr = String("v.") + String(STRING(VERSION));
+        uint16_t versionStrWidth = this->display->getStringWidth(versionStr);
         constexpr int16_t max_x = OLED_MENU_WIDTH - OM_SCREEN_SAVER_WIDTH;
-        constexpr int16_t max_y = OLED_MENU_HEIGHT - OM_SCREEN_SAVER_HEIGHT;
-        display->drawXbm(rand() % max_x, rand() % max_y, IMAGE_ITEM(OM_SCREEN_SAVER));
+        constexpr int16_t max_y = OLED_MENU_HEIGHT - (OM_SCREEN_SAVER_HEIGHT + versionStrHeight);
+        uint16_t rx = rand() % max_x;
+        uint16_t ry = rand() % max_y;
+        display->drawXbm(rx, ry, IMAGE_ITEM(OM_SCREEN_SAVER));
+        // display FW version
+        versionX = OM_SCREEN_SAVER_WIDTH - versionStrWidth;
+        if(versionX <= 0)
+            versionX = rx;
+        else {
+            versionX /= 2;
+            versionX += rx;
+        }
+        this->display->drawString(versionX, ry + versionStrHeight, versionStr);
         display->display();
     }
 
