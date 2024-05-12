@@ -6,8 +6,6 @@
 
 </p>
 
-Documentation: https://ramapcsx2.github.io/gbs-control/
-
 Gbscontrol is an alternative firmware for Tvia Trueview5725 based upscalers / video converter boards.  
 Its growing list of features includes:   
 - very low lag
@@ -133,7 +131,7 @@ Make sure you've enabled OTA mode in Control panel of GBSС.
 
 ### Using Platformio IDE
 
-1. Open [platformio.ini](./platformio.ini) and uncomment ```upload_protocol, upload_port``` options. Options ```upload_port``` should be equal to the IP address of your GBSС (ex.: upload_port = 192.168.4.1)
+1. Open [platformio.ini](./platformio.ini) and uncomment ```upload_protocol, upload_port``` options. Option ```upload_port``` should be equal to the IP address of your GBSС (ex.: upload_port = 192.168.4.1)
 2. Now go to "Platformio - Build and Upload" the firmware.
 
 ### Using Arduino IDE
@@ -143,3 +141,7 @@ Make sure you've enabled OTA mode in Control panel of GBSС.
 3. Proceed with build/upload.
 
 For more details visit: https://github.com/JAndrassy/ArduinoOTA/blob/master/README.md
+
+## Old Documentation
+
+- https://ramapcsx2.github.io/gbs-control

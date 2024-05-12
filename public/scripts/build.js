@@ -25,7 +25,7 @@ const manifest = fs
   .replace(/\$\{icon1024\}/g, `data:image/png;base64,${icon1024}`);
 
 fs.writeFileSync(
-  "./../../src/webui.html",
+  "./../../data/webui.html",
   html
     .replace("${styles}", css)
     .replace("${js}", js)
@@ -38,4 +38,4 @@ fs.writeFileSync(
   "utf8"
 );
 
-console.log("webui.html GENERATED");
+console.log("WebUI ready to compress");

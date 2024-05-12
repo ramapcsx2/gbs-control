@@ -3,7 +3,7 @@
 # File: preset.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 6:38:23 pm                                   #
 # Author:                                                                           #
-# Last Modified: Tuesday, 7th May 2024 4:35:51 pm                         #
+# Last Modified: Friday, 10th May 2024 12:11:09 am                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -18,7 +18,8 @@
  */
 void loadDefaultUserOptions()
 {
-    uopt->presetPreference = Output960P; // #1
+    // uopt->presetPreference = Output960P; // #1
+    rto->presetID = Output960p;
     uopt->enableFrameTimeLock = 0;       // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
     uopt->presetSlot = 'A';              //
     uopt->frameTimeLockMethod = 0;       // compatibility with more displays
@@ -188,7 +189,8 @@ void doPostPresetLoadSteps()
 
     // adco->r_gain gets applied if uopt->enableAutoGain is set.
     if (uopt->enableAutoGain) {
-        if (uopt->presetPreference == OutputCustomized) {
+        // if (uopt->presetPreference == OutputCustomized) {
+        if (rto->presetID == OutputCustom) {
             // Loaded custom preset, we want to keep newly loaded gain. Save
             // gain written by loadPresetFromLFS -> writeProgramArrayNew.
             adco->r_gain = GBS::ADC_RGCTRL::read();
@@ -211,7 +213,7 @@ void doPostPresetLoadSteps()
             rto->videoStandardInput = videoMode;
         }
     }
-    rto->presetID = GBS::GBS_PRESET_ID::read();
+    rto->presetID = static_cast<PresetPreference>(GBS::GBS_PRESET_ID::read());
     rto->isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
 
     GBS::ADC_UNUSED_64::write(0);
@@ -946,7 +948,8 @@ void doPostPresetLoadSteps()
     // are introduced to break out of it.
     // also need to check for mode 15
     // also make sure to turn off autoBestHtotal
-    if (uopt->presetPreference == 10 && rto->videoStandardInput != 15) {
+    // if (uopt->presetPreference == 10 && rto->videoStandardInput != 15) {
+    if (rto->presetID == OutputPtru && rto->videoStandardInput != 15) {
         rto->autoBestHtotalEnabled = 0;
         if (rto->applyPresetDoneStage == 11) {
             // we were here before, stop the loop
@@ -966,22 +969,24 @@ void doPostPresetLoadSteps()
     }
 
     _WS(F("\npreset applied: "));
-    if (rto->presetID == 0x01 || rto->presetID == 0x11)
+    if (rto->presetID == Output960p || rto->presetID == 0x11)
         _WS(F("1280x960"));
-    else if (rto->presetID == 0x02 || rto->presetID == 0x12)
+    else if (rto->presetID == Output1024p || rto->presetID == 0x12)
         _WS(F("1280x1024"));
-    else if (rto->presetID == 0x03 || rto->presetID == 0x13)
+    else if (rto->presetID == Output720p || rto->presetID == 0x13)
         _WS(F("1280x720"));
-    else if (rto->presetID == 0x05 || rto->presetID == 0x15)
+    else if (rto->presetID == Output1080p || rto->presetID == 0x15)
         _WS(F("1920x1080"));
-    else if (rto->presetID == 0x06 || rto->presetID == 0x16)
+    else if (rto->presetID == Output15kHz || rto->presetID == 0x16)
         _WS(F("downscale"));
-    else if (rto->presetID == 0x04)
+    else if (rto->presetID == Output480p)
         _WS(F("720x480"));
-    else if (rto->presetID == 0x14)
-        _WS(F("768x576"));
+    else if (rto->presetID == Output576p)
+        _WS(F("720x576"));
+    else if (rto->presetID == OutputPtru)
+        _WS(F("passthrough"));
     else
-        _WS(F("bypass"));
+        _WS(F("n/a"));
 
     if (rto->outModeHdBypass) {
         _WS(F(" (bypass)"));
@@ -1019,7 +1024,7 @@ void doPostPresetLoadSteps()
         else
             _WS(F("RGB Bypass (HV Sync)"));
     } else if (rto->videoStandardInput == 0)
-        _WS(F("!should not go here!"));
+        _WS(F("!should not go here!"));             // TODO ???
 
     if (rto->presetID == 0x05 || rto->presetID == 0x15) {
         _WS(F("(set your TV aspect ratio to 16:9!)"));
@@ -1077,7 +1082,7 @@ void applyPresets(uint8_t result)
     if (GBS::ADC_UNUSED_62::read() != 0x00) {
         // only if the preset to load isn't custom
         // (else the command will instantly disable debug view)
-        if (uopt->presetPreference != 2) {
+        if (rto->presetID != OutputCustom) {
             serialCommand = 'D';
         }
     }
@@ -1116,14 +1121,15 @@ void applyPresets(uint8_t result)
                 // doPostPresetLoadSteps() to select the right resolution, since
                 // it *enables* the output (showing a green screen) even if
                 // previously disabled, and we want to *disable* it.
-                rto->presetID = 0;
+                rto->presetID = OutputNone;
                 return;
             }
         }
     }
 
     if (uopt->PalForce60 == 1) {
-        if (uopt->presetPreference != 2) { // != custom. custom saved as pal preset has ntsc customization
+        // if (uopt->presetPreference != 2) { // != custom. custom saved as pal preset has ntsc customization
+        if (rto->presetID != OutputCustom) { // != custom. custom saved as pal preset has ntsc customization
             if (result == 2 || result == 4) {
                 _WSN(F("PAL@50 to 60Hz"));
                 rto->presetIsPalForce60 = 1;
@@ -1209,21 +1215,26 @@ void applyPresets(uint8_t result)
 
     if (result == 1 || result == 3 || result == 8 || result == 9 || result == 14) {
         // NTSC input
-        if (uopt->presetPreference == 0) {
+        // if (uopt->presetPreference == 0) {
+        if (rto->presetID == OutputNone) {                  // TODO is this OutputPtru ???
             writeProgramArrayNew(ntsc_240p, false);
-        } else if (uopt->presetPreference == 1) {
+        // } else if (uopt->presetPreference == 1) {
+        } else if (rto->presetID == Output480p) {
             writeProgramArrayNew(ntsc_720x480, false);
-        } else if (uopt->presetPreference == 3) {
+        // } else if (uopt->presetPreference == 3) {
+        } else if (rto->presetID == Output720p) {
             writeProgramArrayNew(ntsc_1280x720, false);
         }
 #if defined(ESP8266)
-        else if (uopt->presetPreference == OutputCustomized) {
+        // else if (uopt->presetPreference == OutputCustomized) {
+        else if (rto->presetID == OutputCustom) {
             const uint8_t *preset = loadPresetFromLFS(result);
             writeProgramArrayNew(preset, false);
             if (applySavedBypassPreset()) {
                 return;
             }
-        } else if (uopt->presetPreference == 4) {
+        // } else if (uopt->presetPreference == 4) {
+        } else if (rto->presetID == Output1024p) {
             if (uopt->matchPresetSource && (result != 8) && (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)) {
                 _WSN(F("matched preset override > 1280x960"));
                 writeProgramArrayNew(ntsc_240p, false); // pref = x1024 override to x960
@@ -1232,39 +1243,48 @@ void applyPresets(uint8_t result)
             }
         }
 #endif
-        else if (uopt->presetPreference == 5) {
+        // else if (uopt->presetPreference == 5) {
+        else if (rto->presetID == Output1080p) {
             writeProgramArrayNew(ntsc_1920x1080, false);
-        } else if (uopt->presetPreference == 6) {
+        // } else if (uopt->presetPreference == 6) {
+        } else if (rto->presetID == Output15kHz) {
             writeProgramArrayNew(ntsc_downscale, false);
         }
     } else if (result == 2 || result == 4) {
         // PAL input
-        if (uopt->presetPreference == 0) {
+        // if (uopt->presetPreference == 0) {
+        if (rto->presetID == OutputNone) {
             if (uopt->matchPresetSource) {
                 _WSN(F("matched preset override > 1280x1024"));
                 writeProgramArrayNew(pal_1280x1024, false); // pref = x960 override to x1024
             } else {
                 writeProgramArrayNew(pal_240p, false);
             }
-        } else if (uopt->presetPreference == 1) {
+        // } else if (uopt->presetPreference == 1) {
+        } else if (rto->presetID == Output576p) {
             writeProgramArrayNew(pal_768x576, false);
-        } else if (uopt->presetPreference == 3) {
+        // } else if (uopt->presetPreference == 3) {
+        } else if (rto->presetID == Output720p) {
             writeProgramArrayNew(pal_1280x720, false);
         }
 #if defined(ESP8266)
-        else if (uopt->presetPreference == OutputCustomized) {
+        // else if (uopt->presetPreference == OutputCustomized) {
+        else if (rto->presetID == OutputCustom) {
             const uint8_t *preset = loadPresetFromLFS(result);
             writeProgramArrayNew(preset, false);
             if (applySavedBypassPreset()) {
                 return;
             }
-        } else if (uopt->presetPreference == 4) {
+        // } else if (uopt->presetPreference == 4) {
+        } else if (rto->presetID == Output1024p) {
             writeProgramArrayNew(pal_1280x1024, false);
         }
 #endif
-        else if (uopt->presetPreference == 5) {
+        // else if (uopt->presetPreference == 5) {
+        else if (rto->presetID == Output1080p) {
             writeProgramArrayNew(pal_1920x1080, false);
-        } else if (uopt->presetPreference == 6) {
+        // } else if (uopt->presetPreference == 6) {
+        } else if (rto->presetID == Output15kHz) {
             writeProgramArrayNew(pal_downscale, false);
         }
     } else if (result == 5 || result == 6 || result == 7 || result == 13) {
@@ -1545,7 +1565,8 @@ void saveUserPrefs()
         _WSN(F("saveUserPrefs: open file failed"));
         return;
     }
-    f.write(uopt->presetPreference + '0'); // #1
+    // f.write(uopt->presetPreference + '0'); // #1
+    f.write(rto->presetID + '0'); // #1
     f.write(uopt->enableFrameTimeLock + '0');
     f.write(uopt->presetSlot);
     f.write(uopt->frameTimeLockMethod + '0');

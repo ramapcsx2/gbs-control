@@ -18,8 +18,6 @@ extern uint8_t getVideoMode();
 extern runTimeOptions *rto;
 extern userOptions *uopt;
 
-// typedef TV5725<GBS_ADDR> GBS;
-
 enum MenuItemTag: uint16_t {
     // unique identifiers for sub-items
     MT_NULL, // null tag, used by root menu items, since they can be differentiated by handlers

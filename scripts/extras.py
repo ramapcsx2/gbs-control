@@ -17,6 +17,7 @@ with open(root + '/configure.json', 'r') as data:
     conf = json.load(data)
 
 def before_buildfs(source, target, env):
+    print('\n[\U0001F37A] building WebUI\n')
     env.Execute("npm run build")
 
 env.AddPreAction("$BUILD_DIR/littlefs.bin", before_buildfs)

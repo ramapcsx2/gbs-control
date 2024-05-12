@@ -1,3 +1,8 @@
+/*
+* DEVELOPER's MEMO:
+*   1. WebUI icons: https://fonts.google.com/icons
+*
+*/
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -7,10 +12,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+/**
+ * Description placeholder
+ *
+ * @type {StructDescriptors}
+ */
 const Structs = {
     slots: [
         { name: "name", type: "string", size: 25 },
-        { name: "presetID", type: "byte", size: 1 },
+        { name: "resolutionID", type: "byte", size: 1 },
         { name: "scanlines", type: "byte", size: 1 },
         { name: "scanlinesStrength", type: "byte", size: 1 },
         { name: "slot", type: "byte", size: 1 },
@@ -19,6 +29,11 @@ const Structs = {
         { name: "wantPeaking", type: "byte", size: 1 },
     ],
 };
+/**
+ * Description placeholder
+ *
+ * @type {{ pos: number; parseStructArray(buff: ArrayBuffer, structsDescriptors: StructDescriptors, struct: string): any; getValue(buff: {}, structItem: { type: "string" | "byte"; size: number; }): any; getSize(structsDescriptors: StructDescriptors, struct: string): any; }}
+ */
 const StructParser = {
     pos: 0,
     parseStructArray(buff, structsDescriptors, struct) {
@@ -64,16 +79,25 @@ const StructParser = {
     },
 };
 /* GBSControl Global Object*/
+/**
+ * Description placeholder
+ *
+ * @type {{ buttonMapping: { 1: string; 2: string; 3: string; 4: string; 5: string; 6: string; 8: string; 9: string; 10: string; 12: string; }; controlKeysMobileMode: string; controlKeysMobile: { move: { type: string; left: string; up: string; right: string; down: string; }; scale: { ...; }; borders: { ...; }; }; ... 17 more ...}
+ */
 const GBSControl = {
     buttonMapping: {
+        // 0: "n/a",
         1: "button1280x960",
         2: "button1280x1024",
         3: "button1280x720",
         4: "button720x480",
         5: "button1920x1080",
         6: "button15kHzScaleDown",
+        // 7: "button720×576",
         8: "buttonSourcePassThrough",
-        9: "buttonLoadCustomPreset",
+        9: "buttonSourcePassThrough",
+        10: "buttonSourcePassThrough",
+        12: "buttonLoadCustomPreset",
     },
     controlKeysMobileMode: "move",
     controlKeysMobile: {
@@ -99,6 +123,7 @@ const GBSControl = {
             down: "D",
         },
     },
+    activeResolution: "",
     dataQueued: 0,
     isWsActive: false,
     maxSlots: 72,
@@ -120,6 +145,7 @@ const GBSControl = {
         slotButtonList: null,
         slotContainer: null,
         terminal: null,
+        toggleConsole: null,
         toggleList: null,
         toggleSwichList: null,
         webSocketConnectionWarning: null,
@@ -158,11 +184,11 @@ const checkWebSocketServer = () => {
     if (!GBSControl.isWsActive) {
         if (GBSControl.ws) {
             /*
-                              0     CONNECTING
-                              1     OPEN
-                              2     CLOSING
-                              3     CLOSED
-                              */
+            0     CONNECTING
+            1     OPEN
+            2     CLOSING
+            3     CLOSED
+            */
             switch (GBSControl.ws.readyState) {
                 case 1:
                 case 2:
@@ -178,6 +204,9 @@ const checkWebSocketServer = () => {
         }
     }
 };
+/**
+ * Description placeholder
+ */
 const timeOutWs = () => {
     console.log("timeOutWs");
     if (GBSControl.ws) {
@@ -186,6 +215,9 @@ const timeOutWs = () => {
     GBSControl.isWsActive = false;
     displayWifiWarning(true);
 };
+/**
+ * Description placeholder
+ */
 const createWebSocket = () => {
     if (GBSControl.ws && checkReadyState()) {
         return;
@@ -210,7 +242,14 @@ const createWebSocket = () => {
         clearTimeout(GBSControl.wsTimeout);
         GBSControl.wsTimeout = setTimeout(timeOutWs, 2700);
         GBSControl.isWsActive = true;
-        const [messageDataAt0, messageDataAt1, messageDataAt2, messageDataAt3, messageDataAt4, messageDataAt5,] = message.data;
+        const [messageDataAt0, // always #
+        messageDataAt1, // selected resolution ! (hex)
+        messageDataAt2, // selected slot ID (char)
+        messageDataAt3, // adcAutoGain & scanlines & vdsLineFilter & wantPeaking & PalForce60 & wantOutputComponent (binary)
+        messageDataAt4, // matchPresetSource & enableFrameTimeLock & deintMode & wantTap6 & wantStepResponse & wantFullHeight (binary)
+        messageDataAt5, // enableCalibrationADC & preferScalingRgbhv & disableExternalClockGenerator (binary)
+        ] = message.data;
+        console.log(message);
         if (messageDataAt0 != "#") {
             GBSControl.queuedText += message.data;
             GBSControl.dataQueued += message.data.length;
@@ -220,12 +259,15 @@ const createWebSocket = () => {
             }
         }
         else {
-            const presetId = GBSControl.buttonMapping[messageDataAt1];
-            const presetEl = document.querySelector(`[gbs-element-ref="${presetId}"]`);
-            const activePresetButton = presetEl
-                ? presetEl.getAttribute("gbs-element-ref")
+            console.log("buttonMapping: " + parseInt("0x" + messageDataAt1, 16));
+            // ! curent/selected resolution
+            const resID = GBSControl.buttonMapping[parseInt("0x" + messageDataAt1, 16)];
+            const resEl = document.querySelector(`[gbs-element-ref="${resID}"]`);
+            const activePresetButton = resEl
+                ? resEl.getAttribute("gbs-element-ref")
                 : "none";
             GBSControl.ui.presetButtonList.forEach(toggleButtonActive(activePresetButton));
+            // ! current/selected preset slot
             const slotId = "slot-" + messageDataAt2;
             const activeSlotButton = document.querySelector(`[gbs-element-ref="${slotId}"]`);
             if (activeSlotButton) {
@@ -254,63 +296,70 @@ const createWebSocket = () => {
                 optionButtonList.forEach((button) => {
                     const toggleData = button.getAttribute("gbs-toggle") ||
                         button.getAttribute("gbs-toggle-switch");
-                    switch (toggleData) {
-                        case "adcAutoGain":
-                            toggleMethod(button, (optionByte0 & 0x01) == 0x01);
-                            break;
-                        case "scanlines":
-                            toggleMethod(button, (optionByte0 & 0x02) == 0x02);
-                            break;
-                        case "vdsLineFilter":
-                            toggleMethod(button, (optionByte0 & 0x04) == 0x04);
-                            break;
-                        case "peaking":
-                            toggleMethod(button, (optionByte0 & 0x08) == 0x08);
-                            break;
-                        case "palForce60":
-                            toggleMethod(button, (optionByte0 & 0x10) == 0x10);
-                            break;
-                        case "wantOutputComponent":
-                            toggleMethod(button, (optionByte0 & 0x20) == 0x20);
-                            break;
-                        /** 1 */
-                        case "matched":
-                            toggleMethod(button, (optionByte1 & 0x01) == 0x01);
-                            break;
-                        case "frameTimeLock":
-                            toggleMethod(button, (optionByte1 & 0x02) == 0x02);
-                            break;
-                        case "motionAdaptive":
-                            toggleMethod(button, (optionByte1 & 0x04) == 0x04);
-                            break;
-                        case "bob":
-                            toggleMethod(button, (optionByte1 & 0x04) != 0x04);
-                            break;
-                        // case "tap6":
-                        //   toggleMethod(button, (optionByte1 & 0x08) != 0x04);
-                        //   break;
-                        case "step":
-                            toggleMethod(button, (optionByte1 & 0x10) == 0x10);
-                            break;
-                        case "fullHeight":
-                            toggleMethod(button, (optionByte1 & 0x20) == 0x20);
-                            break;
-                        /** 2 */
-                        case "enableCalibrationADC":
-                            toggleMethod(button, (optionByte2 & 0x01) == 0x01);
-                            break;
-                        case "preferScalingRgbhv":
-                            toggleMethod(button, (optionByte2 & 0x02) == 0x02);
-                            break;
-                        case "disableExternalClockGenerator":
-                            toggleMethod(button, (optionByte2 & 0x04) == 0x04);
-                            break;
+                    if (toggleData !== null) {
+                        switch (toggleData) {
+                            case "adcAutoGain":
+                                toggleMethod(button, (optionByte0 & 0x01) == 0x01);
+                                break;
+                            case "scanlines":
+                                toggleMethod(button, (optionByte0 & 0x02) == 0x02);
+                                break;
+                            case "vdsLineFilter":
+                                toggleMethod(button, (optionByte0 & 0x04) == 0x04);
+                                break;
+                            case "peaking":
+                                toggleMethod(button, (optionByte0 & 0x08) == 0x08);
+                                break;
+                            case "palForce60":
+                                toggleMethod(button, (optionByte0 & 0x10) == 0x10);
+                                break;
+                            case "wantOutputComponent":
+                                toggleMethod(button, (optionByte0 & 0x20) == 0x20);
+                                break;
+                            /** 1 */
+                            case "matched":
+                                toggleMethod(button, (optionByte1 & 0x01) == 0x01);
+                                break;
+                            case "frameTimeLock":
+                                toggleMethod(button, (optionByte1 & 0x02) == 0x02);
+                                break;
+                            case "motionAdaptive":
+                                toggleMethod(button, (optionByte1 & 0x04) == 0x04);
+                                break;
+                            case "bob":
+                                toggleMethod(button, (optionByte1 & 0x04) != 0x04);
+                                break;
+                            // case "tap6":
+                            //   toggleMethod(button, (optionByte1 & 0x08) != 0x04);
+                            //   break;
+                            case "step":
+                                toggleMethod(button, (optionByte1 & 0x10) == 0x10);
+                                break;
+                            case "fullHeight":
+                                toggleMethod(button, (optionByte1 & 0x20) == 0x20);
+                                break;
+                            /** 2 */
+                            case "enableCalibrationADC":
+                                toggleMethod(button, (optionByte2 & 0x01) == 0x01);
+                                break;
+                            case "preferScalingRgbhv":
+                                toggleMethod(button, (optionByte2 & 0x02) == 0x02);
+                                break;
+                            case "disableExternalClockGenerator":
+                                toggleMethod(button, (optionByte2 & 0x04) == 0x04);
+                                break;
+                        }
                     }
                 });
             }
         }
     };
 };
+/**
+ * Description placeholder
+ *
+ * @returns {boolean}
+ */
 const checkReadyState = () => {
     if (GBSControl.ws.readyState == 2) {
         GBSControl.wsNoSuccessConnectingCounter++;
@@ -339,14 +388,29 @@ const checkReadyState = () => {
         return true;
     }
 };
+/**
+ * Description placeholder
+ */
 const createIntervalChecks = () => {
     GBSControl.wsCheckTimer = setInterval(checkWebSocketServer, 500);
     GBSControl.updateTerminalTimer = setInterval(updateTerminal, 50);
 };
 /* API services */
+/**
+ * Description placeholder
+ *
+ * @param {string} link
+ * @returns {*}
+ */
 const loadDoc = (link) => {
     return fetch(`http://${GBSControl.serverIP}/sc?${link}&nocache=${new Date().getTime()}`);
 };
+/**
+ * Description placeholder
+ *
+ * @param {string} link
+ * @returns {*}
+ */
 const loadUser = (link) => {
     if (link == "a" || link == "1") {
         GBSControl.isWsActive = false;
@@ -356,6 +420,23 @@ const loadUser = (link) => {
     return fetch(`http://${GBSControl.serverIP}/uc?${link}&nocache=${new Date().getTime()}`);
 };
 /** SLOT management */
+const removePreset = () => {
+    const currentSlot = document.querySelector('[gbs-role="slot"][active]');
+    if (!currentSlot) {
+        return;
+    }
+    const currentIndex = currentSlot.getAttribute("gbs-slot-id");
+    const currentName = currentSlot.getAttribute("gbs-name");
+    if (currentName && currentName.trim() !== "Empty") {
+        fetch(`http://${GBSControl.serverIP}/slot/remove?index=${currentIndex}&${+new Date()}`).then(() => {
+        });
+    }
+    ;
+};
+/**
+ *
+ * @returns
+ */
 const savePreset = () => {
     const currentSlot = document.querySelector('[gbs-role="slot"][active]');
     if (!currentSlot) {
@@ -367,7 +448,7 @@ const savePreset = () => {
         .then((currentName) => {
         if (currentName && currentName.trim() !== "Empty") {
             currentSlot.setAttribute("gbs-name", currentName);
-            fetch(`/slot/save?index=${currentIndex}&name=${currentName.substring(0, 24)}&${+new Date()}`).then(() => {
+            fetch(`http://${GBSControl.serverIP}/slot/save?index=${currentIndex}&name=${currentName.substring(0, 24)}&${+new Date()}`).then(() => {
                 loadUser("4").then(() => {
                     setTimeout(() => {
                         fetchSlotNames().then((success) => {
@@ -382,15 +463,23 @@ const savePreset = () => {
     })
         .catch(() => { });
 };
+/**
+ * Description placeholder
+ */
 const loadPreset = () => {
     loadUser("3").then(() => {
         if (GBSStorage.read("customSlotFilters") === true) {
             setTimeout(() => {
-                fetch(`/gbs/restore-filters?${+new Date()}`);
+                fetch(`http://${GBSControl.serverIP}/gbs/restore-filters?${+new Date()}`);
             }, 250);
         }
     });
 };
+/**
+ * Description placeholder
+ *
+ * @returns {*}
+ */
 const getSlotsHTML = () => {
     // prettier-ignore
     return [
@@ -411,18 +500,31 @@ const getSlotsHTML = () => {
   ></button>`;
     }).join('');
 };
+/**
+ * Description placeholder
+ *
+ * @param {string} slot
+ */
 const setSlot = (slot) => {
-    fetch(`/slot/set?slot=${slot}&${+new Date()}`);
+    fetch(`http://${GBSControl.serverIP}/slot/set?slot=${slot}&${+new Date()}`);
 };
+/**
+ * Description placeholder
+ */
 const updateSlotNames = () => {
     for (let i = 0; i < GBSControl.maxSlots; i++) {
         const el = document.querySelector(`[gbs-slot-id="${i}"]`);
         el.setAttribute("gbs-name", GBSControl.structs.slots[i].name);
-        el.setAttribute("gbs-meta", getSlotPresetName(parseInt(GBSControl.structs.slots[i].presetID, 10)));
+        el.setAttribute("gbs-meta", getSlotPresetName(parseInt(GBSControl.structs.slots[i].resolutionID, 10)));
     }
 };
+/**
+ * Description placeholder
+ *
+ * @returns {*}
+ */
 const fetchSlotNames = () => {
-    return fetch(`/bin/slots.bin?${+new Date()}`)
+    return fetch(`http://${GBSControl.serverIP}/bin/slots.bin?${+new Date()}`)
         .then((response) => response.arrayBuffer())
         .then((arrayBuffer) => {
         if (arrayBuffer.byteLength ===
@@ -435,37 +537,54 @@ const fetchSlotNames = () => {
         return false;
     });
 };
-const getSlotPresetName = (presetID) => {
-    switch (presetID) {
-        case 0x01:
-        case 0x011:
+/**
+ * Description placeholder
+ *
+ * @param {number} resolutionID
+ * @returns {("1280x960" | "1280x1024" | "1280x720" | "1920x1080" | "DOWNSCALE" | "720x480" | "768x576" | "BYPASS" | "CUSTOM")}
+ */
+const getSlotPresetName = (resolutionID) => {
+    switch (resolutionID) {
+        case 1:
+            // case 0x011:
             return "1280x960";
-        case 0x02:
-        case 0x012:
+        case 2:
+            // case 0x012:
             return "1280x1024";
-        case 0x03:
-        case 0x013:
+        case 3:
+            // case 0x013:
             return "1280x720";
-        case 0x05:
-        case 0x015:
-            return "1920x1080";
-        case 0x06:
-        case 0x016:
-            return "DOWNSCALE";
-        case 0x04:
+        case 4:
+            // case 0x015:
             return "720x480";
-        case 0x14:
+        case 5:
+            return "1920x1080";
+        case 6:
+            // case 0x016:
+            return "DOWNSCALE";
+        case 7:
             return "768x576";
-        case 0x21: // bypass 1
-        case 0x22: // bypass 2
+        case 8:
             return "BYPASS";
-        default:
+        case 9: // bypass 1
+            return "HD_BYPASS";
+        case 10: // bypass 2
+            return "BYPASS_RGBHV";
+        case 12:
             return "CUSTOM";
+        default:
+            return "NONE";
     }
 };
+/**
+ * Description placeholder
+ */
 const fetchSlotNamesErrorRetry = () => {
     setTimeout(fetchSlotNamesAndInit, 1000);
 };
+/**
+ * Description placeholder
+ */
 const fetchSlotNamesAndInit = () => {
     fetchSlotNames()
         .then((success) => {
@@ -492,16 +611,27 @@ const toggleHelp = () => {
     GBSStorage.write("help", !help);
     updateHelp(!help);
 };
+/**
+ * Description placeholder
+ */
 const toggleDeveloperMode = () => {
     const developerMode = GBSStorage.read("developerMode") || false;
     GBSStorage.write("developerMode", !developerMode);
     updateDeveloperMode(!developerMode);
 };
+/**
+ * Description placeholder
+ */
 const toggleCustomSlotFilters = () => {
     const customSlotFilters = GBSStorage.read("customSlotFilters");
     GBSStorage.write("customSlotFilters", !customSlotFilters);
     updateCustomSlotFilters(!customSlotFilters);
 };
+/**
+ * Description placeholder
+ *
+ * @param {boolean} help
+ */
 const updateHelp = (help) => {
     if (help) {
         document.body.classList.remove("gbs-help-hide");
@@ -510,9 +640,36 @@ const updateHelp = (help) => {
         document.body.classList.add("gbs-help-hide");
     }
 };
+/**
+ * Toggle console visibility (see corresponding button)
+ *
+ * @param {boolean} developerMode
+ */
+const updateConsoleVisibility = (developerMode) => {
+    // const developerMode = GBSStorage.read("developerMode") as boolean;
+    if (developerMode) {
+        const consoleStatus = GBSStorage.read("consoleVisible");
+        if (consoleStatus !== true) {
+            GBSStorage.write("consoleVisible", true);
+            GBSControl.ui.toggleConsole.setAttribute("active", "");
+            document.body.classList.remove("gbs-output-hide");
+        }
+        else {
+            GBSStorage.write("consoleVisible", false);
+            GBSControl.ui.toggleConsole.removeAttribute("active");
+            document.body.classList.add("gbs-output-hide");
+        }
+    }
+};
+/**
+ * Description placeholder
+ *
+ * @param {boolean} developerMode
+ */
 const updateDeveloperMode = (developerMode) => {
     const el = document.querySelector('[gbs-section="developer"]');
     if (developerMode) {
+        GBSStorage.write("consoleVisible", true);
         el.removeAttribute("hidden");
         GBSControl.ui.developerSwitch.setAttribute("active", "");
         document.body.classList.remove("gbs-output-hide");
@@ -524,6 +681,11 @@ const updateDeveloperMode = (developerMode) => {
     }
     GBSControl.ui.developerSwitch.querySelector(".gbs-icon").innerText = developerMode ? "toggle_on" : "toggle_off";
 };
+/**
+ * Description placeholder
+ *
+ * @param {boolean} [customFilters=GBSStorage.read("customSlotFilters") === true]
+ */
 const updateCustomSlotFilters = (customFilters = GBSStorage.read("customSlotFilters") === true) => {
     if (customFilters) {
         GBSControl.ui.customSlotFilters.setAttribute("active", "");
@@ -533,6 +695,11 @@ const updateCustomSlotFilters = (customFilters = GBSStorage.read("customSlotFilt
     }
     GBSControl.ui.customSlotFilters.querySelector(".gbs-icon").innerText = customFilters ? "toggle_on" : "toggle_off";
 };
+/**
+ * Description placeholder
+ *
+ * @type {({ lsObject: {}; write(key: string, value: any): void; read(key: string): string | number | boolean; })}
+ */
 const GBSStorage = {
     lsObject: {},
     write(key, value) {
@@ -545,20 +712,42 @@ const GBSStorage = {
         return GBSStorage.lsObject[key];
     },
 };
+/**
+ * Description placeholder
+ *
+ * @template Element
+ * @param {(| HTMLCollectionOf<globalThis.Element>
+ *     | NodeListOf<globalThis.Element>)} nodelist
+ * @returns {Element[]}
+ */
 const nodelistToArray = (nodelist) => {
     return Array.prototype.slice.call(nodelist);
 };
+/**
+ * Description placeholder
+ *
+ * @param {string} id
+ * @returns {(button: HTMLElement, _index: any, _array: any) => void}
+ */
 const toggleButtonActive = (id) => (button, _index, _array) => {
     button.removeAttribute("active");
     if (button.getAttribute("gbs-element-ref") === id) {
         button.setAttribute("active", "");
     }
 };
+/**
+ * Description placeholder
+ *
+ * @param {boolean} mode
+ */
 const displayWifiWarning = (mode) => {
     GBSControl.ui.webSocketConnectionWarning.style.display = mode
         ? "block"
         : "none";
 };
+/**
+ * Description placeholder
+ */
 const updateTerminal = () => {
     if (GBSControl.queuedText.length > 0) {
         requestAnimationFrame(() => {
@@ -568,18 +757,35 @@ const updateTerminal = () => {
         });
     }
 };
+/**
+ * Description placeholder
+ */
 const updateViewPort = () => {
     document.documentElement.style.setProperty("--viewport-height", window.innerHeight + "px");
 };
+/**
+ * Description placeholder
+ */
 const hideLoading = () => {
     GBSControl.ui.loader.setAttribute("style", "display:none");
 };
+/**
+ * Description placeholder
+ *
+ * @param {Response} response
+ * @returns {Response}
+ */
 const checkFetchResponseStatus = (response) => {
     if (!response.ok) {
         throw new Error(`HTTP ${response.status} - ${response.statusText}`);
     }
     return response;
 };
+/**
+ * Description placeholder
+ *
+ * @param {File} file
+ */
 const readLocalFile = (file) => {
     const reader = new FileReader();
     reader.addEventListener("load", (event) => {
@@ -592,18 +798,18 @@ const doBackup = () => {
     let backupFiles;
     let done = 0;
     let total = 0;
-    fetch("/data/dir")
+    fetch(`http://${GBSControl.serverIP}/data/dir`)
         .then((r) => r.json())
         .then((files) => {
         backupFiles = files;
         total = files.length;
-        const funcs = files.map((path) => () => {
-            return fetch(`/data/download?file=${path}&${+new Date()}`).then((response) => {
+        const funcs = files.map((path) => () => __awaiter(this, void 0, void 0, function* () {
+            return yield fetch(`http://${GBSControl.serverIP}/data/download?file=${path}&${+new Date()}`).then((response) => {
                 GBSControl.ui.progressBackup.setAttribute("gbs-progress", `${done}/${total}`);
                 done++;
                 return checkFetchResponseStatus(response) && response.arrayBuffer();
             });
-        });
+        }));
         return serial(funcs);
     })
         .then((files) => {
@@ -614,9 +820,9 @@ const doBackup = () => {
         const backupFilesJSON = JSON.stringify(headerDescriptor);
         const backupFilesJSONSize = backupFilesJSON.length;
         const mainHeader = [
-            (backupFilesJSONSize >> 24) & 255, // size
-            (backupFilesJSONSize >> 16) & 255, // size
-            (backupFilesJSONSize >> 8) & 255, // size
+            (backupFilesJSONSize >> 24) & 255,
+            (backupFilesJSONSize >> 16) & 255,
+            (backupFilesJSONSize >> 8) & 255,
             (backupFilesJSONSize >> 0) & 255,
         ];
         const outputArray = [
@@ -631,6 +837,11 @@ const doBackup = () => {
         GBSControl.ui.progressBackup.setAttribute("gbs-progress", ``);
     });
 };
+/**
+ * Description placeholder
+ *
+ * @param {ArrayBuffer} file
+ */
 const doRestore = (file) => {
     const { backupInput } = GBSControl.ui;
     const fileBuffer = new Uint8Array(file);
@@ -662,7 +873,7 @@ const doRestore = (file) => {
         const fileContents = fileBuffer.slice(pos, pos + headerObject[fileName]);
         const formData = new FormData();
         formData.append("file", new Blob([fileContents], { type: "application/octet-stream" }), fileName.substr(1));
-        return yield fetch("/data/upload", {
+        return yield fetch(`http://${GBSControl.serverIP}/data/upload`, {
             method: "POST",
             body: formData,
         }).then((response) => {
@@ -684,6 +895,12 @@ const doRestore = (file) => {
         });
     });
 };
+/**
+ * Description placeholder
+ *
+ * @param {Blob} blob
+ * @param {string} [name="file.txt"]
+ */
 const downloadBlob = (blob, name = "file.txt") => {
     // Convert your blob into a Blob URL (a special url that points to an object in the browser's memory)
     const blobUrl = URL.createObjectURL(blob);
@@ -706,7 +923,7 @@ const downloadBlob = (blob, name = "file.txt") => {
 };
 /** WIFI management */
 const wifiGetStatus = () => {
-    return fetch(`/wifi/status?${+new Date()}`)
+    return fetch(`http://${GBSControl.serverIP}/wifi/status?${+new Date()}`)
         .then((r) => r.json())
         .then((wifiStatus) => {
         GBSControl.wifi = wifiStatus;
@@ -726,6 +943,9 @@ const wifiGetStatus = () => {
         }
     });
 };
+/**
+ * Description placeholder
+ */
 const wifiConnect = () => {
     const ssid = GBSControl.ui.wifiSSDInput.value;
     const password = GBSControl.ui.wifiPasswordInput.value;
@@ -736,7 +956,7 @@ const wifiConnect = () => {
     const formData = new FormData();
     formData.append("n", ssid);
     formData.append("p", password);
-    fetch("/wifi/connect", {
+    fetch(`http://${GBSControl.serverIP}/wifi/connect`, {
         method: "POST",
         body: formData,
     }).then(() => {
@@ -747,11 +967,14 @@ const wifiConnect = () => {
             .catch(() => { });
     });
 };
+/**
+ * Description placeholder
+ */
 const wifiScanSSID = () => {
     GBSControl.ui.wifiStaButton.setAttribute("disabled", "");
     GBSControl.ui.wifiListTable.innerHTML = "";
     if (!GBSControl.scanSSIDDone) {
-        fetch(`/wifi/list?${+new Date()}`, {
+        fetch(`http://${GBSControl.serverIP}/wifi/list?${+new Date()}`, {
             method: 'POST'
         }).then(() => {
             GBSControl.scanSSIDDone = true;
@@ -759,7 +982,7 @@ const wifiScanSSID = () => {
         });
         return;
     }
-    fetch(`/wifi/list?${+new Date()}`, {
+    fetch(`http://${GBSControl.serverIP}/wifi/list?${+new Date()}`, {
         method: 'POST'
     })
         .then((e) => e.text())
@@ -792,6 +1015,11 @@ const wifiScanSSID = () => {
         }
     });
 };
+/**
+ * Description placeholder
+ *
+ * @param {Event} event
+ */
 const wifiSelectSSID = (event) => {
     GBSControl.ui
         .wifiSSDInput.value = event.target.parentElement.getAttribute("gbs-ssid");
@@ -799,13 +1027,18 @@ const wifiSelectSSID = (event) => {
     GBSControl.ui.wifiList.setAttribute("hidden", "");
     GBSControl.ui.wifiConnect.removeAttribute("hidden");
 };
+/**
+ * Description placeholder
+ *
+ * @returns {*}
+ */
 const wifiSetAPMode = () => {
     if (GBSControl.wifi.mode === "ap") {
         return;
     }
     //   const formData = new FormData();
     //   formData.append("n", "dummy");
-    return fetch("/wifi/ap", {
+    return fetch(`http://${GBSControl.serverIP}/wifi/ap`, {
         method: "POST",
         // body: formData,
     }).then((response) => {
@@ -830,12 +1063,24 @@ const controlClick = (control) => () => {
             break;
     }
 };
+/**
+ * Description placeholder
+ *
+ * @param {HTMLButtonElement} control
+ * @returns {() => void}
+ */
 const controlMouseDown = (control) => () => {
     clearInterval(control["__interval"]);
     const click = controlClick(control);
     click();
     control["__interval"] = setInterval(click, 300);
 };
+/**
+ * Description placeholder
+ *
+ * @param {HTMLButtonElement} control
+ * @returns {() => void}
+ */
 const controlMouseUp = (control) => () => {
     clearInterval(control["__interval"]);
 };
@@ -855,6 +1100,9 @@ const initMenuButtons = () => {
         scroll.scrollTo(0, 1);
     }));
 };
+/**
+ * Description placeholder
+ */
 const initGBSButtons = () => {
     const actions = {
         user: loadUser,
@@ -887,11 +1135,17 @@ const initGBSButtons = () => {
         }
     });
 };
+/**
+ * Description placeholder
+ */
 const initClearButton = () => {
     GBSControl.ui.outputClear.addEventListener("click", () => {
         GBSControl.ui.terminal.value = "";
     });
 };
+/**
+ * Description placeholder
+ */
 const initControlMobileKeys = () => {
     const controls = document.querySelectorAll("[gbs-control-target]");
     const controlsKeys = document.querySelectorAll("[gbs-control-key]");
@@ -909,11 +1163,17 @@ const initControlMobileKeys = () => {
         control.addEventListener(!("ontouchstart" in window) ? "mouseup" : "touchend", controlMouseUp(control));
     });
 };
+/**
+ * Description placeholder
+ */
 const initLegendHelpers = () => {
     nodelistToArray(document.querySelectorAll(".gbs-fieldset__legend--help")).forEach((e) => {
         e.addEventListener("click", toggleHelp);
     });
 };
+/**
+ * Description placeholder
+ */
 const initUnloadListener = () => {
     window.addEventListener("unload", () => {
         clearInterval(GBSControl.wsCheckTimer);
@@ -924,16 +1184,23 @@ const initUnloadListener = () => {
         }
     });
 };
+/**
+ * Description placeholder
+ */
 const initSlotButtons = () => {
     GBSControl.ui.slotContainer.innerHTML = getSlotsHTML();
     GBSControl.ui.slotButtonList = nodelistToArray(document.querySelectorAll('[gbs-role="slot"]'));
 };
+/**
+ * Description placeholder
+ */
 const initUIElements = () => {
     GBSControl.ui = {
         terminal: document.getElementById("outputTextArea"),
         webSocketConnectionWarning: document.getElementById("websocketWarning"),
         presetButtonList: nodelistToArray(document.querySelectorAll("[gbs-role='preset']")),
         slotButtonList: nodelistToArray(document.querySelectorAll('[gbs-role="slot"]')),
+        toggleConsole: document.querySelector("[gbs-output-toggle]"),
         toggleList: document.querySelectorAll("[gbs-toggle]"),
         toggleSwichList: document.querySelectorAll("[gbs-toggle-switch]"),
         wifiList: document.querySelector("[gbs-wifi-list]"),
@@ -964,6 +1231,9 @@ const initUIElements = () => {
         promptInput: document.querySelector('[gbs-input="prompt-input"]'),
     };
 };
+/**
+ * Description placeholder
+ */
 const initGeneralListeners = () => {
     window.addEventListener("resize", () => {
         updateViewPort();
@@ -1014,6 +1284,9 @@ const initGeneralListeners = () => {
         }
     });
 };
+/**
+ * Description placeholder
+ */
 const initDeveloperMode = () => {
     const devMode = GBSStorage.read("developerMode");
     if (devMode === undefined) {
@@ -1023,7 +1296,14 @@ const initDeveloperMode = () => {
     else {
         updateDeveloperMode(devMode);
     }
+    // toggle console visibility button
+    GBSControl.ui.toggleConsole.addEventListener("click", () => {
+        updateConsoleVisibility(devMode);
+    });
 };
+/**
+ * Description placeholder
+ */
 const initHelp = () => {
     let help = GBSStorage.read("help");
     if (help === undefined) {
@@ -1032,10 +1312,20 @@ const initHelp = () => {
     }
     updateHelp(help);
 };
+/**
+ * Description placeholder
+ *
+ * @type {{ resolve: any; reject: any; }}
+ */
 const gbsAlertPromise = {
     resolve: null,
     reject: null,
 };
+/**
+ * Description placeholder
+ *
+ * @param {*} event
+ */
 const alertKeyListener = (event) => {
     if (event.keyCode === 13) {
         gbsAlertPromise.resolve();
@@ -1044,6 +1334,12 @@ const alertKeyListener = (event) => {
         gbsAlertPromise.reject();
     }
 };
+/**
+ * Description placeholder
+ *
+ * @param {string} text
+ * @returns {*}
+ */
 const gbsAlert = (text) => {
     GBSControl.ui.alertContent.textContent = text;
     GBSControl.ui.alert.removeAttribute("hidden");
@@ -1061,10 +1357,22 @@ const gbsAlert = (text) => {
         };
     });
 };
+/**
+ * Description placeholder
+ *
+ * @type {{ resolve: any; reject: any; }}
+ */
 const gbsPromptPromise = {
     resolve: null,
     reject: null,
 };
+/**
+ * Description placeholder
+ *
+ * @param {string} text
+ * @param {string} [defaultValue=""]
+ * @returns {*}
+ */
 const gbsPrompt = (text, defaultValue = "") => {
     GBSControl.ui.promptContent.textContent = text;
     GBSControl.ui.prompt.removeAttribute("hidden");
@@ -1075,6 +1383,9 @@ const gbsPrompt = (text, defaultValue = "") => {
         GBSControl.ui.promptInput.focus();
     });
 };
+/**
+ * Description placeholder
+ */
 const initUI = () => {
     updateCustomSlotFilters();
     initGeneralListeners();
@@ -1089,10 +1400,12 @@ const initUI = () => {
     initDeveloperMode();
     initHelp();
 };
+/**
+ * Description placeholder
+ */
 const main = () => {
-    const ip = location.hostname;
-    GBSControl.serverIP = ip;
-    GBSControl.webSocketServerUrl = `ws://${ip}:81/`;
+    GBSControl.serverIP = location.hostname;
+    GBSControl.webSocketServerUrl = `ws://${GBSControl.serverIP}:81/`;
     document
         .querySelector(".gbs-loader img")
         .setAttribute("src", document.head

@@ -31,28 +31,28 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
     display->drawXbm((OLED_MENU_WIDTH - TEXT_LOADED_WIDTH) / 2, OLED_MENU_HEIGHT / 2, IMAGE_ITEM(TEXT_LOADED));
     display->display();
     uint8_t videoMode = getVideoMode();
-    PresetPreference preset = PresetPreference::Output1080P;
+    PresetPreference preset = OutputPtru;
     switch (item->tag) {
         case MT_1280x960:
-            preset = PresetPreference::Output960P;
+            preset = Output960p;
             break;
         case MT1280x1024:
-            preset = PresetPreference::Output1024P;
+            preset = Output1024p;
             break;
         case MT1280x720:
-            preset = PresetPreference::Output720P;
+            preset = Output720p;
             break;
         case MT1920x1080:
-            preset = PresetPreference::Output1080P;
+            preset = Output1080p;
             break;
         case MT_480s576:
-            preset = PresetPreference::Output480P;
+            preset = Output480p;
             break;
         case MT_DOWNSCALE:
-            preset = PresetPreference::OutputDownscale;
+            preset = Output15kHz;
             break;
         case MT_BYPASS:
-            preset = PresetPreference::OutputCustomized;
+            preset = OutputCustom;
             break;
         default:
             break;
@@ -61,7 +61,8 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
         videoMode = rto->videoStandardInput;
     }
     if (item->tag != MT_BYPASS) {
-        uopt->presetPreference = preset;
+        // uopt->presetPreference = preset;
+        rto->presetID= preset;
         rto->useHdmiSyncFix = 1;
         if (rto->videoStandardInput == 14) {
             rto->videoStandardInput = 15;
@@ -70,7 +71,8 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
         }
     } else {
         setOutModeHdBypass(false);
-        uopt->presetPreference = preset;
+        // uopt->presetPreference = preset;
+        rto->presetID = preset;
         if (rto->videoStandardInput != 15) {
             rto->autoBestHtotalEnabled = 0;
             if (rto->applyPresetDoneStage == 11) {
@@ -103,7 +105,8 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     display->drawXbm((OLED_MENU_WIDTH - TEXT_LOADED_WIDTH) / 2, OLED_MENU_HEIGHT / 2, IMAGE_ITEM(TEXT_LOADED));
     display->display();
     uopt->presetSlot = 'A' + item->tag; // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,
-    uopt->presetPreference = PresetPreference::OutputCustomized;
+    // uopt->presetPreference = PresetPreference::OutputCustomized;
+    rto->presetID = OutputCustom;
     saveUserPrefs();
     if (rto->videoStandardInput == 14) {
         // vga upscale path: let synwatcher handle it
@@ -233,7 +236,7 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
         bool hsyncActive = 0;
         float ofr = getOutputFrameRate();
         uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
-        rto->presetID = GBS::GBS_PRESET_ID::read();
+        rto->presetID = static_cast<PresetPreference>(GBS::GBS_PRESET_ID::read());
 
         display.setFont(URW_Gothic_L_Book_20);
         display.setTextAlignment(TEXT_ALIGN_LEFT);
@@ -251,7 +254,7 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
         } else if (rto->presetID == 0x04) {
             display.drawString(0, 0, "720x480");
         } else if (rto->presetID == 0x14) {
-            display.drawString(0, 0, "768x576");
+            display.drawString(0, 0, "768x576");        // ??? 720x576 ???
         } else {
             display.drawString(0, 0, "bypass");
         }

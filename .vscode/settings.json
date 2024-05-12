@@ -8,5 +8,8 @@
         "string": "cpp",
         "typeinfo": "cpp",
         "random": "cpp"
-    }
+    },
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.renderWhitespace": "all"
 }

@@ -214,6 +214,14 @@
             </ul>
             <div class="gbs-presets" gbs-slot-html></div>
             <div class="gbs-flex">
+                <button
+                    class="gbs-button gbs-button__control-action"
+                    gbs-element-ref="buttonRemoveCustomPreset"
+                    onclick="removePreset()"
+                >
+                    <div class="gbs-icon">delete</div>
+                    <div>remove preset</div>
+                </button>
               <button
                 class="gbs-button gbs-button__control-action"
                 active

@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Tuesday, 7th May 2024 4:36:57 pm                         #
+# Last Modified: Saturday, 11th May 2024 5:37:34 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -52,6 +52,7 @@ void serverInit()
     server.on("/wifi/ap", HTTP_POST, serverWiFiAP);
     server.on("/wifi/rst", HTTP_POST, serverWiFiReset);
 
+    server.keepAlive(false);
     server.begin(); // Webserver for the site
 }
 
@@ -62,8 +63,15 @@ void serverInit()
 void serverHome()
 {
     ASSERT_LOMEM_RETURN();
-    server.sendHeader(F("Content-Encoding"), "gzip");
-    server.send(200, mimeTextHtml, webui_html, sizeof(webui_html));
+    server.sendHeader(F("Content-Encoding"), F("gzip"));
+    fs::File index = LittleFS.open(String(indexPage), "r");
+    if(index) {
+        server.streamFile(index, mimeTextHtml);
+        index.close();
+        return;
+    }
+    server.send_P(200, mimeTextHtml, notFouldMessage);
+    // server.send(200, mimeTextHtml, webui_html, sizeof(webui_html));
 }
 
 /**
@@ -156,7 +164,8 @@ void serverSlotSet()
         char slotValue[2];
         slotParamValue.toCharArray(slotValue, sizeof(slotValue));
         uopt->presetSlot = (uint8_t)slotValue[0];
-        uopt->presetPreference = OutputCustomized;
+        // uopt->presetPreference = OutputCustomized;
+        rto->presetID = OutputCustom;
         saveUserPrefs();
         // _DBG(F("[w] slot value upd. success: "));
         // _DBGF("%s\n", slotValue);
@@ -242,7 +251,7 @@ server_slot_save_failure:
 void serverSlotRemove()
 {
     bool result = false;
-    char param = server.argName(0).charAt(0);
+    char param = server.arg(0).charAt(0);
     if (server.args() > 0) {
         if (param == '0') {
             _DBGN(F("Wait..."));
@@ -333,8 +342,7 @@ void serverFsUploadHandler()
         dnsServer.stop();
         const String fname = "/" + upload.filename;
         _tempFile = LittleFS.open(fname, "w");
-        _DBG(F("[w] upload "));
-        _DBGF("%s ", upload.filename.c_str());
+        _DBGF(PSTR("[w] upload %s "), upload.filename.c_str());
         err = false;
     } else if (upload.status == UPLOAD_FILE_WRITE && upload.contentLength != 0 && !err) {
         if (_tempFile.write(upload.buf, upload.contentLength) != upload.contentLength) {
@@ -368,7 +376,7 @@ void serverFsDownloadHandler()
     ASSERT_LOMEM_GOTO(fs_dl_handle_fail);
     if (server.args() > 0) {
         String _fn = server.arg(0);
-        if (_fn.length() != 0) {
+        if (_fn.length() != 0 && _fn.indexOf(PSTR(".html")) == -1) {
             fs::File _f = LittleFS.open(_fn, "r");
             if (_f) {
                 server.streamFile(_f, mimeOctetStream);
@@ -394,10 +402,12 @@ void serverFsDir()
     ASSERT_LOMEM_GOTO(server_fs_dir_failure);
 
     while (dir.next()) {
-        output += "\"";
-        output += dir.fileName();
-        output += "\",";
-        delay(1); // wifi stack
+        if(dir.fileName().indexOf(PSTR(".html")) == -1) {
+            output += "\"";
+            output += dir.fileName();
+            output += "\",";
+            delay(1); // wifi stack
+        }
     }
 
     output += "]";
@@ -408,7 +418,7 @@ void serverFsDir()
     return;
 
 server_fs_dir_failure:
-    server.send(200, mimeAppJson, "false");
+    server.send_P(200, mimeAppJson, PSTR("false"));
 }
 
 /**
@@ -776,7 +786,8 @@ void handleType2Command(char argument)
         "user",
         argument,
         argument,
-        uopt->presetPreference,
+        // uopt->presetPreference,
+        uopt->presetSlot,
         uopt->presetSlot,
         rto->presetID
     );
@@ -807,7 +818,8 @@ void handleType2Command(char argument)
             break;
         case '3': // load custom preset
         {
-            uopt->presetPreference = OutputCustomized; // custom
+            // uopt->presetPreference = OutputCustomized; // custom
+            rto->presetID = OutputCustom; // custom
             if (rto->videoStandardInput == 14) {
                 // vga upscale path: let synwatcher handle it
                 rto->videoStandardInput = 15;
@@ -819,7 +831,8 @@ void handleType2Command(char argument)
         } break;
         case '4': // save custom preset
             savePresetToFS();
-            uopt->presetPreference = OutputCustomized; // custom
+            // uopt->presetPreference = OutputCustomized; // custom
+            rto->presetID = OutputCustom; // custom
             saveUserPrefs();
             break;
         case '5':
@@ -916,19 +929,25 @@ void handleType2Command(char argument)
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
                 videoMode = rto->videoStandardInput; // last known good as fallback
             // else videoMode stays 0 and we'll apply via some assumptions
-
+            // TODO missing resolutions below ?
             if (argument == 'f')
-                uopt->presetPreference = Output960P; // 1280x960
+                // uopt->presetPreference = Output960P; // 1280x960
+                rto->presetID = Output960p; // 1280x960
             if (argument == 'g')
-                uopt->presetPreference = Output720P; // 1280x720
+                // uopt->presetPreference = Output720P; // 1280x720
+                rto->presetID = Output720p; // 1280x720
             if (argument == 'h')
-                uopt->presetPreference = Output480P; // 720x480/768x576
+                // uopt->presetPreference = Output480P; // 720x480/768x576
+                rto->presetID = Output480p; // 720x480/768x576
             if (argument == 'p')
-                uopt->presetPreference = Output1024P; // 1280x1024
+                // uopt->presetPreference = Output1024P; // 1280x1024
+                rto->presetID = Output1024p; // 1280x1024
             if (argument == 's')
-                uopt->presetPreference = Output1080P; // 1920x1080
+                // uopt->presetPreference = Output1080P; // 1920x1080
+                rto->presetID = Output1080p; // 1920x1080
             if (argument == 'L')
-                uopt->presetPreference = OutputDownscale; // downscale
+                // uopt->presetPreference = OutputDownscale; // downscale
+                rto->presetID = Output15kHz; // downscale
 
             rto->useHdmiSyncFix = 1; // disables sync out when programming preset
             if (rto->videoStandardInput == 14) {
@@ -1123,7 +1142,8 @@ void handleType2Command(char argument)
             uopt->wantFullHeight = !uopt->wantFullHeight;
             saveUserPrefs();
             uint8_t vidMode = getVideoMode();
-            if (uopt->presetPreference == 5) {
+            // if (uopt->presetPreference == 5) {
+            if (rto->presetID == Output1080p) {
                 if (GBS::GBS_PRESET_ID::read() == 0x05 || GBS::GBS_PRESET_ID::read() == 0x15) {
                     applyPresets(vidMode);
                 }

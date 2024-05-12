@@ -77,17 +77,20 @@
 // but only "D7" and "D6" have been tested so far
 #define digitalRead(x) ((GPIO_REG_READ(GPIO_IN_ADDRESS) >> x) & 1)
 
-// using Ascii8 = uint8_t;
 /// Output resolution requested by user, *given to* applyPresets().
 enum PresetPreference : uint8_t {
-    Output960P = 0,
-    Output480P = 1,
-    OutputCustomized = 2,
-    Output720P = 3,
-    Output1024P = 4,
-    Output1080P = 5,
-    OutputDownscale = 6,
-    OutputBypass = 10,
+    OutputNone          = 0,        // N/A is this 240p ?
+    Output960p          = 1,        // SXGA- - 1280x960
+    Output1024p         = 2,        // SXGA  - 1280x1024
+    Output720p          = 3,        // HD    - 1280×720
+    Output480p          = 4,        // SD    - 720×480
+    Output1080p         = 5,        // FHD   - 1920×1080
+    Output15kHz         = 6,        // 15kHz scale-down
+    Output576p          = 7,        // PAL   - 720×576
+    OutputPtru          = 8,        // passthrough 0 / bypass 0
+    PresetHdBypass      = 9,        // passthrough 1 / bypass 1
+    PresetBypassRGBHV   = 10,       // passthrough 2 / bypass 2
+    OutputCustom        = 12,       // ?
 };
 
 // userOptions holds user preferences / customizations
@@ -95,7 +98,7 @@ struct userOptions
 {
     // 0 - normal, 1 - x480/x576, 2 - customized, 3 - 1280x720, 4 - 1280x1024, 5 - 1920x1080,
     // 6 - downscale, 10 - bypass
-    PresetPreference presetPreference;
+    // PresetPreference presetPreference;
     uint8_t presetSlot;
     uint8_t enableFrameTimeLock;
     uint8_t frameTimeLockMethod;
@@ -131,7 +134,7 @@ struct runTimeOptions
     uint8_t applyPresetDoneStage;
     uint8_t continousStableCounter;
     uint8_t failRetryAttempts;
-    uint8_t presetID;  // PresetID
+    PresetPreference presetID;  // resolution ID
     bool isCustomPreset;
     uint8_t HPLLState;
     uint8_t medResLineCount;
@@ -183,10 +186,10 @@ struct adcOptions
 
 /// Video processing mode, loaded into register GBS_PRESET_ID by applyPresets()
 /// and read to rto->presetID by doPostPresetLoadSteps(). Shown on web UI.
-enum PresetID : uint8_t {
-    PresetHdBypass = 0x21,
-    PresetBypassRGBHV = 0x22,
-};
+// enum PresetID : uint8_t {
+//     PresetHdBypass = 0x21,
+//     PresetBypassRGBHV = 0x22,
+// };
 
 extern struct runTimeOptions *rto;
 extern struct userOptions *uopt;
@@ -194,7 +197,7 @@ extern struct adcOptions *adco;
 
 const char preferencesFile[] PROGMEM = "/preferencesv2.txt";
 const char systemInfo[] PROGMEM = "h:%4u v:%4u PLL:%01u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d\n";
-const char commandDescr[] PROGMEM = "%s command %c (0x%02X) at settings source %d, custom slot %d, status %x\n";
+const char commandDescr[] PROGMEM = "%s command: %c (0x%02X) slotID: %c (0x%02X), resolutionID: %d\n";
 
 #ifdef THIS_DEVICE_MASTER
 const char ap_ssid[] PROGMEM = "gbscontrol";

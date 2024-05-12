@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Sunday, 28th April 2024 12:23:56 am                                #
+# Last Modified: Saturday, 11th May 2024 12:57:20 am                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -80,11 +80,19 @@ static void wifiEventHandler(System_Event_t *e)
 }
 
 /**
- * @brief
+ * @brief Response to WS with current
+ *          system status and preset data
+ *          the data structure must match those
+ *          which is in webUI (see: createWebSocket())
  *
  */
 void updateWebSocketData()
 {
+    // assert free heap
+    if (ESP.getFreeHeap() > 14000) {
+        webSocket.disconnect();
+    }
+
     if (rto->webServerEnabled && rto->webServerStarted) {
         if (webSocket.connectedClients() > 0) {
 
@@ -92,44 +100,52 @@ void updateWebSocketData()
             char toSend[MESSAGE_LEN] = {0};
             toSend[0] = '#'; // makeshift ping in slot 0
 
-            if (rto->isCustomPreset) {
-                toSend[1] = '9';
-            } else
+            // if (rto->isCustomPreset) {
+            //     toSend[1] = 'C';
+            // } else
                 switch (rto->presetID) {
-                    case 0x01:
-                    case 0x11:
+                    case Output960p:
+                    // case 0x11:
                         toSend[1] = '1';
                         break;
-                    case 0x02:
-                    case 0x12:
+                    case Output1024p:
+                    // case 0x12:
                         toSend[1] = '2';
                         break;
-                    case 0x03:
-                    case 0x13:
+                    case Output720p:
+                    // case 0x13:
                         toSend[1] = '3';
                         break;
-                    case 0x04:
-                    case 0x14:
+                    case Output480p:
+                    // case 0x14:
                         toSend[1] = '4';
                         break;
-                    case 0x05:
-                    case 0x15:
+                    case Output1080p:
+                    // case 0x15:
                         toSend[1] = '5';
                         break;
-                    case 0x06:
-                    case 0x16:
+                    case Output15kHz:
+                    // case 0x16:
                         toSend[1] = '6';
                         break;
-                    case PresetHdBypass:    // bypass 1
-                    case PresetBypassRGBHV: // bypass 2
+                    case OutputPtru:        // bypass 0
                         toSend[1] = '8';
+                        break;
+                    case PresetHdBypass:    // bypass 1
+                        toSend[1] = '9';
+                        break;
+                    case PresetBypassRGBHV: // bypass 2
+                        toSend[1] = 'A';
+                        break;
+                    case OutputCustom:
+                        toSend[1] = 'C';
                         break;
                     default:
                         toSend[1] = '0';
                         break;
                 }
 
-            toSend[2] = (char)uopt->presetSlot;
+            toSend[2] = static_cast<char>(uopt->presetSlot);
 
             // '@' = 0x40, used for "byte is present" detection; 0x80 not in ascii table
             toSend[3] = '@';
@@ -184,12 +200,7 @@ void updateWebSocketData()
                 toSend[5] |= (1 << 2);
             }
 
-            // send ping and stats
-            if (ESP.getFreeHeap() > 14000) {
-                webSocket.broadcastTXT(toSend, MESSAGE_LEN);
-            } else {
-                webSocket.disconnect();
-            }
+            webSocket.broadcastTXT(toSend, MESSAGE_LEN);
         }
     }
 }

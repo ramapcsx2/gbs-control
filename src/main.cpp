@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Tuesday, 7th May 2024 6:08:07 pm                         #
+# Last Modified: Friday, 10th May 2024 12:59:08 am                        #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -29,9 +29,7 @@
 #include <SSD1306.h>
 #include <Wire.h>
 #include "wserial.h"
-// #include "video.h"
 #include "presets.h"
-// #include "utils.h"
 #include "images.h"
 #include "wifiman.h"
 #include "menu.h"
@@ -150,7 +148,7 @@ void setup()
     rto->phaseADC = 16;
     rto->phaseSP = 16;
     rto->failRetryAttempts = 0;
-    rto->presetID = 0;
+    rto->presetID = Output576p;
     rto->isCustomPreset = false;
     rto->HPLLState = 0;
     rto->motionAdaptiveDeinterlaceActive = false;
@@ -227,10 +225,11 @@ void setup()
             loadDefaultUserOptions();
             saveUserPrefs(); // if this fails, there must be a data problem
         } else {
+            // ? uopt->presetPreference = rto->presetID
             // on a fresh / data not formatted yet MCU:  userprefs.txt open ok //result = 207
-            uopt->presetPreference = (PresetPreference)(f.read() - '0'); // #1
-            if (uopt->presetPreference > 10)
-                uopt->presetPreference = Output960P; // fresh data ?
+            // uopt->presetPreference = (PresetPreference)(f.read() - '0'); // #1
+            // if (uopt->presetPreference > 10)
+            //     uopt->presetPreference = Output960P; // fresh data ?
 
             uopt->enableFrameTimeLock = (uint8_t)(f.read() - '0');
             if (uopt->enableFrameTimeLock > 1)
@@ -461,7 +460,8 @@ void loop()
             "serial",
             serialCommand,
             serialCommand,
-            uopt->presetPreference,
+            // uopt->presetPreference,
+            uopt->presetSlot,
             uopt->presetSlot,
             rto->presetID
         );
@@ -619,7 +619,8 @@ void loop()
                 break;
             case 'K':
                 setOutModeHdBypass(false);
-                uopt->presetPreference = OutputBypass;
+                // uopt->presetPreference = OutputBypass;
+                rto->presetID = OutputPtru;
                 saveUserPrefs();
                 break;
             case 'T':
@@ -844,11 +845,13 @@ void loop()
                 uint8_t videoMode = getVideoMode();
                 if (videoMode == 0)
                     videoMode = rto->videoStandardInput;
-                PresetPreference backup = uopt->presetPreference;
-                uopt->presetPreference = Output720P;
+                PresetPreference backup = rto->presetID;
+                // uopt->presetPreference = Output720P;
+                rto->presetID = Output720p;
                 rto->videoStandardInput = 0; // force hard reset
                 applyPresets(videoMode);
-                uopt->presetPreference = backup;
+                rto->presetID = backup;
+                // uopt->presetPreference = backup;
             } break;
             case 'l':
                 _WSN(F("resetSyncProcessor"));
@@ -861,9 +864,11 @@ void loop()
                 uopt->matchPresetSource = !uopt->matchPresetSource;
                 saveUserPrefs();
                 uint8_t vidMode = getVideoMode();
-                if (uopt->presetPreference == 0 && GBS::GBS_PRESET_ID::read() == 0x11) {
+                // if (uopt->presetPreference == 0 && GBS::GBS_PRESET_ID::read() == 0x11) {
+                if (rto->presetID == Output960p && GBS::GBS_PRESET_ID::read() == 0x11) {
                     applyPresets(vidMode);
-                } else if (uopt->presetPreference == 4 && GBS::GBS_PRESET_ID::read() == 0x02) {
+                // } else if (uopt->presetPreference == 4 && GBS::GBS_PRESET_ID::read() == 0x02) {
+                } else if (rto->presetID == Output1024p && GBS::GBS_PRESET_ID::read() == 0x02) {
                     applyPresets(vidMode);
                 }
             } break;

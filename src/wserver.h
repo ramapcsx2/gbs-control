@@ -3,7 +3,7 @@
 # File: wserver.h                                                                    #
 # File Created: Friday, 19th April 2024 3:11:47 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Sunday, 5th May 2024 3:32:27 pm                          #
+# Last Modified: Wednesday, 8th May 2024 8:42:24 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -19,7 +19,7 @@
 #include <ArduinoOTA.h>
 #include "options.h"
 #include "presets.h"
-#include "webui_html.h"
+// #include "webui_html.h"
 #include "tv5725.h"
 #include "slot.h"
 #include "wserial.h"
@@ -31,6 +31,8 @@ extern char userCommand;
 extern struct userOptions * uopt;
 extern struct runTimeOptions *rto;
 
+const char indexPage[] PROGMEM = "/index.html";
+const char notFouldMessage[] PROGMEM = "<p style=\"align:center;\">404 | Page Not Found</p>";
 const char slotIndexMap[] PROGMEM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
 const char lomemMessage[] PROGMEM = "%d it's not enough memory...";
 const char mimeTextHtml[] PROGMEM = "text/html";

@@ -3,7 +3,7 @@
 # File: video.cpp                                                                   #
 # File Created: Thursday, 2nd May 2024 4:07:57 pm                                   #
 # Author:                                                                           #
-# Last Modified: Tuesday, 7th May 2024 2:20:25 am                         #
+# Last Modified: Thursday, 9th May 2024 11:58:43 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -1395,7 +1395,8 @@ void setOutModeHdBypass(bool regsInitialized)
     loadHdBypassSection(); // this would be ignored otherwise
     if (GBS::ADC_UNUSED_62::read() != 0x00) {
         // remember debug view
-        if (uopt->presetPreference != 2) {
+        // if (uopt->presetPreference != 2) {
+        if (rto->presetID != OutputCustom) {
             serialCommand = 'D';
         }
     }
@@ -4221,7 +4222,8 @@ void runSyncWatcher()
                 } else {
                     rto->syncTypeCsync = false;
                 }
-                bool wantPassThroughMode = uopt->presetPreference == 10;
+                // bool wantPassThroughMode = uopt->presetPreference == 10;
+                bool wantPassThroughMode = rto->presetID == OutputPtru;
 
                 if (((rto->videoStandardInput == 1 || rto->videoStandardInput == 3) && (detectedVideoMode == 2 || detectedVideoMode == 4)) ||
                     rto->videoStandardInput == 0 ||
@@ -4496,7 +4498,8 @@ void runSyncWatcher()
                     _WSN(sourceRate);
 
                     // todo: this hack is hard to understand when looking at applypreset and mode is suddenly 1,2 or 3
-                    if (uopt->presetPreference == 2) {
+                    // if (uopt->presetPreference == 2) {
+                    if (rto->presetID == OutputCustom) {
                         // custom preset defined, try to load (set mode = 14 here early)
                         rto->videoStandardInput = 14;
                     } else {
@@ -4517,8 +4520,10 @@ void runSyncWatcher()
                         }
                     }
 
-                    if (uopt->presetPreference == 10) {
-                        uopt->presetPreference = Output960P; // fix presetPreference which can be "bypass"
+                    // if (uopt->presetPreference == 10) {
+                    if (rto->presetID == OutputPtru) {
+                        // uopt->presetPreference = Output960P; // fix presetPreference which can be "bypass"
+                        rto->presetID = Output960p; // fix presetPreference which can be "bypass"
                     }
 
                     activePresetLineCount = sourceLines;
@@ -4630,8 +4635,10 @@ void runSyncWatcher()
                             _WSN(F(" RGB/HV upscale mode base 31kHz"));
                         }
 
-                        if (uopt->presetPreference == 10) {
-                            uopt->presetPreference = Output960P; // fix presetPreference which can be "bypass"
+                        // if (uopt->presetPreference == 10) {
+                        if (rto->presetID == OutputPtru) {
+                            // uopt->presetPreference = Output960P; // fix presetPreference which can be "bypass"
+                            rto->presetID = Output960p; // fix presetPreference which can be "bypass"
                         }
 
                         activePresetLineCount = sourceLines;
