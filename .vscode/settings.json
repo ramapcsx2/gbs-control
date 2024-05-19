@@ -7,7 +7,8 @@
         "functional": "cpp",
         "string": "cpp",
         "typeinfo": "cpp",
-        "random": "cpp"
+        "random": "cpp",
+        "*.html.tpl": "html"
     },
     "editor.tabSize": 4,
     "editor.insertSpaces": true,

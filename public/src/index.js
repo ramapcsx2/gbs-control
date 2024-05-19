@@ -13,17 +13,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 /**
- * Description placeholder
+ * Must be aligned with slots.h -> SlotMeta structure
  *
  * @type {StructDescriptors}
  */
 const Structs = {
     slots: [
         { name: "name", type: "string", size: 25 },
-        { name: "resolutionID", type: "byte", size: 1 },
+        { name: "slot", type: "byte", size: 1 },
+        { name: "resolutionID", type: "string", size: 1 },
         { name: "scanlines", type: "byte", size: 1 },
         { name: "scanlinesStrength", type: "byte", size: 1 },
-        { name: "slot", type: "byte", size: 1 },
         { name: "wantVdsLineFilter", type: "byte", size: 1 },
         { name: "wantStepResponse", type: "byte", size: 1 },
         { name: "wantPeaking", type: "byte", size: 1 },
@@ -79,25 +79,27 @@ const StructParser = {
     },
 };
 /* GBSControl Global Object*/
-/**
- * Description placeholder
- *
- * @type {{ buttonMapping: { 1: string; 2: string; 3: string; 4: string; 5: string; 6: string; 8: string; 9: string; 10: string; 12: string; }; controlKeysMobileMode: string; controlKeysMobile: { move: { type: string; left: string; up: string; right: string; down: string; }; scale: { ...; }; borders: { ...; }; }; ... 17 more ...}
- */
 const GBSControl = {
     buttonMapping: {
-        // 0: "n/a",
-        1: "button1280x960",
-        2: "button1280x1024",
-        3: "button1280x720",
-        4: "button720x480",
-        5: "button1920x1080",
-        6: "button15kHzScaleDown",
-        // 7: "button720×576",
-        8: "buttonSourcePassThrough",
-        9: "buttonSourcePassThrough",
-        10: "buttonSourcePassThrough",
-        12: "buttonLoadCustomPreset",
+        'a': "n/a",
+        'c': "button1280x960",
+        'd': "button1280x960",
+        'e': "button1280x1024",
+        'f': "button1280x1024",
+        'g': "button1280x720",
+        'h': "button1280x720",
+        'i': "button720x480",
+        'j': "button720x480",
+        'k': "button1920x1080",
+        'l': "button1920x1080",
+        'm': "button15kHzScaleDown",
+        'n': "button15kHzScaleDown",
+        'o': "button768×576",
+        'p': "button768×576",
+        'q': "buttonSourcePassThrough",
+        's': "buttonSourcePassThrough",
+        'u': "buttonSourcePassThrough",
+        'w': "buttonLoadCustomPreset",
     },
     controlKeysMobileMode: "move",
     controlKeysMobile: {
@@ -259,9 +261,9 @@ const createWebSocket = () => {
             }
         }
         else {
-            console.log("buttonMapping: " + parseInt("0x" + messageDataAt1, 16));
+            console.log("buttonMapping: " + messageDataAt1);
             // ! curent/selected resolution
-            const resID = GBSControl.buttonMapping[parseInt("0x" + messageDataAt1, 16)];
+            const resID = GBSControl.buttonMapping[messageDataAt1];
             const resEl = document.querySelector(`[gbs-element-ref="${resID}"]`);
             const activePresetButton = resEl
                 ? resEl.getAttribute("gbs-element-ref")
@@ -515,7 +517,7 @@ const updateSlotNames = () => {
     for (let i = 0; i < GBSControl.maxSlots; i++) {
         const el = document.querySelector(`[gbs-slot-id="${i}"]`);
         el.setAttribute("gbs-name", GBSControl.structs.slots[i].name);
-        el.setAttribute("gbs-meta", getSlotPresetName(parseInt(GBSControl.structs.slots[i].resolutionID, 10)));
+        el.setAttribute("gbs-meta", getSlotPresetName(GBSControl.structs.slots[i].resolutionID));
     }
 };
 /**
@@ -538,40 +540,47 @@ const fetchSlotNames = () => {
     });
 };
 /**
- * Description placeholder
+ * Must be aligned with options.h -> OutputResolution
  *
- * @param {number} resolutionID
+ * @param {string} resolutionID
  * @returns {("1280x960" | "1280x1024" | "1280x720" | "1920x1080" | "DOWNSCALE" | "720x480" | "768x576" | "BYPASS" | "CUSTOM")}
  */
 const getSlotPresetName = (resolutionID) => {
     switch (resolutionID) {
-        case 1:
+        case 'c':
+        case 'd':
             // case 0x011:
             return "1280x960";
-        case 2:
+        case 'e':
+        case 'f':
             // case 0x012:
             return "1280x1024";
-        case 3:
+        case 'g':
+        case 'h':
             // case 0x013:
             return "1280x720";
-        case 4:
+        case 'i':
+        case 'j':
             // case 0x015:
             return "720x480";
-        case 5:
+        case 'k':
+        case 'l':
             return "1920x1080";
-        case 6:
+        case 'm':
+        case 'n':
             // case 0x016:
             return "DOWNSCALE";
-        case 7:
+        case 'o':
+        case 'p':
             return "768x576";
-        case 8:
+        case 'q':
             return "BYPASS";
-        case 9: // bypass 1
+        case 's': // bypass 1
             return "HD_BYPASS";
-        case 10: // bypass 2
+        case 'u': // bypass 2
             return "BYPASS_RGBHV";
-        case 12:
-            return "CUSTOM";
+        // case 12:
+        //     return "CUSTOM";
         default:
             return "NONE";
     }
@@ -838,7 +847,7 @@ const doBackup = () => {
     });
 };
 /**
- * Description placeholder
+ * Restore SLOTS from backup
  *
  * @param {ArrayBuffer} file
  */

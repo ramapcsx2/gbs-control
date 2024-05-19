@@ -3,7 +3,7 @@
 # File: utils.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 5:37:47 pm                                   #
 # Author:                                                                           #
-# Last Modified: Sunday, 5th May 2024 3:27:14 pm                          #
+# Last Modified: Saturday, 18th May 2024 10:05:44 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -170,7 +170,7 @@ void resetDebugPort()
 }
 
 /**
- * @brief Get the Video Mode object
+ * @brief Returns videoMode ID, retrieved from GBS object
  *
  * @return uint8_t
  */
@@ -226,7 +226,8 @@ uint8_t getVideoMode()
             }
         }
         if ((detectedMode & 0x10) == 0x10) {
-            if ((detectedMode & 0x04) == 0x04) { // normally HD2376_1250P (PAL FHD?), but using this for 24k
+            if ((detectedMode & 0x04) == 0x04) {
+                // normally HD2376_1250P (PAL FHD?), but using this for 24k
                 return 8;
             }
             return 7; // hdtv 1080p
@@ -239,7 +240,7 @@ uint8_t getVideoMode()
         if (GBS::STATUS_00::read() == 0x07) {            // the 3 stat0 stable indicators on, none of the SD indicators on
             if ((GBS::STATUS_03::read() & 0x02) == 0x02) // Graphic mode bit on (any of VGA/SVGA/XGA/SXGA at all detected Hz)
             {
-                if (rto->inputIsYpBpR)
+                if (rto->inputIsYPbPr)
                     return 13;
                 else
                     return 15; // switch to RGBS/HV handling
@@ -280,7 +281,8 @@ uint8_t getVideoMode()
     }
 
     detectedMode = GBS::STATUS_00::read();
-    if ((detectedMode & 0x2F) == 0x07) { // 0_00 H+V stable, not NTSCI, not PALI
+    if ((detectedMode & 0x2F) == 0x07) {
+        // 0_00 H+V stable, not NTSCI, not PALI
         detectedMode = GBS::STATUS_16::read();
         if ((detectedMode & 0x02) == 0x02) { // SP H active
             uint16_t lineCount = GBS::STATUS_SYNC_PROC_VTOTAL::read();
@@ -308,7 +310,7 @@ uint8_t getVideoMode()
     } else {
         rto->notRecognizedCounter = 0;
     }
-
+    // ???
     if (rto->notRecognizedCounter == 255) {
         return 9;
     }

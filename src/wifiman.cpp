@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Saturday, 11th May 2024 12:57:20 am                      #
+# Last Modified: Saturday, 18th May 2024 10:00:27 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -100,50 +100,52 @@ void updateWebSocketData()
             char toSend[MESSAGE_LEN] = {0};
             toSend[0] = '#'; // makeshift ping in slot 0
 
+            // toSend[1] = static_cast<char>(rto->presetID);
+            toSend[1] = static_cast<char>(rto->resolutionID);
             // if (rto->isCustomPreset) {
             //     toSend[1] = 'C';
             // } else
-                switch (rto->presetID) {
-                    case Output960p:
-                    // case 0x11:
-                        toSend[1] = '1';
-                        break;
-                    case Output1024p:
-                    // case 0x12:
-                        toSend[1] = '2';
-                        break;
-                    case Output720p:
-                    // case 0x13:
-                        toSend[1] = '3';
-                        break;
-                    case Output480p:
-                    // case 0x14:
-                        toSend[1] = '4';
-                        break;
-                    case Output1080p:
-                    // case 0x15:
-                        toSend[1] = '5';
-                        break;
-                    case Output15kHz:
-                    // case 0x16:
-                        toSend[1] = '6';
-                        break;
-                    case OutputPtru:        // bypass 0
-                        toSend[1] = '8';
-                        break;
-                    case PresetHdBypass:    // bypass 1
-                        toSend[1] = '9';
-                        break;
-                    case PresetBypassRGBHV: // bypass 2
-                        toSend[1] = 'A';
-                        break;
-                    case OutputCustom:
-                        toSend[1] = 'C';
-                        break;
-                    default:
-                        toSend[1] = '0';
-                        break;
-                }
+            //     switch (rto->presetID) {
+            //         case Output960p:
+            //         // case 0x11:
+            //             toSend[1] = '1';
+            //             break;
+            //         case Output1024p:
+            //         // case 0x12:
+            //             toSend[1] = '2';
+            //             break;
+            //         case Output720p:
+            //         // case 0x13:
+            //             toSend[1] = '3';
+            //             break;
+            //         case Output480p:
+            //         // case 0x14:
+            //             toSend[1] = '4';
+            //             break;
+            //         case Output1080p:
+            //         // case 0x15:
+            //             toSend[1] = '5';
+            //             break;
+            //         case Output15kHz:
+            //         // case 0x16:
+            //             toSend[1] = '6';
+            //             break;
+            //         case OutputBypass:        // bypass 0
+            //             toSend[1] = '8';
+            //             break;
+            //         case PresetHdBypass:    // bypass 1
+            //             toSend[1] = '9';
+            //             break;
+            //         case PresetBypassRGBHV: // bypass 2
+            //             toSend[1] = 'A';
+            //             break;
+            //         case OutputCustom:
+            //             toSend[1] = 'C';
+            //             break;
+            //         default:
+            //             toSend[1] = '0';
+            //             break;
+            //     }
 
             toSend[2] = static_cast<char>(uopt->presetSlot);
 

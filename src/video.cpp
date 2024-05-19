@@ -3,7 +3,7 @@
 # File: video.cpp                                                                   #
 # File Created: Thursday, 2nd May 2024 4:07:57 pm                                   #
 # Author:                                                                           #
-# Last Modified: Thursday, 9th May 2024 11:58:43 pm                       #
+# Last Modified: Saturday, 18th May 2024 10:05:44 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -1135,7 +1135,8 @@ void setOverSampleRatio(uint8_t newRatio, bool prepareOnly)
     uint8_t ks = GBS::PLLAD_KS::read();
 
     bool hi_res = rto->videoStandardInput == 8 || rto->videoStandardInput == 4 || rto->videoStandardInput == 3;
-    bool bypass = rto->presetID == PresetHdBypass;
+    // bool bypass = rto->presetID == PresetHdBypass;
+    bool bypass = rto->resolutionID == PresetHdBypass;
 
     switch (newRatio) {
         case 1:
@@ -1396,7 +1397,7 @@ void setOutModeHdBypass(bool regsInitialized)
     if (GBS::ADC_UNUSED_62::read() != 0x00) {
         // remember debug view
         // if (uopt->presetPreference != 2) {
-        if (rto->presetID != OutputCustom) {
+        if (rto->resolutionID != OutputCustom) {
             serialCommand = 'D';
         }
     }
@@ -1459,7 +1460,7 @@ void setOutModeHdBypass(bool regsInitialized)
     GBS::PLLAD_ICP::write(5);
     GBS::PLLAD_FS::write(1);
 
-    if (rto->inputIsYpBpR) {
+    if (rto->inputIsYPbPr) {
         GBS::DEC_MATRIX_BYPS::write(1); // 5_1f 2 = 1 for YUV / 0 for RGB
         GBS::HD_MATRIX_BYPS::write(0);  // 1_30 1 / input to jacks is yuv, adc leaves it as yuv > convert to rgb for output here
         GBS::HD_DYN_BYPS::write(0);     // don't bypass color expansion
@@ -1879,7 +1880,8 @@ void bypassModeSwitch_RGBHV()
         GBS::DEC_TEST_ENABLE::write(0); // no need for decimation test to be enabled
     }
 
-    rto->presetID = PresetBypassRGBHV; // bypass flavor 2, used to signal buttons in web ui
+    // rto->presetID = PresetBypassRGBHV; // bypass flavor 2, used to signal buttons in web ui
+    rto->resolutionID = PresetBypassRGBHV; // bypass flavor 2, used to signal buttons in web ui
     GBS::GBS_PRESET_ID::write(PresetBypassRGBHV);
     delay(200);
 }
@@ -2154,18 +2156,18 @@ void writeProgramArrayNew(const uint8_t *programArray, bool skipMDSection)
 
     rto->outModeHdBypass = 0; // the default at this stage
     if (GBS::ADC_INPUT_SEL::read() == 0) {
-        // if (rto->inputIsYpBpR == 0) _WSN(F("rto->inputIsYpBpR was 0, fixing to 1");
-        rto->inputIsYpBpR = 1; // new: update the var here, allow manual preset loads
+        // if (rto->inputIsYPbPr == 0) _WSN(F("rto->inputIsYPbPr was 0, fixing to 1");
+        rto->inputIsYPbPr = 1; // new: update the var here, allow manual preset loads
     } else {
-        // if (rto->inputIsYpBpR == 1) _WSN(F("rto->inputIsYpBpR was 1, fixing to 0");
-        rto->inputIsYpBpR = 0;
+        // if (rto->inputIsYPbPr == 1) _WSN(F("rto->inputIsYPbPr was 1, fixing to 0");
+        rto->inputIsYPbPr = 0;
     }
 
     uint8_t reset46 = GBS::RESET_CONTROL_0x46::read(); // for keeping these as they are now
     uint8_t reset47 = GBS::RESET_CONTROL_0x47::read();
 
-    for (; y < 6; y++) {
-        writeOneByte(0xF0, (uint8_t)y);
+    while(y < 6) {
+        writeOneByte(0xF0, y);
         switch (y) {
             case 0:
                 for (int j = 0; j <= 1; j++) { // 2 times
@@ -2253,13 +2255,13 @@ void writeProgramArrayNew(const uint8_t *programArray, bool skipMDSection)
                     for (int x = 0; x <= 15; x++) {
                         bank[x] = pgm_read_byte(programArray + index);
                         if (index == 322) { // s5_02 bit 6+7 = input selector (only bit 6 is relevant)
-                            if (rto->inputIsYpBpR)
+                            if (rto->inputIsYPbPr)
                                 bitClear(bank[x], 6);
                             else
                                 bitSet(bank[x], 6);
                         }
                         if (index == 323) { // s5_03 set clamps according to input channel
-                            if (rto->inputIsYpBpR) {
+                            if (rto->inputIsYPbPr) {
                                 bitClear(bank[x], 2); // G bottom clamp
                                 bitSet(bank[x], 1);   // R mid clamp
                                 bitSet(bank[x], 3);   // B mid clamp
@@ -2294,6 +2296,7 @@ void writeProgramArrayNew(const uint8_t *programArray, bool skipMDSection)
                 }
                 break;
         }
+        y++;
     }
 
     // scaling RGBHV mode
@@ -2315,7 +2318,8 @@ void activeFrameTimeLockInitialSteps()
         return;
     }
     // skip when out mode = bypass
-    if (rto->presetID != PresetHdBypass && rto->presetID != PresetBypassRGBHV) {
+    // if (rto->presetID != PresetHdBypass && rto->presetID != PresetBypassRGBHV) {
+    if (rto->resolutionID != PresetHdBypass && rto->resolutionID != PresetBypassRGBHV) {
         _WS(F("Active FrameTime Lock enabled, disable if display unstable or stays blank! Method: "));
         if (uopt->frameTimeLockMethod == 0) {
             _WSN(F("0 (vtotal + VSST)"));
@@ -2401,7 +2405,7 @@ void OutputComponentOrVGA()
     }
 
     if (!isCustomPreset) {
-        if (rto->inputIsYpBpR == true) {
+        if (rto->inputIsYPbPr == true) {
             applyYuvPatches();
         } else {
             applyRGBPatches();
@@ -2588,7 +2592,7 @@ void optimizeSogLevel()
         return;
     }
 
-    if (rto->inputIsYpBpR) {
+    if (rto->inputIsYPbPr) {
         rto->thisSourceMaxLevelSOG = rto->currentLevelSOG = 14;
     } else {
         rto->thisSourceMaxLevelSOG = rto->currentLevelSOG = 13; // similar to yuv, allow variations
@@ -3691,7 +3695,7 @@ void updateClampPosition()
         return;
     }
 
-    if (rto->inputIsYpBpR) {
+    if (rto->inputIsYPbPr) {
         GBS::SP_CLAMP_MANUAL::write(0);
     } else {
         GBS::SP_CLAMP_MANUAL::write(1); // no auto clamp for RGB
@@ -3743,7 +3747,7 @@ void updateClampPosition()
     uint16_t start = 1 + (accInHlength * multiSt); // HPERIOD_IF: *0.04 seems good
     uint16_t stop = 2 + (accInHlength * multiSp);  // HPERIOD_IF: *0.178 starts to creep into some EDTV modes
 
-    if (rto->inputIsYpBpR) {
+    if (rto->inputIsYPbPr) {
         // YUV: // ST shift forward to pass blacker than black HSync, sog: min * 0.08
         multiSt = rto->syncTypeCsync == 1 ? 0.089f : 0.032f;
         start = 1 + (accInHlength * multiSt);
@@ -3930,7 +3934,7 @@ void runSyncWatcher()
     static uint16_t badHsActive = 0;
     static bool lastAdjustWasInActiveWindow = 0;
 
-    if (rto->syncTypeCsync && !rto->inputIsYpBpR && (newVideoModeCounter == 0)) {
+    if (rto->syncTypeCsync && !rto->inputIsYPbPr && (newVideoModeCounter == 0)) {
         // look for SOG instability
         if (GBS::STATUS_INT_SOG_BAD::read() == 1 || GBS::STATUS_INT_SOG_SW::read() == 1) {
             resetInterruptSogSwitchBit();
@@ -4066,7 +4070,7 @@ void runSyncWatcher()
             }
         }
 
-        if (rto->inputIsYpBpR && (rto->noSyncCounter == 34)) {
+        if (rto->inputIsYPbPr && (rto->noSyncCounter == 34)) {
             GBS::SP_NO_CLAMP_REG::write(1); // unlock clamp
             rto->clampPositionIsSet = false;
         }
@@ -4223,7 +4227,7 @@ void runSyncWatcher()
                     rto->syncTypeCsync = false;
                 }
                 // bool wantPassThroughMode = uopt->presetPreference == 10;
-                bool wantPassThroughMode = rto->presetID == OutputPtru;
+                bool wantPassThroughMode = rto->resolutionID == OutputBypass;
 
                 if (((rto->videoStandardInput == 1 || rto->videoStandardInput == 3) && (detectedVideoMode == 2 || detectedVideoMode == 4)) ||
                     rto->videoStandardInput == 0 ||
@@ -4499,7 +4503,7 @@ void runSyncWatcher()
 
                     // todo: this hack is hard to understand when looking at applypreset and mode is suddenly 1,2 or 3
                     // if (uopt->presetPreference == 2) {
-                    if (rto->presetID == OutputCustom) {
+                    if (rto->resolutionID == OutputCustom) {
                         // custom preset defined, try to load (set mode = 14 here early)
                         rto->videoStandardInput = 14;
                     } else {
@@ -4521,9 +4525,11 @@ void runSyncWatcher()
                     }
 
                     // if (uopt->presetPreference == 10) {
-                    if (rto->presetID == OutputPtru) {
+                    // if (rto->presetID == OutputBypass) {
+                    if (rto->resolutionID == OutputBypass) {
                         // uopt->presetPreference = Output960P; // fix presetPreference which can be "bypass"
-                        rto->presetID = Output960p; // fix presetPreference which can be "bypass"
+                        // rto->presetID = Output960p; // fix presetPreference which can be "bypass"
+                        rto->resolutionID = Output960p; // fix presetPreference which can be "bypass"
                     }
 
                     activePresetLineCount = sourceLines;
@@ -4581,7 +4587,8 @@ void runSyncWatcher()
                         GBS::IF_HB_ST2::write(0x08);  // patches
                         GBS::IF_HB_SP2::write(0x68);  // image
                         GBS::IF_HBIN_SP::write(0x50); // position
-                        if (rto->presetID == 0x05) {
+                        // if (rto->presetID == 0x05) {
+                        if (rto->resolutionID == Output1080p) {
                             GBS::IF_HB_ST2::write(0x480);
                             GBS::IF_HB_SP2::write(0x8E);
                         }
@@ -4636,9 +4643,10 @@ void runSyncWatcher()
                         }
 
                         // if (uopt->presetPreference == 10) {
-                        if (rto->presetID == OutputPtru) {
+                        // if (rto->presetID == OutputBypass) {
+                        if (rto->resolutionID == OutputBypass) {
                             // uopt->presetPreference = Output960P; // fix presetPreference which can be "bypass"
-                            rto->presetID = Output960p; // fix presetPreference which can be "bypass"
+                            rto->resolutionID = Output960p; // fix presetPreference which can be "bypass"
                         }
 
                         activePresetLineCount = sourceLines;
@@ -4696,7 +4704,8 @@ void runSyncWatcher()
                             GBS::IF_HB_ST2::write(0x08);  // patches
                             GBS::IF_HB_SP2::write(0x68);  // image
                             GBS::IF_HBIN_SP::write(0x50); // position
-                            if (rto->presetID == 0x05) {
+                            // if (rto->presetID == 0x05) {
+                            if (rto->resolutionID == Output1080p) {
                                 GBS::IF_HB_ST2::write(0x480);
                                 GBS::IF_HB_SP2::write(0x8E);
                             }
@@ -5005,7 +5014,7 @@ uint8_t detectAndSwitchToActiveInput()
 
             if (currentInput == 1) { // RGBS or RGBHV
                 bool vsyncActive = 0;
-                rto->inputIsYpBpR = false; // declare for MD
+                rto->inputIsYPbPr = false; // declare for MD
                 rto->currentLevelSOG = 13; // test startup with MD and MS separately!
                 setAndUpdateSogLevel(rto->currentLevelSOG);
 
@@ -5148,7 +5157,7 @@ uint8_t detectAndSwitchToActiveInput()
                 delay(40);
             } else if (currentInput == 0) { // YUV
                 uint16_t testCycle = 0;
-                rto->inputIsYpBpR = true;    // declare for MD
+                rto->inputIsYPbPr = true;    // declare for MD
                 GBS::MD_SEL_VGA60::write(0); // EDTV more likely than VGA 640x480
 
                 unsigned long timeOutStart = millis();
@@ -5215,7 +5224,7 @@ uint8_t inputAndSyncDetect()
         }
         return 0;
     } else if (syncFound == 1) { // input is RGBS
-        rto->inputIsYpBpR = 0;
+        rto->inputIsYPbPr = 0;
         rto->sourceDisconnected = false;
         rto->isInLowPowerMode = false;
         resetDebugPort();
@@ -5223,7 +5232,7 @@ uint8_t inputAndSyncDetect()
         LEDON;
         return 1;
     } else if (syncFound == 2) {
-        rto->inputIsYpBpR = 1;
+        rto->inputIsYPbPr = 1;
         rto->sourceDisconnected = false;
         rto->isInLowPowerMode = false;
         resetDebugPort();
@@ -5233,7 +5242,7 @@ uint8_t inputAndSyncDetect()
     } else if (syncFound == 3) { // input is RGBHV
         // already applied
         rto->isInLowPowerMode = false;
-        rto->inputIsYpBpR = 0;
+        rto->inputIsYPbPr = 0;
         rto->sourceDisconnected = false;
         rto->videoStandardInput = 15;
         resetDebugPort();

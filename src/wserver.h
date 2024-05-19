@@ -3,7 +3,7 @@
 # File: wserver.h                                                                    #
 # File Created: Friday, 19th April 2024 3:11:47 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Wednesday, 8th May 2024 8:42:24 pm                       #
+# Last Modified: Tuesday, 14th May 2024 11:11:47 am                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -52,7 +52,7 @@ void serverFsUploadResponder();
 void serverFsUploadHandler();
 void serverFsDownloadHandler();
 void serverFsDir();
-void serverFsFormat();
+// void serverFsFormat();
 void serverWiFiStatus();
 void serverRestoreFilters();
 void serverWiFiList();

@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Friday, 10th May 2024 12:59:08 am                        #
+# Last Modified: Saturday, 18th May 2024 11:39:33 pm                      #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -71,7 +71,6 @@ unsigned long lastVsyncLock = millis();
  */
 void setup()
 {
-    // rto->videoStandardInput = 0;
     display.init();                 // inits OLED on I2C bus
     display.flipScreenVertically(); // orientation fix for OLED
 
@@ -148,7 +147,8 @@ void setup()
     rto->phaseADC = 16;
     rto->phaseSP = 16;
     rto->failRetryAttempts = 0;
-    rto->presetID = Output576p;
+    // rto->presetID = OutputBypass;
+    rto->resolutionID = OutputBypass;
     rto->isCustomPreset = false;
     rto->HPLLState = 0;
     rto->motionAdaptiveDeinterlaceActive = false;
@@ -164,7 +164,7 @@ void setup()
     rto->notRecognizedCounter = 0;
 
     // more run time variables
-    rto->inputIsYpBpR = false;
+    rto->inputIsYPbPr = false;
     rto->videoStandardInput = 0;
     rto->outModeHdBypass = false;
     rto->videoIsFrozen = false;
@@ -218,24 +218,24 @@ void setup()
         _WSN(F("FS mount failed! ((1M FS) selected?)"));
     } else {
         // load user preferences file
-        const String fn = String(preferencesFile);
-        fs::File f = LittleFS.open(fn, "r");
+        fs::File f = LittleFS.open(FPSTR(preferencesFile), "r");
         if (!f) {
             _WSN(F("no preferences file yet, create new"));
             loadDefaultUserOptions();
             saveUserPrefs(); // if this fails, there must be a data problem
         } else {
-            // ? uopt->presetPreference = rto->presetID
+            // !###############################
+            // ! preferencesv2.txt structure
+            // !###############################
             // on a fresh / data not formatted yet MCU:  userprefs.txt open ok //result = 207
-            // uopt->presetPreference = (PresetPreference)(f.read() - '0'); // #1
+            // uopt->presetPreference = (OutputResolution)(f.read() - '0'); // #1
             // if (uopt->presetPreference > 10)
             //     uopt->presetPreference = Output960P; // fresh data ?
+            uopt->presetSlot = lowByte(f.read());
 
             uopt->enableFrameTimeLock = (uint8_t)(f.read() - '0');
             if (uopt->enableFrameTimeLock > 1)
                 uopt->enableFrameTimeLock = 0;
-
-            uopt->presetSlot = lowByte(f.read());
 
             uopt->frameTimeLockMethod = (uint8_t)(f.read() - '0');
             if (uopt->frameTimeLockMethod > 1)
@@ -463,7 +463,8 @@ void loop()
             // uopt->presetPreference,
             uopt->presetSlot,
             uopt->presetSlot,
-            rto->presetID
+            // rto->presetID
+            rto->resolutionID
         );
         // multistage with bad characters?
         if (inputStage > 0) {
@@ -539,7 +540,7 @@ void loop()
                     GBS::ADC_UNUSED_62::write(1); // remember to remove on restore
                     GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 0x24);
                     GBS::HD_Y_OFFSET::write(GBS::HD_Y_OFFSET::read() + 0x24);
-                    if (!rto->inputIsYpBpR) {
+                    if (!rto->inputIsYPbPr) {
                         // RGB input that has HD_DYN bypassed, use it now
                         GBS::HD_DYN_BYPS::write(0);
                         GBS::HD_U_OFFSET::write(GBS::HD_U_OFFSET::read() + 0x24);
@@ -549,7 +550,8 @@ void loop()
                     _WSN(F("on"));
                 } else {
                     // if (uopt->wantPeaking == 0) { GBS::VDS_PK_Y_H_BYPS::write(1); } // 3_4e 0
-                    if (rto->presetID == 0x05) {
+                    // if (rto->presetID == 0x05) {
+                    if (rto->resolutionID == Output1080p) {
                         GBS::VDS_PK_LB_GAIN::write(0x16); // 3_45
                         GBS::VDS_PK_LH_GAIN::write(0x0A); // 3_47
                     } else {
@@ -558,7 +560,7 @@ void loop()
                     }
                     GBS::VDS_Y_OFST::write(GBS::ADC_UNUSED_60::read()); // restore
                     GBS::HD_Y_OFFSET::write(GBS::ADC_UNUSED_61::read());
-                    if (!rto->inputIsYpBpR) {
+                    if (!rto->inputIsYPbPr) {
                         // RGB input, HD_DYN_BYPS again
                         GBS::HD_DYN_BYPS::write(1);
                         GBS::HD_U_OFFSET::write(0); // probably just 0 by default
@@ -620,7 +622,8 @@ void loop()
             case 'K':
                 setOutModeHdBypass(false);
                 // uopt->presetPreference = OutputBypass;
-                rto->presetID = OutputPtru;
+                rto->resolutionID = OutputBypass;
+                _WSN(F("OutputBypass mode is now active"));
                 saveUserPrefs();
                 break;
             case 'T':
@@ -845,12 +848,15 @@ void loop()
                 uint8_t videoMode = getVideoMode();
                 if (videoMode == 0)
                     videoMode = rto->videoStandardInput;
-                PresetPreference backup = rto->presetID;
+                // OutputResolution backup = rto->presetID;
+                OutputResolution backup = rto->resolutionID;
                 // uopt->presetPreference = Output720P;
-                rto->presetID = Output720p;
+                // rto->presetID = Output720p;
+                rto->resolutionID = Output720p;
                 rto->videoStandardInput = 0; // force hard reset
                 applyPresets(videoMode);
-                rto->presetID = backup;
+                // rto->presetID = backup;
+                rto->resolutionID = backup;
                 // uopt->presetPreference = backup;
             } break;
             case 'l':
@@ -865,10 +871,10 @@ void loop()
                 saveUserPrefs();
                 uint8_t vidMode = getVideoMode();
                 // if (uopt->presetPreference == 0 && GBS::GBS_PRESET_ID::read() == 0x11) {
-                if (rto->presetID == Output960p && GBS::GBS_PRESET_ID::read() == 0x11) {
+                if (rto->resolutionID == OutputNone && GBS::GBS_PRESET_ID::read() == Output960p50) {
                     applyPresets(vidMode);
                 // } else if (uopt->presetPreference == 4 && GBS::GBS_PRESET_ID::read() == 0x02) {
-                } else if (rto->presetID == Output1024p && GBS::GBS_PRESET_ID::read() == 0x02) {
+                } else if (rto->resolutionID == Output1024p && GBS::GBS_PRESET_ID::read() == Output1024p) {
                     applyPresets(vidMode);
                 }
             } break;
@@ -877,10 +883,12 @@ void loop()
                 break;
             case 'E':
                 writeProgramArrayNew(ntsc_1280x1024, false);
+                _WSN(F("ntsc_1280x1024 is now active"));
                 doPostPresetLoadSteps();
                 break;
             case 'R':
                 writeProgramArrayNew(pal_1280x1024, false);
+                _WSN(F("pal_1280x1024 is now active"));
                 doPostPresetLoadSteps();
                 break;
             case '0':
@@ -891,6 +899,7 @@ void loop()
                 break;
             case '2':
                 writeProgramArrayNew(pal_768x576, false); // ModeLine "720x576@50" 27 720 732 795 864 576 581 586 625 -hsync -vsync
+                _WSN(F("pal_768x576 is now active"));
                 doPostPresetLoadSteps();
                 break;
             case '3':

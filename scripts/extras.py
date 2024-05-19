@@ -1,53 +1,27 @@
 Import('env')
 import os
-import subprocess
-import sys
-import json
 import shutil
 
 root = os.getcwd()
 
-# check the project structure
-data_dir = os.path.join(os.getcwd(), 'data')
-if os.path.isdir(data_dir) == False :
-    os.mkdir(data_dir)
-
-# load config data
-with open(root + '/configure.json', 'r') as data:
-    conf = json.load(data)
-
+# prepare WebUI
 def before_buildfs(source, target, env):
     print('\n[\U0001F37A] building WebUI\n')
     env.Execute("npm run build")
 
 env.AddPreAction("$BUILD_DIR/littlefs.bin", before_buildfs)
 
-# silently check if all modules are installed
-subprocess.call([sys.executable, '-m', 'pip', 'install', 'pillow'],
-                    stdout=subprocess.DEVNULL)
-# starting with i18n
-print(f'\n[\U0001F37A] generating locale data ({conf["ui-lang"]})\n')
-r = subprocess.Popen([
-        sys.executable,
-        f'{root}/scripts/generate_translations.py',
-        f'--fonts={conf["ui-font"]}',
-        f'{conf["ui-lang"]}'
-        ],
-    stderr=subprocess.STDOUT
-)
-o, e = r.communicate()
-if r.returncode != 0 :
-    print(f"\n[\U0001F383] error #{r.returncode}\n")
-    sys.exit()
+# copy FS image to /builds
+def after_buildfs(source, target, env):
+    path = target[0].get_abspath()
+    shutil.copyfile(path, f'{root}/builds/filesystem.bin')
+    print('\n[\U0001F37A] filesystem.bin has been copied into /builds\n')
 
-# continue execution
-print("\n[\U0001F37A] running build\n")
-
-defs = [('VERSION', conf['version'])]
-env.Append(CPPDEFINES=defs)
+env.AddPostAction("$BUILD_DIR/littlefs.bin", after_buildfs)
 
 # prepare for ArduinoIDE
 def after_build(source, target, env):
+    path = source[0].get_abspath()
     fino = f"{root}/gbs-control.ino"
     try:
         os.remove(fino)
@@ -61,5 +35,7 @@ def after_build(source, target, env):
     with open(fino, 'w') as f:
         f.write(ino)
     print("\n[\U0001F37A] gbs-control.ino updated\n")
+    shutil.copyfile(os.path.splitext(path)[0] + ".bin", f'{root}/builds/firmware.bin')
+    print("[\U0001F37A] firmware.bin has been copied into /builds\n")
 
-env.AddPostAction("$PROGPATH", after_build)
+env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", after_build)

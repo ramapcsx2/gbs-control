@@ -32,6 +32,39 @@ Development threads:
 https://shmups.system11.org/viewtopic.php?f=6&t=52172   
 https://circuit-board.de/forum/index.php/Thread/15601-GBS-8220-Custom-Firmware-in-Arbeit/   
 
+## Theory of operation
+
+### Slots vs Presets
+
+- Preset - is a collection of predefined runtime values (including output screen resolution, etc).
+- Slot - is a collection of presets.
+
+When you connecting a new device, GBS tries to identify the input video signal. There are 9 signal types (VIDEO_ID), which are also used to identify preset for current slot while saving/loading custom preferences.
+
+To store/load slots the following principles must be taken into account:
+
+1. General parameters of a SLOT are stored in slots.bin, where each of 72 slots has the structure:
+     
+    1.1. slot name\
+    1.2. input video signal ID (VIDEO_ID)\
+    1.3. output resolution\
+    ... etc.
+    
+     Each slot has its own SLOT_ID which is one character long.
+2. There is only ONE preset for ONE slot. Preset file names are formatted as `input_video_format.SLOT_ID`, for example:
+
+     - preset_ntsc.SLOT_ID
+     - preset_pal.SLOT_ID
+     - preset_ntsc_480p.SLOT_ID\
+     ...etc.
+
+3. Current/Active SLOT_ID and other auxiliar pararmeters are stored in preferencev2.txt file.
+
+The following diagram represents structure of the custom/user configuration:
+
+![user configuration structure](./doc/slot-preset-prefs.png)
+
+
 ## Build and Upload<a id="build-n-upload"></a>
 
 ### Using Platformio IDE (preferred)

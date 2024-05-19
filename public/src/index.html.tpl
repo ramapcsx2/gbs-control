@@ -114,7 +114,7 @@
           <fieldset class="gbs-fieldset" style="padding: 8px 2px">
             <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
               <div class="gbs-icon">aspect_ratio</div>
-              <div>Resolution</div>
+              <div>Output resolution</div>
             </legend>
             <!-- prettier-ignore -->
             <ul class="gbs-help">
@@ -123,7 +123,7 @@
               </li>
               <li>Use the "Matched Presets" option to switch between the two automatically (Preferences tab)
               </li>
-              <li>Selecting a resolution also makes it the new startup preset.</li>
+              <!-- <li>Selecting a resolution also makes it the new startup preset.</li> -->
             </ul>
             <div class="gbs-resolution">
               <button

@@ -31,7 +31,7 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
     display->drawXbm((OLED_MENU_WIDTH - TEXT_LOADED_WIDTH) / 2, OLED_MENU_HEIGHT / 2, IMAGE_ITEM(TEXT_LOADED));
     display->display();
     uint8_t videoMode = getVideoMode();
-    PresetPreference preset = OutputPtru;
+    OutputResolution preset = OutputBypass;
     switch (item->tag) {
         case MT_1280x960:
             preset = Output960p;
@@ -62,7 +62,8 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
     }
     if (item->tag != MT_BYPASS) {
         // uopt->presetPreference = preset;
-        rto->presetID= preset;
+        // rto->presetID= preset;
+        rto->resolutionID = preset;
         rto->useHdmiSyncFix = 1;
         if (rto->videoStandardInput == 14) {
             rto->videoStandardInput = 15;
@@ -72,7 +73,8 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
     } else {
         setOutModeHdBypass(false);
         // uopt->presetPreference = preset;
-        rto->presetID = preset;
+        // rto->presetID = preset;
+        rto->resolutionID = preset;
         if (rto->videoStandardInput != 15) {
             rto->autoBestHtotalEnabled = 0;
             if (rto->applyPresetDoneStage == 11) {
@@ -105,8 +107,9 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     display->drawXbm((OLED_MENU_WIDTH - TEXT_LOADED_WIDTH) / 2, OLED_MENU_HEIGHT / 2, IMAGE_ITEM(TEXT_LOADED));
     display->display();
     uopt->presetSlot = 'A' + item->tag; // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,
-    // uopt->presetPreference = PresetPreference::OutputCustomized;
-    rto->presetID = OutputCustom;
+    // uopt->presetPreference = OutputResolution::OutputCustomized;
+    // rto->presetID = OutputCustom;
+    rto->resolutionID = OutputCustom;
     saveUserPrefs();
     if (rto->videoStandardInput == 14) {
         // vga upscale path: let synwatcher handle it
@@ -147,7 +150,7 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
                 continue;
             }
             curNumSlot++;
-            if (curNumSlot > OLED_MENU_MAX_SUBITEMS_NUM) {
+            if (curNumSlot >= OLED_MENU_MAX_SUBITEMS_NUM) {
                 break;
             }
             manager->registerItem(item, slot.slot, slot.name, presetSelectionMenuHandler);
@@ -161,6 +164,16 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     }
     return true;
 }
+
+/**
+ * @brief
+ *
+ * @param manager
+ * @param item
+ * @param isFirstTime
+ * @return true
+ * @return false
+ */
 bool resetMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool isFirstTime)
 {
     if (!isFirstTime) {
@@ -204,6 +217,16 @@ bool resetMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav,
     oledMenuFreezeTimeoutInMS = 2000; // freeze for 2 seconds
     return false;
 }
+
+/**
+ * @brief 
+ * 
+ * @param manager 
+ * @param nav 
+ * @param isFirstTime 
+ * @return true 
+ * @return false 
+ */
 bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav nav, bool isFirstTime)
 {
     static unsigned long lastUpdateTime = 0;
@@ -236,24 +259,32 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
         bool hsyncActive = 0;
         float ofr = getOutputFrameRate();
         uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
-        rto->presetID = static_cast<PresetPreference>(GBS::GBS_PRESET_ID::read());
+        // rto->presetID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
+        rto->resolutionID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
 
         display.setFont(URW_Gothic_L_Book_20);
         display.setTextAlignment(TEXT_ALIGN_LEFT);
 
-        if (rto->presetID == 0x01 || rto->presetID == 0x11) {
+        // if (rto->presetID == 0x01 || rto->presetID == 0x11) {
+        if (rto->resolutionID == Output960p || rto->resolutionID == Output960p50) {
             display.drawString(0, 0, "1280x960");
-        } else if (rto->presetID == 0x02 || rto->presetID == 0x12) {
+        // } else if (rto->presetID == 0x02 || rto->presetID == 0x12) {
+        } else if (rto->resolutionID == Output1024p || rto->resolutionID == Output1024p50) {
             display.drawString(0, 0, "1280x1024");
-        } else if (rto->presetID == 0x03 || rto->presetID == 0x13) {
+        // } else if (rto->presetID == 0x03 || rto->presetID == 0x13) {
+        } else if (rto->resolutionID == Output720p || rto->resolutionID == Output720p50) {
             display.drawString(0, 0, "1280x720");
-        } else if (rto->presetID == 0x05 || rto->presetID == 0x15) {
+        // } else if (rto->presetID == 0x05 || rto->presetID == 0x15) {
+        } else if (rto->resolutionID == Output1080p || rto->resolutionID == Output1080p50) {
             display.drawString(0, 0, "1920x1080");
-        } else if (rto->presetID == 0x06 || rto->presetID == 0x16) {
+        // } else if (rto->presetID == 0x06 || rto->presetID == 0x16) {
+        } else if (rto->resolutionID == Output15kHz || rto->resolutionID == Output15kHz50) {
             display.drawString(0, 0, "Downscale");
-        } else if (rto->presetID == 0x04) {
+        // } else if (rto->presetID == 0x04) {
+        } else if (rto->resolutionID == Output720p) {
             display.drawString(0, 0, "720x480");
-        } else if (rto->presetID == 0x14) {
+        // } else if (rto->presetID == 0x14) {
+        } else if (rto->resolutionID == Output576p) {
             display.drawString(0, 0, "768x576");        // ??? 720x576 ???
         } else {
             display.drawString(0, 0, "bypass");
@@ -283,6 +314,15 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
 
     return false;
 }
+
+/**
+ * @brief 
+ * 
+ * @param manager 
+ * @param item 
+ * @return true 
+ * @return false 
+ */
 bool wifiMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool)
 {
     static char ssid[64];

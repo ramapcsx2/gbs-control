@@ -3,7 +3,7 @@
 # File: framesync.cpp                                                     #
 # File Created: Sunday, 5th May 2024 12:52:08 pm                          #
 # Author:                                                                 #
-# Last Modified: Tuesday, 7th May 2024 2:20:25 am                         #
+# Last Modified: Sunday, 12th May 2024 4:27:51 pm                         #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -414,7 +414,7 @@ bool FrameSyncManager::runFrequency()
 
     if (fabs(rawFpsOutput - prevFpsOutput) >= 1.f) {
         _WSF(
-            PSTR("FPS excursion detected! Measured input FPS %f, previous output FPS %f"),
+            PSTR("FPS excursion detected! Measured input FPS %f, previous output FPS %f\n"),
             fpsInput, prevFpsOutput);
     }
 
