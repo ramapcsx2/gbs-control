@@ -51,9 +51,9 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
         case MT_DOWNSCALE:
             preset = Output15kHz;
             break;
-        case MT_BYPASS:
-            preset = OutputCustom;
-            break;
+        // case MT_BYPASS:
+        //     preset = OutputCustom;
+        //     break;
         default:
             break;
     }
@@ -90,6 +90,16 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
     manager->freeze();
     return false;
 }
+
+/**
+ * @brief
+ *
+ * @param manager
+ * @param item
+ * @param isFirstTime
+ * @return true
+ * @return false
+ */
 bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool isFirstTime)
 {
     if (!isFirstTime) {
@@ -109,8 +119,10 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     uopt->presetSlot = 'A' + item->tag; // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,
     // uopt->presetPreference = OutputResolution::OutputCustomized;
     // rto->presetID = OutputCustom;
-    rto->resolutionID = OutputCustom;
-    saveUserPrefs();
+
+    // @sk: rely on chance that it's already set before manually
+    // rto->resolutionID = OutputCustom;
+    // saveUserPrefs();
     if (rto->videoStandardInput == 14) {
         // vga upscale path: let synwatcher handle it
         rto->videoStandardInput = 15;
@@ -137,8 +149,8 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
 bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool)
 {
     int curNumSlot = 0;
-    manager->clearSubItems(item);
     SlotMetaArray slotsObject;
+    manager->clearSubItems(item);
     fs::File slotsBinaryFileRead = LittleFS.open(FPSTR(slotsFile), "r");
     if (slotsBinaryFileRead) {
         slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
@@ -146,7 +158,7 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
         String slot_name = String(emptySlotName);
         for (int i = 0; i < SLOTS_TOTAL; ++i) {
             const SlotMeta &slot = slotsObject.slot[i];
-            if (strcmp(slot_name.c_str(), slot.name) == 0 || !strlen(slot.name)) {
+            if (strncmp(slot_name.c_str(), slot.name, sizeof(slot.name)) == 0) {
                 continue;
             }
             curNumSlot++;
@@ -156,9 +168,11 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
             manager->registerItem(item, slot.slot, slot.name, presetSelectionMenuHandler);
         }
     }
+    // show notice for user to go to webUI
     if (curNumSlot > OLED_MENU_MAX_SUBITEMS_NUM) {
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_TOO_MANY_PRESETS));
     }
+    // if no presets created yet
     if (!item->numSubItem) {
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_NO_PRESETS));
     }
@@ -219,13 +233,13 @@ bool resetMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav,
 }
 
 /**
- * @brief 
- * 
- * @param manager 
- * @param nav 
- * @param isFirstTime 
- * @return true 
- * @return false 
+ * @brief
+ *
+ * @param manager
+ * @param nav
+ * @param isFirstTime
+ * @return true
+ * @return false
  */
 bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav nav, bool isFirstTime)
 {
@@ -295,7 +309,7 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
         if (currentInput == 1) {
             display.drawString(0, 41, "RGB");
         } else {
-            display.drawString(0, 41, "YpBpR");
+            display.drawString(0, 41, "YPbPr");
         }
 
         if (currentInput == 1) {
@@ -316,12 +330,12 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
 }
 
 /**
- * @brief 
- * 
- * @param manager 
- * @param item 
- * @return true 
- * @return false 
+ * @brief
+ *
+ * @param manager
+ * @param item
+ * @return true
+ * @return false
  */
 bool wifiMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool)
 {

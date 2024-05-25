@@ -3,8 +3,8 @@
 
 // SLOTS
 const char slotsFile[] PROGMEM = "/slots.bin"; // the file where to store slots metadata
-const char emptySlotName[] PROGMEM = "Empty                    ";
-const char emptySlotLine[] PROGMEM = "                         ";
+const char emptySlotName[] PROGMEM = "Empty                   ";
+const char emptySlotLine[] PROGMEM = "                        ";
 
 typedef struct
 {

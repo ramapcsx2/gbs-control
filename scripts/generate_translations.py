@@ -16,7 +16,7 @@ Y_OFFSET = -1
 DEFAULT_FONT_SIZE = 12
 
 # load translations
-with open(os.getcwd() + '/translation.json', 'r') as data:
+with open(os.getcwd() + '/translation.json', 'r', encoding='utf-8') as data:
     menu_items = json.load(data)
 
 res = """

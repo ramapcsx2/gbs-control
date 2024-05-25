@@ -3,7 +3,7 @@
 # File: video.cpp                                                                   #
 # File Created: Thursday, 2nd May 2024 4:07:57 pm                                   #
 # Author:                                                                           #
-# Last Modified: Saturday, 18th May 2024 10:05:44 pm                      #
+# Last Modified: Friday, 24th May 2024 11:59:56 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -329,7 +329,7 @@ void externalClockGenSyncInOutRate()
 
     int32_t diff = rto->freqExtClockGen - old;
 
-    _WSF(PSTR("source Hz: %.5f new out: %.5f clock: %u (%s%d)"),
+    _WSF(PSTR("source Hz: %.5f new out: %.5f clock: %u (%s%d)\n"),
         sfr,
         getOutputFrameRate(),
         rto->freqExtClockGen,
@@ -421,8 +421,7 @@ void externalClockGenResetClock()
     else if (activeDisplayClock == 0)
         rto->freqExtClockGen = 81000000; // no preset loaded
     else if (!rto->outModeHdBypass) {
-        _DBG(F("preset display clock: "));
-        _DBGF("0x%02X\n", activeDisplayClock);
+        _DBGF(PSTR("preset display clock: 0x%02X\n"), activeDisplayClock);
     }
 
     // problem: around 108MHz the library seems to double the clock
@@ -883,7 +882,7 @@ bool snapToIntegralFrameRate(void)
         return false;
     }
 
-    _WSF(PSTR("Snap to %.1fHz\n"), target);
+    _WSF(PSTR("Snap to %.2fHz\n"), target);
 
     // We'll be adjusting the htotal incrementally, so store current and best match.
     uint16_t currentHTotal = GBS::VDS_HSYNC_RST::read();
@@ -1397,9 +1396,9 @@ void setOutModeHdBypass(bool regsInitialized)
     if (GBS::ADC_UNUSED_62::read() != 0x00) {
         // remember debug view
         // if (uopt->presetPreference != 2) {
-        if (rto->resolutionID != OutputCustom) {
+        // if (rto->resolutionID != OutputCustom) {
             serialCommand = 'D';
-        }
+        // }
     }
 
     GBS::SP_NO_COAST_REG::write(0);  // enable vblank coast (just in case)
@@ -1941,9 +1940,9 @@ void runAutoGain()
                     adco->r_gain = GBS::ADC_RGCTRL::read();
                     adco->g_gain = GBS::ADC_GGCTRL::read();
                     adco->b_gain = GBS::ADC_BGCTRL::read();
-
-                    printInfo();
-                    delay(2); // let it settle a little
+                    // @sk: suspended
+                    // printInfo();
+                    // delay(2); // let it settle a little
                     lastTimeAutoGain = millis();
                 }
             }
@@ -4021,7 +4020,7 @@ void runSyncWatcher()
                 // rto->printInfos = 0;
                 if ((millis() - lastSyncDrop) > 1500) { // minimum space between runs
                     if (rto->printInfos == false) {
-                        _WS(F("\n."));
+                        _WS(F("."));
                     }
                 } else {
                     if (rto->printInfos == false) {
@@ -4094,6 +4093,7 @@ void runSyncWatcher()
                 uint8_t extSyncBackup = GBS::SP_EXT_SYNC_SEL::read();
                 GBS::SP_EXT_SYNC_SEL::write(0);
                 delay(240);
+    _DBGN(F("printInfo from runSyncWatcher"));
                 printInfo();
                 if (GBS::STATUS_SYNC_PROC_VSACT::read() == 1) {
                     delay(10);
@@ -4177,7 +4177,7 @@ void runSyncWatcher()
 
     // if format changed to valid, potentially new video mode
     if (((detectedVideoMode != 0 && detectedVideoMode != rto->videoStandardInput) ||
-         (detectedVideoMode != 0 && rto->videoStandardInput == 0)) &&
+        (detectedVideoMode != 0 && rto->videoStandardInput == 0)) &&
         rto->videoStandardInput != 15) {
         // before thoroughly checking for a mode change, watch format via newVideoModeCounter
         if (newVideoModeCounter < 255) {
@@ -4503,7 +4503,10 @@ void runSyncWatcher()
 
                     // todo: this hack is hard to understand when looking at applypreset and mode is suddenly 1,2 or 3
                     // if (uopt->presetPreference == 2) {
-                    if (rto->resolutionID == OutputCustom) {
+                    // if (rto->resolutionID == OutputCustom) {
+                    if (rto->resolutionID != OutputBypass
+                        && rto->resolutionID != PresetHdBypass
+                            && rto->resolutionID != PresetBypassRGBHV) {
                         // custom preset defined, try to load (set mode = 14 here early)
                         rto->videoStandardInput = 14;
                     } else {

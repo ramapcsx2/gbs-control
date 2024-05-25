@@ -278,7 +278,7 @@ const createWebSocket = () => {
     GBSControl.ws = new WebSocket(GBSControl.webSocketServerUrl, ["arduino"]);
 
     GBSControl.ws.onopen = () => {
-        console.log("ws onopen");
+        // console.log("ws onopen");
 
         displayWifiWarning(false);
 
@@ -290,7 +290,7 @@ const createWebSocket = () => {
     };
 
     GBSControl.ws.onclose = () => {
-        console.log("ws.onclose");
+        // console.log("ws.onclose");
 
         clearTimeout(GBSControl.wsTimeout);
         GBSControl.isWsActive = false;
@@ -309,9 +309,11 @@ const createWebSocket = () => {
             messageDataAt3,   // adcAutoGain & scanlines & vdsLineFilter & wantPeaking & PalForce60 & wantOutputComponent (binary)
             messageDataAt4,   // matchPresetSource & enableFrameTimeLock & deintMode & wantTap6 & wantStepResponse & wantFullHeight (binary)
             messageDataAt5,   // enableCalibrationADC & preferScalingRgbhv & disableExternalClockGenerator (binary)
+            // dev
+            messageDataAt6,   // printInfos, invertSync, oversampling, ADC Filter
         ] = message.data;
 
-console.log(message);
+// console.log(message.data);
 
         if (messageDataAt0 != "#") {
             GBSControl.queuedText += message.data;
@@ -322,7 +324,7 @@ console.log(message);
                 GBSControl.dataQueued = 0;
             }
         } else {
-console.log("buttonMapping: " + messageDataAt1)
+// console.log("buttonMapping: " + messageDataAt1)
             // ! curent/selected resolution
             const resID = GBSControl.buttonMapping[messageDataAt1];
             const resEl = document.querySelector(
@@ -331,11 +333,10 @@ console.log("buttonMapping: " + messageDataAt1)
             const activePresetButton = resEl
                 ? resEl.getAttribute("gbs-element-ref")
                 : "none";
-
             GBSControl.ui.presetButtonList.forEach(
                 toggleButtonActive(activePresetButton)
             );
-            // ! current/selected preset slot
+            // ! current/selected slot
             const slotId = "slot-" + messageDataAt2;
             const activeSlotButton = document.querySelector(
                 `[gbs-element-ref="${slotId}"]`
@@ -344,7 +345,7 @@ console.log("buttonMapping: " + messageDataAt1)
             if (activeSlotButton) {
                 GBSControl.ui.slotButtonList.forEach(toggleButtonActive(slotId));
             }
-
+            // settings tab
             if (messageDataAt3 && messageDataAt4 && messageDataAt5) {
                 const optionByte0 = messageDataAt3.charCodeAt(0);
                 const optionByte1 = messageDataAt4.charCodeAt(0);
@@ -430,6 +431,31 @@ console.log("buttonMapping: " + messageDataAt1)
                         }
                     }
                 });
+            }
+            // developer mode tab
+            if(messageDataAt6) {
+                const optionByte4 = messageDataAt6.charCodeAt(0);
+                const printInfoButton = document.querySelector(`button[gbs-message="i"][gbs-message-type="action"]`);
+                const invertSync = document.querySelector(`button[gbs-message="8"][gbs-message-type="action"]`);
+                const oversampling = document.querySelector(`button[gbs-message="o"][gbs-message-type="action"]`);
+                const adcFilter = document.querySelector(`button[gbs-message="F"][gbs-message-type="action"]`);
+                if((optionByte4 & 0x01) == 0x01)
+                    printInfoButton.setAttribute("active", "");
+                else
+                    printInfoButton.removeAttribute("active");
+                if((optionByte4 & 0x02) == 0x02)
+                    invertSync.setAttribute("active", "");
+                else
+                    invertSync.removeAttribute("active");
+                if((optionByte4 & 0x04) == 0x04)
+                    oversampling.setAttribute("active", "");
+                else
+                    oversampling.removeAttribute("active");
+                if((optionByte4 & 0x08) == 0x08)
+                    adcFilter.setAttribute("active", "");
+                else
+                    adcFilter.removeAttribute("active");
+
             }
         }
     };
@@ -981,8 +1007,8 @@ const doBackup = () => {
         .then((files: string[]) => {
             backupFiles = files;
             total = files.length;
-            const funcs = files.map((path: string) => async () => {
-                return await fetch(`http://${GBSControl.serverIP}/data/download?file=${path}&${+new Date()}`).then(
+            const funcs = files.map((path: string) => () => {
+                return fetch(`http://${GBSControl.serverIP}/data/download?file=${path}&${+new Date()}`).then(
                     (response) => {
                         GBSControl.ui.progressBackup.setAttribute(
                             "gbs-progress",
@@ -997,6 +1023,7 @@ const doBackup = () => {
             return serial(funcs);
         })
         .then((files: ArrayBuffer[]) => {
+    console.log("after download backup complete");
             const headerDescriptor = files.reduce((acc, f, index) => {
                 acc[backupFiles[index]] = f.byteLength;
                 return acc;

@@ -3,7 +3,7 @@
 # File: wifiman.h                                                                   #
 # File Created: Friday, 19th April 2024 2:25:42 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Sunday, 5th May 2024 3:33:20 pm                          #
+# Last Modified: Friday, 24th May 2024 9:54:01 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -17,6 +17,7 @@
 #include <DNSServer.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
+#include "tv5725.h"
 #include "options.h"
 #include "wserial.h"
 

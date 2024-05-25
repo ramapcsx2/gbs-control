@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Saturday, 18th May 2024 10:00:27 pm                      #
+# Last Modified: Friday, 24th May 2024 10:07:02 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -95,9 +95,8 @@ void updateWebSocketData()
 
     if (rto->webServerEnabled && rto->webServerStarted) {
         if (webSocket.connectedClients() > 0) {
-
-            constexpr size_t MESSAGE_LEN = 6;
-            char toSend[MESSAGE_LEN] = {0};
+            constexpr size_t MESSAGE_LEN = 7;
+            char toSend[MESSAGE_LEN] = "";
             toSend[0] = '#'; // makeshift ping in slot 0
 
             // toSend[1] = static_cast<char>(rto->presetID);
@@ -153,6 +152,7 @@ void updateWebSocketData()
             toSend[3] = '@';
             toSend[4] = '@';
             toSend[5] = '@';
+            toSend[6] = '0';
 
             if (uopt->enableAutoGain) {
                 toSend[3] |= (1 << 0);
@@ -200,6 +200,21 @@ void updateWebSocketData()
             }
             if (uopt->disableExternalClockGenerator) {
                 toSend[5] |= (1 << 2);
+            }
+
+            // developer panel controls status
+            /// print info button
+            if(rto->printInfos) {
+                toSend[6] |= (1 << 0);
+            }
+            if(rto->invertSync) {
+                toSend[6] |= (1 << 1);
+            }
+            if(rto->osr != 0) {
+                toSend[6] |= (1 << 2);
+            }
+            if(GBS::ADC_FLTR::read() != 0) {
+                toSend[6] |= (1 << 3);
             }
 
             webSocket.broadcastTXT(toSend, MESSAGE_LEN);

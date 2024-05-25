@@ -3,7 +3,7 @@
 # File: preset.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 6:38:23 pm                                   #
 # Author:                                                                           #
-# Last Modified: Sunday, 19th May 2024 12:07:51 pm                        #
+# Last Modified: Friday, 24th May 2024 11:59:56 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -92,6 +92,9 @@ void setResetParameters()
     rto->osr = 0;
     rto->useHdmiSyncFix = 0;
     rto->notRecognizedCounter = 0;
+
+    // DEV
+    rto->invertSync = false;
 
     adco->r_gain = 0;
     adco->g_gain = 0;
@@ -191,16 +194,16 @@ void doPostPresetLoadSteps()
     // adco->r_gain gets applied if uopt->enableAutoGain is set.
     if (uopt->enableAutoGain) {
         // if (uopt->presetPreference == OutputCustomized) {
-        if (rto->resolutionID == OutputCustom) {
+        // if (rto->resolutionID == OutputCustom) {
             // Loaded custom preset, we want to keep newly loaded gain. Save
             // gain written by loadPresetFromLFS -> writeProgramArrayNew.
             adco->r_gain = GBS::ADC_RGCTRL::read();
             adco->g_gain = GBS::ADC_GGCTRL::read();
             adco->b_gain = GBS::ADC_BGCTRL::read();
-        } else {
+        // } else {
             // Loaded fixed preset. Keep adco->r_gain from before overwriting
             // registers.
-        }
+        // }
     }
 
     // GBS::PAD_SYNC_OUT_ENZ::write(1);  // no sync out
@@ -216,7 +219,13 @@ void doPostPresetLoadSteps()
     }
     // set output resolution
     // rto->presetID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
-    rto->resolutionID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
+
+    // @sk: override resolution via user preset
+    if (rto->resolutionID == OutputBypass
+            || rto->resolutionID == PresetHdBypass
+                || rto->resolutionID == PresetBypassRGBHV) {
+        rto->resolutionID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
+    }
     rto->isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
 
     GBS::ADC_UNUSED_64::write(0);
@@ -1121,14 +1130,14 @@ void applyPresets(uint8_t videoMode)
         // only if the preset to load isn't custom
         // (else the command will instantly disable debug view)
         // if (rto->presetID != OutputCustom) {
-        if (rto->resolutionID != OutputCustom) {
+        // if (rto->resolutionID != OutputCustom) {
             serialCommand = 'D';    // debug view
-        }
+        // }
     }
 
     if (videoMode == 0) {
         // Unknown
-        _WSN(F("Source format not properly recognized, using active resolution over the fallback preset!"));
+        _WSN(F("Source format not properly recognized, using active resolution"));
         videoMode = 3;                   // in case of success: override to 480p60
         GBS::ADC_INPUT_SEL::write(1); // RGB
         delay(100);
@@ -1170,7 +1179,7 @@ void applyPresets(uint8_t videoMode)
 
     if (uopt->PalForce60 == 1) {
         // if (uopt->presetPreference != 2) { // != custom. custom saved as pal preset has ntsc customization
-        if (rto->resolutionID != OutputCustom) { // != custom. custom saved as pal preset has ntsc customization
+        // if (rto->resolutionID != OutputCustom) { // != custom. custom saved as pal preset has ntsc customization
             if (videoMode == 2 || videoMode == 4) {
                 _WSN(F("PAL@50 to 60Hz"));
                 rto->presetIsPalForce60 = 1;
@@ -1181,7 +1190,7 @@ void applyPresets(uint8_t videoMode)
             if (videoMode == 4) {
                 videoMode = 3;
             }
-        }
+        // }
     }
 
     /// If uopt->presetPreference == OutputCustomized and we load a custom
@@ -1272,15 +1281,19 @@ void applyPresets(uint8_t videoMode)
         }
 #if defined(ESP8266)
         // else if (uopt->presetPreference == OutputCustomized) {
-        else if (rto->resolutionID == OutputCustom) {
+        /* else if (rto->resolutionID == OutputCustom) {*/
+        if (rto->resolutionID != OutputBypass
+            && rto->resolutionID != PresetHdBypass
+                && rto->resolutionID != PresetBypassRGBHV) {
             const uint8_t *preset = loadPresetFromLFS(videoMode);
             writeProgramArrayNew(preset, false);
-            _WSF(PSTR("CUSTOM preset: %d is now active\n"), preset);
+            _WSF(PSTR("Bypass* preset: %d is now active\n"), preset);
             if (applySavedBypassPreset()) {
                 return;
             }
+        }
         // } else if (uopt->presetPreference == 4) {
-        } else if (rto->resolutionID == Output1024p) {
+        else if (rto->resolutionID == Output1024p) {
             if (uopt->matchPresetSource && (videoMode != 8) && (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)) {
                 writeProgramArrayNew(ntsc_240p, false); // pref = x1024 override to x960
                 _WSN(F("ntsc_240p is now active"));
@@ -1323,15 +1336,19 @@ void applyPresets(uint8_t videoMode)
         }
 #if defined(ESP8266)
         // else if (uopt->presetPreference == OutputCustomized) {
-        else if (rto->resolutionID == OutputCustom) {
+        /* else if (rto->resolutionID == OutputCustom) {*/
+        if (rto->resolutionID != OutputBypass
+            && rto->resolutionID != PresetHdBypass
+                && rto->resolutionID != PresetBypassRGBHV) {
             const uint8_t *preset = loadPresetFromLFS(videoMode);
             writeProgramArrayNew(preset, false);
-            _WSF(PSTR("CUSTOM preset: %d is now active\n"), preset);
+            _WSF(PSTR("Bypass* preset: %d is now active\n"), preset);
             if (applySavedBypassPreset()) {
                 return;
             }
+        }
         // } else if (uopt->presetPreference == 4) {
-        } else if (rto->resolutionID == Output1024p) {
+        else if (rto->resolutionID == Output1024p) {
             writeProgramArrayNew(pal_1280x1024, false);
             _WSN(F("pal_1280x1024 is now active"));
         }

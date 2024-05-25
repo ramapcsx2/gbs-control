@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Sunday, 19th May 2024 12:06:21 pm                        #
+# Last Modified: Friday, 24th May 2024 9:15:00 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -137,7 +137,7 @@ void serverSlots()
                 slotsObject.slot[i].wantVdsLineFilter = false;
                 slotsObject.slot[i].wantStepResponse = true;
                 slotsObject.slot[i].wantPeaking = true;
-                strncpy(slotsObject.slot[i].name, slot_name.c_str(), slot_name.length());
+                strncpy(slotsObject.slot[i].name, slot_name.c_str(), sizeof(slotsObject.slot[i].name));
             }
             slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
         } else {
@@ -232,7 +232,7 @@ void serverSlotSave()
                 slotsObject.slot[i].wantVdsLineFilter = false;
                 slotsObject.slot[i].wantStepResponse = true;
                 slotsObject.slot[i].wantPeaking = true;
-                strncpy(slotsObject.slot[i].name, slot_name.c_str(), slot_name.length());
+                strncpy(slotsObject.slot[i].name, slot_name.c_str(), sizeof(slotsObject.slot[i].name));
             }
 
             slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
@@ -248,7 +248,7 @@ void serverSlotSave()
         }
 
         String slot_line = String(emptySlotLine);
-        strncpy(slotsObject.slot[slotIndex].name, slot_line.c_str(), slot_line.length());
+        strncpy(slotsObject.slot[slotIndex].name, slot_line.c_str(), sizeof(slotsObject.slot[slotIndex].name));
 
         slotsObject.slot[slotIndex].slot = slotIndex;
         // slotsObject.slot[slotIndex].presetNameID = 0;
@@ -329,7 +329,7 @@ void serverSlotRemove()
                 slotsObject.slot[i].wantVdsLineFilter = false;
                 slotsObject.slot[i].wantStepResponse = true;
                 slotsObject.slot[i].wantPeaking = true;
-                strncpy(slotsObject.slot[i].name, slot_name.c_str(), slot_name.length());
+                strncpy(slotsObject.slot[i].name, slot_name.c_str(), sizeof(slotsObject.slot[i].name));
                 break;
             }
         }
@@ -858,6 +858,7 @@ void handleType2Command(char argument)
         uopt->presetSlot,
         uopt->presetSlot,
         // rto->presetID
+        rto->resolutionID,
         rto->resolutionID
     );
     switch (argument) {
@@ -899,12 +900,13 @@ void handleType2Command(char argument)
             // save new slotID into preferences
             saveUserPrefs();
         } break;
-        case '4': // save custom preset
-            savePresetToFS();
-            // uopt->presetPreference = OutputCustomized; // custom
-            rto->resolutionID = OutputCustom; // custom
-            saveUserPrefs();
-            break;
+        // @sk: never used
+        // case '4': // save custom preset
+        //     savePresetToFS();
+        //     // uopt->presetPreference = OutputCustomized; // custom
+        //     rto->resolutionID = OutputCustom; // custom
+        //     saveUserPrefs();
+        //     break;
         case '5':
             // Frame Time Lock toggle
             uopt->enableFrameTimeLock = !uopt->enableFrameTimeLock;

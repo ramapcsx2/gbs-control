@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Saturday, 18th May 2024 11:39:33 pm                      #
+# Last Modified: Friday, 24th May 2024 9:52:18 pm                         #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -180,6 +180,9 @@ void setup()
     rto->continousStableCounter = 0;
     rto->currentLevelSOG = 5;
     rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
+
+    // dev
+    rto->invertSync = false;
 
     adco->r_gain = 0;
     adco->g_gain = 0;
@@ -464,6 +467,7 @@ void loop()
             uopt->presetSlot,
             uopt->presetSlot,
             // rto->presetID
+            rto->resolutionID,
             rto->resolutionID
         );
         // multistage with bad characters?
@@ -829,7 +833,7 @@ void loop()
                 }
                 saveUserPrefs();
                 break;
-            case 'F':
+            case 'F':               // switch ADC filter button (dev.mode)
                 _WS(F("ADC filter "));
                 if (GBS::ADC_FLTR::read() > 0) {
                     GBS::ADC_FLTR::write(0);
@@ -967,8 +971,9 @@ void loop()
                         GBS::IF_HB_ST2::read(), GBS::IF_HB_SP2::read());
                 }
                 break;
-            case '8':
+            case '8':       // invert sync button (dev. mode)
                 // _WSN("invert sync");
+                rto->invertSync = !rto->invertSync;
                 invertHS();
                 invertVS();
                 // optimizePhaseSP();
@@ -977,7 +982,7 @@ void loop()
                 writeProgramArrayNew(ntsc_720x480, false);
                 doPostPresetLoadSteps();
                 break;
-            case 'o': {
+            case 'o': {         // oversampring button (dev.mode)
                 if (rto->osr == 1) {
                     setOverSampleRatio(2, false);
                 } else if (rto->osr == 2) {
@@ -987,7 +992,7 @@ void loop()
                 }
                 delay(4);
                 optimizePhaseSP();
-                _WSF(PSTR("OSR %dx\n"), rto->osr);
+                _WSF(PSTR("OSR 0x%02X\n"), rto->osr);
                 rto->phaseIsSet = 0; // do it again in modes applicable
             } break;
             case 'g':

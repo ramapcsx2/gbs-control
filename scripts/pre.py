@@ -20,7 +20,7 @@ with open(f'{root}/configure.json', 'r') as data:
 subprocess.call([sys.executable, '-m', 'pip', 'install', 'pillow'],
                     stdout=subprocess.DEVNULL)
 # starting with i18n
-print(f'\n[\U0001F37A] generating locale data ({conf["ui-lang"]})\n')
+print(f'\n\U0001F37A: generating locale data ({conf["ui-lang"]})\n')
 r = subprocess.Popen([
         sys.executable,
         f'{root}/scripts/generate_translations.py',
@@ -38,4 +38,4 @@ defs = [('VERSION', conf['version'])]
 env.Append(CPPDEFINES=defs)
 
 # continue execution
-print(f"\n[\U0001F37A] running build of v.{conf['version']}\n")
+print(f"\n\U0001F37A: running build of v.{conf['version']}\n")

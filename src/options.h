@@ -98,7 +98,7 @@ enum OutputResolution : char {
     OutputBypass        = 'q', //   passthrough 0 / bypass 0 |   'K'  |         |
     PresetHdBypass      = 's', //   passthrough 1 / bypass 1
     PresetBypassRGBHV   = 'u', //   passthrough 2 / bypass 2
-    OutputCustom        = 'w', // ?
+    // OutputCustom        = 'w', // ?
 };
 
 // userOptions holds user preferences / customizations
@@ -194,6 +194,8 @@ struct runTimeOptions
     bool isValidForScalingRGBHV;
     bool useHdmiSyncFix;
     bool extClockGenDetected;
+    // dev
+    bool invertSync;
 };
 // remember adc options across presets
 struct adcOptions
@@ -248,7 +250,7 @@ const char * const preset_names[] PROGMEM = {
 
 const char preferencesFile[] PROGMEM = "/preferencesv2.txt";
 const char systemInfo[] PROGMEM = "h:%4u v:%4u PLL:%01u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d\n";
-const char commandDescr[] PROGMEM = "> %s command: %c (0x%02X) slotID: %c (0x%02X), resolutionID: %c\n\n";
+const char commandDescr[] PROGMEM = "> %s command: %c (0x%02X) slotID: %c (0x%02X), resolutionID: %c (0x%02X)\n\n";
 
 #ifdef THIS_DEVICE_MASTER
 const char ap_ssid[] PROGMEM = "gbscontrol";
