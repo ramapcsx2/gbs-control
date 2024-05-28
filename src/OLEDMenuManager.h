@@ -61,7 +61,7 @@ private:
         if (itemSP == OLED_MENU_MAX_DEPTH - 1)
         {
             char msg[30];
-            sprintf(msg, "Maximum depth reached: %d", OLED_MENU_MAX_DEPTH);
+            sprintf(msg, PSTR("Maximum depth reached: %d"), OLED_MENU_MAX_DEPTH);
             panicAndDisable(msg);
         }
         itemStack[itemSP++] = item;

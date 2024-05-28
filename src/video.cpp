@@ -3,7 +3,7 @@
 # File: video.cpp                                                                   #
 # File Created: Thursday, 2nd May 2024 4:07:57 pm                                   #
 # Author:                                                                           #
-# Last Modified: Friday, 24th May 2024 11:59:56 pm                        #
+# Last Modified: Monday, 27th May 2024 1:19:57 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -1397,7 +1397,7 @@ void setOutModeHdBypass(bool regsInitialized)
         // remember debug view
         // if (uopt->presetPreference != 2) {
         // if (rto->resolutionID != OutputCustom) {
-            serialCommand = 'D';
+        serialCommand = 'D';
         // }
     }
 
@@ -2828,7 +2828,7 @@ void shiftHorizontalRight()
 // }
 
 /**
- * @brief
+ * @brief Output video control horizontal scale serial commands (h, z)
  *
  * @param amountToScale
  * @param subtracting
@@ -4504,9 +4504,10 @@ void runSyncWatcher()
                     // todo: this hack is hard to understand when looking at applypreset and mode is suddenly 1,2 or 3
                     // if (uopt->presetPreference == 2) {
                     // if (rto->resolutionID == OutputCustom) {
-                    if (rto->resolutionID != OutputBypass
-                        && rto->resolutionID != PresetHdBypass
-                            && rto->resolutionID != PresetBypassRGBHV) {
+                    if (rto->resolutionID != OutputNone
+                         && rto->resolutionID != OutputBypass
+                            && rto->resolutionID != PresetHdBypass
+                                && rto->resolutionID != PresetBypassRGBHV) {
                         // custom preset defined, try to load (set mode = 14 here early)
                         rto->videoStandardInput = 14;
                     } else {

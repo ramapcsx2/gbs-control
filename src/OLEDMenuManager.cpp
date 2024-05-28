@@ -27,7 +27,7 @@ OLEDMenuItem *OLEDMenuManager::allocItem()
     }
     if (!newItem) {
         char msg[40];
-        sprintf(msg, "Maximum number of items reached: %d", OLED_MENU_MAX_ITEMS_NUM);
+        sprintf(msg, PSTR("Maximum number of items reached: %d"), OLED_MENU_MAX_ITEMS_NUM);
         panicAndDisable(msg);
     }
     return newItem;
@@ -84,7 +84,7 @@ OLEDMenuItem *OLEDMenuManager::registerItem(
     if (parent) {
         if (parent->numSubItem == OLED_MENU_MAX_SUBITEMS_NUM) {
             char msg[50];
-            sprintf(msg, "Maximum number of sub items reached: %d", OLED_MENU_MAX_SUBITEMS_NUM);
+            sprintf(msg, PSTR("Maximum number of sub items reached: %d"), OLED_MENU_MAX_SUBITEMS_NUM);
             panicAndDisable(msg);
         }
         parent->addSubItem(newItem);

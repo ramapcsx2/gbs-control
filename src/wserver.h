@@ -3,7 +3,7 @@
 # File: wserver.h                                                                    #
 # File Created: Friday, 19th April 2024 3:11:47 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Tuesday, 14th May 2024 11:11:47 am                       #
+# Last Modified: Tuesday, 28th May 2024 12:22:03 am                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -32,6 +32,7 @@ extern struct userOptions * uopt;
 extern struct runTimeOptions *rto;
 
 const char indexPage[] PROGMEM = "/index.html";
+const char backupFile[] PROGMEM = "/_backup";
 const char notFouldMessage[] PROGMEM = "<p style=\"align:center;\">404 | Page Not Found</p>";
 const char slotIndexMap[] PROGMEM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
 const char lomemMessage[] PROGMEM = "%d it's not enough memory...";
@@ -50,8 +51,9 @@ void serverSlotSave();
 void serverSlotRemove();
 void serverFsUploadResponder();
 void serverFsUploadHandler();
-void serverFsDownloadHandler();
-void serverFsDir();
+void serverBackupDownload();
+void extractBackup();
+// void serverFsDir();
 // void serverFsFormat();
 void serverWiFiStatus();
 void serverRestoreFilters();
@@ -66,7 +68,8 @@ void printVideoTimings();
 void fastGetBestHtotal();
 
 #if defined(ESP8266)
-void handleType2Command(char argument);
+void handleSerialCommand();
+void handleUserCommand();
 void initUpdateOTA();
 #endif              // defined(ESP8266)
 

@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Friday, 24th May 2024 10:07:02 pm                        #
+# Last Modified: Monday, 27th May 2024 11:09:31 am                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -99,34 +99,25 @@ void updateWebSocketData()
             char toSend[MESSAGE_LEN] = "";
             toSend[0] = '#'; // makeshift ping in slot 0
 
-            // toSend[1] = static_cast<char>(rto->presetID);
             toSend[1] = static_cast<char>(rto->resolutionID);
-            // if (rto->isCustomPreset) {
-            //     toSend[1] = 'C';
-            // } else
+            // @sk: left here for reference
             //     switch (rto->presetID) {
-            //         case Output960p:
-            //         // case 0x11:
+            //         case 0x11:    // Output960p
             //             toSend[1] = '1';
             //             break;
-            //         case Output1024p:
-            //         // case 0x12:
+            //         case 0x12:        // Output1024p
             //             toSend[1] = '2';
             //             break;
-            //         case Output720p:
-            //         // case 0x13:
+            //         case 0x13:        // Output720p
             //             toSend[1] = '3';
             //             break;
-            //         case Output480p:
-            //         // case 0x14:
+            //         case 0x14:        // Output480p
             //             toSend[1] = '4';
             //             break;
-            //         case Output1080p:
-            //         // case 0x15:
+            //         case 0x15:    // Output1080p
             //             toSend[1] = '5';
             //             break;
-            //         case Output15kHz:
-            //         // case 0x16:
+            //         case 0x16:   // Output15kHz
             //             toSend[1] = '6';
             //             break;
             //         case OutputBypass:        // bypass 0

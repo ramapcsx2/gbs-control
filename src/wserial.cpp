@@ -3,7 +3,7 @@
 # File: wserial.cpp                                                       #
 # File Created: Friday, 19th April 2024 4:13:35 pm                        #
 # Author: Sergey Ko                                                       #
-# Last Modified: Saturday, 4th May 2024 12:31:47 am                       #
+# Last Modified: Monday, 27th May 2024 12:23:15 pm                        #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -13,8 +13,8 @@
 #include "wserial.h"
 
 /**
- * @brief 
- * 
+ * @brief
+ *
  */
 void discardSerialRxData()
 {

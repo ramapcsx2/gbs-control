@@ -75,11 +75,11 @@
                             <div class="gbs-icon">delete</div>
                             <div>remove preset</div>
                         </button>
-                        <button class="gbs-button gbs-button__control-action" active
+                        <!-- <button class="gbs-button gbs-button__control-action" active
                             gbs-element-ref="buttonLoadCustomPreset" gbs-role="preset" onclick="loadPreset()">
                             <div class="gbs-icon">play_arrow</div>
                             <div>load preset</div>
-                        </button>
+                        </button> -->
                         <button class="gbs-button gbs-button__control-action gbs-button__secondary"
                             onclick="savePreset()" active>
                             <div class="gbs-icon">fiber_manual_record</div>
@@ -980,13 +980,10 @@
                     <div class="gbs-icon">warning</div>
                     <div>ALERT</div>
                 </legend>
-                <div class="gbs-flex gbs-padding__hor-16 gbs-modal__message" gbs-alert-content></div>
+                <div class="gbs-padding__hor-16 gbs-modal__message" gbs-alert-content></div>
                 <div class="gbs-flex">
-                    <button class="gbs-button gbs-button__control" disabled></button>
-                    <button gbs-alert-ok class="gbs-button gbs-button__control gbs-button__secondary">
-                        <div class="gbs-icon">done</div>
-                        <div>OK</div>
-                    </button>
+                    <button gbs-alert-act class="gbs-button gbs-button__control" disabled></button>
+                    <button gbs-alert-ack class="gbs-button gbs-button__control gbs-button__secondary"></button>
                 </div>
             </fieldset>
         </section>

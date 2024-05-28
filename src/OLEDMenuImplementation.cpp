@@ -31,7 +31,8 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
     display->drawXbm((OLED_MENU_WIDTH - TEXT_LOADED_WIDTH) / 2, OLED_MENU_HEIGHT / 2, IMAGE_ITEM(TEXT_LOADED));
     display->display();
     uint8_t videoMode = getVideoMode();
-    OutputResolution preset = OutputBypass;
+    // OutputResolution preset = OutputBypass;
+    OutputResolution preset = OutputNone;
     switch (item->tag) {
         case MT_1280x960:
             preset = Output960p;
@@ -51,9 +52,9 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
         case MT_DOWNSCALE:
             preset = Output15kHz;
             break;
-        // case MT_BYPASS:
-        //     preset = OutputCustom;
-        //     break;
+        case MT_BYPASS:
+            preset = OutputBypass;
+            break;
         default:
             break;
     }
@@ -118,7 +119,6 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     display->display();
     uopt->presetSlot = 'A' + item->tag; // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,
     // uopt->presetPreference = OutputResolution::OutputCustomized;
-    // rto->presetID = OutputCustom;
 
     // @sk: rely on chance that it's already set before manually
     // rto->resolutionID = OutputCustom;
@@ -345,14 +345,14 @@ bool wifiMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, 
     WiFiMode_t wifiMode = WiFi.getMode();
     manager->clearSubItems(item);
     if (wifiMode == WIFI_STA) {
-        sprintf(ssid, "SSID: %s", WiFi.SSID().c_str());
+        sprintf(ssid, PSTR("SSID: %s"), WiFi.SSID().c_str());
         manager->registerItem(item, 0, ssid);
         if (WiFi.isConnected()) {
             manager->registerItem(item, 0, IMAGE_ITEM(TEXT_WIFI_CONNECTED));
             manager->registerItem(item, 0, IMAGE_ITEM(TEXT_WIFI_URL));
-            sprintf(ip, "http://%s", WiFi.localIP().toString().c_str());
+            sprintf(ip, PSTR("http://%s"), WiFi.localIP().toString().c_str());
             manager->registerItem(item, 0, ip);
-            sprintf(domain, "http://%s", String(gbsc_device_hostname).c_str());
+            sprintf(domain, PSTR("http://%s"), FPSTR(gbsc_device_hostname));
             manager->registerItem(item, 0, domain);
         } else {
             // shouldn't happen?
@@ -360,11 +360,11 @@ bool wifiMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, 
         }
     } else if (wifiMode == WIFI_AP) {
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_WIFI_CONNECT_TO));
-        sprintf(ssid, "SSID: %s (%s)", wifiGetApSSID().c_str(), wifiGetApPASS().c_str());
+        sprintf(ssid, PSTR("SSID: %s (%s)"), wifiGetApSSID().c_str(), wifiGetApPASS().c_str());
         manager->registerItem(item, 0, ssid);
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_WIFI_URL));
         manager->registerItem(item, 0, "http://192.168.4.1");
-        sprintf(domain, "http://%s.local", String(gbsc_device_hostname).c_str());
+        sprintf(domain, PSTR("http://%s.local"), FPSTR(gbsc_device_hostname));
         manager->registerItem(item, 0, domain);
     } else {
         // shouldn't happen?

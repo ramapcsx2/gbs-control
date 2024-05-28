@@ -98,6 +98,12 @@ enum OutputResolution : char {
     OutputBypass        = 'q', //   passthrough 0 / bypass 0 |   'K'  |         |
     PresetHdBypass      = 's', //   passthrough 1 / bypass 1
     PresetBypassRGBHV   = 'u', //   passthrough 2 / bypass 2
+    // It suppose to be that the output custom sets automatically in case
+    // if user does scale the output video signal. However we operate with
+    // registers directly (ex: video->scaleHorizontal()) and there is no connection
+    // between output image scale (ex. GBS::VDS_HSCALE) and resolution
+    // (however it must be logically, so the custom scale changes output image size)
+    // hence the following is disabled
     // OutputCustom        = 'w', // ?
 };
 
@@ -250,7 +256,7 @@ const char * const preset_names[] PROGMEM = {
 
 const char preferencesFile[] PROGMEM = "/preferencesv2.txt";
 const char systemInfo[] PROGMEM = "h:%4u v:%4u PLL:%01u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d\n";
-const char commandDescr[] PROGMEM = "> %s command: %c (0x%02X) slotID: %c (0x%02X), resolutionID: %c (0x%02X)\n\n";
+const char commandDescr[] PROGMEM = "\n> %s command: %c (0x%02X) slotID: %c (0x%02X), resolutionID: %c (0x%02X)\n\n";
 
 #ifdef THIS_DEVICE_MASTER
 const char ap_ssid[] PROGMEM = "gbscontrol";

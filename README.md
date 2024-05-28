@@ -39,19 +39,22 @@ https://circuit-board.de/forum/index.php/Thread/15601-GBS-8220-Custom-Firmware-i
 - Preset - is a collection of predefined runtime values (including output screen resolution, etc).
 - Slot - is a collection of presets.
 
-When you connecting a new device, GBS tries to identify the input video signal. There are 9 signal types (VIDEO_ID), which are also used to identify preset for current slot while saving/loading custom preferences.
+When you connecting a new device, GBS tries to identify the input video signal. There are 9 signal types (VIDEO_ID), which also used to identify preset for current slot while saving/loading preferences.
 
-To store/load slots the following principles must be taken into account:
+While managing slots the following principles must be taken into account:
 
-1. General parameters of a SLOT are stored in slots.bin, where each of 72 slots has the structure:
+1. General parameters of a SLOT are stored in slots.bin, where each of (SLOTS_TOTAL) slots has structure:
      
     1.1. slot name\
-    1.2. input video signal ID (VIDEO_ID)\
-    1.3. output resolution\
+    <!-- 1.2. input video signal ID (VIDEO_ID)\ -->
+    1.2. output resolution\
     ... etc.
     
-     Each slot has its own SLOT_ID which is one character long.
-2. There is only ONE preset for ONE slot. Preset file names are formatted as `input_video_format.SLOT_ID`, for example:
+     Each slot has its own SLOT_ID which is one character long. The input video signal ID (VIDEO_ID) is not stored in slots. 
+     
+     > This allows to use multiple presets with the same slot, when current preset depends on the input video signal ID.
+     
+2. Preset file names are formatted as `input_video_format.SLOT_ID`, for example:
 
      - preset_ntsc.SLOT_ID
      - preset_pal.SLOT_ID
@@ -60,19 +63,22 @@ To store/load slots the following principles must be taken into account:
 
 3. Current/Active SLOT_ID and other auxiliar pararmeters are stored in preferencev2.txt file.
 
-The following diagram represents structure of the custom/user configuration:
+The following diagram represents structure of custom/user configuration:
 
-![user configuration structure](./doc/slot-preset-prefs.png)
+![gbs-control user configuration structure](./doc/img/slot-preset-prefs.png)
 
 
 ## Build and Upload<a id="build-n-upload"></a>
+
+>***PRO Tip:***\
+You may consider using the latest compiled binaries from [/builds](./builds/) directory.
 
 ### Using Platformio IDE (preferred)
 
 >***Please note:***\
 If your objective is to make changes to the Project, please use VSCode + Platformio IDE.
 
-1. Just clone the repository, open it with your VSCode and press Build/Upload. It's never been easier :)
+1. Clone the repository, open it with your VSCode and press Build/Upload. It's never been easier :)
 
 >***Please note:***\
 Platformio IDE enables upload speed limitation on ESP8266. Upload process at any higher upload speed will fail.
@@ -109,7 +115,7 @@ https://github.com/bluemurder/esp8266-ping.git
 
 ## Translations and UI locale
 
-GBS-C's UI ***(not the web interface yet)*** currently can be translated using ```translation.json``` file in the Project root directory. If you wish to add a translation, please use tag-SUBTAG format (IETF BCP 47 standard) for locale names.
+WebUI currently can be translated using ```translation.json``` file in the Project root directory. If you wish to add a translation, please use tag-SUBTAG format (IETF BCP 47 standard) for locale names.
 
 ### Platformio IDE (preferred)
 
@@ -139,21 +145,29 @@ python /scripts/generate_translations.py --fonts=YOUR_FONT your-LOCALE
 5. Now you're ready to build and upload the firmware.
 
 
-## Web-interface
+## WebUI
 
 Make sure the latest version of ```node-js``` installed on your machine. The following will do all the preparations automatically and it's the same in all environments, however the conversion scripts for Windows are not ready yet (see: public/scripts).
 
 ### Using Platformio IDE (recommended)
 
-You can use "Platform - Build Filesystem Image" command in Platformio menu to get the web-interface re-generated. Either you may use the direct method described below.
+You can use "Platform - Build or Upload Filesystem Image" command in Platformio menu to get the web-interface re-generated and uploaded. Either you may use the manual method described below.
 
-### Using Arduino IDE and others
+### Manually build WebUI
 
 If any changes were made, run the following command in Project root directory to update the web-interface:
 
 ```
 npm run build
 ```
+
+#### Uploading via Arduino IDE
+
+1. Download the latest release of (ESP8266LittleFS.jar](https://github.com/earlephilhower/arduino-esp8266littlefs-plugin/releases).
+2. Copy JAR file into your Arduino tools directory (see: "Preferences - Sketchbook location" + tools)
+3. Restart Arduino IDE, open [gbs-control.ino](./gbs-control.ino) file.
+4. From the Tools menu, select “ESP8266 LittleFS Data Upload“. The contents of [/data](./data/) directory will be converted into a binary image file and the upload process will begin.
+
 
 ## OTA update
 
@@ -175,6 +189,10 @@ Make sure you've enabled OTA mode in Control panel of GBSС.
 
 For more details visit: https://github.com/JAndrassy/ArduinoOTA/blob/master/README.md
 
-## Old Documentation
+## Additional information
 
-- https://ramapcsx2.github.io/gbs-control
+See [/doc/developer_guide.md](./doc/DEVELOPER_GUIDE.md).
+
+## Old documentation
+
+https://ramapcsx2.github.io/gbs-control

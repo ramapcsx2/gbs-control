@@ -143,7 +143,7 @@ const GBSControl = {
         'q': "buttonSourcePassThrough",
         's': "buttonSourcePassThrough",       // PresetHdBypass
         'u': "buttonSourcePassThrough",      // PresetBypassRGBHV
-        'w': "buttonLoadCustomPreset",
+        // 'w': "buttonLoadCustomPreset",
     },
     controlKeysMobileMode: "move",
     controlKeysMobile: {
@@ -205,7 +205,8 @@ const GBSControl = {
         wifiStaButton: null,
         wifiStaSSID: null,
         alert: null,
-        alertOk: null,
+        alertAck: null,
+        alertAct: null,
         alertContent: null,
         prompt: null,
         promptOk: null,
@@ -284,7 +285,7 @@ const createWebSocket = () => {
 
         GBSControl.wsConnectCounter++;
         clearTimeout(GBSControl.wsTimeout);
-        GBSControl.wsTimeout = setTimeout(timeOutWs, 6000);
+        GBSControl.wsTimeout = window.setTimeout(timeOutWs, 6000);
         GBSControl.isWsActive = true;
         GBSControl.wsNoSuccessConnectingCounter = 0;
     };
@@ -299,7 +300,7 @@ const createWebSocket = () => {
 
     GBSControl.ws.onmessage = (message: any) => {
         clearTimeout(GBSControl.wsTimeout);
-        GBSControl.wsTimeout = setTimeout(timeOutWs, 2700);
+        GBSControl.wsTimeout = window.setTimeout(timeOutWs, 2700);
         GBSControl.isWsActive = true;
 
         const [
@@ -498,8 +499,8 @@ const checkReadyState = () => {
  * Description placeholder
  */
 const createIntervalChecks = () => {
-    GBSControl.wsCheckTimer = setInterval(checkWebSocketServer, 500);
-    GBSControl.updateTerminalTimer = setInterval(updateTerminal, 50);
+    GBSControl.wsCheckTimer = window.setInterval(checkWebSocketServer, 500);
+    GBSControl.updateTerminalTimer = window.setInterval(updateTerminal, 50);
 };
 
 /* API services */
@@ -546,10 +547,11 @@ const removePreset = () => {
     const currentIndex = currentSlot.getAttribute("gbs-slot-id");
     const currentName = currentSlot.getAttribute("gbs-name");
     if (currentName && currentName.trim() !== "Empty") {
-        fetch(
+        return fetch(
             `http://${GBSControl.serverIP}/slot/remove?index=${currentIndex}&${+new Date()}`
         ).then(() => {
-
+            console.log("slot removed, reloadng slots...");
+            fetchSlotNames();
         });
     };
 };
@@ -581,7 +583,7 @@ const savePreset = () => {
                     )}&${+new Date()}`
                 ).then(() => {
                     loadUser("4").then(() => {
-                        setTimeout(() => {
+                        window.setTimeout(() => {
                             fetchSlotNames().then((success: boolean) => {
                                 if (success) {
                                     updateSlotNames();
@@ -598,15 +600,15 @@ const savePreset = () => {
 /**
  * Description placeholder
  */
-const loadPreset = () => {
-    loadUser("3").then(() => {
-        if (GBSStorage.read("customSlotFilters") === true) {
-            setTimeout(() => {
-                fetch(`http://${GBSControl.serverIP}/gbs/restore-filters?${+new Date()}`);
-            }, 250);
-        }
-    });
-};
+// const loadPreset = () => {
+//     loadUser("3").then(() => {
+//         if (GBSStorage.read("customSlotFilters") === true) {
+//             window.setTimeout(() => {
+//                 fetch(`http://${GBSControl.serverIP}/gbs/restore-filters?${+new Date()}`);
+//             }, 250);
+//         }
+//     });
+// };
 
 /**
  * Description placeholder
@@ -733,7 +735,7 @@ const getSlotPresetName = (resolutionID: string) => {
  * Description placeholder
  */
 const fetchSlotNamesErrorRetry = () => {
-    setTimeout(fetchSlotNamesAndInit, 1000);
+    window.setTimeout(fetchSlotNamesAndInit, 1000);
 };
 
 /**
@@ -752,7 +754,7 @@ const fetchSlotNamesAndInit = () => {
                 updateSlotNames();
                 createWebSocket();
                 createIntervalChecks();
-                setTimeout(hideLoading, 1000);
+                window.setTimeout(hideLoading, 1000);
             });
         }, fetchSlotNamesErrorRetry)
         .catch(fetchSlotNamesErrorRetry);
@@ -988,72 +990,73 @@ const checkFetchResponseStatus = (response: Response) => {
  *
  * @param {File} file
  */
-const readLocalFile = (file: File) => {
-    const reader = new FileReader();
-    reader.addEventListener("load", (event) => {
-        doRestore(reader.result as ArrayBuffer);
-    });
-    reader.readAsArrayBuffer(file);
-};
+// const readLocalFile = (file: File) => {
+//     const reader = new FileReader();
+//     reader.addEventListener("load", (event) => {
+//         doRestore(reader.result as ArrayBuffer);
+//     });
+//     reader.readAsArrayBuffer(file);
+// };
 
 /** backup / restore */
 
 const doBackup = () => {
-    let backupFiles: string[];
-    let done = 0;
-    let total = 0;
-    fetch(`http://${GBSControl.serverIP}/data/dir`)
-        .then((r) => r.json())
-        .then((files: string[]) => {
-            backupFiles = files;
-            total = files.length;
-            const funcs = files.map((path: string) => () => {
-                return fetch(`http://${GBSControl.serverIP}/data/download?file=${path}&${+new Date()}`).then(
-                    (response) => {
-                        GBSControl.ui.progressBackup.setAttribute(
-                            "gbs-progress",
-                            `${done}/${total}`
-                        );
-                        done++;
-                        return checkFetchResponseStatus(response) && response.arrayBuffer();
-                    }
-                );
-            });
+    window.location.href = `http://${GBSControl.serverIP}/data/backup?ts=${new Date().getTime()}`;
+    // let backupFiles: string[];
+    // let done = 0;
+    // let total = 0;
+    // fetch(`http://${GBSControl.serverIP}/data/dir`)
+    //     .then((r) => r.json())
+    //     .then((files: string[]) => {
+    //         backupFiles = files;
+    //         total = files.length;
+    //         const funcs = files.map((path: string) => () => {
+    //             return fetch(`http://${GBSControl.serverIP}/data/download?file=${path}&${+new Date()}`).then(
+    //                 (response) => {
+    //                     GBSControl.ui.progressBackup.setAttribute(
+    //                         "gbs-progress",
+    //                         `${done}/${total}`
+    //                     );
+    //                     done++;
+    //                     return checkFetchResponseStatus(response) && response.arrayBuffer();
+    //                 }
+    //             );
+    //         });
 
-            return serial(funcs);
-        })
-        .then((files: ArrayBuffer[]) => {
-    console.log("after download backup complete");
-            const headerDescriptor = files.reduce((acc, f, index) => {
-                acc[backupFiles[index]] = f.byteLength;
-                return acc;
-            }, {});
+    //         return serial(funcs);
+    //     })
+    //     .then((files: ArrayBuffer[]) => {
+    // console.log("after download backup complete");
+    //         const headerDescriptor = files.reduce((acc, f, index) => {
+    //             acc[backupFiles[index]] = f.byteLength;
+    //             return acc;
+    //         }, {});
 
-            const backupFilesJSON = JSON.stringify(headerDescriptor);
-            const backupFilesJSONSize = backupFilesJSON.length;
+    //         const backupFilesJSON = JSON.stringify(headerDescriptor);
+    //         const backupFilesJSONSize = backupFilesJSON.length;
 
-            const mainHeader = [
-                (backupFilesJSONSize >> 24) & 255, // size
-                (backupFilesJSONSize >> 16) & 255, // size
-                (backupFilesJSONSize >> 8) & 255, // size
-                (backupFilesJSONSize >> 0) & 255,
-            ];
+    //         const mainHeader = [
+    //             (backupFilesJSONSize >> 24) & 255, // size
+    //             (backupFilesJSONSize >> 16) & 255, // size
+    //             (backupFilesJSONSize >> 8) & 255, // size
+    //             (backupFilesJSONSize >> 0) & 255,
+    //         ];
 
-            const outputArray: number[] = [
-                ...mainHeader,
-                ...backupFilesJSON.split("").map((c) => c.charCodeAt(0)),
-                ...files.reduce((acc, f, index) => {
-                    acc = acc.concat(Array.from(new Uint8Array(f)));
-                    return acc;
-                }, []),
-            ];
+    //         const outputArray: number[] = [
+    //             ...mainHeader,
+    //             ...backupFilesJSON.split("").map((c) => c.charCodeAt(0)),
+    //             ...files.reduce((acc, f, index) => {
+    //                 acc = acc.concat(Array.from(new Uint8Array(f)));
+    //                 return acc;
+    //             }, []),
+    //         ];
 
-            downloadBlob(
-                new Blob([new Uint8Array(outputArray)]),
-                `gbs-control.backup-${+new Date()}.bin`
-            );
-            GBSControl.ui.progressBackup.setAttribute("gbs-progress", ``);
-        });
+    //         downloadBlob(
+    //             new Blob([new Uint8Array(outputArray)]),
+    //             `gbs-control.backup-${+new Date()}.bin`
+    //         );
+    //         GBSControl.ui.progressBackup.setAttribute("gbs-progress", ``);
+    //     });
 };
 
 /**
@@ -1061,77 +1064,104 @@ const doBackup = () => {
  *
  * @param {ArrayBuffer} file
  */
-const doRestore = (file: ArrayBuffer) => {
+// const doRestore = (file: ArrayBuffer, f: File) => {
+const doRestore = (f: File) => {
     const { backupInput } = GBSControl.ui;
-    const fileBuffer = new Uint8Array(file);
-    const headerCheck = fileBuffer.slice(4, 6);
+    // const fileBuffer = new Uint8Array(file);
+    // const headerCheck = fileBuffer.slice(4, 6);
 
-    if (headerCheck[0] !== 0x7b || headerCheck[1] !== 0x22) {
-        backupInput.setAttribute("disabled", "");
-        gbsAlert("Invalid Backup File")
-            .then(
-                () => {
-                    backupInput.removeAttribute("disabled");
-                },
-                () => {
-                    backupInput.removeAttribute("disabled");
-                }
-            )
-            .catch(() => {
+    const bkpTs = f.name.substring(f.name.lastIndexOf('-') + 1, f.name.lastIndexOf('.'));
+    const backupDate = new Date(parseInt(bkpTs));
+
+    // if (headerCheck[0] !== 0x7b || headerCheck[1] !== 0x22) {
+    backupInput.setAttribute("disabled", "");
+    const formData = new FormData();
+    formData.append("gbs-backup.bin", f, f.name);
+    const setAlertBody = () => {
+        const fsize = f.size / 1024;
+        return '<p class="">Backup File:</p><p>Backup date: '
+            + backupDate.toLocaleString()
+                + '</p><p>Size: ' + fsize.toFixed(2)+' kB</p>';
+    };
+    gbsAlert(
+        setAlertBody() as string,
+        '<div class="gbs-icon">close</div><div>Reject</div>',
+        '<div class="gbs-icon">done</div><div>Restore</div>'
+    ).then(
+            () => {
                 backupInput.removeAttribute("disabled");
-            });
-        return;
-    }
-    const b0 = fileBuffer[0],
-        b1 = fileBuffer[1],
-        b2 = fileBuffer[2],
-        b3 = fileBuffer[3];
-    const headerSize = (b0 << 24) + (b1 << 16) + (b2 << 8) + b3;
-    const headerString = Array.from(fileBuffer.slice(4, headerSize + 4))
-        .map((c) => String.fromCharCode(c))
-        .join("");
-
-    const headerObject = JSON.parse(headerString);
-    const files = Object.keys(headerObject);
-    let pos = headerSize + 4;
-    let total = files.length;
-    let done = 0;
-    const funcs = files.map((fileName) => async () => {
-        const fileContents = fileBuffer.slice(pos, pos + headerObject[fileName]);
-        const formData = new FormData();
-        formData.append(
-            "file",
-            new Blob([fileContents], { type: "application/octet-stream" }),
-            fileName.substr(1)
-        );
-
-        return await fetch(`http://${GBSControl.serverIP}/data/upload`, {
-            method: "POST",
-            body: formData,
-        }).then((response) => {
-            GBSControl.ui.progressRestore.setAttribute(
-                "gbs-progress",
-                `${done}/${total}`
-            );
-            done++;
-            pos += headerObject[fileName];
-            return response;
+            },
+            () => {
+                return fetch(`http://${GBSControl.serverIP}/data/restore`, {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        "Content-Type": "application/octet-stream",
+                    }
+                }).then((response) => {
+                    // backupInput.removeAttribute("disabled");
+                    window.setTimeout(() => {
+                        window.location.reload();
+                    }, 2000)
+                    return response;
+                });
+            }
+        )
+        .catch(() => {
+            backupInput.removeAttribute("disabled");
         });
-    });
+    //    return;
+    // }
+    // const b0 = fileBuffer[0],
+    //     b1 = fileBuffer[1],
+    //     b2 = fileBuffer[2],
+    //     b3 = fileBuffer[3];
+    // const headerSize = (b0 << 24) + (b1 << 16) + (b2 << 8) + b3;
+    // const headerString = Array.from(fileBuffer.slice(4, headerSize + 4))
+    //     .map((c) => String.fromCharCode(c))
+    //     .join("");
 
-    serial(funcs).then(() => {
-        //   serial(funcs).then(() => {
-        GBSControl.ui.progressRestore.setAttribute("gbs-progress", ``);
-        loadUser("a").then(() => {
-            gbsAlert(
-                "Restarting GBSControl.\nPlease wait until wifi reconnects then click OK"
-            )
-                .then(() => {
-                    window.location.reload();
-                })
-                .catch(() => { });
-        });
-    });
+    // const headerObject = JSON.parse(headerString);
+    // const files = Object.keys(headerObject);
+    // let pos = headerSize + 4;
+    // let total = files.length;
+    // let done = 0;
+    // const funcs = files.map((fileName) => async () => {
+    //     const fileContents = fileBuffer.slice(pos, pos + headerObject[fileName]);
+    //     const formData = new FormData();
+    //     formData.append(
+    //         "file",
+    //         new Blob([fileContents], { type: "application/octet-stream" }),
+    //         fileName.substr(1)
+    //     );
+
+    //     return await fetch(`http://${GBSControl.serverIP}/data/restore`, {
+    //         method: "POST",
+    //         body: formData,
+    //     }).then((response) => {
+    //         GBSControl.ui.progressRestore.setAttribute(
+    //             "gbs-progress",
+    //             `${done}/${total}`
+    //         );
+    //         done++;
+    //         pos += headerObject[fileName];
+    //         return response;
+    //     });
+    // });
+
+    // serial(funcs).then(() => {
+    //     //   serial(funcs).then(() => {
+    //     GBSControl.ui.progressRestore.setAttribute("gbs-progress", ``);
+    //     loadUser("a").then(() => {
+    //         gbsAlert(
+    //             "Restarting GBSControl.\nPlease wait until wifi reconnects then click OK"
+    //         )
+    //             .then(() => {
+    //                 window.location.reload();
+    //             })
+    //             .catch(() => { });
+    //     });
+    // });
 };
 
 /**
@@ -1141,6 +1171,13 @@ const doRestore = (file: ArrayBuffer) => {
  * @param {string} [name="file.txt"]
  */
 const downloadBlob = (blob: Blob, name = "file.txt") => {
+    let wnav: any = window.navigator;
+    // IE10+
+    if (wnav && wnav.msSaveOrOpenBlob) {
+        wnav.msSaveOrOpenBlob(blob, name);
+        return;
+    }
+    /// normal browsers:
     // Convert your blob into a Blob URL (a special url that points to an object in the browser's memory)
     const blobUrl = URL.createObjectURL(blob);
 
@@ -1163,7 +1200,7 @@ const downloadBlob = (blob: Blob, name = "file.txt") => {
             view: window,
         })
     );
-
+    window.URL.revokeObjectURL(blobUrl);
     // Remove link from body
     document.body.removeChild(link);
 };
@@ -1232,7 +1269,7 @@ const wifiScanSSID = () => {
             method: 'POST'
         }).then(() => {
             GBSControl.scanSSIDDone = true;
-            setTimeout(wifiScanSSID, 3000);
+            window.setTimeout(wifiScanSSID, 3000);
         });
         return;
     }
@@ -1342,7 +1379,7 @@ const controlMouseDown = (control: HTMLButtonElement) => () => {
 
     const click = controlClick(control);
     click();
-    control["__interval"] = setInterval(click, 300);
+    control["__interval"] = window.setInterval(click, 300);
 };
 
 /**
@@ -1417,7 +1454,7 @@ const initGBSButtons = () => {
                 () => {
                     callback();
                     clearInterval(button["__interval"]);
-                    button["__interval"] = setInterval(callback, 300);
+                    button["__interval"] = window.setInterval(callback, 300);
                 }
             );
             button.addEventListener(
@@ -1540,7 +1577,8 @@ const initUIElements = () => {
         developerSwitch: document.querySelector("[gbs-dev-switch]"),
         customSlotFilters: document.querySelector("[gbs-slot-custom-filters]"),
         alert: document.querySelector('section[name="alert"]'),
-        alertOk: document.querySelector("[gbs-alert-ok]"),
+        alertAck: document.querySelector("[gbs-alert-ack]"),
+        alertAct: document.querySelector("[gbs-alert-act]"),
         alertContent: document.querySelector("[gbs-alert-content]"),
         prompt: document.querySelector('section[name="prompt"]'),
         promptOk: document.querySelector("[gbs-prompt-ok]"),
@@ -1560,7 +1598,8 @@ const initGeneralListeners = () => {
 
     GBSControl.ui.backupInput.addEventListener("change", (event) => {
         const fileList: FileList = event.target["files"];
-        readLocalFile(fileList[0]);
+        doRestore(fileList[0]);
+        // readLocalFile(fileList[0]);
         GBSControl.ui.backupInput.value = "";
     });
 
@@ -1575,7 +1614,7 @@ const initGeneralListeners = () => {
         toggleCustomSlotFilters
     );
 
-    GBSControl.ui.alertOk.addEventListener("click", () => {
+    GBSControl.ui.alertAck.addEventListener("click", () => {
         GBSControl.ui.alert.setAttribute("hidden", "");
         gbsAlertPromise.resolve();
     });
@@ -1664,25 +1703,46 @@ const alertKeyListener = (event: any) => {
     }
 };
 
+const alertActEventListener = (e: any) => {
+    gbsAlertPromise.reject();
+};
+
 /**
  * Description placeholder
  *
  * @param {string} text
  * @returns {*}
  */
-const gbsAlert = (text: string) => {
-    GBSControl.ui.alertContent.textContent = text;
+const gbsAlert = (text: string, ackText: string = "", actText :string = "") => {
+    GBSControl.ui.alertContent.insertAdjacentHTML('afterbegin', text);
     GBSControl.ui.alert.removeAttribute("hidden");
     document.addEventListener("keyup", alertKeyListener);
+    if(ackText !== "") {
+        GBSControl.ui.alertAck.insertAdjacentHTML('afterbegin', ackText);
+    } else
+        GBSControl.ui.alertAck.insertAdjacentHTML('afterbegin', '<div class="gbs-icon">done</div><div>Ok</div>');
+
+    if(actText !== "") {
+        GBSControl.ui.alertAct.insertAdjacentHTML('afterbegin', actText);
+        GBSControl.ui.alertAct.removeAttribute("disabled");
+        GBSControl.ui.alertAct.addEventListener("click", alertActEventListener);
+    }
     return new Promise((resolve, reject) => {
-        gbsAlertPromise.resolve = (e) => {
+        const gbsAlertClean = () => {
             document.removeEventListener("keyup", alertKeyListener);
+            GBSControl.ui.alertAct.removeEventListener("click", alertActEventListener);
+            GBSControl.ui.alertAct.setAttribute("disabled", "");
+            GBSControl.ui.alertAck.textContent = "";
+            GBSControl.ui.alertAct.textContent = "";
+            GBSControl.ui.alertContent.textContent = "";
             GBSControl.ui.alert.setAttribute("hidden", "");
+        };
+        gbsAlertPromise.resolve = (e) => {
+            gbsAlertClean();
             return resolve(e);
         };
         gbsAlertPromise.reject = () => {
-            document.removeEventListener("keyup", alertKeyListener);
-            GBSControl.ui.alert.setAttribute("hidden", "");
+            gbsAlertClean();
             return reject();
         };
     });

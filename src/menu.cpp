@@ -3,7 +3,7 @@
 # File: menu.cpp                                                          #
 # File Created: Thursday, 2nd May 2024 11:31:34 pm                        #
 # Author:                                                                 #
-# Last Modified: Saturday, 18th May 2024 10:00:27 pm                      #
+# Last Modified: Monday, 27th May 2024 11:00:08 am                        #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -670,8 +670,10 @@ void settingsMenuOLED()
         // } else if (rto->presetID == 0x14) {
         } else if (rto->resolutionID == Output576p) {
             display.drawString(0, 0, "768x576");
-        } else {    // OutputBypass
+        } else if (rto->resolutionID == OutputBypass) { // OutputBypass
             display.drawString(0, 0, "bypass");
+        } else {
+            display.drawString(0, 0, "none/240p");
         }
 
         display.drawString(0, 20, String(ofr, 5) + "Hz");
