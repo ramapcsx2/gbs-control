@@ -1,6 +1,7 @@
-## Datasheets
+## Datasheets & Reference data
 
-[Google drive directory](https://drive.google.com/drive/folders/0B9y2RH4Lb3MZLUYtWGFOMUFVdlE?resourcekey=0-NRfMZNuFYhL2txb3TlAXrg)
+- GBS datasheets on [Google drive](https://drive.google.com/drive/folders/0B9y2RH4Lb3MZLUYtWGFOMUFVdlE?resourcekey=0-NRfMZNuFYhL2txb3TlAXrg)
+- [List of display resolutions](https://en.wikipedia.org/wiki/List_of_common_display_resolutions)
 
 ## Connections
 
