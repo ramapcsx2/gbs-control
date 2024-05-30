@@ -133,7 +133,7 @@ public:
 
     static void cleanup()
     {
-        _WSN(F("FrameSyncManager::cleanup(), resetting video frequency"));
+        _WSN(F("FrameSyncManager::cleanup(), reset video frequency"));
 
         syncLastCorrection = 0; // the important bit
         syncLockReady = 0;

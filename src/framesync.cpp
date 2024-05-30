@@ -3,7 +3,7 @@
 # File: framesync.cpp                                                     #
 # File Created: Sunday, 5th May 2024 12:52:08 pm                          #
 # Author:                                                                 #
-# Last Modified: Sunday, 12th May 2024 4:27:51 pm                         #
+# Last Modified: Thursday, 30th May 2024 11:33:00 am                      #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #

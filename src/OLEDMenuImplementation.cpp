@@ -32,7 +32,7 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
     display->display();
     uint8_t videoMode = getVideoMode();
     // OutputResolution preset = OutputBypass;
-    OutputResolution preset = OutputNone;
+    OutputResolution preset = Output240p;
     switch (item->tag) {
         case MT_1280x960:
             preset = Output960p;
@@ -298,10 +298,12 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
         } else if (rto->resolutionID == Output720p) {
             display.drawString(0, 0, "720x480");
         // } else if (rto->presetID == 0x14) {
-        } else if (rto->resolutionID == Output576p) {
+        } else if (rto->resolutionID == Output576p50) {
             display.drawString(0, 0, "768x576");        // ??? 720x576 ???
-        } else {
+        } else if (rto->resolutionID == OutputBypass) { // OutputBypass
             display.drawString(0, 0, "bypass");
+        } else {
+            display.drawString(0, 0, "240p");
         }
 
         display.drawString(0, 20, String(ofr, 5) + "Hz");

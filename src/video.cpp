@@ -3,7 +3,7 @@
 # File: video.cpp                                                                   #
 # File Created: Thursday, 2nd May 2024 4:07:57 pm                                   #
 # Author:                                                                           #
-# Last Modified: Monday, 27th May 2024 1:19:57 pm                         #
+# Last Modified: Thursday, 30th May 2024 12:42:51 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -1732,7 +1732,7 @@ void togglePhaseAdjustUnits()
 void bypassModeSwitch_RGBHV()
 {
     if (!rto->boardHasPower) {
-        _WSN(F("GBS board not responding!"));
+        _WSN(F("(!) GBS board not responding!"));
         return;
     }
 
@@ -2568,6 +2568,7 @@ void goLowPowerWithInputDetection()
     GBS::DAC_RGBS_PWDNZ::write(0); // direct disableDAC()
     // zeroAll();
     setResetParameters(); // includes rto->videoStandardInput = 0
+    _DBGN(F("reset runtime parameters while going LowPower"));
     prepareSyncProcessor();
     delay(100);
     rto->isInLowPowerMode = true;
@@ -4178,16 +4179,17 @@ void runSyncWatcher()
     // if format changed to valid, potentially new video mode
     if (((detectedVideoMode != 0 && detectedVideoMode != rto->videoStandardInput) ||
         (detectedVideoMode != 0 && rto->videoStandardInput == 0)) &&
-        rto->videoStandardInput != 15) {
+        rto->videoStandardInput != 15)
+    {
         // before thoroughly checking for a mode change, watch format via newVideoModeCounter
         if (newVideoModeCounter < 255) {
             newVideoModeCounter++;
             rto->continousStableCounter = 0; // usually already 0, but occasionally not
             if (newVideoModeCounter > 1) {   // help debug a few commits worth
-                if (newVideoModeCounter == 2) {
-                    _WSN();
-                }
-                _WS(newVideoModeCounter);
+                // if (newVideoModeCounter == 2) {
+                //     _WSN();
+                // }
+                _WSF(PSTR("video mode counter: %d\n"), newVideoModeCounter);
             }
             if (newVideoModeCounter == 3) {
                 freezeVideo();
@@ -4504,8 +4506,8 @@ void runSyncWatcher()
                     // todo: this hack is hard to understand when looking at applypreset and mode is suddenly 1,2 or 3
                     // if (uopt->presetPreference == 2) {
                     // if (rto->resolutionID == OutputCustom) {
-                    if (rto->resolutionID != OutputNone
-                         && rto->resolutionID != OutputBypass
+                    if (rto->resolutionID != Output240p
+                        && rto->resolutionID != OutputBypass
                             && rto->resolutionID != PresetHdBypass
                                 && rto->resolutionID != PresetBypassRGBHV) {
                         // custom preset defined, try to load (set mode = 14 here early)
@@ -4529,10 +4531,8 @@ void runSyncWatcher()
                     }
 
                     // if (uopt->presetPreference == 10) {
-                    // if (rto->presetID == OutputBypass) {
                     if (rto->resolutionID == OutputBypass) {
                         // uopt->presetPreference = Output960P; // fix presetPreference which can be "bypass"
-                        // rto->presetID = Output960p; // fix presetPreference which can be "bypass"
                         rto->resolutionID = Output960p; // fix presetPreference which can be "bypass"
                     }
 
@@ -4647,7 +4647,6 @@ void runSyncWatcher()
                         }
 
                         // if (uopt->presetPreference == 10) {
-                        // if (rto->presetID == OutputBypass) {
                         if (rto->resolutionID == OutputBypass) {
                             // uopt->presetPreference = Output960P; // fix presetPreference which can be "bypass"
                             rto->resolutionID = Output960p; // fix presetPreference which can be "bypass"
@@ -4814,6 +4813,7 @@ void runSyncWatcher()
 
         if (RGBHVNoSyncCounter > limitNoSync) {
             RGBHVNoSyncCounter = 0;
+            _DBGN(F("reset runtime parameters while running syncWatcher"));
             setResetParameters();
             prepareSyncProcessor();
             resetSyncProcessor(); // todo: fix MD being stuck in last mode when sync disappears
@@ -4959,6 +4959,7 @@ void runSyncWatcher()
         GBS::DAC_RGBS_PWDNZ::write(0); // 0 = disable DAC
         rto->noSyncCounter = 0;
         _WSN();
+        yield();
         goLowPowerWithInputDetection(); // does not further nest, so it can be called here // sets reset parameters
     }
 }
@@ -5223,6 +5224,7 @@ uint8_t inputAndSyncDetect()
                 // reset to base settings, then go to low power
                 GBS::SP_SOG_MODE::write(1);
                 goLowPowerWithInputDetection();
+                delay(10);
                 rto->isInLowPowerMode = true;
             }
         }

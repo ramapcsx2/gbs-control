@@ -3,7 +3,7 @@
 # File: wifiman.h                                                                   #
 # File Created: Friday, 19th April 2024 2:25:42 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Friday, 24th May 2024 9:54:01 pm                         #
+# Last Modified: Tuesday, 28th May 2024 4:42:17 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -26,9 +26,9 @@ extern DNSServer dnsServer;
 extern struct runTimeOptions *rto;
 
 //  HOWTO: Rely on the previously implemented logic
-//    __________     _____________     __________________   yes  _____________________
-//   | if ssid | -> | connect AP | -> | connect failed? | ----> | fallback to APmode |
-//   ----------     -------------     ------------------        ---------------------
+//    __________     _____________     __________________  yes  _____________________
+//   | if ssid | -> | connect AP | -> | connect failed? | ---> | fallback to APmode |
+//   ----------     -------------     ------------------       ---------------------
 //      ^                 _________________     |_____________
 //      |                |      yes       v          no      |
 //      | no  ____________________       _______________     |

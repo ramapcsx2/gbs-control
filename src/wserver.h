@@ -3,7 +3,7 @@
 # File: wserver.h                                                                    #
 # File Created: Friday, 19th April 2024 3:11:47 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Tuesday, 28th May 2024 12:22:03 am                       #
+# Last Modified: Thursday, 30th May 2024 11:03:13 am                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -31,10 +31,10 @@ extern char userCommand;
 extern struct userOptions * uopt;
 extern struct runTimeOptions *rto;
 
-const char indexPage[] PROGMEM = "/index.html";
-const char backupFile[] PROGMEM = "/_backup";
+const char indexPage[] PROGMEM = "/__index";
+const char backupFile[] PROGMEM = "/__backup";
 const char notFouldMessage[] PROGMEM = "<p style=\"align:center;\">404 | Page Not Found</p>";
-const char slotIndexMap[] PROGMEM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
+// const char slotIndexMap[] PROGMEM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
 const char lomemMessage[] PROGMEM = "%d it's not enough memory...";
 const char mimeTextHtml[] PROGMEM = "text/html";
 const char mimeOctetStream[] PROGMEM = "application/octet-stream";

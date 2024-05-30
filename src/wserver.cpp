@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Tuesday, 28th May 2024 1:36:47 pm                        #
+# Last Modified: Thursday, 30th May 2024 12:59:27 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -58,6 +58,9 @@ void serverInit()
     server.on("/wifi/ap", HTTP_POST, serverWiFiAP);
     server.on("/wifi/rst", HTTP_POST, serverWiFiReset);
 
+    // in case if something went wrong last time
+    LittleFS.remove(FPSTR(backupFile));
+
     server.begin(); // Webserver for the site
 }
 
@@ -69,7 +72,7 @@ void serverHome()
 {
     ASSERT_LOMEM_RETURN();
     server.sendHeader(F("Content-Encoding"), F("gzip"));
-    fs::File index = LittleFS.open(String(indexPage), "r");
+    fs::File index = LittleFS.open(FPSTR(indexPage), "r");
     if (index)
     {
         server.streamFile(index, mimeTextHtml);
@@ -141,9 +144,9 @@ void serverSlots()
             String slot_name = String(emptySlotName);
             for (int i = 0; i < SLOTS_TOTAL; i++)
             {
-                slotsObject.slot[i].slot = i;
+                // slotsObject.slot[i].slot = i;
                 // slotsObject.slot[i].presetNameID = 0;
-                slotsObject.slot[i].resolutionID = OutputNone;
+                slotsObject.slot[i].resolutionID = Output240p;
                 slotsObject.slot[i].scanlines = 0;
                 slotsObject.slot[i].scanlinesStrength = 0;
                 slotsObject.slot[i].wantVdsLineFilter = false;
@@ -160,7 +163,7 @@ void serverSlots()
         }
     }
 
-    server.streamFile(slotsBinaryFile, String(mimeOctetStream));
+    server.streamFile(slotsBinaryFile, mimeOctetStream);
     slotsBinaryFile.close();
     return;
 stream_slots_bin_failed:
@@ -180,12 +183,12 @@ void serverSlotSet()
     if (server.args() > 0)
     {
         SlotMetaArray slotsObject;
-        // TODO here must be the slot index (1,2,3,4,...)
-        const String slotParamValue = server.arg(0);
-        uint8_t slotIndex = lowByte(slotParamValue.toInt());
+        // const String slotParamValue = server.arg(String(F("index"))).toInt();
+        uint8_t slotIndex = lowByte(server.arg(String(F("index"))).toInt());
         // char slotValue[2];
         // slotParamValue.toCharArray(slotValue, sizeof(slotValue));
-        uopt->presetSlot = static_cast<uint8_t>(slotParamValue.charAt(0));
+        // uopt->presetSlot = static_cast<uint8_t>(slotParamValue.charAt(0));
+        uopt->presetSlot = slotIndex;
         fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "r");
         if (slotsBinaryFile)
         {
@@ -207,23 +210,10 @@ void serverSlotSet()
         //// uopt->presetPreference = OutputCustomized;
         // rto->presetID = OutputCustom;
         // saveUserPrefs();     // user prefs being saved in userCommand handler
-        _WSF(PSTR("slot change success: %c\n"), slotParamValue.charAt(0));
+        _WSF(PSTR("slot change success: %d\n"), uopt->presetSlot);
         server.send(200, mimeAppJson, F("true"));
         // begin loading new preset on the next loop
-        // userCommand = '3';
-        // TODO: unknown logic
-        if (rto->videoStandardInput == 14)
-        {
-            // vga upscale path: let synwatcher handle it
-            rto->videoStandardInput = 15;
-        }
-        else
-        {
-            // also does loadPresetFromLFS()
-            applyPresets(rto->videoStandardInput);
-        }
-        // save new slotID into preferences
-        saveUserPrefs();
+        userCommand = '3';
         return;
     }
 server_slot_set_failure:
@@ -237,13 +227,16 @@ server_slot_set_failure:
 void serverSlotSave()
 {
     bool result = false;
+    uint8_t i = 0;
     ASSERT_LOMEM_GOTO(server_slot_save_end);
     // TODO: too many open-closes...
     if (server.args() > 0)
     {
         // slot name
-        String slotName = server.arg(1);
+        String slotName = server.arg(String(F("name")));
+        uint8_t slotIndex = server.arg(String(F("index"))).toInt();
         SlotMetaArray slotsObject;
+        uint8_t k = slotName.length();
         fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "r");
 
         if (slotsBinaryFile)
@@ -254,42 +247,53 @@ void serverSlotSave()
         }
         else
         {
-            // file doesn't exist, let's create one
-            fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "w");
-
             String slot_name = String(emptySlotName);
-            for (int i = 0; i < SLOTS_TOTAL; i++)
+            while (i < SLOTS_TOTAL)
             {
-                slotsObject.slot[i].slot = i;
+                // slotsObject.slot[i].slot = i;
                 // slotsObject.slot[i].presetNameID = 0;
                 slotsObject.slot[i].scanlines = 0;
-                slotsObject.slot[i].resolutionID = OutputNone;
+                slotsObject.slot[i].resolutionID = Output240p;
                 slotsObject.slot[i].scanlinesStrength = 0;
                 slotsObject.slot[i].wantVdsLineFilter = false;
                 slotsObject.slot[i].wantStepResponse = true;
                 slotsObject.slot[i].wantPeaking = true;
-                strncpy(slotsObject.slot[i].name, slot_name.c_str(), sizeof(slotsObject.slot[i].name));
+                strncpy(slotsObject.slot[i].name,
+                    slot_name.c_str(),
+                    sizeof(slotsObject.slot[i].name)
+                );
+                i++;
+                delay(1);
             }
-
+            // file doesn't exist, let's create one
+            slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "w");
             slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
             slotsBinaryFile.close();
         }
 
         // updating the SlotMetaObject with data received
-        // slotIndexMap value
-        String slotIndexString = server.arg(0);
-        uint8_t slotIndex = lowByte(slotIndexString.toInt());
+        // uint8_t slotIndex = lowByte(slotIndexString.toInt());
+        uint8_t nameMaxLen = sizeof(slotsObject.slot[slotIndex].name);
+        const char space = 0x20;
         if (slotIndex >= SLOTS_TOTAL)
         {
+            _WSF(PSTR("too much slots, max allowed: %d\n"), (uint8_t)SLOTS_TOTAL);
             goto server_slot_save_end;
         }
-
-        String slot_line = String(emptySlotLine);
-        strncpy(slotsObject.slot[slotIndex].name, slot_line.c_str(), sizeof(slotsObject.slot[slotIndex].name));
-
-        slotsObject.slot[slotIndex].slot = slotIndex;
+        // fail proof
+        if(slotName.length() >= nameMaxLen) {
+            _WSF(PSTR("slot name is too long, max allowed: %d\n"), nameMaxLen);
+            goto server_slot_save_end;
+        }
+        // slotsObject.slot[slotIndex].slot = slotIndex;
         // slotsObject.slot[slotIndex].presetNameID = 0;
-        slotName.toCharArray(slotsObject.slot[slotIndex].name, sizeof(slotsObject.slot[slotIndex].name));
+        // slotName.toCharArray(slotsObject.slot[slotIndex].name, sizeof(slotsObject.slot[slotIndex].name));
+        strcpy(slotsObject.slot[slotIndex].name, slotName.c_str());
+        while(k < nameMaxLen - 1) {
+            slotsObject.slot[slotIndex].name[k] = space;
+            k ++;
+        }
+        delay(10);
         slotsObject.slot[slotIndex].resolutionID = rto->resolutionID;
         slotsObject.slot[slotIndex].scanlines = uopt->wantScanlines;
         slotsObject.slot[slotIndex].scanlinesStrength = uopt->scanlineStrength;
@@ -297,9 +301,9 @@ void serverSlotSave()
         slotsObject.slot[slotIndex].wantStepResponse = uopt->wantStepResponse;
         slotsObject.slot[slotIndex].wantPeaking = uopt->wantPeaking;
 
-        fs::File slotsBinaryOutputFile = LittleFS.open(FPSTR(slotsFile), "w");
-        slotsBinaryOutputFile.write((byte *)&slotsObject, sizeof(slotsObject));
-        slotsBinaryOutputFile.close();
+        slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "w");
+        slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
+        slotsBinaryFile.close();
 
         result = true;
     }
@@ -315,77 +319,68 @@ server_slot_save_end:
 void serverSlotRemove()
 {
     bool result = false;
-    int16_t slotIndex = server.arg(0).toInt();
-    if (server.args() > 0)
+    uint8_t i = 0;
+    int16_t slotIndex = server.arg(String(F("index"))).toInt();
+    SlotMetaArray slotsObject;
+    if (server.args() > 0 && slotIndex >= 0)
     {
-        // if (param == '0') {
-        //     _DBGN(F("Wait..."));
-        //     result = true;
-        // } else {
-        // uint8_t slot = uopt->presetSlot;
-
-        // uint8_t nextSlot;
         char buffer[4] = "";
-        auto currentSlot = String(slotIndexMap).indexOf(slotIndex);
+        // auto currentSlot = String(slotIndexMap).charAt(slotIndex);
         if (slotIndex > SLOTS_TOTAL || slotIndex < 0)
         {
             _DBGN(F("wrong slot index, abort"));
             goto server_slot_remove_end;
         }
+        // preset file extension
+        sprintf(buffer, PSTR(".%d"), slotIndex);
 
-        sprintf(buffer, PSTR(".%02x"), currentSlot);
-
-        SlotMetaArray slotsObject;
         fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "r");
 
-        if (!slotsBinaryFile)
+        if (!slotsBinaryFile) {
+            _DBGN(F("failed to read slots.bin"));
             goto server_slot_remove_end;
+        }
 
         slotsBinaryFile.read((byte *)&slotsObject, sizeof(slotsObject));
         slotsBinaryFile.close();
 
-        _DBGF("removing slot: %s and its preset\n", slotsObject.slot[currentSlot].name);
+        _DBGF(
+            PSTR("removing slot: %s and related presets...\n"),
+            slotsObject.slot[slotIndex].name
+        );
 
         // remove every preset file of this slot
         fs::Dir root = LittleFS.openDir("/");
         while (root.next())
         {
             String fn = root.fileName();
-            if (fn.lastIndexOf(buffer) == (int)(fn.length() - 4))
-            {
+            if (fn.lastIndexOf(buffer) == (int)(fn.length() - 3))
                 LittleFS.remove(fn);
-                // let's give some time to the flash
-                delay(10);
-            }
+            delay(10);
         }
         // lets reset the slot data in binary file
-        for (int i = 0; i < SLOTS_TOTAL; i++)
+        while (i < SLOTS_TOTAL)
         {
             if (i == slotIndex)
             {
                 String slot_name = String(emptySlotName);
-                slotsObject.slot[i].slot = i;
+                // slotsObject.slot[i].slot = i;
                 // slotsObject.slot[i].presetNameID = 0;
-                slotsObject.slot[i].resolutionID = OutputNone;
+                slotsObject.slot[i].resolutionID = Output240p;
                 slotsObject.slot[i].scanlines = 0;
                 slotsObject.slot[i].scanlinesStrength = 0;
                 slotsObject.slot[i].wantVdsLineFilter = false;
                 slotsObject.slot[i].wantStepResponse = true;
                 slotsObject.slot[i].wantPeaking = true;
-                strncpy(slotsObject.slot[i].name, slot_name.c_str(), sizeof(slotsObject.slot[i].name));
+                strncpy(slotsObject.slot[i].name,
+                    slot_name.c_str(),
+                        sizeof(slotsObject.slot[i].name)
+                );
                 break;
             }
+            i++;
+            delay(1);
         }
-
-        // LittleFS.remove("/preset_ntsc." + String((char)currentSlot));
-        // LittleFS.remove("/preset_pal." + String((char)currentSlot));
-        // LittleFS.remove("/preset_ntsc_480p." + String((char)currentSlot));
-        // LittleFS.remove("/preset_pal_576p." + String((char)currentSlot));
-        // LittleFS.remove("/preset_ntsc_720p." + String((char)currentSlot));
-        // LittleFS.remove("/preset_ntsc_1080p." + String((char)currentSlot));
-        // LittleFS.remove("/preset_medium_res." + String((char)currentSlot));
-        // LittleFS.remove("/preset_vga_upscale." + String((char)currentSlot));
-        // LittleFS.remove("/preset_unknown." + String((char)currentSlot));
 
         // uint8_t loopCount = 0;
         // uint8_t flag = 1;
@@ -420,15 +415,20 @@ void serverSlotRemove()
         slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
         slotsBinaryFile.close();
         result = true;
-        // }
     }
+    delay(10);
+    // reset parameters
+    setResetParameters();
+    _DBGN(F("slot has been removed, parameters now reset to defaults"));
+    // also reset resolution
+    rto->resolutionID = Output240p;
 
 server_slot_remove_end:
     server.send(200, mimeAppJson, result ? F("true") : F("false"));
 }
 
 /**
- * @brief
+ * @brief Upload file final response
  *
  */
 void serverFsUploadResponder()
@@ -437,7 +437,7 @@ void serverFsUploadResponder()
 }
 
 /**
- * @brief
+ * @brief Upload file handler
  *
  */
 void serverFsUploadHandler()
@@ -450,12 +450,11 @@ void serverFsUploadHandler()
         webSocket.close();
         dnsServer.stop();
         _tempFile = LittleFS.open(FPSTR(backupFile), "w");
-        _DBG(F("upload BACKUP file"));
-        err = false;
+        _DBGF(PSTR("uploading file: %s"), upload.filename.c_str());
     }
-    else if (upload.status == UPLOAD_FILE_WRITE && upload.contentLength != 0 && !err)
+    else if (upload.status == UPLOAD_FILE_WRITE && !err)
     {
-        if (_tempFile.write(upload.buf, upload.contentLength) != upload.contentLength)
+        if (_tempFile.write(upload.buf, upload.currentSize) != upload.currentSize)
         {
             err = true;
             _DBGN(F(" write failed, abort"));
@@ -466,7 +465,7 @@ void serverFsUploadHandler()
             _DBG(F("."));
         }
     }
-    else if (upload.status == UPLOAD_FILE_END && !err)
+    else if (upload.status == UPLOAD_FILE_END)
     {
         _DBGN(F(" complete"));
         err = false;
@@ -487,12 +486,21 @@ upload_file_close:
 }
 
 /**
- * @brief Backup all data
- *
+ * @brief Backup slots and its presets
+ *      The commented code below may be used in future in case of large size
+ *      of data to backup. It does the following:
+ *        1. creates backup file with all data needed to backup
+ *        2. streams backup file to client
+ *        3. removes backup file
  */
 void serverBackupDownload()
 {
-    StreamString data;
+    // fs::File _b = LittleFS.open(FPSTR(backupFile), "w");
+    // if(!_b) {
+    //     _DBGN(F("failed to create backup file, can not continue..."));
+    //     return;
+    // }
+    StreamString _b;
     // size_t contentLength = 0;
     fs::Dir dir = LittleFS.openDir("/");
     String ts = server.arg(String(F("ts")));
@@ -500,32 +508,66 @@ void serverBackupDownload()
     // ASSERT_LOMEM_GOTO(fs_dl_handle_fail);
     while (dir.next())
     {
-        if (dir.isFile() && dir.fileName().indexOf(PSTR(".html")) == -1)
-        // && (dir.fileName().compareTo(String(preferencesFile)) == 0
-        //     || dir.fileName().compareTo(String(slotsFile)) == 0
-        //         || dir.fileName().indexOf(buffer) != -1))
+        if (dir.isFile() && dir.fileName().indexOf(PSTR("__")) == -1)
         {
             fs::File _f = LittleFS.open(dir.fileName(), "r");
             if (_f)
             {
-                // write header
-                data.print(dir.fileName());
-                data.println();
-                data.print(dir.fileSize());
-                data.println();
-                // write file contents
-                while(_f.available()) {
-                    data.write(_f.read());
-                }
+                // write file name
+                _b.print(dir.fileName());
+                _b.println();
+                // slots.bin will be processed differently
+                // if(dir.fileName().compareTo(String(slotsFile).substring(1)) != 0) {
+                    // file size
+                    _b.print(dir.fileSize());
+                    _b.println();
+                    // write file contents
+                    while(_f.available()) {
+                        _b.write(_f.read());
+                    }
+                    _DBGF(PSTR("%s dump complete\n"), dir.fileName().c_str());
+                /* } else {
+                    SlotMetaArray slotsObject;
+                    // reading into mem
+                    _f.read((byte *)&slotsObject, sizeof(slotsObject));
+                    _f.close();
+                    uint8_t i = 0;
+                    String slot_name = String(emptySlotName);
+                    while(i < SLOTS_TOTAL) {
+                        if(strcmp(slotsObject.slot[i].name, slot_name.c_str()) != 0) {
+                            _DBGF(PSTR("slot: %s\n"), slotsObject.slot[i].name);
+                            _b.println(i);
+                            _b.println(slotsObject.slot[i].name);
+                            _b.println(slotsObject.slot[i].resolutionID);
+                            _b.println(slotsObject.slot[i].scanlines);
+                            _b.println(slotsObject.slot[i].scanlinesStrength);
+                            _b.println(slotsObject.slot[i].wantVdsLineFilter);
+                            _b.println(slotsObject.slot[i].wantStepResponse);
+                            _b.println(slotsObject.slot[i].wantPeaking);
+                        } else
+                            break;
+                        i++;
+                    }
+                    // since we're unable to have number of not empty slots beforehand,
+                    // let's leave here a "stop string" for now. The principle of
+                    // slots storage may need to change to allow the simplier logic.
+                    _b.println("\t\t");
+                    _DBGN(F("slots.bin dump complete"));
+                } */
                 _f.close();
             }
         }
     }
+    delay(100);
     server.sendHeader(PSTR("Content-Disposition"), String(PSTR("attachment; filename=\"gbs-backup-")) + ts + String(PSTR(".bin\"")));
     server.sendHeader(PSTR("Cache-Control"), PSTR("private, max-age=0"));
     server.sendHeader(PSTR("Content-Description"), PSTR("File Transfer"));
     server.sendHeader(PSTR("Content-Transfer-Encoding"), PSTR("binary"));
-    server.send(200, String(mimeOctetStream).c_str(), data.c_str(), data.length());
+    server.send(200, mimeOctetStream, _b.c_str(), _b.length());
+    /* server.streamFile(_b, mimeOctetStream);
+    // cleanup
+    _b.close();
+    LittleFS.remove(FPSTR(backupFile)); */
 
     webSocket.begin();
 }
@@ -536,6 +578,9 @@ void serverBackupDownload()
  */
 void extractBackup() {
     char buffer[32] = "";
+    char fname[32] = "";
+    size_t fsize = 0;
+    fs::File _f;
     fs::File _b = LittleFS.open(FPSTR(backupFile), "r");
     if(!_b) {
         _DBGN(F("failed to access backup file, abort..."));
@@ -545,36 +590,68 @@ void extractBackup() {
     while(_b.available()) {
         // name
         if(_b.readBytesUntil('\n', buffer, 32) != 0) {
-            char fname[32] = "";
             strncpy(fname, buffer, 32);
             // fix last captured character
             fname[strlen(fname)-1] = '\0';
-            // size
             memset(buffer, '\0', 32);
-            if(_b.readBytesUntil('\n', buffer, 32) != 0) {
-                size_t fsize = (size_t)String(buffer).toInt();
-                if(fsize != 0) {
-                    size_t cursor = 0;
-                    fs::File _f = LittleFS.open(fname, "w");
-                    // transfer data
-                    if(_f) {
-                        while(_b.available() && cursor != fsize) {
-                            _f.write(_b.read());
-                            cursor ++;
-                        }
-                        _f.close();
-                        _DBGF(PSTR("%s extraction complete, size: %ld\n"), fname, fsize);
+            // it is not slots.bin file
+            // if(strcmp(fname, String(slotsFile).substring(1).c_str()) != 0) {
+                if(_b.readBytesUntil('\n', buffer, 32) != 0) {
+                    fsize = (size_t)String(buffer).toInt();
+                    if(fsize != 0) {
+                        size_t cursor = 0;
+                        _f = LittleFS.open(fname, "w");
+                        // transfer data
+                        if(_f) {
+                            while(_b.available() && cursor != fsize) {
+                                _f.write(_b.read());
+                                cursor ++;
+                            }
+                            _f.close();
+                            _DBGF(PSTR("%s extraction complete, size: %ld\n"), fname, fsize);
+                        } else
+                            _DBGF(PSTR("unable to open/create %s (size: %ld)\n"), fname, fsize);
                     }
                 }
-            }
+            /* } else {
+                // it is slots.bin file
+                _f = LittleFS.open(FPSTR(slotsFile), "r");
+                if(_f) {
+                    SlotMetaArray slotsObject;
+                    _f.read((byte *)&slotsObject, sizeof(slotsObject));
+                    _f.close();
+                    uint8_t k = 0;
+                    String data = "";
+                    while(_b.available()) {
+                        // starts from slotID, so it's stop string or slotID
+                        data =_b.readString();
+                        // stop condition, see serverBackupDownload()
+                        if(data.compareTo(String(F("\t\t"))) == 0)
+                            break;
+                        // mind data order!
+                        k = data.toInt();
+                        strcpy(slotsObject.slot[k].name, _b.readString().c_str());
+                        slotsObject.slot[k].resolutionID = _b.readString().charAt(0);
+                        slotsObject.slot[k].scanlines = _b.readString().toInt();
+                        slotsObject.slot[k].scanlinesStrength = _b.readString().toInt();
+                        slotsObject.slot[k].wantVdsLineFilter = _b.readString().toInt();
+                        slotsObject.slot[k].wantStepResponse = _b.readString().toInt();
+                        slotsObject.slot[k].wantPeaking = _b.readString().toInt();
+                    }
+                    // open for writing
+                    _f = LittleFS.open(FPSTR(slotsFile), "w");
+                    _f.write((byte *)&slotsObject, sizeof(slotsObject));
+                    _f.close();
+                    _DBGN(F("slots.bin extraction complete"));
+                } else
+                    _DBGN(F("unable to open/create slots.bin"));
+            } */
         }
     }
     _b.close();
     // cleanup
     LittleFS.remove(FPSTR(backupFile));
     _DBGN(F("restore success, restarting..."));
-    // reset device to apply new configuration
-    ESP.reset();
 }
 
 /**
@@ -646,15 +723,15 @@ void serverRestoreFilters()
     {
         slotsBinaryFile.read((byte *)&slotsObject, sizeof(slotsObject));
         slotsBinaryFile.close();
-        auto currentSlot = String(slotIndexMap).indexOf(uopt->presetSlot);
-        if (currentSlot == -1)
-        {
-            goto server_restore_filters_end;
-        }
+        // auto currentSlot = String(slotIndexMap).indexOf(uopt->presetSlot);
+        // if (currentSlot == -1)
+        // {
+        //     goto server_restore_filters_end;
+        // }
 
-        uopt->wantScanlines = slotsObject.slot[currentSlot].scanlines;
+        uopt->wantScanlines = slotsObject.slot[uopt->presetSlot].scanlines;
 
-        _WSF(PSTR("slot: %s (ID %d) scanlines: "), slotsObject.slot[currentSlot].name, uopt->presetSlot);
+        _WSF(PSTR("slot: %s (ID %d) scanlines: "), slotsObject.slot[uopt->presetSlot].name, uopt->presetSlot);
         if (uopt->wantScanlines)
         {
             _WSN(F("on (Line Filter recommended)"));
@@ -666,14 +743,14 @@ void serverRestoreFilters()
         }
         saveUserPrefs();
 
-        uopt->scanlineStrength = slotsObject.slot[currentSlot].scanlinesStrength;
-        uopt->wantVdsLineFilter = slotsObject.slot[currentSlot].wantVdsLineFilter;
-        uopt->wantStepResponse = slotsObject.slot[currentSlot].wantStepResponse;
-        uopt->wantPeaking = slotsObject.slot[currentSlot].wantPeaking;
+        uopt->scanlineStrength = slotsObject.slot[uopt->presetSlot].scanlinesStrength;
+        uopt->wantVdsLineFilter = slotsObject.slot[uopt->presetSlot].wantVdsLineFilter;
+        uopt->wantStepResponse = slotsObject.slot[uopt->presetSlot].wantStepResponse;
+        uopt->wantPeaking = slotsObject.slot[uopt->presetSlot].wantPeaking;
         result = true;
     }
 
-server_restore_filters_end:
+// server_restore_filters_end:
     server.send(200, mimeAppJson, result ? F("true") : F("false"));
 }
 
@@ -689,7 +766,7 @@ void serverWiFiList()
     while (n == -1)
     {
         n = WiFi.scanComplete();
-        WDT_FEED();
+        yield();
     }
     if (n > 0)
     {
@@ -760,7 +837,7 @@ void serverWiFiWPS()
 // }
 
 /**
- * @brief
+ * @brief switch WiFi in STA mode
  *
  */
 void serverWiFiConnect()
@@ -803,7 +880,8 @@ void serverWiFiReset()
 }
 
 /**
- * @brief
+ * @brief Prints current system & PLC parameters
+ *         into WS and Serial
  *
  */
 void printInfo()
@@ -857,6 +935,7 @@ void printInfo()
     }
 
     yield();
+    
     if (GBS::STATUS_SYNC_PROC_HSACT::read())
     { // else source might not be active
         for (uint8_t i = 0; i < 9; i++)
@@ -878,6 +957,7 @@ void printInfo()
             }
         }
     }
+    delay(10);
     lockCounterPrevious = getMovingAverage(lockCounter);
 }
 
@@ -1014,15 +1094,14 @@ void handleSerialCommand()
     if (serialCommand != '@')
     {
         _WSF(commandDescr,
-             "serial",
-             serialCommand,
-             serialCommand,
-             // uopt->presetPreference,
-             uopt->presetSlot,
-             uopt->presetSlot,
-             // rto->presetID
-             rto->resolutionID,
-             rto->resolutionID);
+            "serial",
+            serialCommand,
+            serialCommand,
+            // uopt->presetPreference,
+            uopt->presetSlot,
+            // rto->presetID
+            rto->resolutionID,
+            rto->resolutionID);
         // multistage with bad characters?
         if (inputStage > 0)
         {
@@ -1406,7 +1485,7 @@ void handleSerialCommand()
         case 'i':
             rto->printInfos = !rto->printInfos;
             break;
-        case 'c':
+        case 'c':               // enableOTA mode
             initUpdateOTA();
             rto->allowUpdatesOTA = true;
             _WSN(F("OTA Updates on"));
@@ -1491,7 +1570,7 @@ void handleSerialCommand()
             saveUserPrefs();
             uint8_t vidMode = getVideoMode();
             // if (uopt->presetPreference == 0 && GBS::GBS_PRESET_ID::read() == 0x11) {
-            if (rto->resolutionID == OutputNone && GBS::GBS_PRESET_ID::read() == Output960p50)
+            if (rto->resolutionID == Output240p && GBS::GBS_PRESET_ID::read() == Output960p50)
             {
                 applyPresets(vidMode);
                 // } else if (uopt->presetPreference == 4 && GBS::GBS_PRESET_ID::read() == 0x02) {
@@ -1581,7 +1660,7 @@ void handleSerialCommand()
                 else
                     GBS::IF_HB_ST2::write(GBS::IF_HSYNC_RST::read() - 0x30);
                 _WSF(PSTR("IF_HB_ST2: 0x%04X IF_HB_SP2: 0x%04X\n"),
-                     GBS::IF_HB_ST2::read(), GBS::IF_HB_SP2::read());
+                    GBS::IF_HB_ST2::read(), GBS::IF_HB_SP2::read());
             }
             break;
         case '7':
@@ -2087,7 +2166,6 @@ void handleUserCommand()
             userCommand,
             // uopt->presetPreference,
             uopt->presetSlot,
-            uopt->presetSlot,
             // rto->presetID
             rto->resolutionID,
             rto->resolutionID);
@@ -2122,17 +2200,17 @@ void handleUserCommand()
         case '3': // before: load custom preset, now: slot change
         {
             // @sk: see serverSlotSet()
-            /*     // uopt->presetPreference = OutputCustomized; // custom
-                // TODO: unknown logic
-                if (rto->videoStandardInput == 14) {
-                    // vga upscale path: let synwatcher handle it
-                    rto->videoStandardInput = 15;
-                } else {
-                    // also does loadPresetFromLFS()
-                    applyPresets(rto->videoStandardInput);
-                }
-                // save new slotID into preferences
-                saveUserPrefs(); */
+            // uopt->presetPreference = OutputCustomized; // custom
+            // TODO: unknown logic
+            if (rto->videoStandardInput == 14) {
+                // vga upscale path: let synwatcher handle it
+                rto->videoStandardInput = 15;
+            } else {
+                // also does loadPresetFromLFS()
+                applyPresets(rto->videoStandardInput);
+            }
+            // save new slotID into preferences
+            saveUserPrefs();
         }
         break;
         // case '4': // save custom preset
@@ -2208,12 +2286,12 @@ void handleUserCommand()
             else
             {
                 _WSF(
-                    PSTR("\npresetNameID = %c\npreset slot = %c\nframe time lock = %c\n"
-                         "frame lock method = %c\nauto gain = %c\n"
-                         "scanlines = %c\ncomponent output = %c\ndeinterlacer mode = %c\n"
-                         "line filter = %c\npeaking = %c\npreferScalingRgbhv = %c\n"
-                         "6-tap = %c\npal force60 = %c\nmatched = %c\n"
-                         "step response = %c\ndisable external clock generator = %c\n"),
+                    PSTR("\npresetNameID = %c\npreset slot = %c\nframe time lock = %c\n" \
+                        "frame lock method = %c\nauto gain = %c\n" \
+                        "scanlines = %c\ncomponent output = %c\ndeinterlacer mode = %c\n" \
+                        "line filter = %c\npeaking = %c\npreferScalingRgbhv = %c\n" \
+                        "6-tap = %c\npal force60 = %c\nmatched = %c\n" \
+                        "step response = %c\ndisable external clock generator = %c\n"),
                     f.read(),
                     f.read(),
                     f.read(),
@@ -2240,12 +2318,14 @@ void handleUserCommand()
          * 2. update registers if videoStandardInput != 14
          * 3. update/save preset data
          */
-        case 'f':
-        case 'g':
-        case 'h':
-        case 'p':
-        case 's':
-        case 'L':
+        case 'f':           // 960p
+        case 'g':           // 720p
+        case 'h':           // 480p
+        case 'p':           // 1024p
+        case 's':           // 1080p
+        case 'L':           // 15kHz/downscale
+        case 'j':           // 240p
+        case 'k':           // 576p
         {
             // load preset via webui
             uint8_t videoMode = getVideoMode();
@@ -2271,16 +2351,22 @@ void handleUserCommand()
             if (userCommand == 'L')
                 // uopt->presetPreference = OutputDownscale; // downscale
                 rto->resolutionID = Output15kHz; // downscale
+            if (userCommand == 'k')
+                rto->resolutionID = Output576p50; // PAL
+            if (userCommand == 'j')
+                rto->resolutionID = Output240p; // 240p
 
             rto->useHdmiSyncFix = 1; // disables sync out when programming preset
             if (rto->videoStandardInput == 14)
             {
                 // vga upscale path: let synwatcher handle it
+                _DBGN(F("video input is #14, switch to #15"));
                 rto->videoStandardInput = 15;
             }
             else
             {
                 // normal path
+                _DBGF(PSTR("apply preset of videoMode: %d resolution: %d\n"), videoMode,  rto->resolutionID);
                 applyPresets(videoMode);
             }
             saveUserPrefs();
@@ -2498,11 +2584,14 @@ void handleUserCommand()
             break;
         case 'u':       // extract backup
             extractBackup();
+            // reset device to apply new configuration
+            delay(1000);
+            ESP.reset();
         //     // restart to attempt wifi station mode connect
         //     wifiStartStaMode("");
         //     delay(100);
         //     ESP.reset();
-            break;
+            // break;
         case 'v':
         {
             uopt->wantFullHeight = !uopt->wantFullHeight;
@@ -2670,9 +2759,9 @@ void handleUserCommand()
             if (GBS::ADC_INPUT_SEL::read() == 1)
             {
                 _WSF(
-                    PSTR("RGB reg\n------------\nY_OFFSET: %d\n"
-                         "U_OFFSET: %d\nV_OFFSET: %d\nY_GAIN: %d\n"
-                         "USIN_GAIN: %d\nUCOS_GAIN: %d\n"),
+                    PSTR("RGB reg\n------------\nY_OFFSET: %d\n" \
+                        "U_OFFSET: %d\nV_OFFSET: %d\nY_GAIN: %d\n" \
+                        "USIN_GAIN: %d\nUCOS_GAIN: %d\n"),
                     GBS::VDS_Y_OFST::read(),
                     GBS::VDS_U_OFST::read(),
                     GBS::VDS_V_OFST::read(),
@@ -2739,38 +2828,37 @@ void handleUserCommand()
  */
 void initUpdateOTA()
 {
-    ArduinoOTA.setHostname("GBS OTA");
-
+    // @sk: MDNS already started
+    // ArduinoOTA.setHostname("GBS OTA");
     // ArduinoOTA.setPassword("admin");
     // Password can be set with it's md5 value as well
     // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
     // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
-
     // update: no password is as (in)secure as this publicly stated hash..
     // rely on the user having to enable the OTA feature on the web ui
 
-    ArduinoOTA.onStart([]()
-                       {
+    ArduinoOTA.onStart([]() {
         String type;
         if (ArduinoOTA.getCommand() == U_FLASH)
-            type = "sketch";
+            type = "firmware";
         else // U_SPIFFS
             type = "filesystem";
 
         // NOTE: if updating LittleFS this would be the place to unmount LittleFS using LittleFS.end()
         LittleFS.end();
         _WSF(
-            PSTR("%s %s\n"),
-            String(F("Start updating ")).c_str(),
+            PSTR("%s OTA update start\n"),
             type.c_str()
-        ); });
-    ArduinoOTA.onEnd([]()
-                     { _WSN(F("\nEnd")); });
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
-                          { _WSF(PSTR("Progress: %u%%\n"), (progress / (total / 100))); });
-    ArduinoOTA.onError([](ota_error_t error)
-                       {
-        _WSF(PSTR("Error[%u]: "), error);
+        );
+    });
+    ArduinoOTA.onEnd([]() {
+        _WSN(F("OTA update end"));
+    });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+        _WSF(PSTR("progress: %u%%\n"), (progress / (total / 100)));
+    });
+    ArduinoOTA.onError([](ota_error_t error) {
+        _WSF(PSTR("OTA error[%u]: "), error);
         if (error == OTA_AUTH_ERROR)
             _WSN(F("Auth Failed"));
         else if (error == OTA_BEGIN_ERROR)
@@ -2780,9 +2868,9 @@ void initUpdateOTA()
         else if (error == OTA_RECEIVE_ERROR)
             _WSN(F("Receive Failed"));
         else if (error == OTA_END_ERROR)
-            _WSN(F("End Failed")); });
+            _WSN(F("End Failed"));
+    });
     ArduinoOTA.begin();
-    yield();
 }
 
 #endif // defined(ESP8266)

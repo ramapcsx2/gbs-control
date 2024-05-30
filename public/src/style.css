@@ -215,7 +215,7 @@ body {
   margin: 1px;
   min-width: 40px;
   padding: 4px;
-  text-align: right;
+  text-align: center;
   vertical-align: top;
   white-space: initial;
 }
@@ -373,9 +373,9 @@ body {
   margin: 0;
 }
 
-.gbs-resolution {
+/* .gbs-resolution {
   display: flex;
-}
+} */
 
 .gbs-scroll > section[name="presets"] > fieldset.presets {
   flex-grow: 1;
@@ -582,6 +582,10 @@ section[name="alert"] {
 
 .gbs-flex {
   display: flex;
+}
+
+.gbs-margin__bottom--8 {
+  margin-bottom: 8px;
 }
 
 .gbs-margin__bottom--16 {

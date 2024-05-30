@@ -64,8 +64,7 @@
                     </legend>
                     <!-- prettier-ignore -->
                     <ul class="gbs-help">
-                        <li>If you want to save your customizations, first select a slot for your new preset, then save
-                            to or load from that slot.</li>
+                        <li>If you want to save your customizations, first select a slot for your new preset, then save to or load from that slot.</li>
                         <li>Selecting a slot also makes it the new startup preset.</li>
                     </ul>
                     <div class="gbs-presets" gbs-slot-html></div>
@@ -98,48 +97,57 @@
                     <!-- prettier-ignore -->
                     <ul class="gbs-help">
                         <li>Choose an output resolution from these presets.</li>
-                        <li>Your selection will also be used for startup. 1280x960 is recommended for NTSC sources,
-                            1280x1024 for PAL.
-                        </li>
-                        <li>Use the "Matched Presets" option to switch between the two automatically (Preferences tab)
-                        </li>
-                        <!-- <li>Selecting a resolution also makes it the new startup preset.</li> -->
+                        <li>Your selection will also be used for startup. 1280x960 is recommended for NTSC sources, 1280x1024 for PAL.</li>
+                        <li>Use the "Matched Presets" option to switch between the two automatically (Preferences tab)</li>
                     </ul>
+                    <!-- <div class="gbs-resolution"> -->
                     <div class="gbs-resolution">
-                        <button class="gbs-button gbs-button__resolution" gbs-message="s" gbs-message-type="user"
-                            gbs-click="normal" gbs-element-ref="button1920x1080" gbs-role="preset">
-                            1920 <span>x1080</span>
-                        </button>
-                        <button class="gbs-button gbs-button__resolution" gbs-message="p" gbs-message-type="user"
-                            gbs-click="normal" gbs-element-ref="button1280x1024" gbs-role="preset">
-                            1280 <span>x1024</span>
-                        </button>
-                        <button class="gbs-button gbs-button__resolution" gbs-message="f" gbs-message-type="user"
-                            gbs-click="normal" gbs-element-ref="button1280x960" gbs-role="preset">
-                            1280 <span>x960</span>
-                        </button>
-                        <button class="gbs-button gbs-button__resolution" gbs-message="g" gbs-message-type="user"
-                            gbs-click="normal" gbs-element-ref="button1280x720" gbs-role="preset">
-                            1280 <span>x720</span>
-                        </button>
-                        <button class="gbs-button gbs-button__resolution" gbs-message="h" gbs-message-type="user"
-                            gbs-click="normal" gbs-element-ref="button720x480" gbs-role="preset">
-                            480p 576p
-                        </button>
-                        <button gbs-message="L" gbs-message-type="user" gbs-click="normal"
-                            class="gbs-button gbs-button__resolution gbs-button__resolution--center gbs-button__secondary"
-                            gbs-element-ref="button15kHzScaleDown" gbs-role="preset">
-                            <div class="gbs-icon">tv</div>
-                            <div>15KHz</div>
-                        </button>
-                        <button gbs-message="K" gbs-message-type="action" gbs-click="normal"
-                            class="gbs-button gbs-button__resolution gbs-button__resolution--center gbs-button__secondary"
-                            gbs-element-ref="buttonSourcePassThrough" gbs-role="preset">
-                            <div class="gbs-icon">swap_calls</div>
-                            <div class="gbs-button__resolution--pass-through">
-                                Pass Through
-                            </div>
-                        </button>
+                        <div class="gbs-flex gbs-margin__bottom--8">
+                            <button class="gbs-button gbs-button__resolution" gbs-message="s" gbs-message-type="user"
+                                gbs-click="normal" gbs-element-ref="button1080p" gbs-role="preset">
+                                1080p
+                            </button>
+                            <button class="gbs-button gbs-button__resolution" gbs-message="p" gbs-message-type="user"
+                                gbs-click="normal" gbs-element-ref="button1024p" gbs-role="preset">
+                                1024p
+                            </button>
+                            <button class="gbs-button gbs-button__resolution" gbs-message="f" gbs-message-type="user"
+                                gbs-click="normal" gbs-element-ref="button960p" gbs-role="preset">
+                                960p
+                            </button>
+                            <button class="gbs-button gbs-button__resolution" gbs-message="g" gbs-message-type="user"
+                                gbs-click="normal" gbs-element-ref="button720p" gbs-role="preset">
+                                720p
+                            </button>
+                            <button class="gbs-button gbs-button__resolution" gbs-message="k" gbs-message-type="user"
+                                gbs-click="normal" gbs-element-ref="button576p" gbs-role="preset">
+                                576p
+                            </button>
+                            <button class="gbs-button gbs-button__resolution" gbs-message="h" gbs-message-type="user"
+                                gbs-click="normal" gbs-element-ref="button480p" gbs-role="preset">
+                                480p
+                            </button>
+                            <button class="gbs-button gbs-button__resolution" gbs-message="j" gbs-message-type="user"
+                                gbs-click="normal" gbs-element-ref="button240p" gbs-role="preset">
+                                240p
+                            </button>
+                        </div>
+                        <div class="gbs-flex">
+                            <button gbs-message="L" gbs-message-type="user" gbs-click="normal"
+                                class="gbs-button gbs-button__resolution gbs-button__resolution--center gbs-button__secondary"
+                                gbs-element-ref="button15kHz" gbs-role="preset">
+                                <div class="gbs-icon">tv</div>
+                                <div>15KHz</div>
+                            </button>
+                            <button gbs-message="K" gbs-message-type="action" gbs-click="normal"
+                                class="gbs-button gbs-button__resolution gbs-button__resolution--center gbs-button__secondary"
+                                gbs-element-ref="buttonSourcePassThrough" gbs-role="preset">
+                                <div class="gbs-icon">swap_calls</div>
+                                <div class="gbs-button__resolution--pass-through">
+                                    Pass Through
+                                </div>
+                            </button>
+                        </div>
                     </div>
                 </fieldset>
                 <fieldset class="gbs-fieldset">
@@ -150,8 +158,7 @@
                     <!-- prettier-ignore -->
                     <ul class="gbs-help">
                         <li>Gain +/- adjusts the gain for the currently loaded preset.</li>
-                        <li>Auto Gain increases gain so bright areas are displayed as white, then decreases it when
-                            clipping is detected. Calibrate for a few seconds on a white screen.</li>
+                        <li>Auto Gain increases gain so bright areas are displayed as white, then decreases it when clipping is detected. Calibrate for a few seconds on a white screen.</li>
                     </ul>
                     <div class="gbs-flex gbs-margin__bottom--16">
                         <button gbs-message="o" gbs-message-type="user" gbs-click="repeat"
@@ -496,8 +503,7 @@
                         <ul class="gbs-help">
                             <!-- prettier-ignore -->
                             <li>Scanlines only work with 240p sources, or 480i with Bob deinterlacing.</li>
-                            <li>Line Filter eliminates blocky-pixel artifacts when upscaling beyond 480p, and is
-                                recommended.</li>
+                            <li>Line Filter eliminates blocky-pixel artifacts when upscaling beyond 480p, and is recommended.</li>
                         </ul>
                         <div class="gbs-flex">
                             <button gbs-message="f" gbs-message-type="action" gbs-click="normal" gbs-toggle="peaking"
@@ -514,8 +520,7 @@
                         <ul class="gbs-help">
                             <!-- prettier-ignore -->
                             <li>Peaking increases contrast around horizontal brightness steps, and is recommended.</li>
-                            <li>Step Response increases the sharpness of horizontal color steps, and is recommended.
-                            </li>
+                            <li>Step Response increases the sharpness of horizontal color steps, and is recommended.</li>
                         </ul>
                     </div>
                 </fieldset>
@@ -533,8 +538,7 @@
                                 Matched Presets
                                 <ul class="gbs-help">
                                     <!-- prettier-ignore -->
-                                    <li>If enabled, default to 1280x960 for NTSC 60 and 1280x1024 for PAL 50 (does not
-                                        apply for 720p / 1080p presets).</li>
+                                    <li>If enabled, default to 1280x960 for NTSC 60 and 1280x1024 for PAL 50 (does not apply for 720p / 1080p presets).</li>
                                 </ul>
                             </td>
                             <td gbs-message="Z" gbs-message-type="action" gbs-click="normal" class="gbs-icon"
@@ -547,10 +551,8 @@
                                 Full Height
                                 <!-- prettier-ignore -->
                                 <ul class="gbs-help">
-                                    <li>Some presets default to not using the entire vertical output resolution, leaving
-                                        some lines black.</li>
-                                    <li>With Full Height enabled, these presets will instead scale to fill more of the
-                                        screen height.</li>
+                                    <li>Some presets default to not using the entire vertical output resolution, leaving some lines black.</li>
+                                    <li>With Full Height enabled, these presets will instead scale to fill more of the screen height.</li>
                                     <li>(This currently only affects 1920 x 1080)</li>
                                 </ul>
                             </td>
@@ -566,11 +568,9 @@
                                 <ul class="gbs-help">
                                     <li>Low Resolution VGA input: Pass-through or Upscale</li>
                                     <li>Low resolution sources can be either passed on directly or get upscaled.</li>
-                                    <li>Upscaling may have some border / scaling issues, but is more compatible with
-                                        displays.</li>
+                                    <li>Upscaling may have some border / scaling issues, but is more compatible with displays.</li>
                                     <li>Also, refresh rates other than 60Hz are not well supported yet.</li>
-                                    <li>"Low resolution" is currently set at below or equal to 640x480 (525 active
-                                        lines).</li>
+                                    <li>"Low resolution" is currently set at below or equal to 640x480 (525 active lines).</li>
                                 </ul>
                             </td>
                             <td gbs-message="x" gbs-message-type="user" gbs-click="normal" class="gbs-icon"
@@ -583,10 +583,8 @@
                                 Output RGBHV/Component
                                 <!-- prettier-ignore -->
                                 <ul class="gbs-help">
-                                    <li>The default output mode is RGBHV, suitable for use with VGA cables or HDMI
-                                        converters.</li>
-                                    <li>An experimental YPbPr mode can also be selected. Compatibility is still spotty.
-                                    </li>
+                                    <li>The default output mode is RGBHV, suitable for use with VGA cables or HDMI converters.</li>
+                                    <li>An experimental YPbPr mode can also be selected. Compatibility is still spotty.</li>
                                 </ul>
                             </td>
                             <td gbs-message="L" gbs-message-type="action" gbs-click="normal" class="gbs-icon"
@@ -599,9 +597,7 @@
                                 Output Frame Rate: Force PAL 50Hz to 60Hz
                                 <!-- prettier-ignore -->
                                 <ul class="gbs-help">
-                                    <li>If your TV does not support 50Hz sources (displaying unknown format, no matter
-                                        the preset), try this option.
-                                    </li>
+                                    <li>If your TV does not support 50Hz sources (displaying unknown format, no matter the preset), try this option.</li>
                                     <li>The frame rate will not be as smooth. Reboot required.</li>
                                 </ul>
                             </td>
@@ -616,9 +612,7 @@
                                 <!-- prettier-ignore -->
                                 <ul class="gbs-help">
                                     <li>By default the external clock generator is enabled when installed.</li>
-                                    <li>You can disable it if you have issues with other options, e.g Force PAL 50Hz to
-                                        60Hz.
-                                        Reboot required.</li>
+                                    <li>You can disable it if you have issues with other options, e.g Force PAL 50Hz to 60Hz. Reboot required.</li>
                                 </ul>
                             </td>
                             <td gbs-message="X" gbs-message-type="user" gbs-click="normal" class="gbs-icon"
@@ -645,10 +639,8 @@
                                 Active FrameTime Lock
                                 <!-- prettier-ignore -->
                                 <ul class="gbs-help">
-                                    <li>This option keeps the input and output timings aligned, fixing the horizontal
-                                        tear line that can appear sometimes.</li>
-                                    <li>Two methods are available. Try switching methods if your display goes blank or
-                                        shifts vertically.</li>
+                                    <li>This option keeps the input and output timings aligned, fixing the horizontal tear line that can appear sometimes.</li>
+                                    <li>Two methods are available. Try switching methods if your display goes blank or shifts vertically.</li>
                                 </ul>
                             </td>
                         </tr>
@@ -671,13 +663,10 @@
                                 Deinterlace Method
                                 <!-- prettier-ignore -->
                                 <ul class="gbs-help">
-                                    <li>Gbscontrol detects interlaced content and automatically toggles deinterlacing.
-                                    </li>
-                                    <li>Bob Method: essentially no deinterlacing, no added lag but flickers, can be
-                                        combined with scanlines</li>
+                                    <li>Gbscontrol detects interlaced content and automatically toggles deinterlacing.</li>
+                                    <li>Bob Method: essentially no deinterlacing, no added lag but flickers, can be combined with scanlines</li>
                                     <li>Motion Adaptive: removes flicker and shows some artefacts in moving details</li>
-                                    <li>If possible, configure the source for progressive output. Otherwise, using
-                                        Motion Adaptive is recommended.</li>
+                                    <li>If possible, configure the source for progressive output. Otherwise, using Motion Adaptive is recommended.</li>
                                 </ul>
                             </td>
                         </tr>

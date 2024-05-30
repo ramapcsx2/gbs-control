@@ -9,7 +9,7 @@
 # rm -f webui_html.h-e webui.html
 
 cd ../../data
-gzip -c9 webui.html > index.html
+gzip -c9 webui.html > __index
 
 rm -f webui.html
 

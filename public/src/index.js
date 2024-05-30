@@ -72,21 +72,20 @@ const StructParser = {
 /* GBSControl Global Object*/
 const GBSControl = {
     buttonMapping: {
-        'a': "n/a",
-        'c': "button1280x960",
-        'd': "button1280x960",
-        'e': "button1280x1024",
-        'f': "button1280x1024",
-        'g': "button1280x720",
-        'h': "button1280x720",
-        'i': "button720x480",
-        'j': "button720x480",
-        'k': "button1920x1080",
-        'l': "button1920x1080",
-        'm': "button15kHzScaleDown",
-        'n': "button15kHzScaleDown",
-        'o': "button768×576",
-        'p': "button768×576",
+        'a': "button240p",
+        'c': "button960p",
+        'd': "button960p",
+        'e': "button1024p",
+        'f': "button1024p",
+        'g': "button720p",
+        'h': "button720p",
+        'i': "button480p",
+        'j': "button480p",
+        'k': "button1080p",
+        'l': "button1080p",
+        'm': "button15kHz",
+        'n': "button15kHz",
+        'p': "button576p",
         'q': "buttonSourcePassThrough",
         's': "buttonSourcePassThrough",
         'u': "buttonSourcePassThrough", // PresetBypassRGBHV
@@ -237,13 +236,15 @@ const createWebSocket = () => {
         GBSControl.wsTimeout = window.setTimeout(timeOutWs, 2700);
         GBSControl.isWsActive = true;
         const [messageDataAt0, // always #
-        messageDataAt1, // selected resolution ! (hex)
-        messageDataAt2, // selected slot ID (char)
+        messageDataAt1, // selected slot ID (int)
+        messageDataAt2, // selected resolution ()
         messageDataAt3, // adcAutoGain & scanlines & vdsLineFilter & wantPeaking & PalForce60 & wantOutputComponent (binary)
         messageDataAt4, // matchPresetSource & enableFrameTimeLock & deintMode & wantTap6 & wantStepResponse & wantFullHeight (binary)
         messageDataAt5, // enableCalibrationADC & preferScalingRgbhv & disableExternalClockGenerator (binary)
-        // dev
+        // developer tab
         messageDataAt6, // printInfos, invertSync, oversampling, ADC Filter
+        // system tab
+        messageDataAt7 // enableOTA
         ] = message.data;
         // console.log(message.data);
         if (messageDataAt0 != "#") {
@@ -255,17 +256,16 @@ const createWebSocket = () => {
             }
         }
         else {
-            // console.log("buttonMapping: " + messageDataAt1)
+            // ! current/selected slot
+            const slotId = "slot-" + messageDataAt1;
+            const activeSlotButton = document.querySelector(`[gbs-element-ref="${slotId}"]`);
             // ! curent/selected resolution
-            const resID = GBSControl.buttonMapping[messageDataAt1];
+            const resID = GBSControl.buttonMapping[messageDataAt2];
             const resEl = document.querySelector(`[gbs-element-ref="${resID}"]`);
             const activePresetButton = resEl
                 ? resEl.getAttribute("gbs-element-ref")
                 : "none";
             GBSControl.ui.presetButtonList.forEach(toggleButtonActive(activePresetButton));
-            // ! current/selected slot
-            const slotId = "slot-" + messageDataAt2;
-            const activeSlotButton = document.querySelector(`[gbs-element-ref="${slotId}"]`);
             if (activeSlotButton) {
                 GBSControl.ui.slotButtonList.forEach(toggleButtonActive(slotId));
             }
@@ -349,29 +349,38 @@ const createWebSocket = () => {
                     }
                 });
             }
-            // developer mode tab
+            // developer tab
             if (messageDataAt6) {
-                const optionByte4 = messageDataAt6.charCodeAt(0);
+                const optionByte6 = messageDataAt6.charCodeAt(0);
                 const printInfoButton = document.querySelector(`button[gbs-message="i"][gbs-message-type="action"]`);
                 const invertSync = document.querySelector(`button[gbs-message="8"][gbs-message-type="action"]`);
                 const oversampling = document.querySelector(`button[gbs-message="o"][gbs-message-type="action"]`);
                 const adcFilter = document.querySelector(`button[gbs-message="F"][gbs-message-type="action"]`);
-                if ((optionByte4 & 0x01) == 0x01)
+                if ((optionByte6 & 0x01) == 0x01)
                     printInfoButton.setAttribute("active", "");
                 else
                     printInfoButton.removeAttribute("active");
-                if ((optionByte4 & 0x02) == 0x02)
+                if ((optionByte6 & 0x02) == 0x02)
                     invertSync.setAttribute("active", "");
                 else
                     invertSync.removeAttribute("active");
-                if ((optionByte4 & 0x04) == 0x04)
+                if ((optionByte6 & 0x04) == 0x04)
                     oversampling.setAttribute("active", "");
                 else
                     oversampling.removeAttribute("active");
-                if ((optionByte4 & 0x08) == 0x08)
+                if ((optionByte6 & 0x08) == 0x08)
                     adcFilter.setAttribute("active", "");
                 else
                     adcFilter.removeAttribute("active");
+            }
+            // system tab
+            if (messageDataAt6) {
+                const optionByte7 = messageDataAt7.charCodeAt(0);
+                const enableOTAButton = document.querySelector(`button[gbs-message="c"][gbs-message-type="action"]`);
+                if ((optionByte7 & 0x01) == 0x01)
+                    enableOTAButton.setAttribute("active", "");
+                else
+                    enableOTAButton.removeAttribute("active");
             }
         }
     };
@@ -427,7 +436,7 @@ const loadDoc = (link) => {
     return fetch(`http://${GBSControl.serverIP}/sc?${link}&nocache=${new Date().getTime()}`);
 };
 /**
- * Description placeholder
+ * user command handler
  *
  * @param {string} link
  * @returns {*}
@@ -441,17 +450,30 @@ const loadUser = (link) => {
     return fetch(`http://${GBSControl.serverIP}/uc?${link}&nocache=${new Date().getTime()}`);
 };
 /** SLOT management */
+/**
+ * Remove slot handler
+ */
 const removePreset = () => {
     const currentSlot = document.querySelector('[gbs-role="slot"][active]');
     if (!currentSlot) {
         return;
     }
-    const currentIndex = currentSlot.getAttribute("gbs-slot-id");
+    const currentIndex = currentSlot.getAttribute("gbs-message");
     const currentName = currentSlot.getAttribute("gbs-name");
     if (currentName && currentName.trim() !== "Empty") {
-        return fetch(`http://${GBSControl.serverIP}/slot/remove?index=${currentIndex}&${+new Date()}`).then(() => {
-            console.log("slot removed, reloadng slots...");
-            fetchSlotNames();
+        gbsAlert(`<p>Are you sure to remove slot: ${currentName}?</p><p>This action also removes all related presets.</p>`, '<div class="gbs-icon">done</div><div>Yes</div>', '<div class="gbs-icon">close</div><div>No</div>').then(() => {
+            return fetch(`http://${GBSControl.serverIP}/slot/remove?index=${currentIndex}&${+new Date()}`).then(() => {
+                console.log("slot removed, reloadng slots...");
+                fetchSlotNames().then((success) => {
+                    if (success) {
+                        updateSlotNames();
+                    }
+                    else {
+                        fetchSlotNamesErrorRetry();
+                    }
+                });
+            });
+        }).catch(() => {
         });
     }
     ;
@@ -466,7 +488,7 @@ const savePreset = () => {
         return;
     }
     const key = currentSlot.getAttribute("gbs-element-ref");
-    const currentIndex = currentSlot.getAttribute("gbs-slot-id");
+    const currentIndex = currentSlot.getAttribute("gbs-message");
     gbsPrompt("Assign a slot name", GBSControl.structs.slots[currentIndex].name || key)
         .then((currentName) => {
         if (currentName && currentName.trim() !== "Empty") {
@@ -505,23 +527,38 @@ const savePreset = () => {
  */
 const getSlotsHTML = () => {
     // prettier-ignore
-    return [
-        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '.', '_', '~', '(', ')', '!', '*', ':', ','
-    ].map((chr, idx) => {
-        return `<button
-    class="gbs-button gbs-button__slot"
-    gbs-slot-id="${idx}"
-    gbs-message="${chr}"
-    gbs-message-type="setSlot"
-    gbs-click="normal"
-    gbs-element-ref="slot-${chr}"
-    gbs-meta="1024&#xa;x768"
-    gbs-role="slot"
-    gbs-name="slot-${idx}"
-  ></button>`;
-    }).join('');
+    //     return [
+    //         'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+    //         'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+    //         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '.', '_', '~', '(', ')', '!', '*', ':', ','
+    //     ].map((chr, idx) => {
+    //         // gbs-message="${chr}"
+    //         return `<button
+    //     class="gbs-button gbs-button__slot"
+    //     gbs-slot-message="${idx}"
+    //     gbs-message-type="setSlot"
+    //     gbs-click="normal"
+    //     gbs-element-ref="slot-${chr}"
+    //     gbs-meta="1024&#xa;x768"
+    //     gbs-role="slot"
+    //     gbs-name="slot-${idx}"
+    //   ></button>`;
+    //     }).join('');
+    // TODO: 'i' max. rely on SLOTS_TOTAL which is ambigous
+    let str = ``;
+    for (let i = 0; i != 72; i++) {
+        str += `<button
+        class="gbs-button gbs-button__slot"
+        gbs-message="${i}"
+        gbs-message-type="setSlot"
+        gbs-click="normal"
+        gbs-element-ref="slot-${i}"
+        gbs-meta="NONE"
+        gbs-role="slot"
+        gbs-name="slot-${i}"
+      ></button>`;
+    }
+    return str;
 };
 /**
  * Description placeholder
@@ -529,14 +566,14 @@ const getSlotsHTML = () => {
  * @param {string} slot
  */
 const setSlot = (slot) => {
-    fetch(`http://${GBSControl.serverIP}/slot/set?slot=${slot}&${+new Date()}`);
+    fetch(`http://${GBSControl.serverIP}/slot/set?index=${slot}&${+new Date()}`);
 };
 /**
  * Description placeholder
  */
 const updateSlotNames = () => {
     for (let i = 0; i < GBSControl.maxSlots; i++) {
-        const el = document.querySelector(`[gbs-slot-id="${i}"]`);
+        const el = document.querySelector(`[gbs-message="${i}"][gbs-role="slot"]`);
         el.setAttribute("gbs-name", GBSControl.structs.slots[i].name);
         el.setAttribute("gbs-meta", getSlotPresetName(GBSControl.structs.slots[i].resolutionID));
     }
@@ -564,44 +601,45 @@ const fetchSlotNames = () => {
  * Must be aligned with options.h -> OutputResolution
  *
  * @param {string} resolutionID
- * @returns {("1280x960" | "1280x1024" | "1280x720" | "1920x1080" | "DOWNSCALE" | "720x480" | "768x576" | "BYPASS" | "CUSTOM")}
+ * @returns {("960p" | "1024p" | "720p" | "480p" | "1080p" | "DOWNSCALE" | "576p" | "BYPASS" | "BYPASS HD" | "BYPASS RGBHV" | "240p" | "NONE")}
  */
 const getSlotPresetName = (resolutionID) => {
     switch (resolutionID) {
         case 'c':
         case 'd':
             // case 0x011:
-            return "1280x960";
+            return "960p";
         case 'e':
         case 'f':
             // case 0x012:
-            return "1280x1024";
+            return "1024p";
         case 'g':
         case 'h':
             // case 0x013:
-            return "1280x720";
+            return "720p";
         case 'i':
         case 'j':
             // case 0x015:
-            return "720x480";
+            return "480p";
         case 'k':
         case 'l':
-            return "1920x1080";
+            return "1080p";
         case 'm':
         case 'n':
             // case 0x016:
             return "DOWNSCALE";
-        case 'o':
         case 'p':
-            return "768x576";
+            return "576p";
         case 'q':
             return "BYPASS";
         case 's': // bypass 1
-            return "HD_BYPASS";
+            return "BYPASS HD";
         case 'u': // bypass 2
-            return "BYPASS_RGBHV";
+            return "BYPASS RGBHV";
         // case 12:
         //     return "CUSTOM";
+        case 'a':
+            return "240p";
         default:
             return "NONE";
     }
@@ -895,7 +933,7 @@ const doRestore = (f) => {
     formData.append("gbs-backup.bin", f, f.name);
     const setAlertBody = () => {
         const fsize = f.size / 1024;
-        return '<p class="">Backup File:</p><p>Backup date: '
+        return '<p>Backup File:</p><p>Backup date: '
             + backupDate.toLocaleString()
             + '</p><p>Size: ' + fsize.toFixed(2) + ' kB</p>';
     };
@@ -904,10 +942,7 @@ const doRestore = (f) => {
     }, () => {
         return fetch(`http://${GBSControl.serverIP}/data/restore`, {
             method: "POST",
-            body: formData,
-            headers: {
-                "Content-Type": "application/octet-stream",
-            }
+            body: formData
         }).then((response) => {
             // backupInput.removeAttribute("disabled");
             window.setTimeout(() => {
@@ -975,34 +1010,36 @@ const doRestore = (f) => {
  * @param {Blob} blob
  * @param {string} [name="file.txt"]
  */
-const downloadBlob = (blob, name = "file.txt") => {
-    let wnav = window.navigator;
-    // IE10+
-    if (wnav && wnav.msSaveOrOpenBlob) {
-        wnav.msSaveOrOpenBlob(blob, name);
-        return;
-    }
-    /// normal browsers:
-    // Convert your blob into a Blob URL (a special url that points to an object in the browser's memory)
-    const blobUrl = URL.createObjectURL(blob);
-    // Create a link element
-    const link = document.createElement("a");
-    // Set link's href to point to the Blob URL
-    link.href = blobUrl;
-    link.download = name;
-    // Append link to the body
-    document.body.appendChild(link);
-    // Dispatch click event on the link
-    // This is necessary as link.click() does not work on the latest firefox
-    link.dispatchEvent(new MouseEvent("click", {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-    }));
-    window.URL.revokeObjectURL(blobUrl);
-    // Remove link from body
-    document.body.removeChild(link);
-};
+// const downloadBlob = (blob: Blob, name = "file.txt") => {
+//     let wnav: any = window.navigator;
+//     // IE10+
+//     if (wnav && wnav.msSaveOrOpenBlob) {
+//         wnav.msSaveOrOpenBlob(blob, name);
+//         return;
+//     }
+//     /// normal browsers:
+//     // Convert your blob into a Blob URL (a special url that points to an object in the browser's memory)
+//     const blobUrl = URL.createObjectURL(blob);
+//     // Create a link element
+//     const link = document.createElement("a");
+//     // Set link's href to point to the Blob URL
+//     link.href = blobUrl;
+//     link.download = name;
+//     // Append link to the body
+//     document.body.appendChild(link);
+//     // Dispatch click event on the link
+//     // This is necessary as link.click() does not work on the latest firefox
+//     link.dispatchEvent(
+//         new MouseEvent("click", {
+//             bubbles: true,
+//             cancelable: true,
+//             view: window,
+//         })
+//     );
+//     window.URL.revokeObjectURL(blobUrl);
+//     // Remove link from body
+//     document.body.removeChild(link);
+// };
 /** WIFI management */
 const wifiGetStatus = () => {
     return fetch(`http://${GBSControl.serverIP}/wifi/status?${+new Date()}`)
@@ -1026,7 +1063,7 @@ const wifiGetStatus = () => {
     });
 };
 /**
- * Description placeholder
+ * Does connect to selected WiFi network
  */
 const wifiConnect = () => {
     const ssid = GBSControl.ui.wifiSSDInput.value;
@@ -1042,15 +1079,13 @@ const wifiConnect = () => {
         method: "POST",
         body: formData,
     }).then(() => {
-        gbsAlert(`GBSControl will restart and will connect to ${ssid}. Please wait some seconds then press OK`)
-            .then(() => {
+        gbsAlert(`GBSControl will restart and will connect to ${ssid}. Please wait few seconds then press OK`).then(() => {
             window.location.href = "http://gbscontrol.local/";
-        })
-            .catch(() => { });
+        }).catch(() => { });
     });
 };
 /**
- * Description placeholder
+ * Query WiFi networks
  */
 const wifiScanSSID = () => {
     GBSControl.ui.wifiStaButton.setAttribute("disabled", "");
@@ -1082,10 +1117,10 @@ const wifiScanSSID = () => {
         .then((ssids) => {
         return ssids.reduce((acc, ssid) => {
             return `${acc}<tr gbs-ssid="${ssid.ssid}">
-        <td class="gbs-icon" style="opacity:${parseInt(ssid.strength, 10) / 100}">wifi</td>
-        <td>${ssid.ssid}</td>
-        <td class="gbs-icon">${ssid.encripted ? "lock" : "lock_open"}</td>
-      </tr>`;
+                <td class="gbs-icon" style="opacity:${parseInt(ssid.strength, 10) / 100}">wifi</td>
+                <td>${ssid.ssid}</td>
+                <td class="gbs-icon">${ssid.encripted ? "lock" : "lock_open"}</td>
+                </tr>`;
         }, "");
     })
         .then((html) => {
@@ -1124,11 +1159,9 @@ const wifiSetAPMode = () => {
         method: "POST",
         // body: formData,
     }).then((response) => {
-        gbsAlert("Switching to AP mode. Please connect to gbscontrol SSID and then click OK")
-            .then(() => {
+        gbsAlert("Switching to AP mode. Please connect to gbscontrol SSID and then click OK").then(() => {
             window.location.href = "http://192.168.4.1";
-        })
-            .catch(() => { });
+        }).catch(() => { });
         return response;
     });
 };

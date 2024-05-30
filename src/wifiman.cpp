@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Monday, 27th May 2024 11:09:31 am                        #
+# Last Modified: Thursday, 30th May 2024 12:54:36 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -95,11 +95,13 @@ void updateWebSocketData()
 
     if (rto->webServerEnabled && rto->webServerStarted) {
         if (webSocket.connectedClients() > 0) {
-            constexpr size_t MESSAGE_LEN = 7;
+            constexpr size_t MESSAGE_LEN = 8;
             char toSend[MESSAGE_LEN] = "";
             toSend[0] = '#'; // makeshift ping in slot 0
-
-            toSend[1] = static_cast<char>(rto->resolutionID);
+            // slotID is INTEGER
+            toSend[1] = uopt->presetSlot + '0';
+            // TODO: resolutionID must be INTEGER too
+            toSend[2] = static_cast<char>(rto->resolutionID);
             // @sk: left here for reference
             //     switch (rto->presetID) {
             //         case 0x11:    // Output960p
@@ -137,13 +139,12 @@ void updateWebSocketData()
             //             break;
             //     }
 
-            toSend[2] = static_cast<char>(uopt->presetSlot);
-
             // '@' = 0x40, used for "byte is present" detection; 0x80 not in ascii table
             toSend[3] = '@';
             toSend[4] = '@';
             toSend[5] = '@';
             toSend[6] = '0';
+            toSend[7] = '0';
 
             if (uopt->enableAutoGain) {
                 toSend[3] |= (1 << 0);
@@ -206,6 +207,11 @@ void updateWebSocketData()
             }
             if(GBS::ADC_FLTR::read() != 0) {
                 toSend[6] |= (1 << 3);
+            }
+
+            // system tab controls
+            if(rto->allowUpdatesOTA) {
+                toSend[7] |= (1 << 0);
             }
 
             webSocket.broadcastTXT(toSend, MESSAGE_LEN);
@@ -349,9 +355,6 @@ void wifiLoop(bool instant) {
                 updateWebSocketData();
             }
             _lastTimePing = millis();
-        }
-        if (rto->allowUpdatesOTA) {
-            ArduinoOTA.handle();
         }
     }
 }

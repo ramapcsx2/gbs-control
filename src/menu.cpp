@@ -3,7 +3,7 @@
 # File: menu.cpp                                                          #
 # File Created: Thursday, 2nd May 2024 11:31:34 pm                        #
 # Author:                                                                 #
-# Last Modified: Monday, 27th May 2024 11:00:08 am                        #
+# Last Modified: Wednesday, 29th May 2024 5:12:46 pm                      #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -383,7 +383,7 @@ void settingsMenuOLED()
     if (oled_menuItem == 2) {
         if (oled_pointer_count == 0 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
-            uopt->presetSlot = 'A';
+            // uopt->presetSlot = 'A';
             // uopt->presetPreference = OutputCustomized;
             rto->resolutionID = OutputCustom;
             saveUserPrefs();
@@ -409,7 +409,7 @@ void settingsMenuOLED()
         }
         if (oled_pointer_count == 1 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
-            uopt->presetSlot = 'B';
+            // uopt->presetSlot = 'B';
             // uopt->presetPreference = OutputCustomized;
             rto->resolutionID = OutputCustom;
             saveUserPrefs();
@@ -435,7 +435,7 @@ void settingsMenuOLED()
         }
         if (oled_pointer_count == 2 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
-            uopt->presetSlot = 'C';
+            // uopt->presetSlot = 'C';
             // uopt->presetPreference = OutputCustomized;
             rto->resolutionID = OutputCustom;
             saveUserPrefs();
@@ -461,7 +461,7 @@ void settingsMenuOLED()
         }
         if (oled_pointer_count == 3 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
-            uopt->presetSlot = 'D';
+            // uopt->presetSlot = 'D';
             // uopt->presetPreference = OutputCustomized;
             rto->resolutionID = OutputCustom;
             saveUserPrefs();
@@ -487,7 +487,7 @@ void settingsMenuOLED()
         }
         if (oled_pointer_count == 4 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
-            uopt->presetSlot = 'E';
+            // uopt->presetSlot = 'E';
             // uopt->presetPreference = OutputCustomized;
             rto->resolutionID = OutputCustom;
             saveUserPrefs();
@@ -513,7 +513,7 @@ void settingsMenuOLED()
         }
         if (oled_pointer_count == 5 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
-            uopt->presetSlot = 'F';
+            // uopt->presetSlot = 'F';
             // uopt->presetPreference = OutputCustomized;
             rto->resolutionID = OutputCustom;
             saveUserPrefs();
@@ -539,7 +539,7 @@ void settingsMenuOLED()
         }
         if (oled_pointer_count == 6 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
-            uopt->presetSlot = 'G';
+            // uopt->presetSlot = 'G';
             // uopt->presetPreference = OutputCustomized;
             rto->resolutionID = OutputCustom;
             saveUserPrefs();
@@ -638,7 +638,7 @@ void settingsMenuOLED()
         float ofr = getOutputFrameRate();
         uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
         // rto->presetID = GBS::GBS_PRESET_ID::read();
-        rto->resolutionID = GBS::GBS_PRESET_ID::read();
+        rto->resolutionID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
 
         oled_page = 1;
         oled_pointer_count = 0;
@@ -668,12 +668,12 @@ void settingsMenuOLED()
         } else if (rto->resolutionID == Output480p) {
             display.drawString(0, 0, "720x480");
         // } else if (rto->presetID == 0x14) {
-        } else if (rto->resolutionID == Output576p) {
+        } else if (rto->resolutionID == Output576p50) {
             display.drawString(0, 0, "768x576");
         } else if (rto->resolutionID == OutputBypass) { // OutputBypass
             display.drawString(0, 0, "bypass");
         } else {
-            display.drawString(0, 0, "none/240p");
+            display.drawString(0, 0, "240p");
         }
 
         display.drawString(0, 20, String(ofr, 5) + "Hz");

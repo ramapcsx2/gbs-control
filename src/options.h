@@ -79,32 +79,31 @@
 
 // Output resolution requested by user, *given to* applyPresets().
 enum OutputResolution : char {
-                               //  RESOLUTION         | FREQ | U.CMD. | OLD ID  |
-    OutputNone          = 'a', //   N/A is this 240p ?
-    Output960p          = 'c', //   SXGA- | 1280x960  | 60Hz |   'f'  |  0x01   |
-    Output960p50        = 'd', // ? SXGA- | 1280x960  | 50Hz |        |  0x11   |
-    Output1024p         = 'e', //   SXGA  | 1280x1024 | 60Hz |   'p'  |  0x02   |
-    Output1024p50       = 'f', // ? SXGA  | 1280x1024 | 50Hz |        |  0x12   |
-    Output720p          = 'g', //   HD    | 1280×720  | 60Hz |   'g'  |  0x03   |
-    Output720p50        = 'h', // ? HD    | 1280×720  | 50Hz |        |  0x13   |
-    Output480p          = 'i', //   SD    | 720×480   | 60Hz |   'h'  |  0x04   |
-    Output480p50        = 'j', // ? SD    | 720×480   | 50Hz |        |  -      |
-    Output1080p         = 'k', //   FHD   | 1920×1080 | 60Hz |   's'  |  0x05   |
-    Output1080p50       = 'l', // ? FHD   | 1920×1080 | 50Hz |        |  0x15   |
-    Output15kHz         = 'm', //   15kHz scale-down  | 60Hz |   'L'  |  0x06   |
-    Output15kHz50       = 'n', // ? 15kHz scale-down  | 50Hz |        |  0x16   |
-    Output576p          = 'o', //   PAL   | 768×576   | 60Hz |        |  0x14   | == 480p ?
-    Output576p50        = 'p', // ? PAL   | 768×576   | 50Hz |        |         |
-    OutputBypass        = 'q', //   passthrough 0 / bypass 0 |   'K'  |         |
-    PresetHdBypass      = 's', //   passthrough 1 / bypass 1
-    PresetBypassRGBHV   = 'u', //   passthrough 2 / bypass 2
+                                //  RESOLUTION         | FREQ | U.CMD. | OLD ID  |
+    Output240p          = 'a',  //   320x240 (512/640?)|  ?   |   'j'  |   0     |
+    Output960p          = 'c',  //   SXGA- | 1280x960  | 60Hz |   'f'  |  0x01   |
+    Output960p50        = 'd',  // ? SXGA- | 1280x960  | 50Hz |        |  0x11   |
+    Output1024p         = 'e',  //   SXGA  | 1280x1024 | 60Hz |   'p'  |  0x02   |
+    Output1024p50       = 'f',  // ? SXGA  | 1280x1024 | 50Hz |        |  0x12   |
+    Output720p          = 'g',  //   HD    | 1280×720  | 60Hz |   'g'  |  0x03   |
+    Output720p50        = 'h',  // ? HD    | 1280×720  | 50Hz |        |  0x13   |
+    Output480p          = 'i',  //   SD    | 720×480   | 60Hz |   'h'  |  0x04   |
+    Output480p50        = 'j',  // ? SD    | 720×480   | 50Hz |        |  -      |
+    Output1080p         = 'k',  //   FHD   | 1920×1080 | 60Hz |   's'  |  0x05   |
+    Output1080p50       = 'l',  // ? FHD   | 1920×1080 | 50Hz |        |  0x15   |
+    Output15kHz         = 'm',  //   15kHz scale-down  | 60Hz |   'L'  |  0x06   |
+    Output15kHz50       = 'n',  // ? 15kHz scale-down  | 50Hz |        |  0x16   |
+    Output576p50        = 'p',  //   PAL   | 768×576   | 50Hz |   'k'  |  0x14   |
+    OutputBypass        = 'q',  //   passthrough 0 / bypass 0 |   'K'  |         |
+    PresetHdBypass      = 's',  //   passthrough 1 / bypass 1
+    PresetBypassRGBHV   = 'u',  //   passthrough 2 / bypass 2
     // It suppose to be that the output custom sets automatically in case
     // if user does scale the output video signal. However we operate with
     // registers directly (ex: video->scaleHorizontal()) and there is no connection
     // between output image scale (ex. GBS::VDS_HSCALE) and resolution
     // (however it must be logically, so the custom scale changes output image size)
     // hence the following is disabled
-    // OutputCustom        = 'w', // ?
+    // OutputCustom        = 'w'
 };
 
 // userOptions holds user preferences / customizations
@@ -114,7 +113,7 @@ struct userOptions
     // 6 - downscale, 10 - bypass
     // OutputResolution presetPreference;
 
-    // current/active slot (see: slotIndexMap[])
+    // current/active slot
     uint8_t presetSlot;
     uint8_t enableFrameTimeLock;
     uint8_t frameTimeLockMethod;
@@ -256,7 +255,7 @@ const char * const preset_names[] PROGMEM = {
 
 const char preferencesFile[] PROGMEM = "/preferencesv2.txt";
 const char systemInfo[] PROGMEM = "h:%4u v:%4u PLL:%01u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d\n";
-const char commandDescr[] PROGMEM = "\n> %s command: %c (0x%02X) slotID: %c (0x%02X), resolutionID: %c (0x%02X)\n\n";
+const char commandDescr[] PROGMEM = "\n> %s command: %c (0x%02X) slotID: %d, resolutionID: %c (0x%02X)\n\n";
 
 #ifdef THIS_DEVICE_MASTER
 const char ap_ssid[] PROGMEM = "gbscontrol";

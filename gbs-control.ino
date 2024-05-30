@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Monday, 27th May 2024 12:29:27 pm                        #
+# Last Modified: Thursday, 30th May 2024 12:59:29 pm                      #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -100,7 +100,6 @@ void setup()
         wifiInit();
         webSocket.begin(); // Websocket for interaction
         serverInit();
-        yield();
 
     #ifdef HAVE_PINGER_LIBRARY
         // pinger library
@@ -148,7 +147,7 @@ void setup()
     rto->phaseSP = 16;
     rto->failRetryAttempts = 0;
     // rto->presetID = OutputBypass;
-    rto->resolutionID = OutputNone;
+    rto->resolutionID = Output240p;
     rto->isCustomPreset = false;
     rto->HPLLState = 0;
     rto->motionAdaptiveDeinterlaceActive = false;
@@ -317,6 +316,7 @@ void setup()
     GBS::STATUS_00::read();
 
     // delay 2 of 2
+    // ? WHY?
     initDelay = millis();
     while (millis() - initDelay < 1000) {
         wifiLoop(0);
@@ -400,17 +400,17 @@ void setup()
         // FIXME double reset?
         // setResetParameters();
 
-        delay(4); // help wifi (presets are unloaded now)
+        // delay(4); // help wifi (presets are unloaded now)
         wifiLoop(1);
-        delay(4);
+        // delay(4);
 
         // startup reliability test routine
         /*rto->videoStandardInput = 1;
-    writeProgramArrayNew(ntsc_240p, 0);
-    doPostPresetLoadSteps();
-    int i = 100000;
-    while (i-- > 0) loop();
-    ESP.restart();*/
+        writeProgramArrayNew(ntsc_240p, 0);
+        doPostPresetLoadSteps();
+        int i = 100000;
+        while (i-- > 0) loop();
+        ESP.restart();*/
 
         // rto->syncWatcherEnabled = false; // allows passive operation by disabling syncwatcher here
         // inputAndSyncDetect();
@@ -437,7 +437,8 @@ void setup()
 void loop()
 {
     static unsigned long lastTimeSyncWatcher = millis();
-    static unsigned long lastTimeSourceCheck = 500; // 500 to start right away (after setup it will be 2790ms when we get here)
+    // 500 to start right away (after setup it will be 2790ms when we get here)
+    static unsigned long lastTimeSourceCheck = 500;
     static unsigned long lastTimeInterruptClear = millis();
 
     menuLoop();
@@ -445,13 +446,17 @@ void loop()
 
     // Serial takes precedence
     handleSerialCommand();
-
+    yield();
     // handle user commands
     handleUserCommand();
+    yield();
 
     // run FrameTimeLock if enabled
-    if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false && rto->autoBestHtotalEnabled &&
-        rto->syncWatcherEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval && rto->continousStableCounter > 20 && rto->noSyncCounter == 0) {
+    if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false
+        && rto->autoBestHtotalEnabled && rto->syncWatcherEnabled
+            && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval
+                && rto->continousStableCounter > 20 && rto->noSyncCounter == 0)
+    {
         uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
         uint16_t pllad = GBS::PLLAD_MD::read();
 
@@ -504,12 +509,18 @@ void loop()
     // }
 
     // syncwatcher polls SP status. when necessary, initiates adjustments or preset changes
-    if (rto->sourceDisconnected == false && rto->syncWatcherEnabled == true && (millis() - lastTimeSyncWatcher) > 20) {
+    if (rto->sourceDisconnected == false && rto->syncWatcherEnabled == true
+        && (millis() - lastTimeSyncWatcher) > 20)
+    {
         runSyncWatcher();
         lastTimeSyncWatcher = millis();
 
         // auto adc gain
-        if (uopt->enableAutoGain == 1 && !rto->sourceDisconnected && rto->videoStandardInput > 0 && rto->clampPositionIsSet && rto->noSyncCounter == 0 && rto->continousStableCounter > 90 && rto->boardHasPower) {
+        if (uopt->enableAutoGain == 1 && !rto->sourceDisconnected
+            && rto->videoStandardInput > 0 && rto->clampPositionIsSet
+                && rto->noSyncCounter == 0 && rto->continousStableCounter > 90
+                    && rto->boardHasPower)
+        {
             uint16_t htotal = GBS::STATUS_SYNC_PROC_HTOTAL::read();
             uint16_t pllad = GBS::PLLAD_MD::read();
             if (((htotal > (pllad - 3)) && (htotal < (pllad + 3)))) {
@@ -693,9 +704,14 @@ void loop()
             pingLastTime = millis();
         }
     }
-#endif
+#endif                  // HAVE_PINGER_LIBRARY
+
     // web client handler
     server.handleClient();
     // websocket event handler
     webSocket.loop();
+    // handle ArduinoIDE
+    if (rto->allowUpdatesOTA) {
+        ArduinoOTA.handle();
+    }
 }
