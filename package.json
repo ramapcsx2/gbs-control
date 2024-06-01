@@ -1,0 +1,15 @@
+{
+    "name": "gbscontrol-webui",
+    "version": "1.1.0",
+    "description": "gbscontrol-webui",
+    "scripts": {
+        "watch": "tsc --project ./tsconfig.json --watch",
+        "build": "tsc --project ./tsconfig.json && cd ./public/scripts && node ./build.js && ./html2h.sh"
+    },
+    "author": "",
+    "license": "GNU",
+    "devDependencies": {
+        "prettier": "^3.2.5",
+        "typescript": "^4.1.3"
+    }
+}

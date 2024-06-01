@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Saturday, 1st June 2024 12:03:28 am                      #
+# Last Modified: Saturday, 1st June 2024 5:31:23 pm                       #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -25,15 +25,15 @@
 ###########################################################################
 */
 
-#include "src/options.h"
+#include "options.h"
 #include <SSD1306.h>
 #include <Wire.h>
-#include "src/wserial.h"
-#include "src/presets.h"
-#include "src/images.h"
-#include "src/wifiman.h"
-#include "src/menu.h"
-#include "src/wserver.h"
+#include "wserial.h"
+#include "presets.h"
+#include "images.h"
+#include "wifiman.h"
+#include "menu.h"
+#include "wserver.h"
 // ESP8266-ping library to aid debugging WiFi issues, install via Arduino library manager
 #ifdef HAVE_PINGER_LIBRARY
 #include <Pinger.h>
@@ -494,14 +494,12 @@ void loop()
             }
         }
         lastVsyncLock = millis();
-_DBGN(F("6"));
     }
     if (rto->syncWatcherEnabled && rto->boardHasPower) {
         if ((millis() - lastTimeInterruptClear) > 3000) {
             GBS::INTERRUPT_CONTROL_00::write(0xfe); // reset except for SOGBAD
             GBS::INTERRUPT_CONTROL_00::write(0x00);
             lastTimeInterruptClear = millis();
-_DBGN(F("7"));
         }
     }
     // information mode
@@ -545,7 +543,6 @@ _DBGN(F("7"));
                 GBS::PAD_BOUT_EN::write(debugPinBackup); // debug output pin back on
             }
         }
-_DBGN(F("9"));
     }
     // init frame sync + besthtotal routine
     if (rto->autoBestHtotalEnabled && !FrameSync::ready() && rto->syncWatcherEnabled) {
@@ -557,7 +554,6 @@ _DBGN(F("9"));
                 if (((htotal > (pllad - 3)) && (htotal < (pllad + 3)))) {
                     runAutoBestHTotal();
                 }
-_DBGN(F("10"));
             }
         }
     }
@@ -575,7 +571,6 @@ _DBGN(F("10"));
                     }
                 }
             }
-_DBGN(F("11"));
         }
     }
     // don't exclude modes 13 / 14 / 15 (rgbhv bypass)
@@ -587,7 +582,6 @@ _DBGN(F("11"));
                 GBS::SP_NO_CLAMP_REG::write(0);
             }
         }
-_DBGN(F("12"));
     }
     // later stage post preset adjustments
     if ((rto->applyPresetDoneStage == 1) &&
@@ -622,7 +616,6 @@ _DBGN(F("12"));
             }
             rto->applyPresetDoneStage = 0;
         }
-_DBGN(F("13"));
     } else if (rto->applyPresetDoneStage == 1 && (rto->continousStableCounter > 35)) {
         // 3rd chance
         GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC // 3rd chance
@@ -633,12 +626,10 @@ _DBGN(F("13"));
         // sync clocks now
         externalClockGenSyncInOutRate();
         rto->applyPresetDoneStage = 0; // timeout
-_DBGN(F("13.5"));
     }
     if (rto->applyPresetDoneStage == 10) {
         rto->applyPresetDoneStage = 11; // set first, so we don't loop applying presets
         setOutModeHdBypass(false);
-_DBGN(F("14"));
     }
     if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true && rto->boardHasPower) {
         if ((millis() - lastTimeSourceCheck) >= 500) {
@@ -660,7 +651,6 @@ _DBGN(F("14"));
                 rto->currentLevelSOG = 6;
                 GBS::ADC_SOGCTRL::write(rto->currentLevelSOG);
             }
-_DBGN(F("15"));
         }
     }
     // has the GBS board lost power? // check at 2 points, in case one doesn't register
@@ -675,7 +665,6 @@ _DBGN(F("15"));
         } else {
             rto->noSyncCounter = 63; // avoid checking twice
         }
-_DBGN(F("16"));
     }
     // power good now? // added syncWatcherEnabled check to enable passive mode
     // (passive mode = watching OFW without interrupting)
@@ -699,7 +688,6 @@ _DBGN(F("16"));
                 delay(100);
                 goLowPowerWithInputDetection();
             }
-_DBGN(F("17"));
         }
     }
 #ifdef HAVE_PINGER_LIBRARY

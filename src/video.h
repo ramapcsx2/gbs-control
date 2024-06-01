@@ -1,0 +1,121 @@
+/*
+#####################################################################################
+# File: video.h                                                                     #
+# File Created: Thursday, 2nd May 2024 4:08:03 pm                                   #
+# Author:                                                                           #
+# Last Modified: Tuesday, 7th May 2024 3:31:47 pm                         #
+# Modified By: Sergey Ko                                                            #
+#####################################################################################
+# CHANGELOG:                                                                        #
+#####################################################################################
+*/
+
+#ifndef _VIDEO_H_
+#define _VIDEO_H_
+
+#include "options.h"
+#include "wserial.h"
+#include "framesync.h"
+
+// FIXME
+extern unsigned long lastVsyncLock;
+extern void doPostPresetLoadSteps();
+extern void printInfo();
+extern void loadPresetMdSection();
+extern void loadPresetDeinterlacerSection();
+extern void setResetParameters();
+extern void printVideoTimings();
+extern void applyPresets(uint8_t result);
+// FIXME
+
+void resetInterruptSogSwitchBit();
+void resetInterruptSogBadBit();
+void resetInterruptNoHsyncBadBit();
+bool videoStandardInputIsPalNtscSd();
+void prepareSyncProcessor();
+bool getStatus16SpHsStable();
+float getSourceFieldRate(bool useSPBus);
+float getOutputFrameRate();
+void externalClockGenSyncInOutRate();
+void externalClockGenDetectAndInitialize();
+void externalClockGenResetClock();
+void setExternalClockGenFrequencySmooth(uint32_t freq);
+bool applyBestHTotal(uint16_t bestHTotal);
+bool runAutoBestHTotal();
+bool snapToIntegralFrameRate(void);
+void applyRGBPatches();
+void setAndLatchPhaseSP();
+void setAndUpdateSogLevel(uint8_t level);
+bool optimizePhaseSP();
+void setOverSampleRatio(uint8_t newRatio, bool prepareOnly);
+void updateSpDynamic(bool withCurrentVideoModeCheck);
+void setOutModeHdBypass(bool regsInitialized);
+void setAdcGain(uint8_t gain);
+void resetSyncProcessor();
+void togglePhaseAdjustUnits();
+void bypassModeSwitch_RGBHV();
+void runAutoGain();
+void enableScanlines();
+void disableScanlines();
+void enableMotionAdaptDeinterlace();
+void disableMotionAdaptDeinterlace();
+void zeroAll();
+void writeProgramArrayNew(const uint8_t *programArray, bool skipMDSection);
+void activeFrameTimeLockInitialSteps();
+void applyComponentColorMixing();
+void applyYuvPatches();
+void OutputComponentOrVGA();
+void toggleIfAutoOffset();
+void setAdcParametersGainAndOffset();
+void updateHVSyncEdge();
+void goLowPowerWithInputDetection();
+void optimizeSogLevel();
+void resetModeDetect();
+void shiftHorizontal(uint16_t amountToShift, bool subtracting);
+void shiftHorizontalLeft();
+void shiftHorizontalRight();
+// void shiftHorizontalLeftIF(uint8_t amount);
+// void shiftHorizontalRightIF(uint8_t amount);
+void scaleHorizontal(uint16_t amountToScale, bool subtracting);
+void moveHS(uint16_t amountToAdd, bool subtracting);
+// void moveVS(uint16_t amountToAdd, bool subtracting);
+void invertHS();
+void invertVS();
+void scaleVertical(uint16_t amountToScale, bool subtracting);
+void shiftVertical(uint16_t amountToAdd, bool subtracting);
+// void shiftVerticalUp();
+// void shiftVerticalDown();
+void shiftVerticalUpIF();
+void shiftVerticalDownIF();
+void setHSyncStartPosition(uint16_t value);
+void setHSyncStopPosition(uint16_t value);
+void setMemoryHblankStartPosition(uint16_t value);
+void setMemoryHblankStopPosition(uint16_t value);
+void setDisplayHblankStartPosition(uint16_t value);
+void setDisplayHblankStopPosition(uint16_t value);
+void setVSyncStartPosition(uint16_t value);
+void setVSyncStopPosition(uint16_t value);
+void setMemoryVblankStartPosition(uint16_t value);
+void setMemoryVblankStopPosition(uint16_t value);
+void setDisplayVblankStartPosition(uint16_t value);
+void setDisplayVblankStopPosition(uint16_t value);
+uint16_t getCsVsStart();
+uint16_t getCsVsStop();
+// void set_htotal(uint16_t htotal);
+void set_vtotal(uint16_t vtotal);
+// void setIfHblankParameters();
+bool getSyncPresent();
+// bool getStatus00IfHsVsStable();
+void advancePhase();
+// void movePhaseThroughRange();
+void updateCoastPosition(bool autoCoast);
+void updateClampPosition();
+// void fastSogAdjust();
+uint32_t getPllRate();
+void runSyncWatcher();
+uint8_t getMovingAverage(uint8_t item);
+uint8_t detectAndSwitchToActiveInput();
+uint8_t inputAndSyncDetect();
+
+
+#endif                              // _VIDEO_H_

@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        ".env*": "dotenv",
+        "plyconfig.json": "jsonc",
+        "*.tcc": "cpp",
+        "fstream": "cpp",
+        "functional": "cpp",
+        "string": "cpp",
+        "typeinfo": "cpp",
+        "random": "cpp",
+        "*.html.tpl": "html"
+    },
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.renderWhitespace": "all"
+}

@@ -1,0 +1,160 @@
+[
+    {
+        "tag": "OM_STATUS_CUSTOM",
+        "en-US": "Main Menu",
+        "zh-CN": "主菜单",
+        "es-ES": "Menu Principal",
+        "ru-RU": "Главное меню",
+        "size": 12
+    },
+    {
+        "tag": "OM_STATUS_BAR_BACK",
+        "en-US": "←Back",
+        "es-ES": "←Atras",
+        "ru-RU": "←Назад",
+        "size": 12
+    },
+    {
+        "tag": "OM_SCREEN_SAVER",
+        "en-US": "Press any key",
+        "es-ES": "Presione el botón",
+        "ru-RU": "Нажмите кнопку"
+    },
+    {
+        "tag": "OM_RESOLUTION",
+        "en-US": "Resolutions",
+        "es-ES": "Resolución de imagen",
+        "ru-RU": "Выходное разрешение"
+    },
+    {
+        "tag": "OM_PASSTHROUGH",
+        "en-US": "Passthrough",
+        "es-ES": "Sin cambios",
+        "ru-RU": "Без изменений"
+    },
+    {
+        "tag": "OM_DOWNSCALE",
+        "en-US": "Down-Scale",
+        "es-ES": "Imagen reducida",
+        "ru-RU": "Меньший размер картинки"
+    },
+    {
+        "tag": "OM_PRESET",
+        "en-US": "Presets",
+        "es-ES": "Perfiles",
+        "ru-RU": "Профили настроек"
+    },
+    {
+        "tag": "OM_RESET_RESTORE",
+        "en-US": "Reset/Restore",
+        "es-ES": "Resetear",
+        "ru-RU": "Сброс"
+    },
+    {
+        "tag": "OM_RESET_GBS",
+        "en-US": "Reset GBS",
+        "es-ES": "Resetear ajustes",
+        "ru-RU": "Сбросить настройки"
+    },
+    {
+        "tag": "OM_RESET_WIFI",
+        "en-US": "Clear WiFi Connections",
+        "es-ES": "Borrar ajustes WiFi",
+        "ru-RU": "Сброс настройек WiFi"
+    },
+    {
+        "tag": "OM_RESTORE_FACTORY",
+        "en-US": "Restore Factory",
+        "es-ES": "Ajustes de fabrica",
+        "ru-RU": "Восстановить по-умолчанию"
+    },
+    {
+        "tag": "OM_CURRENT",
+        "en-US": "Current Output",
+        "es-ES": "Salida actual",
+        "ru-RU": "Выходной сигнал"
+    },
+    {
+        "tag": "OM_WIFI",
+        "en-US": "WiFi Info",
+        "es-ES": "Informacion de WiFi",
+        "ru-RU": "Параметры WiFi"
+    },
+    {
+        "tag": "TEXT_NO_PRESETS",
+        "en-US": "No Presets. Please use the Web UI to create one first",
+        "es-ES": "No hay perfiles. Usa navegador para crear uno nuevo",
+        "ru-RU": "Ничего не найдено. Для создания профиля используйте браузер"
+    },
+    {
+        "tag": "TEXT_TOO_MANY_PRESETS",
+        "en-US": "Please use WebUI to access more presets",
+        "es-ES": "Por favor usa navegador para acceder a los demás perfiles",
+        "ru-RU": "Для доступа к другим профилям используйте браузер"
+    },
+    {
+        "tag": "TEXT_RESETTING_GBS",
+        "en-US": "Resetting GBS\nPlease wait\n...",
+        "es-ES": "Reseteando ajustes\nPor favor espere\n...",
+        "ru-RU": "Сброс настроек GBS\nПожалуйста подождите\n...",
+        "size": 16
+    },
+    {
+        "tag": "TEXT_RESETTING_WIFI",
+        "en-US": "Resetting WiFi\nPlease wait\n...",
+        "es-ES": "Borrando ajustes de WiFi\nPor favor espere\n...",
+        "ru-RU": "Сброс настроек WiFi\nПожалуйста подождите\n...",
+        "size": 16
+    },
+    {
+        "tag": "TEXT_RESTORING",
+        "en-US": "Factory Restoring\nPlease wait\n...",
+        "es-ES": "Reseteando al estado de fabrica\nPor favor espere\n...",
+        "ru-RU": "Установка заводских настроек\nПожалуйста подождите\n...",
+        "size": 16
+    },
+    {
+        "tag": "TEXT_WIFI_CONNECT_TO",
+        "en-US": "Connect to the following SSID (password) before using the Web UI",
+        "es-ES": "Conecta al siguiente SSID para acceder al Panel de Control",
+        "ru-RU": "Для доступа к Панели управления подключитесь к указанной сети"
+    },
+    {
+        "tag": "TEXT_WIFI_CONNECTED",
+        "en-US": "Status: Connected",
+        "es-ES": "Estado: Conectado",
+        "ru-RU": "Состояние: Подключено"
+    },
+    {
+        "tag": "TEXT_WIFI_DISCONNECTED",
+        "en-US": "Status: Disconnected",
+        "es-ES": "Estado: Desconectado",
+        "ru-RU": "Состояние: Отключено"
+    },
+    {
+        "tag": "TEXT_WIFI_URL",
+        "en-US": "Use one of the following URLs to use the Web UI",
+        "es-ES": "Usa uno de los siguientes enlaces para acceder al Panel de Control",
+        "ru-RU": "Для доступа к Панели управления перейдите по одной из следующих ссылок"
+    },
+    {
+        "tag": "TEXT_LOADED",
+        "en-US": "Loaded",
+        "es-ES": "activado",
+        "ru-RU": "активирован",
+        "size": 16
+    },
+    {
+        "tag": "TEXT_NO_INPUT",
+        "en-US": "No Input",
+        "es-ES": "No hay señal",
+        "ru-RU": "Нет сигнала",
+        "size": 16
+    },
+    {
+        "tag": "OM_OSD",
+        "en-US": "Open OSD Menu",
+        "es-ES": "Abrir menu de pantalla",
+        "ru-RU": "Показать экранное меню"
+    }
+]
