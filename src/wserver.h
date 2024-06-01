@@ -3,11 +3,18 @@
 # File: wserver.h                                                                    #
 # File Created: Friday, 19th April 2024 3:11:47 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Thursday, 30th May 2024 11:03:13 am                      #
+# Last Modified: Saturday, 1st June 2024 5:05:00 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
 #####################################################################################
+*/
+/*
+    DEVELOPER MEMO:
+        1. WS messages (_WS, _WSN, _WSF) must not begin with '#' (hash symbol) since
+        WebUI filters it, so messages withou hash going to terminal (developer mode)
+        and those with hash are treated as a binary data
+
 */
 
 #ifndef _ESPWSERVER_H_
@@ -56,7 +63,7 @@ void extractBackup();
 // void serverFsDir();
 // void serverFsFormat();
 void serverWiFiStatus();
-void serverRestoreFilters();
+// void serverRestoreFilters();
 void serverWiFiList();
 void serverWiFiWPS();
 void serverWiFiConnect();

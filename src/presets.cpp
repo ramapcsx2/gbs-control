@@ -3,7 +3,7 @@
 # File: preset.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 6:38:23 pm                                   #
 # Author:                                                                           #
-# Last Modified: Thursday, 30th May 2024 12:42:51 pm                      #
+# Last Modified: Saturday, 1st June 2024 12:49:39 am                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -1968,9 +1968,7 @@ void savePresetToFS()
  */
 void saveUserPrefs()
 {
-    delay(10);
     savePresetToFS();
-    delay(10);
 
     fs::File f = LittleFS.open(FPSTR(preferencesFile), "w");
     if (!f)
@@ -1983,23 +1981,24 @@ void saveUserPrefs()
     // !###############################
     // f.write(uopt->presetPreference + '0'); // #1
     f.write(uopt->presetSlot);
-    f.write(uopt->enableFrameTimeLock + '0');
-    f.write(uopt->frameTimeLockMethod + '0');
-    f.write(uopt->enableAutoGain + '0');
-    f.write(uopt->wantScanlines + '0');
     f.write(uopt->wantOutputComponent + '0');
-    f.write(uopt->deintMode + '0');
-    f.write(uopt->wantVdsLineFilter + '0');
-    f.write(uopt->wantPeaking + '0');
     f.write(uopt->preferScalingRgbhv + '0');
-    f.write(uopt->wantTap6 + '0');
-    f.write(uopt->PalForce60 + '0');
-    f.write(uopt->matchPresetSource + '0');             // #14
-    f.write(uopt->wantStepResponse + '0');              // #15
-    f.write(uopt->wantFullHeight + '0');                // #16
     f.write(uopt->enableCalibrationADC + '0');          // #17
-    f.write(uopt->scanlineStrength + '0');              // #18
     f.write(uopt->disableExternalClockGenerator + '0'); // #19
+
+    // f.write(uopt->enableFrameTimeLock + '0');
+    // f.write(uopt->frameTimeLockMethod + '0');
+    // f.write(uopt->enableAutoGain + '0');
+    // f.write(uopt->wantScanlines + '0');
+    // f.write(uopt->deintMode + '0');
+    // f.write(uopt->wantVdsLineFilter + '0');
+    // f.write(uopt->wantPeaking + '0');
+    // f.write(uopt->wantTap6 + '0');
+    // f.write(uopt->PalForce60 + '0');
+    // f.write(uopt->matchPresetSource + '0');             // #14
+    // f.write(uopt->wantStepResponse + '0');              // #15
+    // f.write(uopt->wantFullHeight + '0');                // #16
+    // f.write(uopt->scanlineStrength + '0');              // #18
 
     f.close();
 }

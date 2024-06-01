@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Thursday, 30th May 2024 12:54:36 pm                      #
+# Last Modified: Saturday, 1st June 2024 5:11:36 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -96,125 +96,67 @@ void updateWebSocketData()
     if (rto->webServerEnabled && rto->webServerStarted) {
         if (webSocket.connectedClients() > 0) {
             constexpr size_t MESSAGE_LEN = 8;
-            char toSend[MESSAGE_LEN] = "";
-            toSend[0] = '#'; // makeshift ping in slot 0
-            // slotID is INTEGER
+            uint8_t toSend[MESSAGE_LEN];
+            memset(toSend, 0, MESSAGE_LEN);
+            // special character # used for message filtering in WebUI
+            toSend[0] = '#';
             toSend[1] = uopt->presetSlot + '0';
-            // TODO: resolutionID must be INTEGER too
-            toSend[2] = static_cast<char>(rto->resolutionID);
-            // @sk: left here for reference
-            //     switch (rto->presetID) {
-            //         case 0x11:    // Output960p
-            //             toSend[1] = '1';
-            //             break;
-            //         case 0x12:        // Output1024p
-            //             toSend[1] = '2';
-            //             break;
-            //         case 0x13:        // Output720p
-            //             toSend[1] = '3';
-            //             break;
-            //         case 0x14:        // Output480p
-            //             toSend[1] = '4';
-            //             break;
-            //         case 0x15:    // Output1080p
-            //             toSend[1] = '5';
-            //             break;
-            //         case 0x16:   // Output15kHz
-            //             toSend[1] = '6';
-            //             break;
-            //         case OutputBypass:        // bypass 0
-            //             toSend[1] = '8';
-            //             break;
-            //         case PresetHdBypass:    // bypass 1
-            //             toSend[1] = '9';
-            //             break;
-            //         case PresetBypassRGBHV: // bypass 2
-            //             toSend[1] = 'A';
-            //             break;
-            //         case OutputCustom:
-            //             toSend[1] = 'C';
-            //             break;
-            //         default:
-            //             toSend[1] = '0';
-            //             break;
-            //     }
-
-            // '@' = 0x40, used for "byte is present" detection; 0x80 not in ascii table
-            toSend[3] = '@';
-            toSend[4] = '@';
-            toSend[5] = '@';
-            toSend[6] = '0';
-            toSend[7] = '0';
-
-            if (uopt->enableAutoGain) {
+            // TODO: resolutionID must be INTEGER too?
+            toSend[2] = (char)rto->resolutionID;
+            //
+            if (uopt->wantScanlines)
                 toSend[3] |= (1 << 0);
-            }
-            if (uopt->wantScanlines) {
+            if (uopt->wantVdsLineFilter)
                 toSend[3] |= (1 << 1);
-            }
-            if (uopt->wantVdsLineFilter) {
+            if (uopt->wantStepResponse)
                 toSend[3] |= (1 << 2);
-            }
-            if (uopt->wantPeaking) {
+            if (uopt->wantPeaking)
                 toSend[3] |= (1 << 3);
-            }
-            if (uopt->PalForce60) {
+            if (uopt->enableAutoGain)
                 toSend[3] |= (1 << 4);
-            }
-            if (uopt->wantOutputComponent) {
+            if (uopt->enableFrameTimeLock)
                 toSend[3] |= (1 << 5);
-            }
 
-            if (uopt->matchPresetSource) {
+            //
+            if (uopt->deintMode == 0)      // motion adaptive if == 0
                 toSend[4] |= (1 << 0);
-            }
-            if (uopt->enableFrameTimeLock) {
+            if (uopt->deintMode == 1)      // bob if == 1
                 toSend[4] |= (1 << 1);
-            }
-            if (uopt->deintMode) {
+            // if (uopt->wantTap6) {
+            //     toSend[4] |= (1 << 1);
+            // }
+            if (uopt->wantFullHeight)
                 toSend[4] |= (1 << 2);
-            }
-            if (uopt->wantTap6) {
+            if (uopt->matchPresetSource)
                 toSend[4] |= (1 << 3);
-            }
-            if (uopt->wantStepResponse) {
+            if (uopt->PalForce60 == 1)
                 toSend[4] |= (1 << 4);
-            }
-            if (uopt->wantFullHeight) {
-                toSend[4] |= (1 << 5);
-            }
 
-            if (uopt->enableCalibrationADC) {
+            // system preferences
+            if (uopt->wantOutputComponent)
                 toSend[5] |= (1 << 0);
-            }
-            if (uopt->preferScalingRgbhv) {
+            if (uopt->enableCalibrationADC)
                 toSend[5] |= (1 << 1);
-            }
-            if (uopt->disableExternalClockGenerator) {
+            if (uopt->preferScalingRgbhv)
                 toSend[5] |= (1 << 2);
-            }
+            if (uopt->disableExternalClockGenerator)
+                toSend[5] |= (1 << 3);
 
             // developer panel controls status
-            /// print info button
-            if(rto->printInfos) {
+            if(rto->printInfos)
                 toSend[6] |= (1 << 0);
-            }
-            if(rto->invertSync) {
+            if(rto->invertSync)
                 toSend[6] |= (1 << 1);
-            }
-            if(rto->osr != 0) {
+            if(rto->osr != 0)
                 toSend[6] |= (1 << 2);
-            }
-            if(GBS::ADC_FLTR::read() != 0) {
+            if(GBS::ADC_FLTR::read() != 0)
                 toSend[6] |= (1 << 3);
-            }
 
             // system tab controls
-            if(rto->allowUpdatesOTA) {
+            if(rto->allowUpdatesOTA)
                 toSend[7] |= (1 << 0);
-            }
 
-            webSocket.broadcastTXT(toSend, MESSAGE_LEN);
+            webSocket.broadcastBIN(toSend, MESSAGE_LEN);
         }
     }
 }

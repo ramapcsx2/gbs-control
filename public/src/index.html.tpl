@@ -69,8 +69,7 @@
                     </ul>
                     <div class="gbs-presets" gbs-slot-html></div>
                     <div class="gbs-flex">
-                        <button class="gbs-button gbs-button__control-action" gbs-element-ref="buttonRemoveCustomPreset"
-                            onclick="removePreset()">
+                        <button class="gbs-button gbs-button__control-action" gbs-element-ref="buttonRemoveCustomPreset" disabled>
                             <div class="gbs-icon">delete</div>
                             <div>remove preset</div>
                         </button>
@@ -511,7 +510,7 @@
                                 <div class="gbs-icon">blur_linear</div>
                                 <div>peaking</div>
                             </button>
-                            <button gbs-message="V" gbs-message-type="action" gbs-click="normal" gbs-toggle="step"
+                            <button gbs-message="V" gbs-message-type="action" gbs-click="normal" gbs-toggle="stepResponse"
                                 class="gbs-button gbs-button__control gbs-button__secondary">
                                 <div class="gbs-icon">grain</div>
                                 <div>step response</div>
@@ -524,13 +523,10 @@
                         </ul>
                     </div>
                 </fieldset>
-            </section>
-
-            <section name="preferences" hidden>
                 <fieldset class="gbs-fieldset">
                     <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
-                        <div class="gbs-icon">tune</div>
-                        <div>Settings</div>
+                        <div class="gbs-icon">gradient</div>
+                        <div>Slot settings</div>
                     </legend>
                     <table class="gbs-preferences">
                         <tr>
@@ -542,7 +538,7 @@
                                 </ul>
                             </td>
                             <td gbs-message="Z" gbs-message-type="action" gbs-click="normal" class="gbs-icon"
-                                gbs-toggle-switch="matched">
+                                gbs-toggle-switch="matchPreset">
                                 toggle_off
                             </td>
                         </tr>
@@ -563,37 +559,6 @@
                         </tr>
                         <tr>
                             <td>
-                                Low Res: Use Upscaling
-                                <!-- prettier-ignore -->
-                                <ul class="gbs-help">
-                                    <li>Low Resolution VGA input: Pass-through or Upscale</li>
-                                    <li>Low resolution sources can be either passed on directly or get upscaled.</li>
-                                    <li>Upscaling may have some border / scaling issues, but is more compatible with displays.</li>
-                                    <li>Also, refresh rates other than 60Hz are not well supported yet.</li>
-                                    <li>"Low resolution" is currently set at below or equal to 640x480 (525 active lines).</li>
-                                </ul>
-                            </td>
-                            <td gbs-message="x" gbs-message-type="user" gbs-click="normal" class="gbs-icon"
-                                gbs-toggle-switch="preferScalingRgbhv">
-                                toggle_off
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                Output RGBHV/Component
-                                <!-- prettier-ignore -->
-                                <ul class="gbs-help">
-                                    <li>The default output mode is RGBHV, suitable for use with VGA cables or HDMI converters.</li>
-                                    <li>An experimental YPbPr mode can also be selected. Compatibility is still spotty.</li>
-                                </ul>
-                            </td>
-                            <td gbs-message="L" gbs-message-type="action" gbs-click="normal" class="gbs-icon"
-                                gbs-toggle-switch="wantOutputComponent">
-                                toggle_off
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
                                 Output Frame Rate: Force PAL 50Hz to 60Hz
                                 <!-- prettier-ignore -->
                                 <ul class="gbs-help">
@@ -603,34 +568,6 @@
                             </td>
                             <td gbs-message="0" gbs-message-type="user" gbs-click="normal" class="gbs-icon"
                                 gbs-toggle-switch="palForce60">
-                                toggle_off
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                Disable External Clock Generator
-                                <!-- prettier-ignore -->
-                                <ul class="gbs-help">
-                                    <li>By default the external clock generator is enabled when installed.</li>
-                                    <li>You can disable it if you have issues with other options, e.g Force PAL 50Hz to 60Hz. Reboot required.</li>
-                                </ul>
-                            </td>
-                            <td gbs-message="X" gbs-message-type="user" gbs-click="normal" class="gbs-icon"
-                                gbs-toggle-switch="disableExternalClockGenerator">
-                                toggle_off
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                ADC calibration
-                                <!-- prettier-ignore -->
-                                <ul class="gbs-help">
-                                    <li>Gbscontrol calibrates the ADC offsets on startup.</li>
-                                    <li>In case of color shift problems, try disabling this function.</li>
-                                </ul>
-                            </td>
-                            <td gbs-message="w" gbs-message-type="user" gbs-click="normal" class="gbs-icon"
-                                gbs-toggle-switch="enableCalibrationADC">
                                 toggle_off
                             </td>
                         </tr>
@@ -672,6 +609,162 @@
                         </tr>
                         <tr>
                             <td class="gbs-padding__left-16">Motion Adaptive</td>
+                            <td gbs-message="q" gbs-message-type="user" gbs-click="normal" class="gbs-icon"
+                                gbs-toggle-switch="motionAdaptive">
+                                toggle_off
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="gbs-padding__left-16">Bob</td>
+                            <td gbs-message="q" gbs-message-type="user" gbs-click="normal" class="gbs-icon"
+                                gbs-toggle-switch="bob">
+                                toggle_off
+                            </td>
+                        </tr>
+                    </table>
+                </fieldset>
+            </section>
+
+            <section name="preferences" hidden>
+                <fieldset class="gbs-fieldset">
+                    <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
+                        <div class="gbs-icon">tune</div>
+                        <div>System preferences</div>
+                    </legend>
+                    <table class="gbs-preferences">
+                        <!-- <tr>
+                            <td>
+                                Matched Presets
+                                <ul class="gbs-help">
+                                    <li>If enabled, default to 1280x960 for NTSC 60 and 1280x1024 for PAL 50 (does not apply for 720p / 1080p presets).</li>
+                                </ul>
+                            </td>
+                            <td gbs-message="Z" gbs-message-type="action" gbs-click="normal" class="gbs-icon"
+                                gbs-toggle-switch="matched">
+                                toggle_off
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Full Height
+                                <ul class="gbs-help">
+                                    <li>Some presets default to not using the entire vertical output resolution, leaving some lines black.</li>
+                                    <li>With Full Height enabled, these presets will instead scale to fill more of the screen height.</li>
+                                    <li>(This currently only affects 1920 x 1080)</li>
+                                </ul>
+                            </td>
+                            <td gbs-message="v" gbs-message-type="user" gbs-click="normal" class="gbs-icon"
+                                gbs-toggle-switch="fullHeight">
+                                toggle_off
+                            </td>
+                        </tr> -->
+                        <tr>
+                            <td>
+                                Low Res: Use Upscaling
+                                <ul class="gbs-help">
+                                    <li>Low Resolution VGA input: Pass-through or Upscale</li>
+                                    <li>Low resolution sources can be either passed on directly or get upscaled.</li>
+                                    <li>Upscaling may have some border / scaling issues, but is more compatible with displays.</li>
+                                    <li>Also, refresh rates other than 60Hz are not well supported yet.</li>
+                                    <li>"Low resolution" is currently set at below or equal to 640x480 (525 active lines).</li>
+                                </ul>
+                            </td>
+                            <td gbs-message="x" gbs-message-type="user" gbs-click="normal" class="gbs-icon"
+                                gbs-toggle-switch="preferScalingRgbhv">
+                                toggle_off
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Output RGBHV/Component
+                                <!-- prettier-ignore -->
+                                <ul class="gbs-help">
+                                    <li>The default output mode is RGBHV, suitable for use with VGA cables or HDMI converters.</li>
+                                    <li>An experimental YPbPr mode can also be selected. Compatibility is still spotty.</li>
+                                </ul>
+                            </td>
+                            <td gbs-message="L" gbs-message-type="action" gbs-click="normal" class="gbs-icon"
+                                gbs-toggle-switch="wantOutputComponent">
+                                toggle_off
+                            </td>
+                        </tr>
+                        <!-- <tr>
+                            <td>
+                                Output Frame Rate: Force PAL 50Hz to 60Hz
+                                <ul class="gbs-help">
+                                    <li>If your TV does not support 50Hz sources (displaying unknown format, no matter the preset), try this option.</li>
+                                    <li>The frame rate will not be as smooth. Reboot required.</li>
+                                </ul>
+                            </td>
+                            <td gbs-message="0" gbs-message-type="user" gbs-click="normal" class="gbs-icon"
+                                gbs-toggle-switch="palForce60">
+                                toggle_off
+                            </td>
+                        </tr> -->
+                        <tr>
+                            <td>
+                                Disable External Clock Generator
+                                <!-- prettier-ignore -->
+                                <ul class="gbs-help">
+                                    <li>By default the external clock generator is enabled when installed.</li>
+                                    <li>You can disable it if you have issues with other options, e.g Force PAL 50Hz to 60Hz. Reboot required.</li>
+                                </ul>
+                            </td>
+                            <td gbs-message="X" gbs-message-type="user" gbs-click="normal" class="gbs-icon"
+                                gbs-toggle-switch="disableExternalClockGenerator">
+                                toggle_off
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                ADC calibration
+                                <!-- prettier-ignore -->
+                                <ul class="gbs-help">
+                                    <li>Gbscontrol calibrates the ADC offsets on startup.</li>
+                                    <li>In case of color shift problems, try disabling this function.</li>
+                                </ul>
+                            </td>
+                            <td gbs-message="w" gbs-message-type="user" gbs-click="normal" class="gbs-icon"
+                                gbs-toggle-switch="enableCalibrationADC">
+                                toggle_off
+                            </td>
+                        </tr>
+                        <!-- <tr>
+                            <td colspan="2" class="gbs-preferences__child">
+                                Active FrameTime Lock
+                                <ul class="gbs-help">
+                                    <li>This option keeps the input and output timings aligned, fixing the horizontal tear line that can appear sometimes.</li>
+                                    <li>Two methods are available. Try switching methods if your display goes blank or shifts vertically.</li>
+                                </ul>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="gbs-padding__left-16">FrameTime Lock</td>
+                            <td class="gbs-icon" gbs-message="5" gbs-message-type="user" gbs-click="normal"
+                                gbs-toggle-switch="frameTimeLock">
+                                toggle_off
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="gbs-padding__left-16">Switch Lock Method</td>
+                            <td class="gbs-icon" gbs-message="i" gbs-message-type="user" gbs-click="normal"
+                                style="cursor: pointer">
+                                swap_horiz
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" class="gbs-preferences__child">
+                                Deinterlace Method
+                                <ul class="gbs-help">
+                                    <li>Gbscontrol detects interlaced content and automatically toggles deinterlacing.</li>
+                                    <li>Bob Method: essentially no deinterlacing, no added lag but flickers, can be combined with scanlines</li>
+                                    <li>Motion Adaptive: removes flicker and shows some artefacts in moving details</li>
+                                    <li>If possible, configure the source for progressive output. Otherwise, using Motion Adaptive is recommended.</li>
+                                </ul>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="gbs-padding__left-16">Motion Adaptive</td>
                             <td gbs-message="r" gbs-message-type="user" gbs-click="normal" class="gbs-icon"
                                 gbs-toggle-switch="bob">
                                 toggle_off
@@ -683,7 +776,7 @@
                                 gbs-toggle-switch="motionAdaptive">
                                 toggle_off
                             </td>
-                        </tr>
+                        </tr> -->
                         <tr gbs-dev-switch>
                             <td>
                                 Developer Mode
@@ -694,17 +787,16 @@
                             </td>
                             <td class="gbs-icon">toggle_off</td>
                         </tr>
-                        <tr gbs-slot-custom-filters>
+                        <!-- <tr gbs-slot-custom-filters>
                             <td>
                                 Save Filtering Per Slot
-                                <!-- prettier-ignore -->
                                 <ul class="gbs-help">
                                     <li>When enabled, saved slots recover their own filter preferences.</li>
                                     <li>When disabled, saved slots maintain current filter settings.</li>
                                 </ul>
                             </td>
                             <td class="gbs-icon">toggle_off</td>
-                        </tr>
+                        </tr> -->
                     </table>
                 </fieldset>
             </section>
@@ -874,7 +966,7 @@
                     </div>
                 </fieldset>
                 <fieldset class="gbs-fieldset">
-                    <legend class="gbs-fieldset__legend gbs-fieldset__legend--help"">
+                    <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
               <div class=" gbs-icon">sd_card
         </div>
         <div>Backup [intended for same device]</div>

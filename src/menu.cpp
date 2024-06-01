@@ -3,7 +3,7 @@
 # File: menu.cpp                                                          #
 # File Created: Thursday, 2nd May 2024 11:31:34 pm                        #
 # Author:                                                                 #
-# Last Modified: Wednesday, 29th May 2024 5:12:46 pm                      #
+# Last Modified: Saturday, 1st June 2024 4:39:37 pm                       #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -383,6 +383,7 @@ void settingsMenuOLED()
     if (oled_menuItem == 2) {
         if (oled_pointer_count == 0 && oled_selectOption == 2) {
             oled_subsetFrame = 3;
+            uopt->presetSlot = 0;
             // uopt->presetSlot = 'A';
             // uopt->presetPreference = OutputCustomized;
             rto->resolutionID = OutputCustom;
@@ -599,11 +600,9 @@ void settingsMenuOLED()
                 display.drawString(0, 30, "Please Wait...");
                 display.display();
             }
-            webSocket.close();
-            delay(60);
-            ESP.reset();
-            oled_selectOption = 0;
-            oled_subsetFrame = 0;
+            resetInMSec(1000);
+            // oled_selectOption = 0;
+            // oled_subsetFrame = 0;
         }
 
         if (oled_pointer_count == 1 && oled_selectOption == 2) {
@@ -614,13 +613,14 @@ void settingsMenuOLED()
                 display.drawString(0, 30, "Please Wait...");
                 display.display();
             }
-            webSocket.close();
+            // webSocket.close();
             loadDefaultUserOptions();
             saveUserPrefs();
-            delay(60);
-            ESP.reset();
-            oled_selectOption = 1;
-            oled_subsetFrame = 1;
+            // delay(60);
+            // ESP.reset();
+            resetInMSec(1000);
+            // oled_selectOption = 1;
+            // oled_subsetFrame = 1;
         }
 
         if (oled_pointer_count == 3 && oled_selectOption == 2) {

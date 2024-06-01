@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Thursday, 30th May 2024 12:59:27 pm                      #
+# Last Modified: Saturday, 1st June 2024 1:46:59 am                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -50,7 +50,7 @@ void serverInit()
     // server.on(F("/data/dir"), HTTP_GET, serverFsDir);
     // server.on(F("/data/format"), HTTP_GET, serverFsFormat);
     server.on(F("/wifi/status"), HTTP_GET, serverWiFiStatus);
-    server.on(F("/gbs/restore-filters"), HTTP_GET, serverRestoreFilters);
+    // server.on(F("/gbs/restore-filters"), HTTP_GET, serverRestoreFilters);
     // WiFi API
     server.on(F("/wifi/list"), HTTP_POST, serverWiFiList);
     server.on("/wifi/wps", HTTP_POST, serverWiFiWPS);
@@ -104,7 +104,7 @@ void serverSC()
         // _DBG(F("[w] serial command received: "));
         // _DBGF("%c\n", serialCommand);
     }
-    server.send(200, mimeAppJson, F("{}"));
+    server.send(200, mimeAppJson, F("[]"));
 }
 
 /**
@@ -121,59 +121,35 @@ void serverUC()
         // _DBG(F("[w] user command received: "));
         // _DBGF("%c\n", userCommand);
     }
-    server.send(200, mimeAppJson, F("{}"));
+    server.send(200, mimeAppJson, F("[]"));
 }
 
 /**
  * @brief Sends the slots data to WebUI
  *
- *
  */
 void serverSlots()
 {
     ASSERT_LOMEM_RETURN();
-    fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "r");
-
-    if (!slotsBinaryFile)
+    SlotMetaArray slotsObject;
+    fs::File slotsBinaryFile;
+    if(slotGetData(slotsObject) == -1)
     {
-        _DBGN(F("/slots.bin not found, attempting to create"));
-        fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "w");
-        if (slotsBinaryFile)
-        {
-            SlotMetaArray slotsObject;
-            String slot_name = String(emptySlotName);
-            for (int i = 0; i < SLOTS_TOTAL; i++)
-            {
-                // slotsObject.slot[i].slot = i;
-                // slotsObject.slot[i].presetNameID = 0;
-                slotsObject.slot[i].resolutionID = Output240p;
-                slotsObject.slot[i].scanlines = 0;
-                slotsObject.slot[i].scanlinesStrength = 0;
-                slotsObject.slot[i].wantVdsLineFilter = false;
-                slotsObject.slot[i].wantStepResponse = true;
-                slotsObject.slot[i].wantPeaking = true;
-                strncpy(slotsObject.slot[i].name, slot_name.c_str(), sizeof(slotsObject.slot[i].name));
-            }
-            slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
-        }
-        else
-        {
-            _DBGN(F("unable to create /slots.bin"));
-            goto stream_slots_bin_failed;
-        }
+        _DBGN(F("unable to create /slots.bin"));
+        goto stream_slots_bin_failed;
     }
-
+    slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "r");
     server.streamFile(slotsBinaryFile, mimeOctetStream);
     slotsBinaryFile.close();
     return;
 stream_slots_bin_failed:
-    server.send(500, mimeAppJson, F("false"));
+    server.send(500, mimeAppJson, F("[\"fail\"]"));
 }
 
 /**
  * @brief This function does:
- *  1. Update current slot name and save it into user preferences
- *  2. Load new preset
+ *      1. Update current slot in user preferences
+ *      2. Load new slot
  *
  */
 void serverSlotSet()
@@ -182,28 +158,12 @@ void serverSlotSet()
 
     if (server.args() > 0)
     {
-        SlotMetaArray slotsObject;
         // const String slotParamValue = server.arg(String(F("index"))).toInt();
         uint8_t slotIndex = lowByte(server.arg(String(F("index"))).toInt());
         // char slotValue[2];
         // slotParamValue.toCharArray(slotValue, sizeof(slotValue));
         // uopt->presetSlot = static_cast<uint8_t>(slotParamValue.charAt(0));
-        uopt->presetSlot = slotIndex;
-        fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "r");
-        if (slotsBinaryFile)
-        {
-            slotsBinaryFile.read((byte *)&slotsObject, sizeof(slotsObject));
-            slotsBinaryFile.close();
-            // update parameters
-            rto->resolutionID = static_cast<OutputResolution>(slotsObject.slot[slotIndex].resolutionID);
-            uopt->wantScanlines = slotsObject.slot[slotIndex].scanlines;
-            uopt->scanlineStrength = slotsObject.slot[slotIndex].scanlinesStrength;
-            uopt->wantVdsLineFilter = slotsObject.slot[slotIndex].wantVdsLineFilter;
-            uopt->wantStepResponse = slotsObject.slot[slotIndex].wantStepResponse;
-            uopt->wantPeaking = slotsObject.slot[slotIndex].wantPeaking;
-        }
-        else
-        {
+        if(!slotLoad(slotIndex)) {
             _DBGN(F("unable to read /slots.bin"));
             goto server_slot_set_failure;
         }
@@ -211,70 +171,36 @@ void serverSlotSet()
         // rto->presetID = OutputCustom;
         // saveUserPrefs();     // user prefs being saved in userCommand handler
         _WSF(PSTR("slot change success: %d\n"), uopt->presetSlot);
-        server.send(200, mimeAppJson, F("true"));
+        server.send(200, mimeAppJson, F("[\"ok\"]"));
         // begin loading new preset on the next loop
         userCommand = '3';
         return;
     }
 server_slot_set_failure:
-    server.send(500, mimeAppJson, F("false"));
+    server.send(500, mimeAppJson, F("[\"fail\"]"));
 }
 
 /**
- * @brief Save server slot name
+ * @brief Create new server slot
  *
  */
 void serverSlotSave()
 {
     bool result = false;
-    uint8_t i = 0;
     ASSERT_LOMEM_GOTO(server_slot_save_end);
-    // TODO: too many open-closes...
     if (server.args() > 0)
     {
         // slot name
         String slotName = server.arg(String(F("name")));
         uint8_t slotIndex = server.arg(String(F("index"))).toInt();
         SlotMetaArray slotsObject;
-        uint8_t k = slotName.length();
-        fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "r");
-
-        if (slotsBinaryFile)
-        {
-            // read data into slotsObject
-            slotsBinaryFile.read((byte *)&slotsObject, sizeof(slotsObject));
-            slotsBinaryFile.close();
+        if(slotGetData(slotsObject) == -1) {
+            _DBGN(F("unable to access slots.bin"));
+            goto server_slot_save_end;
         }
-        else
-        {
-            String slot_name = String(emptySlotName);
-            while (i < SLOTS_TOTAL)
-            {
-                // slotsObject.slot[i].slot = i;
-                // slotsObject.slot[i].presetNameID = 0;
-                slotsObject.slot[i].scanlines = 0;
-                slotsObject.slot[i].resolutionID = Output240p;
-                slotsObject.slot[i].scanlinesStrength = 0;
-                slotsObject.slot[i].wantVdsLineFilter = false;
-                slotsObject.slot[i].wantStepResponse = true;
-                slotsObject.slot[i].wantPeaking = true;
-                strncpy(slotsObject.slot[i].name,
-                    slot_name.c_str(),
-                    sizeof(slotsObject.slot[i].name)
-                );
-                i++;
-                delay(1);
-            }
-            // file doesn't exist, let's create one
-            slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "w");
-            slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
-            slotsBinaryFile.close();
-        }
-
         // updating the SlotMetaObject with data received
         // uint8_t slotIndex = lowByte(slotIndexString.toInt());
         uint8_t nameMaxLen = sizeof(slotsObject.slot[slotIndex].name);
-        const char space = 0x20;
         if (slotIndex >= SLOTS_TOTAL)
         {
             _WSF(PSTR("too much slots, max allowed: %d\n"), (uint8_t)SLOTS_TOTAL);
@@ -285,31 +211,16 @@ void serverSlotSave()
             _WSF(PSTR("slot name is too long, max allowed: %d\n"), nameMaxLen);
             goto server_slot_save_end;
         }
-        // slotsObject.slot[slotIndex].slot = slotIndex;
-        // slotsObject.slot[slotIndex].presetNameID = 0;
-        // slotName.toCharArray(slotsObject.slot[slotIndex].name, sizeof(slotsObject.slot[slotIndex].name));
-        strcpy(slotsObject.slot[slotIndex].name, slotName.c_str());
-        while(k < nameMaxLen - 1) {
-            slotsObject.slot[slotIndex].name[k] = space;
-            k ++;
-        }
-        delay(10);
-        slotsObject.slot[slotIndex].resolutionID = rto->resolutionID;
-        slotsObject.slot[slotIndex].scanlines = uopt->wantScanlines;
-        slotsObject.slot[slotIndex].scanlinesStrength = uopt->scanlineStrength;
-        slotsObject.slot[slotIndex].wantVdsLineFilter = uopt->wantVdsLineFilter;
-        slotsObject.slot[slotIndex].wantStepResponse = uopt->wantStepResponse;
-        slotsObject.slot[slotIndex].wantPeaking = uopt->wantPeaking;
+        slotUpdate(slotsObject, slotIndex, &slotName);
 
-        slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "w");
-        slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
-        slotsBinaryFile.close();
+        if(!slotSetData(slotsObject))
+            _DBGN(F("failed to write to slots.bin"));
 
         result = true;
     }
 
 server_slot_save_end:
-    server.send(200, mimeAppJson, result ? F("true") : F("false"));
+    server.send(200, mimeAppJson, result ? F("[\"ok\"]") : F("[\"fail\"]"));
 }
 
 /**
@@ -319,7 +230,6 @@ server_slot_save_end:
 void serverSlotRemove()
 {
     bool result = false;
-    uint8_t i = 0;
     int16_t slotIndex = server.arg(String(F("index"))).toInt();
     SlotMetaArray slotsObject;
     if (server.args() > 0 && slotIndex >= 0)
@@ -334,16 +244,10 @@ void serverSlotRemove()
         // preset file extension
         sprintf(buffer, PSTR(".%d"), slotIndex);
 
-        fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "r");
-
-        if (!slotsBinaryFile) {
-            _DBGN(F("failed to read slots.bin"));
+        if(slotGetData(slotsObject) == -1) {
+            _DBGN(F("unable to access to slots.bin"));
             goto server_slot_remove_end;
         }
-
-        slotsBinaryFile.read((byte *)&slotsObject, sizeof(slotsObject));
-        slotsBinaryFile.close();
-
         _DBGF(
             PSTR("removing slot: %s and related presets...\n"),
             slotsObject.slot[slotIndex].name
@@ -358,65 +262,14 @@ void serverSlotRemove()
                 LittleFS.remove(fn);
             delay(10);
         }
-        // lets reset the slot data in binary file
-        while (i < SLOTS_TOTAL)
-        {
-            if (i == slotIndex)
-            {
-                String slot_name = String(emptySlotName);
-                // slotsObject.slot[i].slot = i;
-                // slotsObject.slot[i].presetNameID = 0;
-                slotsObject.slot[i].resolutionID = Output240p;
-                slotsObject.slot[i].scanlines = 0;
-                slotsObject.slot[i].scanlinesStrength = 0;
-                slotsObject.slot[i].wantVdsLineFilter = false;
-                slotsObject.slot[i].wantStepResponse = true;
-                slotsObject.slot[i].wantPeaking = true;
-                strncpy(slotsObject.slot[i].name,
-                    slot_name.c_str(),
-                        sizeof(slotsObject.slot[i].name)
-                );
-                break;
-            }
-            i++;
-            delay(1);
-        }
+        // reset the slot data in binary file
+        slotResetDefaults(slotsObject, slotIndex);
 
-        // uint8_t loopCount = 0;
-        // uint8_t flag = 1;
-        // String sInd = String(slotIndexMap);
-        // while (flag != 0) {
-        //     currentSlot = sInd[currentSlot + loopCount];
-        //     nextSlot = sInd[currentSlot + loopCount + 1];
-        //     flag = 0;
-        //     flag += LittleFS.rename("/preset_ntsc." + String((char)(nextSlot)), "/preset_ntsc." + String((char)currentSlot));
-        //     flag += LittleFS.rename("/preset_pal." + String((char)(nextSlot)), "/preset_pal." + String((char)currentSlot));
-        //     flag += LittleFS.rename("/preset_ntsc_480p." + String((char)(nextSlot)), "/preset_ntsc_480p." + String((char)currentSlot));
-        //     flag += LittleFS.rename("/preset_pal_576p." + String((char)(nextSlot)), "/preset_pal_576p." + String((char)currentSlot));
-        //     flag += LittleFS.rename("/preset_ntsc_720p." + String((char)(nextSlot)), "/preset_ntsc_720p." + String((char)currentSlot));
-        //     flag += LittleFS.rename("/preset_ntsc_1080p." + String((char)(nextSlot)), "/preset_ntsc_1080p." + String((char)currentSlot));
-        //     flag += LittleFS.rename("/preset_medium_res." + String((char)(nextSlot)), "/preset_medium_res." + String((char)currentSlot));
-        //     flag += LittleFS.rename("/preset_vga_upscale." + String((char)(nextSlot)), "/preset_vga_upscale." + String((char)currentSlot));
-        //     flag += LittleFS.rename("/preset_unknown." + String((char)(nextSlot)), "/preset_unknown." + String((char)currentSlot));
-
-        //     slotsObject.slot[currentSlot + loopCount].slot = slotsObject.slot[currentSlot + loopCount + 1].slot;
-        //     slotsObject.slot[currentSlot + loopCount].presetID = slotsObject.slot[currentSlot + loopCount + 1].presetID;
-        //     slotsObject.slot[currentSlot + loopCount].scanlines = slotsObject.slot[currentSlot + loopCount + 1].scanlines;
-        //     slotsObject.slot[currentSlot + loopCount].scanlinesStrength = slotsObject.slot[currentSlot + loopCount + 1].scanlinesStrength;
-        //     slotsObject.slot[currentSlot + loopCount].wantVdsLineFilter = slotsObject.slot[currentSlot + loopCount + 1].wantVdsLineFilter;
-        //     slotsObject.slot[currentSlot + loopCount].wantStepResponse = slotsObject.slot[currentSlot + loopCount + 1].wantStepResponse;
-        //     slotsObject.slot[currentSlot + loopCount].wantPeaking = slotsObject.slot[currentSlot + loopCount + 1].wantPeaking;
-        //     // slotsObject.slot[currentSlot + loopCount].name = slotsObject.slot[currentSlot + loopCount + 1].name;
-        //     strncpy(slotsObject.slot[currentSlot + loopCount].name, slotsObject.slot[currentSlot + loopCount + 1].name, 25);
-        //     loopCount++;
-        // }
-
-        slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "w");
-        slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
-        slotsBinaryFile.close();
-        result = true;
+        if(!slotSetData(slotsObject))
+            _DBGN(F("failed to write to slots.bin"));
+        else
+            result = true;
     }
-    delay(10);
     // reset parameters
     setResetParameters();
     _DBGN(F("slot has been removed, parameters now reset to defaults"));
@@ -424,7 +277,7 @@ void serverSlotRemove()
     rto->resolutionID = Output240p;
 
 server_slot_remove_end:
-    server.send(200, mimeAppJson, result ? F("true") : F("false"));
+    server.send(200, mimeAppJson, result ? F("[\"ok\"]") : F("[\"fail\"]"));
 }
 
 /**
@@ -433,7 +286,7 @@ server_slot_remove_end:
  */
 void serverFsUploadResponder()
 {
-    server.send(200, mimeAppJson, "true");
+    server.send(200, mimeAppJson, F("[\"ok\"]"));
 }
 
 /**
@@ -478,6 +331,7 @@ void serverFsUploadHandler()
         err = false;
         LittleFS.remove(FPSTR(backupFile));
         _DBGN(F(" aborted"));
+        delay(10);
         goto upload_file_close;
     }
     return;
@@ -538,7 +392,7 @@ void serverBackupDownload()
                             _DBGF(PSTR("slot: %s\n"), slotsObject.slot[i].name);
                             _b.println(i);
                             _b.println(slotsObject.slot[i].name);
-                            _b.println(slotsObject.slot[i].resolutionID);
+                            _b.println(static_cast<char>(slotsObject.slot[i].resolutionID));
                             _b.println(slotsObject.slot[i].scanlines);
                             _b.println(slotsObject.slot[i].scanlinesStrength);
                             _b.println(slotsObject.slot[i].wantVdsLineFilter);
@@ -631,7 +485,7 @@ void extractBackup() {
                         // mind data order!
                         k = data.toInt();
                         strcpy(slotsObject.slot[k].name, _b.readString().c_str());
-                        slotsObject.slot[k].resolutionID = _b.readString().charAt(0);
+                        slotsObject.slot[k].resolutionID = static_cast<OutputResolution>(_b.readString().charAt(0));
                         slotsObject.slot[k].scanlines = _b.readString().toInt();
                         slotsObject.slot[k].scanlinesStrength = _b.readString().toInt();
                         slotsObject.slot[k].wantVdsLineFilter = _b.readString().toInt();
@@ -651,6 +505,7 @@ void extractBackup() {
     _b.close();
     // cleanup
     LittleFS.remove(FPSTR(backupFile));
+    delay(10);
     _DBGN(F("restore success, restarting..."));
 }
 
@@ -683,7 +538,7 @@ void extractBackup() {
 //     return;
 
 // server_fs_dir_failure:
-//     server.send_P(200, mimeAppJson, PSTR("false"));
+//     server.send_P(200, mimeAppJson, PSTR("[\"fail\"]"));
 // }
 
 /**
@@ -694,7 +549,7 @@ void extractBackup() {
  */
 // void serverFsFormat()
 // {
-//     server.send(200, mimeAppJson, LittleFS.format() ? F("true") : F("false"));
+//     server.send(200, mimeAppJson, LittleFS.format() ? F("[\"ok\"]") : F("[\"fail\"]"));
 // }
 
 /**
@@ -714,45 +569,36 @@ void serverWiFiStatus()
  * @brief
  *
  */
-void serverRestoreFilters()
-{
-    SlotMetaArray slotsObject;
-    fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "r");
-    bool result = false;
-    if (slotsBinaryFile)
-    {
-        slotsBinaryFile.read((byte *)&slotsObject, sizeof(slotsObject));
-        slotsBinaryFile.close();
-        // auto currentSlot = String(slotIndexMap).indexOf(uopt->presetSlot);
-        // if (currentSlot == -1)
-        // {
-        //     goto server_restore_filters_end;
-        // }
+// void serverRestoreFilters()
+// {
+//     SlotMetaArray slotsObject;
+//     bool result = false;
+//     if (slotGetData(slotsObject))
+//     {
+//         uopt->wantScanlines = slotsObject.slot[uopt->presetSlot].scanlines;
 
-        uopt->wantScanlines = slotsObject.slot[uopt->presetSlot].scanlines;
+//         _WSF(PSTR("slot: %s (ID %d) scanlines: "), slotsObject.slot[uopt->presetSlot].name, uopt->presetSlot);
+//         if (uopt->wantScanlines)
+//         {
+//             _WSN(F("on (Line Filter recommended)"));
+//         }
+//         else
+//         {
+//             disableScanlines();
+//             _WSN(F("off"));
+//         }
+//         saveUserPrefs();
 
-        _WSF(PSTR("slot: %s (ID %d) scanlines: "), slotsObject.slot[uopt->presetSlot].name, uopt->presetSlot);
-        if (uopt->wantScanlines)
-        {
-            _WSN(F("on (Line Filter recommended)"));
-        }
-        else
-        {
-            disableScanlines();
-            _WSN(F("off"));
-        }
-        saveUserPrefs();
+//         uopt->scanlineStrength = slotsObject.slot[uopt->presetSlot].scanlinesStrength;
+//         uopt->wantVdsLineFilter = slotsObject.slot[uopt->presetSlot].wantVdsLineFilter;
+//         uopt->wantStepResponse = slotsObject.slot[uopt->presetSlot].wantStepResponse;
+//         uopt->wantPeaking = slotsObject.slot[uopt->presetSlot].wantPeaking;
+//         result = true;
+//     }
 
-        uopt->scanlineStrength = slotsObject.slot[uopt->presetSlot].scanlinesStrength;
-        uopt->wantVdsLineFilter = slotsObject.slot[uopt->presetSlot].wantVdsLineFilter;
-        uopt->wantStepResponse = slotsObject.slot[uopt->presetSlot].wantStepResponse;
-        uopt->wantPeaking = slotsObject.slot[uopt->presetSlot].wantPeaking;
-        result = true;
-    }
-
-// server_restore_filters_end:
-    server.send(200, mimeAppJson, result ? F("true") : F("false"));
-}
+// // server_restore_filters_end:
+//     server.send(200, mimeAppJson, result ? F("[\"ok\"]") : F("[\"fail\"]"));
+// }
 
 /**
  * @brief
@@ -808,7 +654,7 @@ void serverWiFiList()
         server.chunkedResponseFinalize();
     }
     else
-        server.send(200, mimeTextHtml, F("{}"));
+        server.send(200, mimeTextHtml, F("[]"));
 }
 
 /**
@@ -847,13 +693,11 @@ void serverWiFiConnect()
 
     if (ssid.length() > 0) {
         wifiStartStaMode(ssid, pwd);
-        server.send(200, mimeAppJson, F("{}"));
+        server.send(200, mimeAppJson, F("[]"));
     } else
-        server.send(406, mimeAppJson, F("{}"));
+        server.send(406, mimeAppJson, F("[]"));
 
-    // delay(100);
-    // ESP.reset();
-    userCommand = 'a'; // restart device at the next loop()
+    resetInMSec(1000);
 }
 
 /**
@@ -935,7 +779,7 @@ void printInfo()
     }
 
     yield();
-    
+
     if (GBS::STATUS_SYNC_PROC_HSACT::read())
     { // else source might not be active
         for (uint8_t i = 0; i < 9; i++)
@@ -1535,12 +1379,11 @@ void handleSerialCommand()
                 _WSN(F("on"));
             }
             break;
-        case 'L':
+        case 'L':               // force outut component
         {
             // Component / VGA Output
             uopt->wantOutputComponent = !uopt->wantOutputComponent;
             OutputComponentOrVGA();
-            saveUserPrefs();
             // apply 1280x720 preset now, otherwise a reboot would be required
             uint8_t videoMode = getVideoMode();
             if (videoMode == 0)
@@ -1555,6 +1398,7 @@ void handleSerialCommand()
             // rto->presetID = backup;
             rto->resolutionID = backup;
             // uopt->presetPreference = backup;
+            saveUserPrefs();
         }
         break;
         case 'l':
@@ -1567,7 +1411,8 @@ void handleSerialCommand()
         case 'Z':
         {
             uopt->matchPresetSource = !uopt->matchPresetSource;
-            saveUserPrefs();
+            // saveUserPrefs();
+            slotFlush();
             uint8_t vidMode = getVideoMode();
             // if (uopt->presetPreference == 0 && GBS::GBS_PRESET_ID::read() == 0x11) {
             if (rto->resolutionID == Output240p && GBS::GBS_PRESET_ID::read() == Output960p50)
@@ -1686,7 +1531,7 @@ void handleSerialCommand()
                 else
                     GBS::IF_HB_ST2::write(0);
                 _WSF(PSTR("IF_HB_ST2: 0x%04X IF_HB_SP2: 0x%04X\n"),
-                     GBS::IF_HB_ST2::read(), GBS::IF_HB_SP2::read());
+                    GBS::IF_HB_ST2::read(), GBS::IF_HB_SP2::read());
             }
             break;
         case '8': // invert sync button (dev. mode)
@@ -2173,25 +2018,21 @@ void handleUserCommand()
         {
         case '0':
             _WS(F("pal force 60hz "));
-            if (uopt->PalForce60 == 0)
-            {
-                uopt->PalForce60 = 1;
+            uopt->PalForce60 = !uopt->PalForce60;
+            if (uopt->PalForce60 == 1)
                 _WSN(F("on"));
-            }
             else
-            {
-                uopt->PalForce60 = 0;
                 _WSN(F("off"));
-            }
-            saveUserPrefs();
+            // saveUserPrefs();
+            slotFlush();
             break;
         case '1':               // reset to defaults button
-            webSocket.close();
             loadDefaultUserOptions();
             saveUserPrefs();
             _WSN(F("options set to defaults, restarting"));
-            delay(100);
-            ESP.reset(); // don't use restart(), messes up websocket reconnects
+            // delay(100);
+            // ESP.reset(); // don't use restart(), messes up websocket reconnects
+            resetInMSec(1000);
             //
             break;
         case '2':
@@ -2222,7 +2063,7 @@ void handleUserCommand()
         case '5':
             // Frame Time Lock toggle
             uopt->enableFrameTimeLock = !uopt->enableFrameTimeLock;
-            saveUserPrefs();
+            // saveUserPrefs();
             if (uopt->enableFrameTimeLock)
             {
                 _WSN(F("FTL on"));
@@ -2239,6 +2080,7 @@ void handleUserCommand()
             {
                 activeFrameTimeLockInitialSteps();
             }
+            slotFlush();
             break;
         case '6':
             //
@@ -2257,15 +2099,12 @@ void handleUserCommand()
             }
             saveUserPrefs();
             break;
-        case '9':
+        // case '9':
             //
-            break;
-        case 'a':
-            webSocket.close();
-            _WSN(F("restart"));
-            delay(100);
-            ESP.reset(); // don't use restart(), messes up websocket reconnects
-            break;
+            // break;
+        // case 'a':
+        //
+        //    break;
         case 'e': // print files on data
         {
             fs::Dir dir = LittleFS.openDir("/");
@@ -2378,6 +2217,7 @@ void handleUserCommand()
             {
                 FrameSync::reset(uopt->frameTimeLockMethod);
             }
+
             if (uopt->frameTimeLockMethod == 0)
             {
                 uopt->frameTimeLockMethod = 1;
@@ -2386,8 +2226,9 @@ void handleUserCommand()
             {
                 uopt->frameTimeLockMethod = 0;
             }
-            saveUserPrefs();
+            // saveUserPrefs();
             activeFrameTimeLockInitialSteps();
+            slotFlush();
             break;
         case 'l':
             // cycle through available SDRAM clocks
@@ -2541,28 +2382,28 @@ void handleUserCommand()
             }
         }
         break;
-        case 'q':
+        case 'q':                   // bob / motionAdaptive
             if (uopt->deintMode != 1)
             {
+                // switch to bob mode
                 uopt->deintMode = 1;
                 disableMotionAdaptDeinterlace();
                 if (GBS::GBS_OPTION_SCANLINES_ENABLED::read())
                 {
                     disableScanlines();
                 }
-                saveUserPrefs();
-            }
-            _WSN(F("Deinterlacer: Bob"));
-            break;
-        case 'r':
-            if (uopt->deintMode != 0)
-            {
+                // saveUserPrefs();
+                _WSN(F("Deinterlacer: Bob"));
+            } else {
+                // switch to motion adaptive mode
                 uopt->deintMode = 0;
-                saveUserPrefs();
-                // will enable next loop()
+                // saveUserPrefs();
+                _WSN(F("Deinterlacer: Motion Adaptive"));
             }
-            _WSN(F("Deinterlacer: Motion Adaptive"));
+            slotFlush();
             break;
+        // case 'r':
+        //     break;
         case 't':
             // unused now
             _WS(F("6-tap: "));
@@ -2585,17 +2426,12 @@ void handleUserCommand()
         case 'u':       // extract backup
             extractBackup();
             // reset device to apply new configuration
-            delay(1000);
-            ESP.reset();
-        //     // restart to attempt wifi station mode connect
-        //     wifiStartStaMode("");
-        //     delay(100);
-        //     ESP.reset();
-            // break;
+            resetInMSec(1000);
         case 'v':
         {
             uopt->wantFullHeight = !uopt->wantFullHeight;
-            saveUserPrefs();
+            // saveUserPrefs();
+            slotFlush();
             uint8_t vidMode = getVideoMode();
             // if (uopt->presetPreference == 5) {
             if (rto->resolutionID == Output1080p)
@@ -2607,11 +2443,11 @@ void handleUserCommand()
             }
         }
         break;
-        case 'w':
+        case 'w':                   // ADC calibration
             uopt->enableCalibrationADC = !uopt->enableCalibrationADC;
             saveUserPrefs();
             break;
-        case 'x':
+        case 'x':                   // preferScalingRgbhv
             uopt->preferScalingRgbhv = !uopt->preferScalingRgbhv;
             _WS(F("preferScalingRgbhv: "));
             if (uopt->preferScalingRgbhv)
@@ -2624,7 +2460,7 @@ void handleUserCommand()
             }
             saveUserPrefs();
             break;
-        case 'X':
+        case 'X':                   // enable/disable ext. clock generator
             _WS(F("ExternalClockGenerator "));
             if (uopt->disableExternalClockGenerator == 0)
             {

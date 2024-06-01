@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Thursday, 30th May 2024 12:59:29 pm                      #
+# Last Modified: Saturday, 1st June 2024 5:31:23 pm                       #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -64,6 +64,27 @@ struct adcOptions *adco = &adcopts;
 char serialCommand = '@';                // Serial / Web Server commands
 char userCommand = '@';                  // Serial / Web Server commands
 unsigned long lastVsyncLock = millis();
+unsigned long resetCountdown = 0;
+
+/**
+ * @brief Schedule the device reset
+ *
+ * @param millis
+ */
+void resetInMSec(unsigned long ms) {
+    if(ms != 0)
+        resetCountdown = ms + millis();
+    if(resetCountdown == 0)
+        return;
+    if(millis() >= resetCountdown) {
+        server.stop();
+        webSocket.close();
+        LittleFS.end();
+        _WSN(F("restarting..."));
+        delay(100);
+        ESP.reset();
+    }
+}
 
 /**
  * @brief
@@ -235,73 +256,62 @@ void setup()
             //     uopt->presetPreference = Output960P; // fresh data ?
             uopt->presetSlot = lowByte(f.read());
 
-            uopt->enableFrameTimeLock = (uint8_t)(f.read() - '0');
-            if (uopt->enableFrameTimeLock > 1)
-                uopt->enableFrameTimeLock = 0;
+            uopt->wantOutputComponent = f.read();
+            // if (uopt->wantOutputComponent > 1)
+            //     uopt->wantOutputComponent = 0;
 
-            uopt->frameTimeLockMethod = (uint8_t)(f.read() - '0');
-            if (uopt->frameTimeLockMethod > 1)
-                uopt->frameTimeLockMethod = 0;
+            uopt->preferScalingRgbhv = f.read();
+            // if (uopt->preferScalingRgbhv > 1)
+            //     uopt->preferScalingRgbhv = 1;
 
-            uopt->enableAutoGain = (uint8_t)(f.read() - '0');
-            if (uopt->enableAutoGain > 1)
-                uopt->enableAutoGain = 0;
+            uopt->enableCalibrationADC = f.read(); // #17
+            // if (uopt->enableCalibrationADC > 1)
+            //     uopt->enableCalibrationADC = 1;
 
-            uopt->wantScanlines = (uint8_t)(f.read() - '0');
-            if (uopt->wantScanlines > 1)
-                uopt->wantScanlines = 0;
+            uopt->disableExternalClockGenerator = f.read(); // #19
+            // if (uopt->disableExternalClockGenerator > 1)
+            //     uopt->disableExternalClockGenerator = 0;
 
-            uopt->wantOutputComponent = (uint8_t)(f.read() - '0');
-            if (uopt->wantOutputComponent > 1)
-                uopt->wantOutputComponent = 0;
-
-            uopt->deintMode = (uint8_t)(f.read() - '0');
-            if (uopt->deintMode > 2)
-                uopt->deintMode = 0;
-
-            uopt->wantVdsLineFilter = (uint8_t)(f.read() - '0');
-            if (uopt->wantVdsLineFilter > 1)
-                uopt->wantVdsLineFilter = 0;
-
-            uopt->wantPeaking = (uint8_t)(f.read() - '0');
-            if (uopt->wantPeaking > 1)
-                uopt->wantPeaking = 1;
-
-            uopt->preferScalingRgbhv = (uint8_t)(f.read() - '0');
-            if (uopt->preferScalingRgbhv > 1)
-                uopt->preferScalingRgbhv = 1;
-
-            uopt->wantTap6 = (uint8_t)(f.read() - '0');
-            if (uopt->wantTap6 > 1)
-                uopt->wantTap6 = 1;
-
-            uopt->PalForce60 = (uint8_t)(f.read() - '0');
-            if (uopt->PalForce60 > 1)
-                uopt->PalForce60 = 0;
-
-            uopt->matchPresetSource = (uint8_t)(f.read() - '0'); // #14
-            if (uopt->matchPresetSource > 1)
-                uopt->matchPresetSource = 1;
-
-            uopt->wantStepResponse = (uint8_t)(f.read() - '0'); // #15
-            if (uopt->wantStepResponse > 1)
-                uopt->wantStepResponse = 1;
-
-            uopt->wantFullHeight = (uint8_t)(f.read() - '0'); // #16
-            if (uopt->wantFullHeight > 1)
-                uopt->wantFullHeight = 1;
-
-            uopt->enableCalibrationADC = (uint8_t)(f.read() - '0'); // #17
-            if (uopt->enableCalibrationADC > 1)
-                uopt->enableCalibrationADC = 1;
-
-            uopt->scanlineStrength = (uint8_t)(f.read() - '0'); // #18
-            if (uopt->scanlineStrength > 0x60)
-                uopt->enableCalibrationADC = 0x30;
-
-            uopt->disableExternalClockGenerator = (uint8_t)(f.read() - '0'); // #19
-            if (uopt->disableExternalClockGenerator > 1)
-                uopt->disableExternalClockGenerator = 0;
+            // @sk: the commented options were merged with/moved to slots
+            // uopt->enableFrameTimeLock = (uint8_t)(f.read() - '0');
+            // if (uopt->enableFrameTimeLock > 1)
+            //     uopt->enableFrameTimeLock = 0;
+            // uopt->frameTimeLockMethod = (uint8_t)(f.read() - '0');
+            // if (uopt->frameTimeLockMethod > 1)
+            //     uopt->frameTimeLockMethod = 0;
+            // uopt->enableAutoGain = (uint8_t)(f.read() - '0');
+            // if (uopt->enableAutoGain > 1)
+            //     uopt->enableAutoGain = 0;
+            // uopt->wantPeaking = (uint8_t)(f.read() - '0');
+            // if (uopt->wantPeaking > 1)
+            //     uopt->wantPeaking = 1;
+            // uopt->wantScanlines = (uint8_t)(f.read() - '0');
+            // if (uopt->wantScanlines > 1)
+            //     uopt->wantScanlines = 0;
+            // uopt->deintMode = (uint8_t)(f.read() - '0');
+            // if (uopt->deintMode > 2)
+            //     uopt->deintMode = 0;
+            // uopt->wantVdsLineFilter = (uint8_t)(f.read() - '0');
+            // if (uopt->wantVdsLineFilter > 1)
+            //     uopt->wantVdsLineFilter = 0;
+            // uopt->wantTap6 = (uint8_t)(f.read() - '0');
+            // if (uopt->wantTap6 > 1)
+            //     uopt->wantTap6 = 1;
+            // uopt->PalForce60 = (uint8_t)(f.read() - '0');
+            // if (uopt->PalForce60 > 1)
+            //     uopt->PalForce60 = 0;
+            // uopt->matchPresetSource = (uint8_t)(f.read() - '0'); // #14
+            // if (uopt->matchPresetSource > 1)
+            //     uopt->matchPresetSource = 1;
+            // uopt->wantStepResponse = (uint8_t)(f.read() - '0'); // #15
+            // if (uopt->wantStepResponse > 1)
+            //     uopt->wantStepResponse = 1;
+            // uopt->wantFullHeight = (uint8_t)(f.read() - '0'); // #16
+            // if (uopt->wantFullHeight > 1)
+            //     uopt->wantFullHeight = 1;
+            // uopt->scanlineStrength = (uint8_t)(f.read() - '0'); // #18
+            // if (uopt->scanlineStrength > 0x60)
+            //     uopt->enableCalibrationADC = 0x30;
 
             f.close();
         }
@@ -388,6 +398,8 @@ void setup()
         zeroAll();
         setResetParameters();
         prepareSyncProcessor();
+        // preferencesv2.txt data loaded, load current slot
+        slotLoad(uopt->presetSlot);
 
         uint8_t productId = GBS::CHIP_ID_PRODUCT::read();
         uint8_t revisionId = GBS::CHIP_ID_REVISION::read();
@@ -443,13 +455,10 @@ void loop()
 
     menuLoop();
     wifiLoop(0); // WiFi + OTA + WS + MDNS, checks for server enabled + started
-
     // Serial takes precedence
     handleSerialCommand();
-    yield();
     // handle user commands
     handleUserCommand();
-    yield();
 
     // run FrameTimeLock if enabled
     if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false
@@ -486,7 +495,6 @@ void loop()
         }
         lastVsyncLock = millis();
     }
-
     if (rto->syncWatcherEnabled && rto->boardHasPower) {
         if ((millis() - lastTimeInterruptClear) > 3000) {
             GBS::INTERRUPT_CONTROL_00::write(0xfe); // reset except for SOGBAD
@@ -494,12 +502,10 @@ void loop()
             lastTimeInterruptClear = millis();
         }
     }
-
     // information mode
     if (rto->printInfos == true) {
         printInfo();
     }
-
     // uint16_t testbus = GBS::TEST_BUS::read() & 0x0fff;
     // if (testbus >= 0x0FFD){
     //   _WSN(testbus,HEX);
@@ -538,7 +544,6 @@ void loop()
             }
         }
     }
-
     // init frame sync + besthtotal routine
     if (rto->autoBestHtotalEnabled && !FrameSync::ready() && rto->syncWatcherEnabled) {
         if (rto->continousStableCounter >= 10 && rto->coastPositionIsSet &&
@@ -552,7 +557,6 @@ void loop()
             }
         }
     }
-
     // update clamp + coast positions after preset change // do it quickly
     if ((rto->videoStandardInput <= 14 && rto->videoStandardInput != 0) &&
         rto->syncWatcherEnabled && !rto->coastPositionIsSet) {
@@ -569,7 +573,6 @@ void loop()
             }
         }
     }
-
     // don't exclude modes 13 / 14 / 15 (rgbhv bypass)
     if ((rto->videoStandardInput != 0) && (rto->continousStableCounter >= 4) &&
         !rto->clampPositionIsSet && rto->syncWatcherEnabled) {
@@ -580,7 +583,6 @@ void loop()
             }
         }
     }
-
     // later stage post preset adjustments
     if ((rto->applyPresetDoneStage == 1) &&
         ((rto->continousStableCounter > 35 && rto->continousStableCounter < 45) || // this
@@ -625,12 +627,10 @@ void loop()
         externalClockGenSyncInOutRate();
         rto->applyPresetDoneStage = 0; // timeout
     }
-
     if (rto->applyPresetDoneStage == 10) {
         rto->applyPresetDoneStage = 11; // set first, so we don't loop applying presets
         setOutModeHdBypass(false);
     }
-
     if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true && rto->boardHasPower) {
         if ((millis() - lastTimeSourceCheck) >= 500) {
             if (checkBoardPower()) {
@@ -653,7 +653,6 @@ void loop()
             }
         }
     }
-
     // has the GBS board lost power? // check at 2 points, in case one doesn't register
     // low values chosen to not do this check on small sync issues
     if ((rto->noSyncCounter == 61 || rto->noSyncCounter == 62) && rto->boardHasPower) {
@@ -667,7 +666,6 @@ void loop()
             rto->noSyncCounter = 63; // avoid checking twice
         }
     }
-
     // power good now? // added syncWatcherEnabled check to enable passive mode
     // (passive mode = watching OFW without interrupting)
     if (!rto->boardHasPower && rto->syncWatcherEnabled) { // then check if power has come on
@@ -692,7 +690,6 @@ void loop()
             }
         }
     }
-
 #ifdef HAVE_PINGER_LIBRARY
     // periodic pings for debugging WiFi issues
     if (WiFi.status() == WL_CONNECTED) {
@@ -714,4 +711,6 @@ void loop()
     if (rto->allowUpdatesOTA) {
         ArduinoOTA.handle();
     }
+    // handle reset routine
+    resetInMSec();
 }

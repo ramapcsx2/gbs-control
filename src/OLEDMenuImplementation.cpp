@@ -117,11 +117,13 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     display->drawString(OLED_MENU_WIDTH / 2, 16, item->str);
     display->drawXbm((OLED_MENU_WIDTH - TEXT_LOADED_WIDTH) / 2, OLED_MENU_HEIGHT / 2, IMAGE_ITEM(TEXT_LOADED));
     display->display();
-    uopt->presetSlot = 'A' + item->tag; // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,
+    // uopt->presetSlot = 'A' + item->tag; // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,
+    uopt->presetSlot = item->tag;
+    // now we're free to load new slot data
+    if(!slotLoad(uopt->presetSlot)) {
+        _DBGN(F("unable to read /slots.bin"));
+    }
     // uopt->presetPreference = OutputResolution::OutputCustomized;
-
-    // @sk: rely on chance that it's already set before manually
-    // rto->resolutionID = OutputCustom;
     // saveUserPrefs();
     if (rto->videoStandardInput == 14) {
         // vga upscale path: let synwatcher handle it
@@ -139,7 +141,7 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
 }
 
 /**
- * @brief hardware menu for profile/presets management
+ * @brief hardware menu for slot management
  *
  * @param manager
  * @param item
@@ -151,10 +153,11 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     int curNumSlot = 0;
     SlotMetaArray slotsObject;
     manager->clearSubItems(item);
-    fs::File slotsBinaryFileRead = LittleFS.open(FPSTR(slotsFile), "r");
-    if (slotsBinaryFileRead) {
-        slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
-        slotsBinaryFileRead.close();
+    if(slotGetData(slotsObject) != -1) {
+    // fs::File slotsBinaryFileRead = LittleFS.open(FPSTR(slotsFile), "r");
+    // if (slotsBinaryFileRead) {
+    //     slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
+    //     slotsBinaryFileRead.close();
         String slot_name = String(emptySlotName);
         for (int i = 0; i < SLOTS_TOTAL; ++i) {
             const SlotMeta &slot = slotsObject.slot[i];
@@ -165,7 +168,7 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
             if (curNumSlot >= OLED_MENU_MAX_SUBITEMS_NUM) {
                 break;
             }
-            manager->registerItem(item, slot.slot, slot.name, presetSelectionMenuHandler);
+            manager->registerItem(item, i/* slot.slot */, slot.name, presetSelectionMenuHandler);
         }
     }
     // show notice for user to go to webUI
@@ -194,8 +197,9 @@ bool resetMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav,
         // not precise
         if (millis() - oledMenuFreezeStartTime >= oledMenuFreezeTimeoutInMS) {
             manager->unfreeze();
-            ESP.reset();
-            return false;
+            // ESP.reset();
+            // return false;
+            resetInMSec(1000);
         }
         return false;
     }

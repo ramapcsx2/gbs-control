@@ -36,7 +36,7 @@
 #define PIN_SWITCH                      0    // D3 = GPIO0 pulled HIGH, else boot fail (middle push button for encoder)
 #define MENU_WIDTH                      131
 #define MENU_HEIGHT                     19
-#define SLOTS_TOTAL                     72   // max number of slots
+#define SLOTS_TOTAL                     50   // max number of slots (UI: GBSControl.maxSlots)
 #define OSD_TIMEOUT                     8000
 #define AUTO_GAIN_INIT                  0x48
 #define THIS_DEVICE_MASTER
@@ -231,31 +231,33 @@ extern struct runTimeOptions *rto;
 extern struct userOptions *uopt;
 extern struct adcOptions *adco;
 
-const char preset_ntsc[] PROGMEM = "/preset_ntsc.";
-const char preset_pal[] PROGMEM = "/preset_pal.";
-const char preset_ntsc_480p[] PROGMEM = "/preset_ntsc_480p.";
-const char preset_pal_576p[] PROGMEM = "/preset_pal_576p.";
-const char preset_ntsc_720p[] PROGMEM = "/preset_ntsc_720p.";
-const char preset_ntsc_1080p[] PROGMEM = "/preset_ntsc_1080p.";
-const char preset_medium_res[] PROGMEM = "/preset_medium_res.";
-const char preset_vga_upscale[] PROGMEM = "/preset_vga_upscale.";
-const char preset_unknown[] PROGMEM = "/preset_unknown.";
+// const char preset_ntsc[] PROGMEM = "/preset_ntsc.";
+// const char preset_pal[] PROGMEM = "/preset_pal.";
+// const char preset_ntsc_480p[] PROGMEM = "/preset_ntsc_480p.";
+// const char preset_pal_576p[] PROGMEM = "/preset_pal_576p.";
+// const char preset_ntsc_720p[] PROGMEM = "/preset_ntsc_720p.";
+// const char preset_ntsc_1080p[] PROGMEM = "/preset_ntsc_1080p.";
+// const char preset_medium_res[] PROGMEM = "/preset_medium_res.";
+// const char preset_vga_upscale[] PROGMEM = "/preset_vga_upscale.";
+// const char preset_unknown[] PROGMEM = "/preset_unknown.";
 
-const char * const preset_names[] PROGMEM = {
-    preset_unknown,
-    preset_ntsc,
-    preset_pal,
-    preset_ntsc_480p,
-    preset_pal_576p,
-    preset_ntsc_720p,
-    preset_ntsc_1080p,
-    preset_medium_res,
-    preset_vga_upscale,
-};
+// const char * const preset_names[] PROGMEM = {
+//     preset_unknown,
+//     preset_ntsc,
+//     preset_pal,
+//     preset_ntsc_480p,
+//     preset_pal_576p,
+//     preset_ntsc_720p,
+//     preset_ntsc_1080p,
+//     preset_medium_res,
+//     preset_vga_upscale,
+// };
 
 const char preferencesFile[] PROGMEM = "/preferencesv2.txt";
 const char systemInfo[] PROGMEM = "h:%4u v:%4u PLL:%01u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d\n";
 const char commandDescr[] PROGMEM = "\n> %s command: %c (0x%02X) slotID: %d, resolutionID: %c (0x%02X)\n\n";
+
+extern void resetInMSec(unsigned long ms = 0);
 
 #ifdef THIS_DEVICE_MASTER
 const char ap_ssid[] PROGMEM = "gbscontrol";

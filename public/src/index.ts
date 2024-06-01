@@ -1,8 +1,8 @@
 /*
-* DEVELOPER's MEMO:
-*   1. WebUI icons: https://fonts.google.com/icons
-*
-*/
+ * DEVELOPER MEMO:
+ *   1. WebUI icons: https://fonts.google.com/icons
+ *
+ */
 
 /**
  * Description placeholder
@@ -54,11 +54,21 @@ const Structs: StructDescriptors = {
         { name: "name", type: "string", size: 25 },
         { name: "slot", type: "byte", size: 1 },
         { name: "resolutionID", type: "string", size: 1 },
+
         { name: "scanlines", type: "byte", size: 1 },
         { name: "scanlinesStrength", type: "byte", size: 1 },
-        { name: "wantVdsLineFilter", type: "byte", size: 1 },
-        { name: "wantStepResponse", type: "byte", size: 1 },
-        { name: "wantPeaking", type: "byte", size: 1 },
+        { name: "vdsLineFilter", type: "byte", size: 1 },
+        { name: "stepResponse", type: "byte", size: 1 },
+        { name: "peaking", type: "byte", size: 1 },
+        { name: "adcAutoGain", type: "byte", size: 1 },
+        { name: "frameTimeLock", type: "byte", size: 1 },
+
+        { name: "frameTimeLockMethod", type: "byte", size: 1 },
+        { name: "motionAdaptive", type: "byte", size: 1 },
+        { name: "bob", type: "byte", size: 1 },
+        { name: "fullHeight", type: "byte", size: 1 },
+        { name: "matchPreset", type: "byte", size: 1 },
+        { name: "palForce60", type: "byte", size: 1 },
     ],
 };
 
@@ -92,7 +102,10 @@ const StructParser = {
 
         return null;
     },
-    getValue(buff: any[], structItem: { type: "byte" | "string"; size: number }) {
+    getValue(
+        buff: any[],
+        structItem: { type: "byte" | "string"; size: number }
+    ) {
         switch (structItem.type) {
             case "byte":
                 return buff[this.pos++];
@@ -105,7 +118,9 @@ const StructParser = {
                     .map(() => " ")
                     .map((_char, index) => {
                         if (buff[currentPos + index] > 31) {
-                            return String.fromCharCode(buff[currentPos + index]);
+                            return String.fromCharCode(
+                                buff[currentPos + index]
+                            );
                         }
                         return "";
                     })
@@ -125,23 +140,23 @@ const StructParser = {
 /* GBSControl Global Object*/
 const GBSControl = {
     buttonMapping: {
-        'a': "button240p",
-        'c': "button960p",
-        'd': "button960p",              // 50Hz
-        'e': "button1024p",
-        'f': "button1024p",             // 50Hz
-        'g': "button720p",
-        'h': "button720p",              // 50Hz
-        'i': "button480p",
-        'j': "button480p",               // 50Hz
-        'k': "button1080p",
-        'l': "button1080p",             // 50Hz
-        'm': "button15kHz",
-        'n': "button15kHz",        // 50Hz
-        'p': "button576p",               // 50Hz
-        'q': "buttonSourcePassThrough",
-        's': "buttonSourcePassThrough",     // PresetHdBypass
-        'u': "buttonSourcePassThrough",     // PresetBypassRGBHV
+        a: "button240p",
+        c: "button960p",
+        d: "button960p", // 50Hz
+        e: "button1024p",
+        f: "button1024p", // 50Hz
+        g: "button720p",
+        h: "button720p", // 50Hz
+        i: "button480p",
+        j: "button480p", // 50Hz
+        k: "button1080p",
+        l: "button1080p", // 50Hz
+        m: "button15kHz",
+        n: "button15kHz", // 50Hz
+        p: "button576p", // 50Hz
+        q: "buttonSourcePassThrough",
+        s: "buttonSourcePassThrough", // PresetHdBypass
+        u: "buttonSourcePassThrough", // PresetBypassRGBHV
         // 'w': "buttonLoadCustomPreset",
     },
     controlKeysMobileMode: "move",
@@ -171,7 +186,7 @@ const GBSControl = {
     activeResolution: "",
     dataQueued: 0,
     isWsActive: false,
-    maxSlots: 72,
+    maxSlots: 50,
     queuedText: "",
     scanSSIDDone: false,
     serverIP: "",
@@ -180,7 +195,7 @@ const GBSControl = {
     ui: {
         backupButton: null,
         backupInput: null,
-        customSlotFilters: null,
+        // customSlotFilters: null,
         developerSwitch: null,
         loader: null,
         outputClear: null,
@@ -212,6 +227,7 @@ const GBSControl = {
         promptCancel: null,
         promptContent: null,
         promptInput: null,
+        removeSlotButton: null,
     },
     updateTerminalTimer: 0,
     webSocketServerUrl: "",
@@ -268,6 +284,214 @@ const timeOutWs = () => {
 
 /**
  * Description placeholder
+ *
+ * @template Element
+ * @param {(| HTMLCollectionOf<globalThis.Element>
+ *     | NodeListOf<globalThis.Element>)} nodelist
+ * @returns {Element[]}
+ */
+const nodelistToArray = <Element>(
+    nodelist:
+        | HTMLCollectionOf<globalThis.Element>
+        | NodeListOf<globalThis.Element>
+): Element[] => {
+    return Array.prototype.slice.call(nodelist);
+};
+
+/**
+ * Description placeholder
+ *
+ * @param {string} id
+ * @returns {(button: HTMLElement, _index: any, _array: any) => void}
+ */
+const toggleButtonActive =
+    (id: string) => (button: HTMLElement, _index: any, _array: any) => {
+        button.removeAttribute("active");
+
+        if (button.getAttribute("gbs-element-ref") === id) {
+            button.setAttribute("active", "");
+        }
+    };
+
+/**
+ * Description placeholder
+ *
+ * @type {{ resolve: any; reject: any; }}
+ */
+const gbsAlertPromise = {
+    resolve: null,
+    reject: null,
+};
+
+/**
+ * Description placeholder
+ *
+ * @param {*} event
+ */
+const alertKeyListener = (event: any) => {
+    if (event.keyCode === 13) {
+        gbsAlertPromise.resolve();
+    }
+    if (event.keyCode === 27) {
+        gbsAlertPromise.reject();
+    }
+};
+
+const alertActEventListener = (e: any) => {
+    gbsAlertPromise.reject();
+};
+
+/**
+ * Description placeholder
+ *
+ * @param {string} text
+ * @returns {*}
+ */
+const gbsAlert = (text: string, ackText: string = "", actText: string = "") => {
+    GBSControl.ui.alertContent.insertAdjacentHTML("afterbegin", text);
+    GBSControl.ui.alert.removeAttribute("hidden");
+    document.addEventListener("keyup", alertKeyListener);
+    if (ackText !== "") {
+        GBSControl.ui.alertAck.insertAdjacentHTML("afterbegin", ackText);
+    } else
+        GBSControl.ui.alertAck.insertAdjacentHTML(
+            "afterbegin",
+            '<div class="gbs-icon">done</div><div>Ok</div>'
+        );
+
+    if (actText !== "") {
+        GBSControl.ui.alertAct.insertAdjacentHTML("afterbegin", actText);
+        GBSControl.ui.alertAct.removeAttribute("disabled");
+        GBSControl.ui.alertAct.addEventListener("click", alertActEventListener);
+    }
+    return new Promise((resolve, reject) => {
+        const gbsAlertClean = () => {
+            document.removeEventListener("keyup", alertKeyListener);
+            GBSControl.ui.alertAct.removeEventListener(
+                "click",
+                alertActEventListener
+            );
+            GBSControl.ui.alertAct.setAttribute("disabled", "");
+            GBSControl.ui.alertAck.textContent = "";
+            GBSControl.ui.alertAct.textContent = "";
+            GBSControl.ui.alertContent.textContent = "";
+            GBSControl.ui.alert.setAttribute("hidden", "");
+        };
+        gbsAlertPromise.resolve = (e) => {
+            gbsAlertClean();
+            return resolve(e);
+        };
+        gbsAlertPromise.reject = () => {
+            gbsAlertClean();
+            return reject();
+        };
+    });
+};
+
+/**
+ * Description placeholder
+ *
+ * @type {{ resolve: any; reject: any; }}
+ */
+const gbsPromptPromise = {
+    resolve: null,
+    reject: null,
+};
+
+/**
+ * Description placeholder
+ *
+ * @param {string} text
+ * @param {string} [defaultValue=""]
+ * @returns {*}
+ */
+const gbsPrompt = (text: string, defaultValue = "") => {
+    GBSControl.ui.promptContent.textContent = text;
+    GBSControl.ui.prompt.removeAttribute("hidden");
+    GBSControl.ui.promptInput.value = defaultValue;
+
+    return new Promise<string>((resolve, reject) => {
+        gbsPromptPromise.resolve = resolve;
+        gbsPromptPromise.reject = reject;
+        GBSControl.ui.promptInput.focus();
+    });
+};
+
+/**
+ * Description placeholder
+ *
+ * @param {boolean} mode
+ */
+const displayWifiWarning = (mode: boolean) => {
+    GBSControl.ui.webSocketConnectionWarning.style.display = mode
+        ? "block"
+        : "none";
+};
+
+/**
+ * Flip a toggle switch
+ *
+ * @param {(HTMLTableCellElement | HTMLElement)} button
+ * @param {boolean} mode
+ */
+const toggleButtonCheck = (
+    button: HTMLTableCellElement | HTMLElement,
+    mode: boolean
+) => {
+    if (button.tagName === "TD") {
+        button.innerText = mode ? "toggle_on" : "toggle_off";
+    }
+    button = button.tagName !== "TD" ? button : button.parentElement;
+    if (mode) {
+        button.setAttribute("active", "");
+    } else {
+        button.removeAttribute("active");
+    }
+};
+
+
+/**
+ * Description placeholder
+ *
+ * @param {HTMLElement} button this is a slot button HTMLElement
+ */
+const removeSlotButtonCheck = (button: Element) => {
+    if(button.hasAttribute("active")) {
+        const currentName = button.getAttribute("gbs-name");
+        if (currentName && currentName.trim() !== "Empty") {
+            GBSControl.ui.removeSlotButton.removeAttribute("disabled")
+        } else {
+            GBSControl.ui.removeSlotButton.setAttribute("disabled", "")
+        }
+    }
+};
+
+/**
+ * Description placeholder
+ */
+const updateTerminal = () => {
+    if (GBSControl.queuedText.length > 0) {
+        requestAnimationFrame(() => {
+            GBSControl.ui.terminal.value += GBSControl.queuedText;
+            GBSControl.ui.terminal.scrollTop =
+                GBSControl.ui.terminal.scrollHeight;
+            GBSControl.queuedText = "";
+        });
+    }
+};
+
+/**
+ * Description placeholder
+ */
+const updateViewPort = () => {
+    document.documentElement.style.setProperty(
+        "--viewport-height",
+        window.innerHeight + "px"
+    );
+};
+
+/**
+ * Handle webSocket response
  */
 const createWebSocket = () => {
     if (GBSControl.ws && checkReadyState()) {
@@ -296,28 +520,35 @@ const createWebSocket = () => {
         GBSControl.isWsActive = false;
     };
 
-
-    GBSControl.ws.onmessage = (message: any) => {
+    GBSControl.ws.onmessage = async (message: any) => {
         clearTimeout(GBSControl.wsTimeout);
         GBSControl.wsTimeout = window.setTimeout(timeOutWs, 2700);
         GBSControl.isWsActive = true;
-
+        // message data is blob
+        let buf = null;
+        try {
+            buf = await message.data.arrayBuffer();
+        } catch (err) {
+            // must not exit here since we're filtering out
+            // terminal data and system state data with '#'
+        }
+        // into array of DEC values
+        const bufArr = Array.from(new Uint8Array(buf));
         const [
-            messageDataAt0,   // always #
-            messageDataAt1,   // selected slot ID (int)
-            messageDataAt2,   // selected resolution ()
-            messageDataAt3,   // adcAutoGain & scanlines & vdsLineFilter & wantPeaking & PalForce60 & wantOutputComponent (binary)
-            messageDataAt4,   // matchPresetSource & enableFrameTimeLock & deintMode & wantTap6 & wantStepResponse & wantFullHeight (binary)
-            messageDataAt5,   // enableCalibrationADC & preferScalingRgbhv & disableExternalClockGenerator (binary)
+            optionByte0, // always #
+            optionByte1, // current slot ID (int)
+            optionByte2, // current resolution ()
+            // system preferences (preference file values)
+            optionByte3, // wantScanlines & wantVdsLineFilter & wantStepResponse & wantPeaking & enableAutoGain & enableFrameTimeLock
+            optionByte4, // deintMode & wantTap6 & wantFullHeight & matchPresetSource & PalForce60
+            optionByte5, // wantOutputComponent & enableCalibrationADC & preferScalingRgbhv & disableExternalClockGenerator
             // developer tab
-            messageDataAt6,   // printInfos, invertSync, oversampling, ADC Filter
+            optionByte6, // printInfos, invertSync, oversampling, ADC Filter
             // system tab
-            messageDataAt7    // enableOTA
-        ] = message.data;
+            optionByte7, // enableOTA
+        ] = bufArr;
 
-// console.log(message.data);
-
-        if (messageDataAt0 != "#") {
+        if (optionByte0 != "#".charCodeAt(0)) {
             GBSControl.queuedText += message.data;
             GBSControl.dataQueued += message.data.length;
 
@@ -325,149 +556,178 @@ const createWebSocket = () => {
                 GBSControl.ui.terminal.value = "";
                 GBSControl.dataQueued = 0;
             }
-        } else {
-            // ! current/selected slot
-            const slotId = "slot-" + messageDataAt1;
-            const activeSlotButton = document.querySelector(
-                `[gbs-element-ref="${slotId}"]`
-            );
-            // ! curent/selected resolution
-            const resID = GBSControl.buttonMapping[messageDataAt2];
-            const resEl = document.querySelector(
-                `[gbs-element-ref="${resID}"]`
-            );
-            const activePresetButton = resEl
-                ? resEl.getAttribute("gbs-element-ref")
-                : "none";
-            GBSControl.ui.presetButtonList.forEach(
-                toggleButtonActive(activePresetButton)
-            );
-
-            if (activeSlotButton) {
-                GBSControl.ui.slotButtonList.forEach(toggleButtonActive(slotId));
-            }
-            // settings tab
-            if (messageDataAt3 && messageDataAt4 && messageDataAt5) {
-                const optionByte0 = messageDataAt3.charCodeAt(0);
-                const optionByte1 = messageDataAt4.charCodeAt(0);
-                const optionByte2 = messageDataAt5.charCodeAt(0);
-                const optionButtonList = [
-                    ...nodelistToArray<HTMLButtonElement>(GBSControl.ui.toggleList),
-                    ...nodelistToArray<HTMLButtonElement>(GBSControl.ui.toggleSwichList),
-                ];
-
-                const toggleMethod = (
-                    button: HTMLTableCellElement | HTMLElement,
-                    mode: boolean
-                ) => {
-                    if (button.tagName === "TD") {
-                        button.innerText = mode ? "toggle_on" : "toggle_off";
-                    }
-                    button = button.tagName !== "TD" ? button : button.parentElement;
-                    if (mode) {
-                        button.setAttribute("active", "");
-                    } else {
-                        button.removeAttribute("active");
-                    }
-                };
-
-                optionButtonList.forEach((button) => {
-                    const toggleData =
-                        button.getAttribute("gbs-toggle") ||
-                        button.getAttribute("gbs-toggle-switch");
-
-                    if (toggleData !== null) {
-                        switch (toggleData) {
-                            case "adcAutoGain":
-                                toggleMethod(button, (optionByte0 & 0x01) == 0x01);
-                                break;
-                            case "scanlines":
-                                toggleMethod(button, (optionByte0 & 0x02) == 0x02);
-                                break;
-                            case "vdsLineFilter":
-                                toggleMethod(button, (optionByte0 & 0x04) == 0x04);
-                                break;
-                            case "peaking":
-                                toggleMethod(button, (optionByte0 & 0x08) == 0x08);
-                                break;
-                            case "palForce60":
-                                toggleMethod(button, (optionByte0 & 0x10) == 0x10);
-                                break;
-                            case "wantOutputComponent":
-                                toggleMethod(button, (optionByte0 & 0x20) == 0x20);
-                                break;
-                            /** 1 */
-
-                            case "matched":
-                                toggleMethod(button, (optionByte1 & 0x01) == 0x01);
-                                break;
-                            case "frameTimeLock":
-                                toggleMethod(button, (optionByte1 & 0x02) == 0x02);
-                                break;
-                            case "motionAdaptive":
-                                toggleMethod(button, (optionByte1 & 0x04) == 0x04);
-                                break;
-                            case "bob":
-                                toggleMethod(button, (optionByte1 & 0x04) != 0x04);
-                                break;
-                            // case "tap6":
-                            //   toggleMethod(button, (optionByte1 & 0x08) != 0x04);
-                            //   break;
-                            case "step":
-                                toggleMethod(button, (optionByte1 & 0x10) == 0x10);
-                                break;
-                            case "fullHeight":
-                                toggleMethod(button, (optionByte1 & 0x20) == 0x20);
-                                break;
-                            /** 2 */
-                            case "enableCalibrationADC":
-                                toggleMethod(button, (optionByte2 & 0x01) == 0x01);
-                                break;
-                            case "preferScalingRgbhv":
-                                toggleMethod(button, (optionByte2 & 0x02) == 0x02);
-                                break;
-                            case "disableExternalClockGenerator":
-                                toggleMethod(button, (optionByte2 & 0x04) == 0x04);
-                                break;
-                        }
-                    }
-                });
-            }
-            // developer tab
-            if(messageDataAt6) {
-                const optionByte6 = messageDataAt6.charCodeAt(0);
-                const printInfoButton = document.querySelector(`button[gbs-message="i"][gbs-message-type="action"]`);
-                const invertSync = document.querySelector(`button[gbs-message="8"][gbs-message-type="action"]`);
-                const oversampling = document.querySelector(`button[gbs-message="o"][gbs-message-type="action"]`);
-                const adcFilter = document.querySelector(`button[gbs-message="F"][gbs-message-type="action"]`);
-                if((optionByte6 & 0x01) == 0x01)
-                    printInfoButton.setAttribute("active", "");
-                else
-                    printInfoButton.removeAttribute("active");
-                if((optionByte6 & 0x02) == 0x02)
-                    invertSync.setAttribute("active", "");
-                else
-                    invertSync.removeAttribute("active");
-                if((optionByte6 & 0x04) == 0x04)
-                    oversampling.setAttribute("active", "");
-                else
-                    oversampling.removeAttribute("active");
-                if((optionByte6 & 0x08) == 0x08)
-                    adcFilter.setAttribute("active", "");
-                else
-                    adcFilter.removeAttribute("active");
-
-            }
-            // system tab
-            if(messageDataAt6) {
-                const optionByte7 = messageDataAt7.charCodeAt(0);
-                const enableOTAButton = document.querySelector(`button[gbs-message="c"][gbs-message-type="action"]`);
-                if((optionByte7 & 0x01) == 0x01)
-                    enableOTAButton.setAttribute("active", "");
-                else
-                    enableOTAButton.removeAttribute("active");
-            }
+            return;
         }
+
+        // current slot
+        const slotId = `slot-${String.fromCharCode(optionByte1)}`;
+        const activeSlotButton = document.querySelector(
+            `[gbs-element-ref="${slotId}"]`
+        );
+        if (activeSlotButton) {
+            GBSControl.ui.slotButtonList.forEach(toggleButtonActive(slotId));
+            // control slot remove button
+            removeSlotButtonCheck(activeSlotButton);
+        }
+        // curent resolution
+        const resID = GBSControl.buttonMapping[String.fromCharCode(optionByte2)];
+        const resEl = document.querySelector(
+            `[gbs-element-ref="${resID}"]`
+        );
+        const activePresetButton = resEl
+            ? resEl.getAttribute("gbs-element-ref")
+            : "none";
+        GBSControl.ui.presetButtonList.forEach(
+            toggleButtonActive(activePresetButton)
+        );
+        // settings tab & system preferences
+        const optionButtonList = [
+            ...nodelistToArray<HTMLButtonElement>(GBSControl.ui.toggleList),
+            ...nodelistToArray<HTMLButtonElement>(
+                GBSControl.ui.toggleSwichList
+            ),
+        ];
+
+        optionButtonList.forEach((button) => {
+            const toggleData =
+                button.getAttribute("gbs-toggle") ||
+                button.getAttribute("gbs-toggle-switch");
+
+            if (toggleData !== null) {
+                switch (toggleData) {
+                    /** 0: settings */
+                    // case "scanlinesStrength":
+                    /** 1 */
+                    case "scanlines":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte3 & 0x01) == 0x01
+                        );
+                        break;
+                    case "vdsLineFilter":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte3 & 0x02) == 0x02
+                        );
+                        break;
+                    case "stepResponse":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte3 & 0x04) == 0x04
+                        );
+                        break;
+                    case "peaking":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte3 & 0x08) == 0x08
+                        );
+                        break;
+                    case "adcAutoGain":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte3 & 0x10) == 0x10
+                        );
+                        break;
+                    case "frameTimeLock":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte3 & 0x20) == 0x20
+                        );
+                        break;
+                    /** 2 */
+                    // case "fameTimeLockMethod":
+                    /** 3 */
+                    case "motionAdaptive":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte4 & 0x01) == 0x01
+                        );
+                        break;
+                    case "bob":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte4 & 0x02) == 0x02
+                        );
+                        break;
+                    case "fullHeight":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte4 & 0x04) == 0x04
+                        );
+                        break;
+                    case "matchPreset":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte4 & 0x08) == 0x08
+                        );
+                        break;
+                    case "palForce60":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte4 & 0x10) == 0x10
+                        );
+                        break;
+                    /** 4: system preferences tab */
+                    case "wantOutputComponent":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte5 & 0x01) == 0x01
+                        );
+                        break;
+                    case "enableCalibrationADC":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte5 & 0x02) == 0x02
+                        );
+                        break;
+                    case "preferScalingRgbhv":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte5 & 0x04) == 0x04
+                        );
+                        break;
+                    case "disableExternalClockGenerator":
+                        toggleButtonCheck(
+                            button,
+                            (optionByte5 & 0x08) == 0x08
+                        );
+                        break;
+                }
+            }
+        });
+        // developer tab
+        const printInfoButton = document.querySelector(
+            `button[gbs-message="i"][gbs-message-type="action"]`
+        );
+        const invertSync = document.querySelector(
+            `button[gbs-message="8"][gbs-message-type="action"]`
+        );
+        const oversampling = document.querySelector(
+            `button[gbs-message="o"][gbs-message-type="action"]`
+        );
+        const adcFilter = document.querySelector(
+            `button[gbs-message="F"][gbs-message-type="action"]`
+        );
+        if ((optionByte6 & 0x01) == 0x01)
+            printInfoButton.setAttribute("active", "");
+        else printInfoButton.removeAttribute("active");
+        if ((optionByte6 & 0x02) == 0x02)
+            invertSync.setAttribute("active", "");
+        else invertSync.removeAttribute("active");
+        if ((optionByte6 & 0x04) == 0x04)
+            oversampling.setAttribute("active", "");
+        else oversampling.removeAttribute("active");
+        if ((optionByte6 & 0x08) == 0x08)
+            adcFilter.setAttribute("active", "");
+        else adcFilter.removeAttribute("active");
+
+        // system tab
+        const enableOTAButton = document.querySelector(
+            `button[gbs-message="c"][gbs-message-type="action"]`
+        );
+        if ((optionByte7 & 0x01) == 0x01)
+            enableOTAButton.setAttribute("active", "");
+        else enableOTAButton.removeAttribute("active");
     };
 };
 
@@ -544,7 +804,265 @@ const loadUser = (link: string) => {
     );
 };
 
+/** WIFI management */
+const wifiGetStatus = () => {
+    return fetch(`http://${GBSControl.serverIP}/wifi/status?${+new Date()}`)
+        .then((r) => r.json())
+        .then((wifiStatus: { mode: string; ssid: string }) => {
+            GBSControl.wifi = wifiStatus;
+            if (GBSControl.wifi.mode === "ap") {
+                GBSControl.ui.wifiApButton.setAttribute("active", "");
+                GBSControl.ui.wifiApButton.classList.add(
+                    "gbs-button__secondary"
+                );
+                GBSControl.ui.wifiStaButton.removeAttribute("active", "");
+                GBSControl.ui.wifiStaButton.classList.remove(
+                    "gbs-button__secondary"
+                );
+                GBSControl.ui.wifiStaSSID.innerHTML = "STA | Scan Network";
+            } else {
+                GBSControl.ui.wifiApButton.removeAttribute("active", "");
+                GBSControl.ui.wifiApButton.classList.remove(
+                    "gbs-button__secondary"
+                );
+                GBSControl.ui.wifiStaButton.setAttribute("active", "");
+                GBSControl.ui.wifiStaButton.classList.add(
+                    "gbs-button__secondary"
+                );
+                GBSControl.ui.wifiStaSSID.innerHTML = `${GBSControl.wifi.ssid}`;
+            }
+        });
+};
+
+/**
+ * Does connect to selected WiFi network
+ */
+const wifiConnect = () => {
+    const ssid = GBSControl.ui.wifiSSDInput.value;
+    const password = GBSControl.ui.wifiPasswordInput.value;
+
+    if (!password.length) {
+        GBSControl.ui.wifiPasswordInput.classList.add("gbs-wifi__input--error");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("n", ssid);
+    formData.append("p", password);
+
+    fetch(`http://${GBSControl.serverIP}/wifi/connect`, {
+        method: "POST",
+        body: formData,
+    }).then(() => {
+        gbsAlert(
+            `GBSControl will restart and will connect to ${ssid}. Please wait few seconds then press OK`
+        )
+            .then(() => {
+                window.location.href = "http://gbscontrol.local/";
+            })
+            .catch(() => {});
+    });
+};
+
+/**
+ * Query WiFi networks
+ */
+const wifiScanSSID = () => {
+    GBSControl.ui.wifiStaButton.setAttribute("disabled", "");
+    GBSControl.ui.wifiListTable.innerHTML = "";
+
+    if (!GBSControl.scanSSIDDone) {
+        fetch(`http://${GBSControl.serverIP}/wifi/list?${+new Date()}`, {
+            method: "POST",
+        }).then(() => {
+            GBSControl.scanSSIDDone = true;
+            window.setTimeout(wifiScanSSID, 3000);
+        });
+        return;
+    }
+
+    fetch(`http://${GBSControl.serverIP}/wifi/list?${+new Date()}`, {
+        method: "POST",
+    })
+        .then((e) => e.text())
+        .then((result) => {
+            GBSControl.scanSSIDDone = false;
+            return result.length
+                ? result
+                      .split("\n")
+                      .map((line) => line.split(","))
+                      .map(([strength, encripted, ssid]) => {
+                          return { strength, encripted, ssid };
+                      })
+                : [];
+        })
+        .then((ssids) => {
+            return ssids.reduce((acc, ssid) => {
+                return `${acc}<tr gbs-ssid="${ssid.ssid}">
+                <td class="gbs-icon" style="opacity:${
+                    parseInt(ssid.strength, 10) / 100
+                }">wifi</td>
+                <td>${ssid.ssid}</td>
+                <td class="gbs-icon">${ssid.encripted ? "lock" : "lock_open"}</td>
+                </tr>`;
+            }, "");
+        })
+        .then((html) => {
+            GBSControl.ui.wifiStaButton.removeAttribute("disabled");
+
+            if (html.length) {
+                GBSControl.ui.wifiListTable.innerHTML = html;
+                GBSControl.ui.wifiList.removeAttribute("hidden");
+                GBSControl.ui.wifiConnect.setAttribute("hidden", "");
+            }
+        });
+};
+
+/**
+ * Description placeholder
+ *
+ * @param {Event} event
+ */
+const wifiSelectSSID = (event: Event) => {
+    (GBSControl.ui.wifiSSDInput as HTMLInputElement).value = (
+        event.target as HTMLElement
+    ).parentElement.getAttribute("gbs-ssid");
+    GBSControl.ui.wifiPasswordInput.classList.remove("gbs-wifi__input--error");
+    GBSControl.ui.wifiList.setAttribute("hidden", "");
+    GBSControl.ui.wifiConnect.removeAttribute("hidden");
+};
+
+/**
+ * Description placeholder
+ *
+ * @returns {*}
+ */
+const wifiSetAPMode = () => {
+    if (GBSControl.wifi.mode === "ap") {
+        return;
+    }
+
+    //   const formData = new FormData();
+    //   formData.append("n", "dummy");
+
+    return fetch(`http://${GBSControl.serverIP}/wifi/ap`, {
+        method: "POST",
+        // body: formData,
+    }).then((response) => {
+        gbsAlert(
+            "Switching to AP mode. Please connect to gbscontrol SSID and then click OK"
+        )
+            .then(() => {
+                window.location.href = "http://192.168.4.1";
+            })
+            .catch(() => {});
+        return response;
+    });
+};
+
 /** SLOT management */
+
+/**
+ * Description placeholder
+ */
+const fetchSlotNamesErrorRetry = () => {
+    window.setTimeout(fetchSlotNamesAndInit, 1000);
+};
+
+/**
+ * Description placeholder
+ */
+const initUIElements = () => {
+    GBSControl.ui = {
+        terminal: document.getElementById("outputTextArea"),
+        webSocketConnectionWarning: document.getElementById("websocketWarning"),
+        presetButtonList: nodelistToArray(
+            document.querySelectorAll("[gbs-role='preset']")
+        ) as HTMLElement[],
+        slotButtonList: nodelistToArray(
+            document.querySelectorAll('[gbs-role="slot"]')
+        ) as HTMLElement[],
+        toggleConsole: document.querySelector("[gbs-output-toggle]"),
+        toggleList: document.querySelectorAll("[gbs-toggle]"),
+        toggleSwichList: document.querySelectorAll("[gbs-toggle-switch]"),
+        wifiList: document.querySelector("[gbs-wifi-list]"),
+        wifiListTable: document.querySelector(".gbs-wifi__list"),
+        wifiConnect: document.querySelector(".gsb-wifi__connect"),
+        wifiConnectButton: document.querySelector("[gbs-wifi-connect-button]"),
+        wifiSSDInput: document.querySelector('[gbs-input="ssid"]'),
+        wifiPasswordInput: document.querySelector('[gbs-input="password"]'),
+        wifiApButton: document.querySelector("[gbs-wifi-ap]"),
+        wifiStaButton: document.querySelector("[gbs-wifi-station]"),
+        wifiStaSSID: document.querySelector("[gbs-wifi-station-ssid]"),
+        loader: document.querySelector(".gbs-loader"),
+        progressBackup: document.querySelector("[gbs-progress-backup]"),
+        progressRestore: document.querySelector("[gbs-progress-restore]"),
+        outputClear: document.querySelector("[gbs-output-clear]"),
+        slotContainer: document.querySelector("[gbs-slot-html]"),
+        backupButton: document.querySelector(".gbs-backup-button"),
+        backupInput: document.querySelector(".gbs-backup-input"),
+        developerSwitch: document.querySelector("[gbs-dev-switch]"),
+        // customSlotFilters: document.querySelector("[gbs-slot-custom-filters]"),
+        alert: document.querySelector('section[name="alert"]'),
+        alertAck: document.querySelector("[gbs-alert-ack]"),
+        alertAct: document.querySelector("[gbs-alert-act]"),
+        alertContent: document.querySelector("[gbs-alert-content]"),
+        prompt: document.querySelector('section[name="prompt"]'),
+        promptOk: document.querySelector("[gbs-prompt-ok]"),
+        promptCancel: document.querySelector("[gbs-prompt-cancel]"),
+        promptContent: document.querySelector("[gbs-prompt-content]"),
+        promptInput: document.querySelector('[gbs-input="prompt-input"]'),
+        removeSlotButton: document.querySelector('[gbs-element-ref="buttonRemoveCustomPreset"]'),
+    };
+};
+
+/**
+ * Description placeholder
+ */
+const fetchSlotNamesAndInit = () => {
+    fetchSlotNames()
+        .then((success) => {
+            if (!success) {
+                fetchSlotNamesErrorRetry();
+                return;
+            }
+            initUIElements();
+            wifiGetStatus().then(() => {
+                initUI();
+                updateSlotNames();
+                createWebSocket();
+                createIntervalChecks();
+                window.setTimeout(hideLoading, 1000);
+            });
+        }, fetchSlotNamesErrorRetry)
+        .catch(fetchSlotNamesErrorRetry);
+};
+
+/**
+ * Description placeholder
+ *
+ * @returns {*}
+ */
+const fetchSlotNames = () => {
+    return fetch(`http://${GBSControl.serverIP}/bin/slots.bin?${+new Date()}`)
+        .then((response) => response.arrayBuffer())
+        .then((arrayBuffer: ArrayBuffer) => {
+            if (
+                arrayBuffer.byteLength ===
+                StructParser.getSize(Structs, "slots") * GBSControl.maxSlots
+            ) {
+                GBSControl.structs = {
+                    slots: StructParser.parseStructArray(
+                        arrayBuffer,
+                        Structs,
+                        "slots"
+                    ),
+                };
+                return true;
+            }
+            return false;
+        });
+};
 
 /**
  * Remove slot handler
@@ -563,8 +1081,8 @@ const removePreset = () => {
             `<p>Are you sure to remove slot: ${currentName}?</p><p>This action also removes all related presets.</p>`,
             '<div class="gbs-icon">done</div><div>Yes</div>',
             '<div class="gbs-icon">close</div><div>No</div>'
-        ).then(
-            () => {
+        )
+            .then(() => {
                 return fetch(
                     `http://${GBSControl.serverIP}/slot/remove?index=${currentIndex}&${+new Date()}`
                 ).then(() => {
@@ -577,11 +1095,9 @@ const removePreset = () => {
                         }
                     });
                 });
-            }
-        ).catch(() => {
-
-        });
-    };
+            })
+            .catch(() => {});
+    }
 };
 
 /**
@@ -610,19 +1126,19 @@ const savePreset = () => {
                         24
                     )}&${+new Date()}`
                 ).then(() => {
-                    loadUser("4").then(() => {
-                        window.setTimeout(() => {
-                            fetchSlotNames().then((success: boolean) => {
-                                if (success) {
-                                    updateSlotNames();
-                                }
-                            });
-                        }, 500);
-                    });
+                    // loadUser("4").then(() => {
+                    window.setTimeout(() => {
+                        fetchSlotNames().then((success: boolean) => {
+                            if (success) {
+                                updateSlotNames();
+                            }
+                        });
+                    }, 500);
+                    // });
                 });
             }
         })
-        .catch(() => { });
+        .catch(() => {});
 };
 
 /**
@@ -645,28 +1161,28 @@ const savePreset = () => {
  */
 const getSlotsHTML = () => {
     // prettier-ignore
-//     return [
-//         'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-//         'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-//         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '.', '_', '~', '(', ')', '!', '*', ':', ','
-//     ].map((chr, idx) => {
+    //     return [
+    //         'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+    //         'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+    //         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '.', '_', '~', '(', ')', '!', '*', ':', ','
+    //     ].map((chr, idx) => {
 
-//         // gbs-message="${chr}"
-//         return `<button
-//     class="gbs-button gbs-button__slot"
-//     gbs-slot-message="${idx}"
-//     gbs-message-type="setSlot"
-//     gbs-click="normal"
-//     gbs-element-ref="slot-${chr}"
-//     gbs-meta="1024&#xa;x768"
-//     gbs-role="slot"
-//     gbs-name="slot-${idx}"
-//   ></button>`;
+    //         // gbs-message="${chr}"
+    //         return `<button
+    //     class="gbs-button gbs-button__slot"
+    //     gbs-slot-message="${idx}"
+    //     gbs-message-type="setSlot"
+    //     gbs-click="normal"
+    //     gbs-element-ref="slot-${chr}"
+    //     gbs-meta="1024&#xa;x768"
+    //     gbs-role="slot"
+    //     gbs-name="slot-${idx}"
+    //   ></button>`;
 
-//     }).join('');
+    //     }).join('');
     // TODO: 'i' max. rely on SLOTS_TOTAL which is ambigous
     let str = ``;
-    for(let i = 0; i != 72; i++) {
+    for (let i = 0; i != GBSControl.maxSlots; i++) {
         str += `<button
         class="gbs-button gbs-button__slot"
         gbs-message="${i}"
@@ -676,7 +1192,7 @@ const getSlotsHTML = () => {
         gbs-meta="NONE"
         gbs-role="slot"
         gbs-name="slot-${i}"
-      ></button>`;
+        ></button>`;
     }
     return str;
 };
@@ -686,8 +1202,10 @@ const getSlotsHTML = () => {
  *
  * @param {string} slot
  */
-const setSlot = (slot: string) => {
-    fetch(`http://${GBSControl.serverIP}/slot/set?index=${slot}&${+new Date()}`);
+const setSlot = (slot: string, el: HTMLElement) => {
+    fetch(
+        `http://${GBSControl.serverIP}/slot/set?index=${slot}&${+new Date()}`
+    );
 };
 
 /**
@@ -695,7 +1213,9 @@ const setSlot = (slot: string) => {
  */
 const updateSlotNames = () => {
     for (let i = 0; i < GBSControl.maxSlots; i++) {
-        const el = document.querySelector(`[gbs-message="${i}"][gbs-role="slot"]`);
+        const el = document.querySelector(
+            `[gbs-message="${i}"][gbs-role="slot"]`
+        );
 
         el.setAttribute("gbs-name", GBSControl.structs.slots[i].name);
         el.setAttribute(
@@ -706,29 +1226,6 @@ const updateSlotNames = () => {
 };
 
 /**
- * Description placeholder
- *
- * @returns {*}
- */
-const fetchSlotNames = () => {
-    return fetch(`http://${GBSControl.serverIP}/bin/slots.bin?${+new Date()}`)
-        .then((response) => response.arrayBuffer())
-        .then((arrayBuffer: ArrayBuffer) => {
-            if (
-                arrayBuffer.byteLength ===
-                StructParser.getSize(Structs, "slots") * GBSControl.maxSlots
-            ) {
-                GBSControl.structs = {
-                    slots: StructParser.parseStructArray(arrayBuffer, Structs, "slots"),
-                };
-                return true;
-            }
-            return false;
-        });
-};
-
-
-/**
  * Must be aligned with options.h -> OutputResolution
  *
  * @param {string} resolutionID
@@ -736,73 +1233,44 @@ const fetchSlotNames = () => {
  */
 const getSlotPresetName = (resolutionID: string) => {
     switch (resolutionID) {
-        case 'c':
-        case 'd':
-        // case 0x011:
+        case "c":
+        case "d":
+            // case 0x011:
             return "960p";
-        case 'e':
-        case 'f':
-        // case 0x012:
+        case "e":
+        case "f":
+            // case 0x012:
             return "1024p";
-        case 'g':
-        case 'h':
-        // case 0x013:
+        case "g":
+        case "h":
+            // case 0x013:
             return "720p";
-        case 'i':
-        case 'j':
-        // case 0x015:
+        case "i":
+        case "j":
+            // case 0x015:
             return "480p";
-        case 'k':
-        case 'l':
+        case "k":
+        case "l":
             return "1080p";
-        case 'm':
-        case 'n':
-        // case 0x016:
+        case "m":
+        case "n":
+            // case 0x016:
             return "DOWNSCALE";
-        case 'p':
+        case "p":
             return "576p";
-        case 'q':
+        case "q":
             return "BYPASS";
-        case 's': // bypass 1
+        case "s": // bypass 1
             return "BYPASS HD";
-        case 'u': // bypass 2
+        case "u": // bypass 2
             return "BYPASS RGBHV";
         // case 12:
         //     return "CUSTOM";
-        case 'a':
+        case "a":
             return "240p";
         default:
             return "NONE";
     }
-};
-
-/**
- * Description placeholder
- */
-const fetchSlotNamesErrorRetry = () => {
-    window.setTimeout(fetchSlotNamesAndInit, 1000);
-};
-
-/**
- * Description placeholder
- */
-const fetchSlotNamesAndInit = () => {
-    fetchSlotNames()
-        .then((success) => {
-            if (!success) {
-                fetchSlotNamesErrorRetry();
-                return;
-            }
-            initUIElements();
-            wifiGetStatus().then(() => {
-                initUI();
-                updateSlotNames();
-                createWebSocket();
-                createIntervalChecks();
-                window.setTimeout(hideLoading, 1000);
-            });
-        }, fetchSlotNamesErrorRetry)
-        .catch(fetchSlotNamesErrorRetry);
 };
 
 /** Promises */
@@ -837,11 +1305,11 @@ const toggleDeveloperMode = () => {
 /**
  * Description placeholder
  */
-const toggleCustomSlotFilters = () => {
-    const customSlotFilters = GBSStorage.read("customSlotFilters");
-    GBSStorage.write("customSlotFilters", !customSlotFilters);
-    updateCustomSlotFilters(!customSlotFilters);
-};
+// const toggleCustomSlotFilters = () => {
+//     const customSlotFilters = GBSStorage.read("customSlotFilters");
+//     GBSStorage.write("customSlotFilters", !customSlotFilters);
+//     updateCustomSlotFilters(!customSlotFilters);
+// };
 
 /**
  * Description placeholder
@@ -883,7 +1351,9 @@ const updateConsoleVisibility = (developerMode: boolean) => {
  * @param {boolean} developerMode
  */
 const updateDeveloperMode = (developerMode: boolean) => {
-    const el = document.querySelector('[gbs-section="developer"]') as HTMLElement;
+    const el = document.querySelector(
+        '[gbs-section="developer"]'
+    ) as HTMLElement;
     if (developerMode) {
         GBSStorage.write("consoleVisible", true);
         el.removeAttribute("hidden");
@@ -895,9 +1365,8 @@ const updateDeveloperMode = (developerMode: boolean) => {
         document.body.classList.add("gbs-output-hide");
     }
 
-    GBSControl.ui.developerSwitch.querySelector(
-        ".gbs-icon"
-    ).innerText = developerMode ? "toggle_on" : "toggle_off";
+    GBSControl.ui.developerSwitch.querySelector(".gbs-icon").innerText =
+        developerMode ? "toggle_on" : "toggle_off";
 };
 
 /**
@@ -905,19 +1374,19 @@ const updateDeveloperMode = (developerMode: boolean) => {
  *
  * @param {boolean} [customFilters=GBSStorage.read("customSlotFilters") === true]
  */
-const updateCustomSlotFilters = (
-    customFilters: boolean = GBSStorage.read("customSlotFilters") === true
-) => {
-    if (customFilters) {
-        GBSControl.ui.customSlotFilters.setAttribute("active", "");
-    } else {
-        GBSControl.ui.customSlotFilters.removeAttribute("active");
-    }
+// const updateCustomSlotFilters = (
+//     customFilters: boolean = GBSStorage.read("customSlotFilters") === true
+// ) => {
+//     if (customFilters) {
+//         GBSControl.ui.customSlotFilters.setAttribute("active", "");
+//     } else {
+//         GBSControl.ui.customSlotFilters.removeAttribute("active");
+//     }
 
-    GBSControl.ui.customSlotFilters.querySelector(
-        ".gbs-icon"
-    ).innerText = customFilters ? "toggle_on" : "toggle_off";
-};
+//     GBSControl.ui.customSlotFilters.querySelector(
+//         ".gbs-icon"
+//     ).innerText = customFilters ? "toggle_on" : "toggle_off";
+// };
 
 /**
  * Description placeholder
@@ -940,74 +1409,6 @@ const GBSStorage = {
         );
         return GBSStorage.lsObject[key];
     },
-};
-
-/**
- * Description placeholder
- *
- * @template Element
- * @param {(| HTMLCollectionOf<globalThis.Element>
- *     | NodeListOf<globalThis.Element>)} nodelist
- * @returns {Element[]}
- */
-const nodelistToArray = <Element>(
-    nodelist:
-        | HTMLCollectionOf<globalThis.Element>
-        | NodeListOf<globalThis.Element>
-): Element[] => {
-    return Array.prototype.slice.call(nodelist);
-};
-
-/**
- * Description placeholder
- *
- * @param {string} id
- * @returns {(button: HTMLElement, _index: any, _array: any) => void}
- */
-const toggleButtonActive = (id: string) => (
-    button: HTMLElement,
-    _index: any,
-    _array: any
-) => {
-    button.removeAttribute("active");
-
-    if (button.getAttribute("gbs-element-ref") === id) {
-        button.setAttribute("active", "");
-    }
-};
-
-/**
- * Description placeholder
- *
- * @param {boolean} mode
- */
-const displayWifiWarning = (mode: boolean) => {
-    GBSControl.ui.webSocketConnectionWarning.style.display = mode
-        ? "block"
-        : "none";
-};
-
-/**
- * Description placeholder
- */
-const updateTerminal = () => {
-    if (GBSControl.queuedText.length > 0) {
-        requestAnimationFrame(() => {
-            GBSControl.ui.terminal.value += GBSControl.queuedText;
-            GBSControl.ui.terminal.scrollTop = GBSControl.ui.terminal.scrollHeight;
-            GBSControl.queuedText = "";
-        });
-    }
-};
-
-/**
- * Description placeholder
- */
-const updateViewPort = () => {
-    document.documentElement.style.setProperty(
-        "--viewport-height",
-        window.innerHeight + "px"
-    );
 };
 
 /**
@@ -1115,7 +1516,10 @@ const doRestore = (f: File) => {
     // const fileBuffer = new Uint8Array(file);
     // const headerCheck = fileBuffer.slice(4, 6);
 
-    const bkpTs = f.name.substring(f.name.lastIndexOf('-') + 1, f.name.lastIndexOf('.'));
+    const bkpTs = f.name.substring(
+        f.name.lastIndexOf("-") + 1,
+        f.name.lastIndexOf(".")
+    );
     const backupDate = new Date(parseInt(bkpTs));
 
     // if (headerCheck[0] !== 0x7b || headerCheck[1] !== 0x22) {
@@ -1124,22 +1528,27 @@ const doRestore = (f: File) => {
     formData.append("gbs-backup.bin", f, f.name);
     const setAlertBody = () => {
         const fsize = f.size / 1024;
-        return '<p>Backup File:</p><p>Backup date: '
-            + backupDate.toLocaleString()
-                + '</p><p>Size: ' + fsize.toFixed(2)+' kB</p>';
+        return (
+            "<p>Backup File:</p><p>Backup date: " +
+            backupDate.toLocaleString() +
+            "</p><p>Size: " +
+            fsize.toFixed(2) +
+            " kB</p>"
+        );
     };
     gbsAlert(
         setAlertBody() as string,
         '<div class="gbs-icon">close</div><div>Reject</div>',
         '<div class="gbs-icon">done</div><div>Restore</div>'
-    ).then(
+    )
+        .then(
             () => {
                 backupInput.removeAttribute("disabled");
             },
             () => {
                 return fetch(`http://${GBSControl.serverIP}/data/restore`, {
                     method: "POST",
-                    body: formData
+                    body: formData,
                 }).then((response) => {
                     // backupInput.removeAttribute("disabled");
                     window.setTimeout(() => {
@@ -1247,154 +1656,11 @@ const doRestore = (f: File) => {
 //     document.body.removeChild(link);
 // };
 
-/** WIFI management */
-const wifiGetStatus = () => {
-    return fetch(`http://${GBSControl.serverIP}/wifi/status?${+new Date()}`)
-        .then((r) => r.json())
-        .then((wifiStatus: { mode: string; ssid: string }) => {
-            GBSControl.wifi = wifiStatus;
-            if (GBSControl.wifi.mode === "ap") {
-                GBSControl.ui.wifiApButton.setAttribute("active", "");
-                GBSControl.ui.wifiApButton.classList.add("gbs-button__secondary");
-                GBSControl.ui.wifiStaButton.removeAttribute("active", "");
-                GBSControl.ui.wifiStaButton.classList.remove("gbs-button__secondary");
-                GBSControl.ui.wifiStaSSID.innerHTML = "STA | Scan Network";
-            } else {
-                GBSControl.ui.wifiApButton.removeAttribute("active", "");
-                GBSControl.ui.wifiApButton.classList.remove("gbs-button__secondary");
-                GBSControl.ui.wifiStaButton.setAttribute("active", "");
-                GBSControl.ui.wifiStaButton.classList.add("gbs-button__secondary");
-                GBSControl.ui.wifiStaSSID.innerHTML = `${GBSControl.wifi.ssid}`;
-            }
-        });
-};
-
-/**
- * Does connect to selected WiFi network
- */
-const wifiConnect = () => {
-    const ssid = GBSControl.ui.wifiSSDInput.value;
-    const password = GBSControl.ui.wifiPasswordInput.value;
-
-    if (!password.length) {
-        GBSControl.ui.wifiPasswordInput.classList.add("gbs-wifi__input--error");
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append("n", ssid);
-    formData.append("p", password);
-
-    fetch(`http://${GBSControl.serverIP}/wifi/connect`, {
-        method: "POST",
-        body: formData,
-    }).then(() => {
-        gbsAlert(
-            `GBSControl will restart and will connect to ${ssid}. Please wait few seconds then press OK`
-        ).then(() => {
-            window.location.href = "http://gbscontrol.local/";
-        }).catch(() => { });
-    });
-};
-
-/**
- * Query WiFi networks
- */
-const wifiScanSSID = () => {
-    GBSControl.ui.wifiStaButton.setAttribute("disabled", "");
-    GBSControl.ui.wifiListTable.innerHTML = "";
-
-    if (!GBSControl.scanSSIDDone) {
-        fetch(`http://${GBSControl.serverIP}/wifi/list?${+new Date()}`, {
-            method: 'POST'
-        }).then(() => {
-            GBSControl.scanSSIDDone = true;
-            window.setTimeout(wifiScanSSID, 3000);
-        });
-        return;
-    }
-
-    fetch(`http://${GBSControl.serverIP}/wifi/list?${+new Date()}`, {
-        method: 'POST'
-    })
-    .then((e) => e.text())
-    .then((result) => {
-        GBSControl.scanSSIDDone = false;
-        return result.length
-            ? result
-                .split("\n")
-                .map((line) => line.split(","))
-                .map(([strength, encripted, ssid]) => {
-                    return { strength, encripted, ssid };
-                })
-            : [];
-    })
-    .then((ssids) => {
-        return ssids.reduce((acc, ssid) => {
-            return `${acc}<tr gbs-ssid="${ssid.ssid}">
-                <td class="gbs-icon" style="opacity:${parseInt(ssid.strength, 10) / 100
-                            }">wifi</td>
-                <td>${ssid.ssid}</td>
-                <td class="gbs-icon">${ssid.encripted ? "lock" : "lock_open"}</td>
-                </tr>`;
-            }, "");
-    })
-    .then((html) => {
-        GBSControl.ui.wifiStaButton.removeAttribute("disabled");
-
-        if (html.length) {
-            GBSControl.ui.wifiListTable.innerHTML = html;
-            GBSControl.ui.wifiList.removeAttribute("hidden");
-            GBSControl.ui.wifiConnect.setAttribute("hidden", "");
-        }
-    });
-};
-
-/**
- * Description placeholder
- *
- * @param {Event} event
- */
-const wifiSelectSSID = (event: Event) => {
-    (GBSControl.ui
-        .wifiSSDInput as HTMLInputElement).value = (event.target as HTMLElement).parentElement.getAttribute(
-            "gbs-ssid"
-        );
-    GBSControl.ui.wifiPasswordInput.classList.remove("gbs-wifi__input--error");
-    GBSControl.ui.wifiList.setAttribute("hidden", "");
-    GBSControl.ui.wifiConnect.removeAttribute("hidden");
-};
-
-/**
- * Description placeholder
- *
- * @returns {*}
- */
-const wifiSetAPMode = () => {
-    if (GBSControl.wifi.mode === "ap") {
-        return;
-    }
-
-    //   const formData = new FormData();
-    //   formData.append("n", "dummy");
-
-    return fetch(`http://${GBSControl.serverIP}/wifi/ap`, {
-        method: "POST",
-        // body: formData,
-    }).then((response) => {
-        gbsAlert(
-            "Switching to AP mode. Please connect to gbscontrol SSID and then click OK"
-        ).then(() => {
-            window.location.href = "http://192.168.4.1";
-        }).catch(() => { });
-        return response;
-    });
-};
-
 /** button click management */
 const controlClick = (control: HTMLButtonElement) => () => {
     const controlKey = control.getAttribute("gbs-control-key");
-    const target = GBSControl.controlKeysMobile[GBSControl.controlKeysMobileMode];
+    const target =
+        GBSControl.controlKeysMobile[GBSControl.controlKeysMobileMode];
 
     switch (target.type) {
         case "loadDoc":
@@ -1478,7 +1744,7 @@ const initGBSButtons = () => {
 
         if (clickMode === "normal") {
             button.addEventListener("click", () => {
-                action(message);
+                action(message, button);
             });
         }
 
@@ -1523,9 +1789,8 @@ const initControlMobileKeys = () => {
 
     controls.forEach((control) => {
         control.addEventListener("click", () => {
-            GBSControl.controlKeysMobileMode = control.getAttribute(
-                "gbs-control-target"
-            );
+            GBSControl.controlKeysMobileMode =
+                control.getAttribute("gbs-control-target");
             controls.forEach((crtl) => {
                 crtl.removeAttribute("active");
             });
@@ -1563,7 +1828,10 @@ const initUnloadListener = () => {
     window.addEventListener("unload", () => {
         clearInterval(GBSControl.wsCheckTimer);
         if (GBSControl.ws) {
-            if (GBSControl.ws.readyState == 0 || GBSControl.ws.readyState == 1) {
+            if (
+                GBSControl.ws.readyState == 0 ||
+                GBSControl.ws.readyState == 1
+            ) {
                 GBSControl.ws.close();
             }
         }
@@ -1578,52 +1846,6 @@ const initSlotButtons = () => {
     GBSControl.ui.slotButtonList = nodelistToArray(
         document.querySelectorAll('[gbs-role="slot"]')
     ) as HTMLElement[];
-};
-
-/**
- * Description placeholder
- */
-const initUIElements = () => {
-    GBSControl.ui = {
-        terminal: document.getElementById("outputTextArea"),
-        webSocketConnectionWarning: document.getElementById("websocketWarning"),
-        presetButtonList: nodelistToArray(
-            document.querySelectorAll("[gbs-role='preset']")
-        ) as HTMLElement[],
-        slotButtonList: nodelistToArray(
-            document.querySelectorAll('[gbs-role="slot"]')
-        ) as HTMLElement[],
-        toggleConsole: document.querySelector("[gbs-output-toggle]"),
-        toggleList: document.querySelectorAll("[gbs-toggle]"),
-        toggleSwichList: document.querySelectorAll("[gbs-toggle-switch]"),
-        wifiList: document.querySelector("[gbs-wifi-list]"),
-        wifiListTable: document.querySelector(".gbs-wifi__list"),
-        wifiConnect: document.querySelector(".gsb-wifi__connect"),
-        wifiConnectButton: document.querySelector("[gbs-wifi-connect-button]"),
-        wifiSSDInput: document.querySelector('[gbs-input="ssid"]'),
-        wifiPasswordInput: document.querySelector('[gbs-input="password"]'),
-        wifiApButton: document.querySelector("[gbs-wifi-ap]"),
-        wifiStaButton: document.querySelector("[gbs-wifi-station]"),
-        wifiStaSSID: document.querySelector("[gbs-wifi-station-ssid]"),
-        loader: document.querySelector(".gbs-loader"),
-        progressBackup: document.querySelector("[gbs-progress-backup]"),
-        progressRestore: document.querySelector("[gbs-progress-restore]"),
-        outputClear: document.querySelector("[gbs-output-clear]"),
-        slotContainer: document.querySelector("[gbs-slot-html]"),
-        backupButton: document.querySelector(".gbs-backup-button"),
-        backupInput: document.querySelector(".gbs-backup-input"),
-        developerSwitch: document.querySelector("[gbs-dev-switch]"),
-        customSlotFilters: document.querySelector("[gbs-slot-custom-filters]"),
-        alert: document.querySelector('section[name="alert"]'),
-        alertAck: document.querySelector("[gbs-alert-ack]"),
-        alertAct: document.querySelector("[gbs-alert-act]"),
-        alertContent: document.querySelector("[gbs-alert-content]"),
-        prompt: document.querySelector('section[name="prompt"]'),
-        promptOk: document.querySelector("[gbs-prompt-ok]"),
-        promptCancel: document.querySelector("[gbs-prompt-cancel]"),
-        promptContent: document.querySelector("[gbs-prompt-content]"),
-        promptInput: document.querySelector('[gbs-input="prompt-input"]'),
-    };
 };
 
 /**
@@ -1646,11 +1868,17 @@ const initGeneralListeners = () => {
     GBSControl.ui.wifiConnectButton.addEventListener("click", wifiConnect);
     GBSControl.ui.wifiApButton.addEventListener("click", wifiSetAPMode);
     GBSControl.ui.wifiStaButton.addEventListener("click", wifiScanSSID);
-    GBSControl.ui.developerSwitch.addEventListener("click", toggleDeveloperMode);
-    GBSControl.ui.customSlotFilters.addEventListener(
+    GBSControl.ui.developerSwitch.addEventListener(
         "click",
-        toggleCustomSlotFilters
+        toggleDeveloperMode
     );
+    // GBSControl.ui.customSlotFilters.addEventListener(
+    //     "click",
+    //     toggleCustomSlotFilters
+    // );
+    GBSControl.ui.removeSlotButton.addEventListener("click", () => {
+        removePreset();
+    });
 
     GBSControl.ui.alertAck.addEventListener("click", () => {
         GBSControl.ui.alert.setAttribute("hidden", "");
@@ -1719,107 +1947,9 @@ const initHelp = () => {
 
 /**
  * Description placeholder
- *
- * @type {{ resolve: any; reject: any; }}
- */
-const gbsAlertPromise = {
-    resolve: null,
-    reject: null,
-};
-
-/**
- * Description placeholder
- *
- * @param {*} event
- */
-const alertKeyListener = (event: any) => {
-    if (event.keyCode === 13) {
-        gbsAlertPromise.resolve();
-    }
-    if (event.keyCode === 27) {
-        gbsAlertPromise.reject();
-    }
-};
-
-const alertActEventListener = (e: any) => {
-    gbsAlertPromise.reject();
-};
-
-/**
- * Description placeholder
- *
- * @param {string} text
- * @returns {*}
- */
-const gbsAlert = (text: string, ackText: string = "", actText :string = "") => {
-    GBSControl.ui.alertContent.insertAdjacentHTML('afterbegin', text);
-    GBSControl.ui.alert.removeAttribute("hidden");
-    document.addEventListener("keyup", alertKeyListener);
-    if(ackText !== "") {
-        GBSControl.ui.alertAck.insertAdjacentHTML('afterbegin', ackText);
-    } else
-        GBSControl.ui.alertAck.insertAdjacentHTML('afterbegin', '<div class="gbs-icon">done</div><div>Ok</div>');
-
-    if(actText !== "") {
-        GBSControl.ui.alertAct.insertAdjacentHTML('afterbegin', actText);
-        GBSControl.ui.alertAct.removeAttribute("disabled");
-        GBSControl.ui.alertAct.addEventListener("click", alertActEventListener);
-    }
-    return new Promise((resolve, reject) => {
-        const gbsAlertClean = () => {
-            document.removeEventListener("keyup", alertKeyListener);
-            GBSControl.ui.alertAct.removeEventListener("click", alertActEventListener);
-            GBSControl.ui.alertAct.setAttribute("disabled", "");
-            GBSControl.ui.alertAck.textContent = "";
-            GBSControl.ui.alertAct.textContent = "";
-            GBSControl.ui.alertContent.textContent = "";
-            GBSControl.ui.alert.setAttribute("hidden", "");
-        };
-        gbsAlertPromise.resolve = (e) => {
-            gbsAlertClean();
-            return resolve(e);
-        };
-        gbsAlertPromise.reject = () => {
-            gbsAlertClean();
-            return reject();
-        };
-    });
-};
-
-/**
- * Description placeholder
- *
- * @type {{ resolve: any; reject: any; }}
- */
-const gbsPromptPromise = {
-    resolve: null,
-    reject: null,
-};
-
-/**
- * Description placeholder
- *
- * @param {string} text
- * @param {string} [defaultValue=""]
- * @returns {*}
- */
-const gbsPrompt = (text: string, defaultValue = "") => {
-    GBSControl.ui.promptContent.textContent = text;
-    GBSControl.ui.prompt.removeAttribute("hidden");
-    GBSControl.ui.promptInput.value = defaultValue;
-
-    return new Promise<string>((resolve, reject) => {
-        gbsPromptPromise.resolve = resolve;
-        gbsPromptPromise.reject = reject;
-        GBSControl.ui.promptInput.focus();
-    });
-};
-
-/**
- * Description placeholder
  */
 const initUI = () => {
-    updateCustomSlotFilters();
+    // updateCustomSlotFilters();
     initGeneralListeners();
     updateViewPort();
     initSlotButtons();
