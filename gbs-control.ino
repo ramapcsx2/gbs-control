@@ -7198,7 +7198,7 @@ void setup()
     pinMode(pin_data, INPUT_PULLUP);
     pinMode(pin_switch, INPUT_PULLUP);
 
-#if USE_NEW_OLED_MENU 
+#if USE_NEW_OLED_MENU
     attachInterrupt(digitalPinToInterrupt(pin_clk), isrRotaryEncoderRotateForNewMenu, FALLING);
     attachInterrupt(digitalPinToInterrupt(pin_switch), isrRotaryEncoderPushForNewMenu, FALLING);
     initOLEDMenu();
@@ -9415,7 +9415,7 @@ void handleType2Command(char argument)
             break;
         case 'O':
             // info
-            if (GBS::ADC_INPUT_SEL::read() == 1) 
+            if (GBS::ADC_INPUT_SEL::read() == 1)
             {
                 SerialM.println("RGB reg");
                 SerialM.println(F("------------ "));
@@ -9431,8 +9431,8 @@ void handleType2Command(char argument)
                 SerialM.println(GBS::VDS_USIN_GAIN::read(), DEC);
                 SerialM.print(F("UCOS_GAIN: "));
                 SerialM.println(GBS::VDS_UCOS_GAIN::read(), DEC);
-            } 
-            else 
+            }
+            else
             {
                 SerialM.println("YPbPr reg");
                 SerialM.println(F("------------ "));
@@ -9465,7 +9465,7 @@ void handleType2Command(char argument)
                 GBS::ADC_BOFCTRL::write(adco->b_off);
                 SerialM.println("RGB:defauit");
             }
-            else 
+            else
             {
                 GBS::VDS_Y_GAIN::write(128);
                 GBS::VDS_UCOS_GAIN::write(28);
@@ -9739,7 +9739,7 @@ void startWebserver()
                 SPIFFS.remove("/preset_medium_res." + String((char)slot));
                 SPIFFS.remove("/preset_vga_upscale." + String((char)slot));
                 SPIFFS.remove("/preset_unknown." + String((char)slot));
-                
+
                 uint8_t loopCount = 0;
                 uint8_t flag = 1;
                 while (flag != 0)
@@ -9776,8 +9776,7 @@ void startWebserver()
                 result = true;
             }
         }
-        
-        fail:
+
         request->send(200, "application/json", result ? "true" : "false");
     });
 
