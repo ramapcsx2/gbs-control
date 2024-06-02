@@ -7191,6 +7191,10 @@ void ICACHE_RAM_ATTR isrRotaryEncoderPushForNewMenu()
 
 void setup()
 {
+    // Wait for power to stabilize, to reduce the risk of the ESP failing to boot until
+    // manually reset (https://github.com/ramapcsx2/gbs-control/issues/480).
+    delay(500);
+
     display.init();                 //inits OLED on I2C bus
     display.flipScreenVertically(); //orientation fix for OLED
 
