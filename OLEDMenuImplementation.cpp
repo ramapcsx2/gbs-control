@@ -144,7 +144,7 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     if (slotsBinaryFileRead) {
         slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
         slotsBinaryFileRead.close();
-        for (int i; i < SLOTS_TOTAL; ++i) {
+        for (int i = 0; i < SLOTS_TOTAL; ++i) {
             const SlotMeta &slot = slotsObject.slot[i];
             if (strcmp(EMPTY_SLOT_NAME, slot.name) == 0 || !strlen(slot.name)) {
                 continue;
@@ -160,7 +160,7 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     if (curNumSlot > OLED_MENU_MAX_SUBITEMS_NUM) {
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_TOO_MANY_PRESETS));
     }
-    
+
     if (!item->numSubItem) {
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_NO_PRESETS));
     }
