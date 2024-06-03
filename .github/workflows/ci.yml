@@ -1,0 +1,45 @@
+---
+name: ci
+
+on: push
+
+jobs:
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Arduino CLI environment
+        run: make env
+      - name: Lint the sketch
+        run: make lint
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Fetch git tags info
+        run: git fetch --tags --force
+      - name: Install Arduino CLI host dependencies
+        run: sudo apt install -y python-is-python3
+      - name: Install Arduino CLI python dependencies
+        run: pip3 install pyserial
+      - name: Setup Arduino CLI environment
+        run: make env
+      - name: Build the sketch
+        run: make VERBOSE=1
+      - name: Download external Windows flashing tool to attach to the artifact
+        run: curl -LO https://github.com/espressif/esptool/releases/download/v4.7.0/esptool-v4.7.0-win64.zip && unzip -j esptool-v4.7.0-win64.zip -d esptool-win64
+      - name: Create zip artifact
+        run: >
+          zip --junk-paths gbs-control-bin-win64.zip \
+            var/build/gbs-control.ino.bin \
+            esptool-win64/esptool.exe \
+            scripts/upload_sketch_only.bat \
+            scripts/upload_sketch_erase_wifi.bat
+      - name: Upload the artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gbs-control-bin-win64
+          path: gbs-control-bin-win64.zip
+
