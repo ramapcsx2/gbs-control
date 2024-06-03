@@ -3,7 +3,7 @@
 # File: slot.cpp                                                          #
 # File Created: Friday, 31st May 2024 8:41:15 am                          #
 # Author: Sergey Ko                                                       #
-# Last Modified: Sunday, 2nd June 2024 5:26:25 pm                         #
+# Last Modified: Sunday, 2nd June 2024 10:57:25 pm                        #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -128,7 +128,7 @@ int8_t slotGetData(SlotMetaArray & slotsObject) {
         delay(1);
     }
     // file doesn't exist, let's create one
-    _DBGF(PSTR("attempt to write to %s\n"), FPSTR(slotsFile));
+    _DBGF(PSTR("attempt to write to %s..."), FPSTR(slotsFile));
     slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "w");
     if(slotsBinaryFile) {
         slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));

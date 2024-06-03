@@ -3,7 +3,7 @@
 # File: framesync.cpp                                                     #
 # File Created: Sunday, 5th May 2024 12:52:08 pm                          #
 # Author:                                                                 #
-# Last Modified: Sunday, 2nd June 2024 4:28:57 pm                         #
+# Last Modified: Sunday, 2nd June 2024 11:07:47 pm                        #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -13,8 +13,8 @@
 #include "framesync.h"
 
 static volatile uint32_t MeasurePeriodStopTime,
-                        MeasurePeriodStartTime,
-                        MeasurePeriodArmed;
+    MeasurePeriodStartTime,
+    MeasurePeriodArmed;
 bool FrameSyncManager::syncLockReady = false;
 uint8_t FrameSyncManager::delayLock = 0;
 int16_t FrameSyncManager::syncLastCorrection = 0;
@@ -68,13 +68,16 @@ bool FrameSyncManager::vsyncOutputSample(uint32_t *start, uint32_t *stop)
     MeasurePeriodStart();
 
     // typical: 300000 at 80MHz, 600000 at 160MHz
-    while (i < 3000000) {
-        if (MeasurePeriodArmed) {
+    while (i < 3000000)
+    {
+        if (MeasurePeriodArmed)
+        {
             MeasurePeriodArmed = 0;
             delay(7);
             WiFi.setSleepMode(WIFI_LIGHT_SLEEP);
         }
-        if (MeasurePeriodStopTime > 0) {
+        if (MeasurePeriodStopTime > 0)
+        {
             break;
         }
         i++;
@@ -84,7 +87,8 @@ bool FrameSyncManager::vsyncOutputSample(uint32_t *start, uint32_t *stop)
     ESP.wdtEnable(0);
     WiFi.setSleepMode(WIFI_NONE_SLEEP);
 
-    if ((*start >= *stop) || *stop == 0 || *start == 0) {
+    if ((*start >= *stop) || *stop == 0 || *start == 0)
+    {
         // ESP.getCycleCount() overflow oder no pulse, just fail this round
         return false;
     }
@@ -108,13 +112,16 @@ bool FrameSyncManager::vsyncInputSample(uint32_t *start, uint32_t *stop)
     MeasurePeriodStart();
 
     // typical: 300000 at 80MHz, 600000 at 160MHz
-    while (i < 3000000) {
-        if (MeasurePeriodArmed) {
+    while (i < 3000000)
+    {
+        if (MeasurePeriodArmed)
+        {
             MeasurePeriodArmed = 0;
             delay(7);
             WiFi.setSleepMode(WIFI_LIGHT_SLEEP);
         }
-        if (MeasurePeriodStopTime > 0) {
+        if (MeasurePeriodStopTime > 0)
+        {
             break;
         }
         i++;
@@ -124,7 +131,8 @@ bool FrameSyncManager::vsyncInputSample(uint32_t *start, uint32_t *stop)
     ESP.wdtEnable(0);
     WiFi.setSleepMode(WIFI_NONE_SLEEP);
 
-    if ((*start >= *stop) || *stop == 0 || *start == 0) {
+    if ((*start >= *stop) || *stop == 0 || *start == 0)
+    {
         // ESP.getCycleCount() overflow oder no pulse, just fail this round
         return false;
     }
@@ -147,7 +155,8 @@ bool FrameSyncManager::runVsync(uint8_t frameTimeLockMethod)
     if (!syncLockReady)
         return false;
 
-    if (delayLock < 2) {
+    if (delayLock < 2)
+    {
         delayLock++;
         return true;
     }
@@ -164,21 +173,26 @@ bool FrameSyncManager::runVsync(uint8_t frameTimeLockMethod)
 
 #ifdef FRAMESYNC_DEBUG
     _DBGF(PSTR("phase: %7d target: %7d"), phase, target);
-    if (correction == syncLastCorrection) {
+    if (correction == syncLastCorrection)
+    {
         // terminate line if returning early
         _DBGN();
     }
 #endif
 #ifdef FRAMESYNC_DEBUG_LED
-    if (correction == 0) {
+    if (correction == 0)
+    {
         digitalWrite(LED_BUILTIN, LOW); // LED ON
-    } else {
+    }
+    else
+    {
         digitalWrite(LED_BUILTIN, HIGH); // LED OFF
     }
 #endif
 
     // return early?
-    if (correction == syncLastCorrection) {
+    if (correction == syncLastCorrection)
+    {
         return true;
     }
 
@@ -187,17 +201,16 @@ bool FrameSyncManager::runVsync(uint8_t frameTimeLockMethod)
     uint16_t timeout = 0;
     VRST_SST::read(vtotal, vsst);
     vtotal += delta;
-    if (frameTimeLockMethod == 0) { // moves VS position
+    if (frameTimeLockMethod == 0)
+    { // moves VS position
         vsst += delta;
     }
     // else it is method 1: leaves VS position alone
 
-    while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 400))
-        ;
+    while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 400));
     GBS::VDS_VS_ST::write(vsst);
     timeout = 0;
-    while ((GBS::STATUS_VDS_FIELD::read() == 0) && (++timeout < 400))
-        ;
+    while ((GBS::STATUS_VDS_FIELD::read() == 0) && (++timeout < 400));
     GBS::VDS_VSYNC_RST::write(vtotal);
 
     syncLastCorrection = correction;
@@ -221,7 +234,8 @@ void FrameSyncManager::reset(uint8_t frameTimeLockMethod)
 #ifdef FRAMESYNC_DEBUG
     _WS(F("FS reset(), with correction: "));
 #endif
-    if (syncLastCorrection != 0) {
+    if (syncLastCorrection != 0)
+    {
 #ifdef FRAMESYNC_DEBUG
         _WSN(F("Yes"));
 #endif
@@ -229,20 +243,20 @@ void FrameSyncManager::reset(uint8_t frameTimeLockMethod)
         VRST_SST::read(vtotal, vsst);
         uint16_t timeout = 0;
         vtotal -= syncLastCorrection;
-        if (frameTimeLockMethod == 0) { // moves VS position
+        if (frameTimeLockMethod == 0)
+        { // moves VS position
             vsst -= syncLastCorrection;
         }
 
-        while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 400))
-            ;
+        while ((GBS::STATUS_VDS_FIELD::read() == 1) && (++timeout < 400));
         GBS::VDS_VS_ST::write(vsst);
         timeout = 0;
-        while ((GBS::STATUS_VDS_FIELD::read() == 0) && (++timeout < 400))
-            ;
+        while ((GBS::STATUS_VDS_FIELD::read() == 0) && (++timeout < 400));
         GBS::VDS_VSYNC_RST::write(vtotal);
     }
 #ifdef FRAMESYNC_DEBUG
-    else {
+    else
+    {
         _WSN(F("No"));
     }
 #endif
@@ -270,14 +284,16 @@ void FrameSyncManager::reset(uint8_t frameTimeLockMethod)
 // offset closer to the desired value.
 bool FrameSyncManager::runFrequency()
 {
-    if (maybeFreqExt_per_videoFps < 0) {
+    if (maybeFreqExt_per_videoFps < 0)
+    {
         _WSN(
             F("Error: trying to tune external clock frequency while clock frequency uninitialized!"));
         return true;
     }
 
     // Compare to externalClockGenSyncInOutRate().
-    if (GBS::PAD_CKIN_ENZ::read() != 0) {
+    if (GBS::PAD_CKIN_ENZ::read() != 0)
+    {
         // Failed due to external factors (PAD_CKIN_ENZ=0 on
         // startup), not bad input signal, don't return frame sync
         // error.
@@ -285,18 +301,21 @@ bool FrameSyncManager::runFrequency()
         return true;
     }
 
-    if (rto->outModeHdBypass) {
+    if (rto->outModeHdBypass)
+    {
         _WSN(F("Skipping FrameSyncManager::runFrequency(), rto->outModeHdBypass"));
         return true;
     }
-    if (GBS::PLL648_CONTROL_01::read() != 0x75) {
+    if (GBS::PLL648_CONTROL_01::read() != 0x75)
+    {
         _WSF(
             PSTR("Error: trying to tune external clock frequency while set to internal clock, PLL648_CONTROL_01=%d!\n"),
             GBS::PLL648_CONTROL_01::read());
         return true;
     }
 
-    if (!syncLockReady) {
+    if (!syncLockReady)
+    {
         _WSN(F("Skipping FrameSyncManager::runFrequency(), !syncLockReady"));
         return false;
     }
@@ -319,18 +338,21 @@ bool FrameSyncManager::runFrequency()
     // input sync changes (but does not eliminate it, eg. when resetting a
     // SNES).
     bool success = false;
-    for (int attempt = 0; attempt < 2; attempt++) {
+    for (int attempt = 0; attempt < 2; attempt++)
+    {
         // Measure input period and output latency.
         bool ret = vsyncPeriodAndPhase(&periodInput, nullptr, &phase);
         // TODO make vsyncPeriodAndPhase() restore TEST_BUS_SEL, not the caller?
         GBS::TEST_BUS_SEL::write(0x0);
-        if (!ret) {
+        if (!ret)
+        {
             _WSN(F("runFrequency(): vsyncPeriodAndPhase failed, retrying..."));
             continue;
         }
 
         fpsInput = esp8266_clock_freq / (float)periodInput;
-        if (fpsInput < 47.0f || fpsInput > 86.0f) {
+        if (fpsInput < 47.0f || fpsInput > 86.0f)
+        {
             _WSF(
                 PSTR("runFrequency(): fpsInput wrong: %f, retrying...\n"),
                 fpsInput);
@@ -342,12 +364,14 @@ bool FrameSyncManager::runFrequency()
         // vsyncPeriodAndPhase() sets it to 2.
         GBS::TEST_BUS_SEL::write(0x0);
         uint32_t periodInput2 = getPulseTicks();
-        if (periodInput2 == 0) {
+        if (periodInput2 == 0)
+        {
             _WSN(F("runFrequency(): getPulseTicks failed, retrying..."));
             continue;
         }
         float fpsInput2 = esp8266_clock_freq / (float)periodInput2;
-        if (fpsInput2 < 47.0f || fpsInput2 > 86.0f) {
+        if (fpsInput2 < 47.0f || fpsInput2 > 86.0f)
+        {
             _WSF(
                 PSTR("runFrequency(): fpsInput2 wrong: %f, retrying...\n"),
                 fpsInput2);
@@ -357,7 +381,8 @@ bool FrameSyncManager::runFrequency()
         // Check that the two FPS measurements are sufficiently close.
         float diff = fabs(fpsInput2 - fpsInput);
         float relDiff = diff / std::min(fpsInput, fpsInput2);
-        if (relDiff != relDiff || diff > 0.5f || relDiff > 0.00833f) {
+        if (relDiff != relDiff || diff > 0.5f || relDiff > 0.00833f)
+        {
             _WSF(
                 PSTR("FrameSyncManager::runFrequency() measured inconsistent FPS %f and %f, retrying...\n"),
                 fpsInput,
@@ -368,7 +393,8 @@ bool FrameSyncManager::runFrequency()
         success = true;
         break;
     }
-    if (!success) {
+    if (!success)
+    {
         _WSN(F("FrameSyncManager::runFrequency() failed!"));
         return false;
     }
@@ -416,7 +442,8 @@ bool FrameSyncManager::runFrequency()
     fpsOutput = std::min(fpsOutput, prevFpsOutput * (1 + MAX_FPS_CHANGE));
     fpsOutput = std::max(fpsOutput, prevFpsOutput * (1 - MAX_FPS_CHANGE));
 
-    if (fabs(rawFpsOutput - prevFpsOutput) >= 1.f) {
+    if (fabs(rawFpsOutput - prevFpsOutput) >= 1.f)
+    {
         _WSF(
             PSTR("FPS excursion detected! Measured input FPS %f, previous output FPS %f\n"),
             fpsInput, prevFpsOutput);
@@ -430,7 +457,7 @@ bool FrameSyncManager::runFrequency()
     const auto freqExtClockGen = (uint32_t)(maybeFreqExt_per_videoFps * fpsOutput);
 
     _WSF(PSTR("Setting clock frequency from %u to %u\n"),
-            rto->freqExtClockGen, freqExtClockGen);
+         rto->freqExtClockGen, freqExtClockGen);
 
     setExternalClockGenFrequencySmooth(freqExtClockGen);
     return true;
@@ -448,19 +475,23 @@ bool FrameSyncManager::findBestHTotal(uint32_t &bestHtotal)
     uint16_t inHtotal = HSYNC_RST::read();
     uint32_t inPeriod, outPeriod;
 
-    if (inHtotal == 0) {
+    if (inHtotal == 0)
+    {
         return false;
     } // safety
-    if (!sampleVsyncPeriods(&inPeriod, &outPeriod)) {
+    if (!sampleVsyncPeriods(&inPeriod, &outPeriod))
+    {
         return false;
     }
 
-    if (inPeriod == 0 || outPeriod == 0) {
+    if (inPeriod == 0 || outPeriod == 0)
+    {
         return false;
     } // safety
 
     // allow ~4 negative (inPeriod is < outPeriod) clock cycles jitter
-    if ((inPeriod > outPeriod ? inPeriod - outPeriod : outPeriod - inPeriod) <= 4) {
+    if ((inPeriod > outPeriod ? inPeriod - outPeriod : outPeriod - inPeriod) <= 4)
+    {
         /*if (inPeriod >= outPeriod) {
     _WS("inPeriod >= out: ");
     _WSN(inPeriod - outPeriod);
@@ -470,7 +501,9 @@ bool FrameSyncManager::findBestHTotal(uint32_t &bestHtotal)
     _WSN(outPeriod - inPeriod);
     }*/
         bestHtotal = inHtotal;
-    } else {
+    }
+    else
+    {
         // large htotal can push intermediates to 33 bits
         bestHtotal = (uint64_t)(inHtotal * (uint64_t)inPeriod) / (uint64_t)outPeriod;
     }
@@ -480,7 +513,8 @@ bool FrameSyncManager::findBestHTotal(uint32_t &bestHtotal)
     // if (bestHtotal == (inHtotal - 1)) { bestHtotal += 1; } // check with SNES + vtotal = 1000 (1280x960)
 
 #ifdef FRAMESYNC_DEBUG
-    if (bestHtotal != inHtotal) {
+    if (bestHtotal != inHtotal)
+    {
         _WS(F("                     wants new htotal, oldbest: "));
         _WS(inHtotal);
         _WS(F(" newbest: "));
@@ -511,13 +545,15 @@ bool FrameSyncManager::vsyncPeriodAndPhase(int32_t *periodInput, int32_t *period
     uint32_t inPeriod, outPeriod, diff;
 
     // calling code needs to ensure debug bus is ready to sample vperiod
-    if (!vsyncInputSample(&inStart, &inStop)) {
+    if (!vsyncInputSample(&inStart, &inStop))
+    {
         return false;
     }
 
     GBS::TEST_BUS_SEL::write(0x2); // 0x2 = VDS (t3t50t4) // measure VDS vblank (VB ST/SP)
     inPeriod = (inStop - inStart); //>> 1;
-    if (!vsyncOutputSample(&outStart, &outStop)) {
+    if (!vsyncOutputSample(&outStart, &outStop))
+    {
         return false;
     }
     outPeriod = (outStop - outStart); // >> 1;

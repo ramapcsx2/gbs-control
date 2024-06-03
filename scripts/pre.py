@@ -25,10 +25,11 @@ for f in farr:
     size, name = f.split('@')
     argFonts += f'{size}@{root}/public/assets/fonts/{name}.ttf '
 
+fLen = len(argFonts) - 1
 r = subprocess.Popen([
         sys.executable,
         f'{root}/scripts/generate_translations.py',
-        f'{argFonts[0:(len(argFonts) - 1)]}',               # fonts
+        f'{argFonts[0:fLen]}',               # fonts
         f'{root}/src/OLEDMenuTranslations.h',               # output
         f'{conf["ui-lang"]}'                                # lang
     ],
@@ -38,7 +39,9 @@ o, e = r.communicate()
 r.wait()
 if r.returncode != 0 :
     e = str(e)
-    print(f'\n\U0001F383: {e[(e.find('Error: ')+7):(len(e)-3)]}\n')
+    sta = e.find('Error: ')+7
+    end = len(e)-3
+    print(f'\n\U0001F383: {e[sta:end]}\n')
     sys.exit()
 
 defs = [('VERSION', conf['version'])]

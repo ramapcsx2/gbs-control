@@ -50,10 +50,10 @@ private:
         while (i < this->numSubItem) {
             subItems[i]->used = false;
             subItems[i] = nullptr;
+            i++;
         }
         this->numSubItem = 0;
         this->maxPageIndex = 0;
-        i++;
     }
     void calculate();
 

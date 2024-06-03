@@ -30,7 +30,7 @@ class OLEDMenuManager
 {
 private:
     OLEDDisplay *const display;
-    OLEDMenuItem *allItems[OLED_MENU_MAX_ITEMS_NUM];
+    OLEDMenuItem allItems[OLED_MENU_MAX_ITEMS_NUM];
     OLEDMenuItem *itemStack[OLED_MENU_MAX_DEPTH];
     uint8_t itemSP;
     OLEDMenuItem *itemUnderCursor; // null means the status bar is currently selected
@@ -98,7 +98,7 @@ private:
         display->setColor(OLEDDISPLAY_COLOR::WHITE);
         int16_t versionX = 0;
         const uint8_t versionStrHeight = 10;
-        const String versionStr = String("v.") + String(STRING(VERSION));
+        const String versionStr = String(F("v.")) + String(STRING(VERSION));
         uint16_t versionStrWidth = this->display->getStringWidth(versionStr);
         constexpr int16_t max_x = OLED_MENU_WIDTH - OM_SCREEN_SAVER_WIDTH;
         constexpr int16_t max_y = OLED_MENU_HEIGHT - (OM_SCREEN_SAVER_HEIGHT + versionStrHeight);

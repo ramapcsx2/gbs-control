@@ -58,6 +58,7 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
         case MT_BYPASS:
             preset = OutputBypass;
             break;
+        case MT_240p:
         default:
             break;
     }
@@ -164,6 +165,7 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
         String slot_name = String(emptySlotName);
         while (i < SLOTS_TOTAL) {
             const SlotMeta &slot = slotsObject.slot[i];
+            i++;
             if (strncmp(slot_name.c_str(), slot.name, sizeof(slot.name)) == 0) {
                 continue;
             }
@@ -172,7 +174,6 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
                 break;
             }
             manager->registerItem(item, i/* slot.slot */, slot.name, presetSelectionMenuHandler);
-            i++;
         }
     }
     // show notice for user to go to webUI
@@ -382,6 +383,16 @@ bool wifiMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, 
     }
     return true;
 }
+
+/**
+ * @brief
+ *
+ * @param manager
+ * @param nav
+ * @param isFirstTime
+ * @return true
+ * @return false
+ */
 bool osdMenuHanlder(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav nav, bool isFirstTime)
 {
     static unsigned long start;
@@ -441,6 +452,11 @@ bool osdMenuHanlder(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav nav, b
     }
     return true;
 }
+
+/**
+ * @brief
+ *
+ */
 void initOLEDMenu()
 {
     OLEDMenuItem *root = oledMenu.rootItem;
@@ -450,9 +466,9 @@ void initOLEDMenu()
 
     // Resolutions
     OLEDMenuItem *resMenu = oledMenu.registerItem(root, MT_NULL, IMAGE_ITEM(OM_RESOLUTION));
-    const char *resolutions[6] = {"1920x1080", "1280x1024", "1280x960", "1280x720", "768x576", "720x480" };
-    uint8_t tags[6] =            {MT1920x1080, MT1280x1024, MT_1280x960, MT1280x720, MT_768x576, MT_720x480};
-    for (int i = 0; i < 5; ++i) {
+    const char *resolutions[7] = {"1080p", "1024p", "960p", "720p", "576p", "480p", "240p" };
+    uint8_t tags[7] =            {MT1920x1080, MT1280x1024, MT_1280x960, MT1280x720, MT_768x576, MT_720x480, MT_240p};
+    for (uint8_t i = 0; i < (sizeof(resolutions)/sizeof(*resolutions)); ++i) {
         oledMenu.registerItem(resMenu, tags[i], resolutions[i], resolutionMenuHandler);
     }
     // downscale and passthrough

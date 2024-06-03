@@ -28,11 +28,10 @@ OLEDMenuItem *OLEDMenuManager::allocItem()
     int i = 0;
     OLEDMenuItem *newItem = nullptr;
     while (i < OLED_MENU_MAX_ITEMS_NUM) {
-        if (!this->allItems[i]->used) {
-            delete this->allItems[i];
-            this->allItems[i] = new OLEDMenuItem();
-            // memset(&this->allItems[i], 0, sizeof(OLEDMenuItem));
-            newItem = this->allItems[i];
+        if (!this->allItems[i].used) {
+            // FIXME
+            memset(&this->allItems[i], 0, sizeof(OLEDMenuItem));
+            newItem = &this->allItems[i];
             newItem->used = true;
             break;
         }

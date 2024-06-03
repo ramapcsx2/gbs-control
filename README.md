@@ -159,6 +159,9 @@ Make sure the latest version of ```node-js``` installed on your machine. The fol
 
 You can use "Platform - Build or Upload Filesystem Image" command in Platformio menu to get the web-interface re-generated and uploaded. Either you may use the manual method described below.
 
+>***PRO Tip:***\
+When you first time open the project you may not find "Platform - Build or Upload Filesystem Image" menu in PlatformIO tab. This happens because `/data` directory will be only available after you run `Build project`. Run `Build`, then press `Refresh Project Tasks` on top of PlatformIO tab, the required menu will be loaded once it reloads.
+
 ### Manually build WebUI
 
 If any changes were made, run the following command in Project root directory to update the web-interface:

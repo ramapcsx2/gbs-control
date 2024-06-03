@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Sunday, 2nd June 2024 6:04:19 pm                         #
+# Last Modified: Sunday, 2nd June 2024 11:15:45 pm                        #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -96,20 +96,22 @@ void setup()
     bool retryExtClockDetect = false;
     bool powerOrWireIssue = false;
 
-    display.init();                 // inits OLED on I2C bus
-    display.flipScreenVertically(); // orientation fix for OLED
+    Serial.begin(115200); // Arduino IDE Serial Monitor requires the same 115200 bauds!
+    Serial.setTimeout(10);
 
     pinMode(PIN_CLK, INPUT_PULLUP);
     pinMode(PIN_DATA, INPUT_PULLUP);
     pinMode(PIN_SWITCH, INPUT_PULLUP);
 
+    // inits OLED on I2C bus
+    if(!display.init())
+        _DBGN(F("display init failed"));
+    display.flipScreenVertically(); // orientation fix for OLED
+
     menuInit();
 
     rto->webServerEnabled = true;
     rto->webServerStarted = false; // make sure this is set
-
-    Serial.begin(115200); // Arduino IDE Serial Monitor requires the same 115200 bauds!
-    Serial.setTimeout(10);
 
     startWire();
     // run some dummy commands to init I2C to GBS and cached segments
@@ -132,7 +134,6 @@ void setup()
     rto->phaseADC = 16;
     rto->phaseSP = 16;
     rto->failRetryAttempts = 0;
-    uopt->resolutionID = Output240p;
     rto->isCustomPreset = false;
     rto->HPLLState = 0;
     rto->motionAdaptiveDeinterlaceActive = false;
@@ -249,6 +250,10 @@ void setup()
             uopt->disableExternalClockGenerator = f.read(); // #19
 
             f.close();
+
+            // prefs data loaded, load current slot
+            if(!slotLoad(uopt->slotID))
+                slotResetFlush(uopt->slotID);
         }
     }
 
@@ -327,8 +332,6 @@ void setup()
         zeroAll();
         setResetParameters();
         prepareSyncProcessor();
-        // prefs data loaded, load current slot
-        slotLoad(uopt->slotID);
 
         uint8_t productId = GBS::CHIP_ID_PRODUCT::read();
         uint8_t revisionId = GBS::CHIP_ID_REVISION::read();
@@ -370,6 +373,8 @@ void setup()
 
     // some debug tools leave garbage in the serial rx buffer
     discardSerialRxData();
+    // setup done
+    _DBGF(PSTR("\n\n   GBS-Control v.%s\n\n\n"), STRING(VERSION));
 }
 
 

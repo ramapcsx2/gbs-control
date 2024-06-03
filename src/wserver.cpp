@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Sunday, 2nd June 2024 5:26:25 pm                         #
+# Last Modified: Sunday, 2nd June 2024 11:01:41 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -659,8 +659,8 @@ void serverWiFiConnect()
     String pwd = server.arg(String(F("p")));
 
     if (ssid.length() > 0) {
-        wifiStartStaMode(ssid, pwd);
         server.send(200, mimeAppJson, F("[]"));
+        wifiStartStaMode(ssid, pwd);
     } else
         server.send(406, mimeAppJson, F("[]"));
 
@@ -2077,7 +2077,7 @@ void handleUserCommand()
             else
             {
                 _WSF(
-                    PSTR("\nsystem preferences:\n  slot ID = %d\n  component out. = %d\n  scaling RGBHV = %d\n" \
+                    PSTR("\nsystem preferences:\n  active slotID = %d\n  component out. = %d\n  scaling RGBHV = %d\n" \
                         "  ADC calibration = %d\n  ext. clock gen. = %d\n"),
                     f.read(),
                     f.read(),
@@ -2095,21 +2095,20 @@ void handleUserCommand()
          * 2. update registers if videoStandardInput != 14
          * 3. update/save preset data
          */
+        case 's':           // 1080p
+        case 'p':           // 1024p
         case 'f':           // 960p
         case 'g':           // 720p
-        case 'h':           // 480p
-        case 'p':           // 1024p
-        case 's':           // 1080p
-        case 'L':           // 15kHz/downscale
-        case 'j':           // 240p
         case 'k':           // 576p
+        case 'h':           // 480p
+        case 'j':           // 240p
+        case 'L':           // 15kHz/downscale
         {
             // load preset via webui
             uint8_t videoMode = getVideoMode();
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
                 videoMode = rto->videoStandardInput; // last known good as fallback
             // else videoMode stays 0 and we'll apply via some assumptions
-            // TODO missing resolutions below ?
             if (userCommand == 'f')
                 // uopt->presetPreference = Output960P; // 1280x960
                 uopt->resolutionID = Output960p; // 1280x960

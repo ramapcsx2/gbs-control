@@ -3,7 +3,7 @@
 # File: preset.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 6:38:23 pm                                   #
 # Author:                                                                           #
-# Last Modified: Sunday, 2nd June 2024 5:26:25 pm                         #
+# Last Modified: Sunday, 2nd June 2024 11:34:42 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -67,7 +67,7 @@ void loadPresetMdSection()
  */
 void setResetParameters()
 {
-    _WSN(F("<reset>"));
+    _WSN(F("(!) runtime data reset"));
     // TODO: do we reset resolution here?
     rto->videoStandardInput = 0;
     rto->videoIsFrozen = false;
