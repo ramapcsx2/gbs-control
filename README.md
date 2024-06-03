@@ -43,22 +43,24 @@ https://circuit-board.de/forum/index.php/Thread/15601-GBS-8220-Custom-Firmware-i
 ### Slots vs Presets
 
 - Preset - is a collection of predefined runtime values (including output screen resolution, etc).
-- Slot - is a collection of presets.
+- Slot - is a collection of Presets.
+- Preferences - a collection of parameters which are used system-wide independently of Slots and Presets. So when Slot changes which causes Preset to change, Preferences will remain the same until user not to switch them manually.
 
-When you connecting a new device, GBS tries to identify the input video signal. There are 9 signal types (VIDEO_ID), which also used to identify preset for current slot while saving/loading preferences.
+When you connecting a new device, GBS tries to identify the input video signal. There are 9 signal types (VIDEO_ID), which also used to identify Preset for current Slot while saving/loading preferences. 
+>Slots are managed by user while firmware takes care of Presets automatically, depending on input conditions.
 
-While managing slots the following principles must be taken into account:
+While managing Slots the following principles must be taken into account:
 
-1. General parameters of a SLOT are stored in slots.bin, where each of (SLOTS_TOTAL) slots has structure:
+1. General parameters of a SLOT are stored in slots.bin, where each of (SLOTS_TOTAL) Slots has structure:
      
-    1.1. slot name\
+    1.1. Slot name\
     <!-- 1.2. input video signal ID (VIDEO_ID)\ -->
     1.2. output resolution\
     ... etc.
     
-     Each slot has its own SLOT_ID which is one character long. The input video signal ID (VIDEO_ID) is not stored in slots. 
+     Each Slot has its own SLOT_ID which is one character long. The input video signal ID (VIDEO_ID) is not stored in Slots. 
      
-     > This allows to use multiple presets with the same slot, when current preset depends on the input video signal ID.
+     > This allows to use multiple Presets with the same Slot, when current Preset depends on the input video signal ID.
      
 2. Preset file names are formatted as `input_video_format.SLOT_ID`, for example:
 
@@ -69,15 +71,19 @@ While managing slots the following principles must be taken into account:
 
 3. Current/Active SLOT_ID and other auxiliar pararmeters are stored in preferencev2.txt file.
 
-The following diagram represents structure of custom/user configuration:
+The following diagram represents the structure of system and user configurations:
 
-![gbs-control user configuration structure](./doc/img/slot-preset-prefs.png)
+![gbs-control user configuration structure](./doc/img/Slot-Preset-prefs.png)
+
+### How to switch GBSC to upload mode?
+
+ESP8266 version of GBSC could boot into a firmware upload mode by pressing the knob button while the device is off and connecting it to a computer with USB cable.
 
 
 ## Build and Upload<a id="build-n-upload"></a>
 
->***PRO Tip:***\
-You may consider using the latest compiled binaries from [/builds](./builds/) directory.
+<!-- >***PRO Tip:***\
+You may consider using the latest compiled binaries from [/builds](./builds/) directory. -->
 
 ### Using Platformio IDE (preferred)
 
@@ -125,10 +131,13 @@ WebUI currently can be translated using ```translation.json``` file in the Proje
 
 ### Platformio IDE (preferred)
 
-By changing value of "ui-lang" parameter in ```configure.json``` you're changing current UI translation. You also may change the UI font the same way ("ui-font").
+By changing value of `ui-lang` parameter in ```configure.json``` you're changing current UI translation. You also may change the UI fonts the same way (`ui-fonts`). 
+Font size may be specified for every translation block. If you add the Font size which is not specified in config, translation generator will ask you to do that risin an error. `ui-fonts` parameter should be formatted as: `FONT_SIZE@FONT_NAME[,FONT_SIZE@FONT_NAME[,...]]`. 
+
+To add a new font drop it into [/public/assets/fonts](./public/assets/fonts/) directory, only TTF fonts could be used.
 
 >***Please note:***\
-The default translation is "en-US".
+The default translation is "en-US", the font is "FreeSans".
 
 ### Arduino IDE
 

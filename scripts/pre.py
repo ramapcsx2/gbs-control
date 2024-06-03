@@ -15,12 +15,12 @@ with open(f'{root}/configure.json', 'r') as data:
     conf = json.load(data)
 
 # silently check if all modules are installed
-subprocess.call([sys.executable, '-m', 'pip', 'install', 'pillow', 'ArgumentParser'],
+subprocess.call([sys.executable, '-m', 'pip', 'install', 'pillow'],
                     stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 # starting with i18n
 print(f'\n\U0001F37A: generating locale data ({conf["ui-lang"]})\n')
 argFonts = ''
-farr = conf["ui-font"].split(',')
+farr = conf["ui-fonts"].split(',')
 for f in farr:
     size, name = f.split('@')
     argFonts += f'{size}@{root}/public/assets/fonts/{name}.ttf '

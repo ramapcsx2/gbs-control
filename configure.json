@@ -1,5 +1,5 @@
 {
     "ui-lang": "en-US",
-    "ui-font": "12@FreeSans,16@FreeSans",
+    "ui-fonts": "12@FreeSans,16@FreeSans",
     "version": "24.0602"
 }
