@@ -30,7 +30,7 @@ class OLEDMenuManager
 {
 private:
     OLEDDisplay *const display;
-    OLEDMenuItem allItems[OLED_MENU_MAX_ITEMS_NUM];
+    OLEDMenuItem *allItems[OLED_MENU_MAX_ITEMS_NUM];
     OLEDMenuItem *itemStack[OLED_MENU_MAX_DEPTH];
     uint8_t itemSP;
     OLEDMenuItem *itemUnderCursor; // null means the status bar is currently selected

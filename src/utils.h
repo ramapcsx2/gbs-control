@@ -3,7 +3,7 @@
 # File: utils.h                                                                    #
 # File Created: Thursday, 2nd May 2024 5:38:14 pm                                   #
 # Author:                                                                           #
-# Last Modified: Friday, 31st May 2024 11:09:56 pm                        #
+# Last Modified: Sunday, 2nd June 2024 4:21:11 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -45,7 +45,8 @@ uint8_t getSingleByteFromPreset(const uint8_t *programArray, unsigned int offset
 void copyBank(uint8_t *bank, const uint8_t *programArray, uint16_t *index);
 void printReg(uint8_t seg, uint8_t reg);
 void dumpRegisters(byte segment);
-void readEeprom();
+// @sk: not used
+// void readEeprom();
 
 void stopWire();
 void startWire();

@@ -3,7 +3,7 @@
 # File: video.cpp                                                                   #
 # File Created: Thursday, 2nd May 2024 4:07:57 pm                                   #
 # Author:                                                                           #
-# Last Modified: Thursday, 30th May 2024 12:42:51 pm                      #
+# Last Modified: Sunday, 2nd June 2024 12:41:03 am                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -340,8 +340,19 @@ void externalClockGenSyncInOutRate()
 /**
  * @brief
  *
+ * @return true if init successful
+ * @return false something wrong / try later
  */
-void externalClockGenDetectAndInitialize()
+
+/**
+ * @brief Detect if external clock installed
+ *
+ * @return int8_t
+ *          1 = device ready, init completed,
+ *          0 - no device detected
+ *         -1 - any other error
+ */
+int8_t externalClockGenDetectAndInitialize()
 {
     const uint8_t xtal_cl = 0xD2; // 10pF, other choices are 8pF (0x92) and 6pF (0x52) NOTE: Per AN619, the low bytes should be written 0b010010
 
@@ -350,16 +361,21 @@ void externalClockGenDetectAndInitialize()
     rto->extClockGenDetected = 0;
 
     if (uopt->disableExternalClockGenerator) {
-        _WSN(F("ExternalClockGenerator disabled, skipping detection"));
-        return;
+        _WSN(F("external clock generator disabled, skipping detection"));
+        return 0;
     }
 
     uint8_t retVal = 0;
     Wire.beginTransmission(SIADDR);
+    // returns:
+    // 4 = line busy
+    // 3 = received NACK on transmit of data
+    // 2 = received NACK on transmit of address
+    // 0 = success
     retVal = Wire.endTransmission();
-
+    _DBGF(PSTR("a problem while detect external clock, err: %d\n"), retVal);
     if (retVal != 0) {
-        return;
+        return -1;
     }
 
     Wire.beginTransmission(SIADDR);
@@ -373,10 +389,10 @@ void externalClockGenDetectAndInitialize()
             // SYS_INIT indicates device is ready.
             rto->extClockGenDetected = 1;
         } else {
-            return;
+            return 0;
         }
     } else {
-        return;
+        return -1;
     }
 
     Si.init(25000000L); // many Si5351 boards come with 25MHz crystal; 27000000L for one with 27MHz
@@ -387,6 +403,7 @@ void externalClockGenDetectAndInitialize()
     Si.setPower(0, SIOUT_6mA);
     Si.setFreq(0, rto->freqExtClockGen);
     Si.disable(0);
+    return 1;
 }
 
 /**
@@ -1135,7 +1152,7 @@ void setOverSampleRatio(uint8_t newRatio, bool prepareOnly)
 
     bool hi_res = rto->videoStandardInput == 8 || rto->videoStandardInput == 4 || rto->videoStandardInput == 3;
     // bool bypass = rto->presetID == PresetHdBypass;
-    bool bypass = rto->resolutionID == PresetHdBypass;
+    bool bypass = uopt->resolutionID == PresetHdBypass;
 
     switch (newRatio) {
         case 1:
@@ -1396,7 +1413,7 @@ void setOutModeHdBypass(bool regsInitialized)
     if (GBS::ADC_UNUSED_62::read() != 0x00) {
         // remember debug view
         // if (uopt->presetPreference != 2) {
-        // if (rto->resolutionID != OutputCustom) {
+        // if (uopt->resolutionID != OutputCustom) {
         serialCommand = 'D';
         // }
     }
@@ -1880,7 +1897,7 @@ void bypassModeSwitch_RGBHV()
     }
 
     // rto->presetID = PresetBypassRGBHV; // bypass flavor 2, used to signal buttons in web ui
-    rto->resolutionID = PresetBypassRGBHV; // bypass flavor 2, used to signal buttons in web ui
+    uopt->resolutionID = PresetBypassRGBHV; // bypass flavor 2, used to signal buttons in web ui
     GBS::GBS_PRESET_ID::write(PresetBypassRGBHV);
     delay(200);
 }
@@ -2318,7 +2335,7 @@ void activeFrameTimeLockInitialSteps()
     }
     // skip when out mode = bypass
     // if (rto->presetID != PresetHdBypass && rto->presetID != PresetBypassRGBHV) {
-    if (rto->resolutionID != PresetHdBypass && rto->resolutionID != PresetBypassRGBHV) {
+    if (uopt->resolutionID != PresetHdBypass && uopt->resolutionID != PresetBypassRGBHV) {
         _WS(F("Active FrameTime Lock enabled, disable if display unstable or stays blank! Method: "));
         if (uopt->frameTimeLockMethod == 0) {
             _WSN(F("0 (vtotal + VSST)"));
@@ -4229,7 +4246,7 @@ void runSyncWatcher()
                     rto->syncTypeCsync = false;
                 }
                 // bool wantPassThroughMode = uopt->presetPreference == 10;
-                bool wantPassThroughMode = rto->resolutionID == OutputBypass;
+                bool wantPassThroughMode = uopt->resolutionID == OutputBypass;
 
                 if (((rto->videoStandardInput == 1 || rto->videoStandardInput == 3) && (detectedVideoMode == 2 || detectedVideoMode == 4)) ||
                     rto->videoStandardInput == 0 ||
@@ -4505,11 +4522,11 @@ void runSyncWatcher()
 
                     // todo: this hack is hard to understand when looking at applypreset and mode is suddenly 1,2 or 3
                     // if (uopt->presetPreference == 2) {
-                    // if (rto->resolutionID == OutputCustom) {
-                    if (rto->resolutionID != Output240p
-                        && rto->resolutionID != OutputBypass
-                            && rto->resolutionID != PresetHdBypass
-                                && rto->resolutionID != PresetBypassRGBHV) {
+                    // if (uopt->resolutionID == OutputCustom) {
+                    if (uopt->resolutionID != Output240p
+                        && uopt->resolutionID != OutputBypass
+                            && uopt->resolutionID != PresetHdBypass
+                                && uopt->resolutionID != PresetBypassRGBHV) {
                         // custom preset defined, try to load (set mode = 14 here early)
                         rto->videoStandardInput = 14;
                     } else {
@@ -4531,9 +4548,9 @@ void runSyncWatcher()
                     }
 
                     // if (uopt->presetPreference == 10) {
-                    if (rto->resolutionID == OutputBypass) {
+                    if (uopt->resolutionID == OutputBypass) {
                         // uopt->presetPreference = Output960P; // fix presetPreference which can be "bypass"
-                        rto->resolutionID = Output960p; // fix presetPreference which can be "bypass"
+                        uopt->resolutionID = Output960p; // fix presetPreference which can be "bypass"
                     }
 
                     activePresetLineCount = sourceLines;
@@ -4592,7 +4609,7 @@ void runSyncWatcher()
                         GBS::IF_HB_SP2::write(0x68);  // image
                         GBS::IF_HBIN_SP::write(0x50); // position
                         // if (rto->presetID == 0x05) {
-                        if (rto->resolutionID == Output1080p) {
+                        if (uopt->resolutionID == Output1080p) {
                             GBS::IF_HB_ST2::write(0x480);
                             GBS::IF_HB_SP2::write(0x8E);
                         }
@@ -4647,9 +4664,9 @@ void runSyncWatcher()
                         }
 
                         // if (uopt->presetPreference == 10) {
-                        if (rto->resolutionID == OutputBypass) {
+                        if (uopt->resolutionID == OutputBypass) {
                             // uopt->presetPreference = Output960P; // fix presetPreference which can be "bypass"
-                            rto->resolutionID = Output960p; // fix presetPreference which can be "bypass"
+                            uopt->resolutionID = Output960p; // fix presetPreference which can be "bypass"
                         }
 
                         activePresetLineCount = sourceLines;
@@ -4708,7 +4725,7 @@ void runSyncWatcher()
                             GBS::IF_HB_SP2::write(0x68);  // image
                             GBS::IF_HBIN_SP::write(0x50); // position
                             // if (rto->presetID == 0x05) {
-                            if (rto->resolutionID == Output1080p) {
+                            if (uopt->resolutionID == Output1080p) {
                                 GBS::IF_HB_ST2::write(0x480);
                                 GBS::IF_HB_SP2::write(0x8E);
                             }

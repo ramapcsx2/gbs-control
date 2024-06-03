@@ -3,7 +3,7 @@
 # File: wserver.h                                                                    #
 # File Created: Friday, 19th April 2024 3:11:47 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Saturday, 1st June 2024 5:05:00 pm                       #
+# Last Modified: Sunday, 2nd June 2024 4:39:55 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -78,6 +78,7 @@ void fastGetBestHtotal();
 void handleSerialCommand();
 void handleUserCommand();
 void initUpdateOTA();
+void fsToFactory();
 #endif              // defined(ESP8266)
 
 #endif                              // _ESPWSERVER_H_

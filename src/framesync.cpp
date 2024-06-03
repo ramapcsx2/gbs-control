@@ -3,7 +3,7 @@
 # File: framesync.cpp                                                     #
 # File Created: Sunday, 5th May 2024 12:52:08 pm                          #
 # Author:                                                                 #
-# Last Modified: Thursday, 30th May 2024 11:33:00 am                      #
+# Last Modified: Sunday, 2nd June 2024 4:28:57 pm                         #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -63,11 +63,12 @@ void MeasurePeriodStart()
 bool FrameSyncManager::vsyncOutputSample(uint32_t *start, uint32_t *stop)
 {
     yield();
+    uint32_t i = 0;
     ESP.wdtDisable();
     MeasurePeriodStart();
 
     // typical: 300000 at 80MHz, 600000 at 160MHz
-    for (uint32_t i = 0; i < 3000000; i++) {
+    while (i < 3000000) {
         if (MeasurePeriodArmed) {
             MeasurePeriodArmed = 0;
             delay(7);
@@ -76,6 +77,7 @@ bool FrameSyncManager::vsyncOutputSample(uint32_t *start, uint32_t *stop)
         if (MeasurePeriodStopTime > 0) {
             break;
         }
+        i++;
     }
     *start = MeasurePeriodStartTime;
     *stop = MeasurePeriodStopTime;
@@ -101,11 +103,12 @@ bool FrameSyncManager::vsyncOutputSample(uint32_t *start, uint32_t *stop)
 bool FrameSyncManager::vsyncInputSample(uint32_t *start, uint32_t *stop)
 {
     yield();
+    uint32_t i = 0;
     ESP.wdtDisable();
     MeasurePeriodStart();
 
     // typical: 300000 at 80MHz, 600000 at 160MHz
-    for (uint32_t i = 0; i < 3000000; i++) {
+    while (i < 3000000) {
         if (MeasurePeriodArmed) {
             MeasurePeriodArmed = 0;
             delay(7);
@@ -114,6 +117,7 @@ bool FrameSyncManager::vsyncInputSample(uint32_t *start, uint32_t *stop)
         if (MeasurePeriodStopTime > 0) {
             break;
         }
+        i++;
     }
     *start = MeasurePeriodStartTime;
     *stop = MeasurePeriodStopTime;

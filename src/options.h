@@ -109,12 +109,9 @@ enum OutputResolution : char {
 // userOptions holds user preferences / customizations
 struct userOptions
 {
-    // 0 - normal, 1 - x480/x576, 2 - customized, 3 - 1280x720, 4 - 1280x1024, 5 - 1920x1080,
-    // 6 - downscale, 10 - bypass
-    // OutputResolution presetPreference;
-
-    // current/active slot
-    uint8_t presetSlot;
+    OutputResolution resolutionID;
+    // active slot ID
+    uint8_t slotID;
     uint8_t enableFrameTimeLock;
     uint8_t frameTimeLockMethod;
     uint8_t enableAutoGain;
@@ -160,7 +157,6 @@ struct runTimeOptions
      *  15 - RGB/HV (bypassModeSwitch_RGBHV)
      */
     uint8_t videoStandardInput;
-    OutputResolution resolutionID;
     uint8_t phaseSP;
     uint8_t phaseADC;
     uint8_t currentLevelSOG;
@@ -183,6 +179,7 @@ struct runTimeOptions
     bool outModeHdBypass;
     bool printInfos;
     bool sourceDisconnected;
+    // true if WiFi, webUI and webSocket is allowed
     bool webServerEnabled;
     bool webServerStarted;
     bool allowUpdatesOTA;
@@ -253,7 +250,7 @@ extern struct adcOptions *adco;
 //     preset_vga_upscale,
 // };
 
-const char preferencesFile[] PROGMEM = "/preferencesv2.txt";
+const char preferencesFile[] PROGMEM = "/prefs.dat";
 const char systemInfo[] PROGMEM = "h:%4u v:%4u PLL:%01u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d\n";
 const char commandDescr[] PROGMEM = "\n> %s command: %c (0x%02X) slotID: %d, resolutionID: %c (0x%02X)\n\n";
 

@@ -39,6 +39,7 @@ void slotUpdate(SlotMetaArray & slotsObject, const uint8_t & slotIndex, String *
 int8_t slotGetData(SlotMetaArray & slotsObject);
 bool slotSetData(SlotMetaArray & slotsObject);
 bool slotFlush();
+bool slotResetFlush(const uint8_t & slotIndex);
 void slotResetDefaults(SlotMetaArray & slotsObject, const uint8_t & slotIndex);
 
 #endif                          // _SLOT_H_

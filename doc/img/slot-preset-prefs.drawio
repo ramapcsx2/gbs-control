@@ -1,0 +1,96 @@
+<mxfile host="app.diagrams.net" modified="2024-06-02T23:25:28.425Z" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36" etag="7Ofo4arMI2vqJAYqygSz" version="24.4.9" type="device">
+  <diagram name="Page-1" id="0AY4D7A64WTAIGN5_b0m">
+    <mxGraphModel dx="714" dy="467" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" background="none" math="0" shadow="1">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="5I3Ab2Rz5sFH3i8GXqkN-3" value="SYSTEM-WIDE PREFS" style="rounded=0;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" parent="1" vertex="1">
+          <mxGeometry x="400" y="20" width="180" height="520" as="geometry" />
+        </mxCell>
+        <mxCell id="5I3Ab2Rz5sFH3i8GXqkN-2" value="USER CONFIGURATION" style="rounded=0;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;" parent="1" vertex="1">
+          <mxGeometry y="20" width="390" height="520" as="geometry" />
+        </mxCell>
+        <mxCell id="SZShdfzRH13osQMv_8BT-1" value="" style="group" parent="1" vertex="1" connectable="0">
+          <mxGeometry x="10" y="380" width="370" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-13" value="PRESETS" style="rounded=0;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" parent="SZShdfzRH13osQMv_8BT-1" vertex="1">
+          <mxGeometry width="370" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-18" value="PLC REGISTER&lt;div&gt;VALUES&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="SZShdfzRH13osQMv_8BT-1" vertex="1">
+          <mxGeometry x="11.75" y="40" width="80.09" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-24" value="&lt;div&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;PLC&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;REGISTER VALUES&lt;/span&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="SZShdfzRH13osQMv_8BT-1" vertex="1">
+          <mxGeometry x="101" y="40" width="80" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-14" value="VIDEO_ID_3.&lt;div&gt;SLOT_A&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="SZShdfzRH13osQMv_8BT-1" vertex="1">
+          <mxGeometry x="7" y="10" width="74.75" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-15" value="VIDEO_ID_9.&lt;div&gt;SLOT_B&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="SZShdfzRH13osQMv_8BT-1" vertex="1">
+          <mxGeometry x="95.08" y="10" width="75.92" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="PgWPa35tXHPIMS8q_X_s-3" value="&lt;div&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;PLC&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;REGISTER VALUES&lt;/span&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="SZShdfzRH13osQMv_8BT-1" vertex="1">
+          <mxGeometry x="190.92000000000002" y="40" width="80" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="PgWPa35tXHPIMS8q_X_s-4" value="VIDEO_ID_1.&lt;div&gt;SLOT_A&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="SZShdfzRH13osQMv_8BT-1" vertex="1">
+          <mxGeometry x="185" y="10" width="75.92" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="PgWPa35tXHPIMS8q_X_s-5" value="&lt;div&gt;...&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="SZShdfzRH13osQMv_8BT-1" vertex="1">
+          <mxGeometry x="280.91999999999996" y="40" width="80" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="PgWPa35tXHPIMS8q_X_s-6" value="..." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="SZShdfzRH13osQMv_8BT-1" vertex="1">
+          <mxGeometry x="275" y="10" width="75.92" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="xxJxCyeaFxIizx8CPsH8-1" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;- SCALING RGB HV&lt;/font&gt;&lt;div style=&quot;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- OUTPUT COMPONENT&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- ADC CALIBRATION&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- DISABLE EXT. CLOCK GEN&lt;/font&gt;&lt;span style=&quot;font-size: 12px;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="425" y="70" width="140" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-29" value="- ACTIVE SLOT" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;" parent="1" vertex="1">
+          <mxGeometry x="425" y="90" width="140" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-3" value="PREFS.DAT" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+          <mxGeometry x="415" y="30" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-52" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" parent="1" source="xcBmoFsZgakqmpaXUzfU-1" target="xcBmoFsZgakqmpaXUzfU-4" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="149.95999999999998" y="90" />
+              <mxPoint x="99.95999999999998" y="90" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-53" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="xcBmoFsZgakqmpaXUzfU-1" target="xcBmoFsZgakqmpaXUzfU-7" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="230" y="80" />
+              <mxPoint x="230" y="90" />
+              <mxPoint x="300" y="90" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-54" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="xcBmoFsZgakqmpaXUzfU-1" target="xcBmoFsZgakqmpaXUzfU-6" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-1" value="SLOTS.BIN" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="110" y="30" width="170" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-37" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;- SLOT_NAME&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;- SCANLINES&lt;/span&gt;&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- SCANLN. STRENG.&lt;br&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;- OUT. RESOLUTION&lt;/span&gt;&lt;br&gt;&lt;/font&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- PEAKING&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- VDS LINE FILTER&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- STEP RESPONSE&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- AUTO GAIN&lt;/font&gt;&lt;/div&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- FRM. TIME LOCK&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- FRM. TIME LOCK METHOD&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- DEINT MODE&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- TAP6 MODE&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- FULL HEIGHT&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- FORCE PAL 60Hz&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- MATCH PRESET&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;" parent="1" vertex="1">
+          <mxGeometry x="30" y="140" width="100" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="WjqSOOJ9ozNqYKrFp-Dt-1" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;- SLOT_NAME&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;- SCANLINES&lt;/span&gt;&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- SCANLN. STRENG.&lt;br&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;- OUT. RESOLUTION&lt;/span&gt;&lt;br&gt;&lt;/font&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;- PEAKING&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;- VDS LINE FILTER&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- STEP RESPONSE&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- AUTO GAIN&lt;/div&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- FRM. TIME LOCK&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- FRM. TIME LOCK METHOD&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- DEINT MODE&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- TAP6 MODE&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- FULL HEIGHT&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- FORCE PAL 60Hz&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;- MATCH PRESET&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;" parent="1" vertex="1">
+          <mxGeometry x="150" y="140" width="100" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="WjqSOOJ9ozNqYKrFp-Dt-3" value="&lt;span style=&quot;font-size: 10px;&quot;&gt;...&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;" parent="1" vertex="1">
+          <mxGeometry x="269.96" y="140" width="100" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-4" value="SLOT_A" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="19.99999999999998" y="110" width="80" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-6" value="SLOT_B" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="140" y="110" width="79.96" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="xcBmoFsZgakqmpaXUzfU-7" value="..." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="259.99999999999994" y="110" width="80" height="40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

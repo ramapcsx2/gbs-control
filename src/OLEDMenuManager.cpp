@@ -5,7 +5,11 @@
 #include "OLEDMenuManager.h"
 #include "OLEDMenuFonts.h"
 
-
+/**
+ * @brief Construct a new OLEDMenuManager::OLEDMenuManager object
+ *
+ * @param display
+ */
 OLEDMenuManager::OLEDMenuManager(SSD1306Wire *display)
     : display(display)
     , rootItem(registerItem(nullptr, 0, nullptr))
@@ -13,17 +17,26 @@ OLEDMenuManager::OLEDMenuManager(SSD1306Wire *display)
     pushItem(rootItem);
     randomSeed(millis()); // does this work?
 }
+
+/**
+ * @brief
+ *
+ * @return OLEDMenuItem*
+ */
 OLEDMenuItem *OLEDMenuManager::allocItem()
 {
+    int i = 0;
     OLEDMenuItem *newItem = nullptr;
-    for (int i = 0; i < OLED_MENU_MAX_ITEMS_NUM; ++i) {
-        if (!this->allItems[i].used) {
-            // FIXME
-            memset(&this->allItems[i], 0, sizeof(OLEDMenuItem));
-            newItem = &this->allItems[i];
+    while (i < OLED_MENU_MAX_ITEMS_NUM) {
+        if (!this->allItems[i]->used) {
+            delete this->allItems[i];
+            this->allItems[i] = new OLEDMenuItem();
+            // memset(&this->allItems[i], 0, sizeof(OLEDMenuItem));
+            newItem = this->allItems[i];
             newItem->used = true;
             break;
         }
+        i++;
     }
     if (!newItem) {
         char msg[40];
@@ -33,6 +46,18 @@ OLEDMenuItem *OLEDMenuManager::allocItem()
     return newItem;
 }
 
+/**
+ * @brief
+ *
+ * @param parent
+ * @param tag
+ * @param imageWidth
+ * @param imageHeight
+ * @param xbmImage
+ * @param handler
+ * @param alignment
+ * @return OLEDMenuItem*
+ */
 OLEDMenuItem *OLEDMenuManager::registerItem(
     OLEDMenuItem *parent,
     uint16_t tag,
@@ -64,6 +89,17 @@ OLEDMenuItem *OLEDMenuManager::registerItem(
     return newItem;
 }
 
+/**
+ * @brief
+ *
+ * @param parent
+ * @param tag
+ * @param string
+ * @param handler
+ * @param font
+ * @param alignment
+ * @return OLEDMenuItem*
+ */
 OLEDMenuItem *OLEDMenuManager::registerItem(
     OLEDMenuItem *parent,
     uint16_t tag,
@@ -96,6 +132,13 @@ OLEDMenuItem *OLEDMenuManager::registerItem(
     return newItem;
 }
 
+/**
+ * @brief
+ *
+ * @param item
+ * @param yOffset
+ * @param negative
+ */
 void OLEDMenuManager::drawOneItem(OLEDMenuItem *item, uint16_t yOffset, bool negative)
 {
     int16_t curScrollOffset = 0;
@@ -156,6 +199,12 @@ void OLEDMenuManager::drawOneItem(OLEDMenuItem *item, uint16_t yOffset, bool neg
         }
     }
 }
+
+/**
+ * @brief
+ *
+ * @param parent
+ */
 void OLEDMenuManager::drawSubItems(OLEDMenuItem *parent)
 {
     display->clear();
@@ -184,6 +233,11 @@ void OLEDMenuManager::drawSubItems(OLEDMenuItem *parent)
     display->display();
 }
 
+/**
+ * @brief
+ *
+ * @param preserveCursor
+ */
 void OLEDMenuManager::goBack(bool preserveCursor)
 {
     // go back one page
@@ -197,6 +251,12 @@ void OLEDMenuManager::goBack(bool preserveCursor)
     resetScroll();
     state = OLEDMenuState::GOING_BACK;
 }
+
+/**
+ * @brief
+ *
+ * @param preserveCursor
+ */
 void OLEDMenuManager::goMain(bool preserveCursor)
 {
     while (peakItem() != rootItem) {
@@ -204,6 +264,10 @@ void OLEDMenuManager::goMain(bool preserveCursor)
     }
 }
 
+/**
+ * @brief
+ *
+ */
 void OLEDMenuManager::nextItem()
 {
     resetScroll();
@@ -227,6 +291,11 @@ void OLEDMenuManager::nextItem()
         itemUnderCursor = parentItem->subItems[++cursor];
     }
 }
+
+/**
+ * @brief
+ *
+ */
 void OLEDMenuManager::prevItem()
 {
     resetScroll();
@@ -253,6 +322,10 @@ void OLEDMenuManager::prevItem()
     }
 }
 
+/**
+ * @brief
+ *
+ */
 void OLEDMenuManager::resetScroll()
 {
     leadInFramesLeft = OLED_MENU_SCROLL_LEAD_IN_FRAMES;
@@ -268,6 +341,13 @@ void OLEDMenuManager::resetScroll()
     lastUpdateTime = 0;
 }
 
+/**
+ * @brief
+ *
+ * @param item
+ * @param btn
+ * @param isFirstTime
+ */
 void OLEDMenuManager::enterItem(OLEDMenuItem *item, OLEDMenuNav btn, bool isFirstTime)
 {
     bool willEnter = true;
@@ -303,6 +383,11 @@ void OLEDMenuManager::enterItem(OLEDMenuItem *item, OLEDMenuNav btn, bool isFirs
     this->itemUnderCursor = item->subItems[0];
 }
 
+/**
+ * @brief
+ *
+ * @param negative
+ */
 void OLEDMenuManager::drawStatusBar(bool negative)
 {
     if (negative) {
@@ -335,6 +420,12 @@ void OLEDMenuManager::drawStatusBar(bool negative)
     this->display->setTextAlignment(OLEDDISPLAY_TEXT_ALIGNMENT::TEXT_ALIGN_LEFT);
 }
 
+/**
+ * @brief
+ *
+ * @param preserveCursor
+ * @return OLEDMenuItem*
+ */
 OLEDMenuItem *OLEDMenuManager::popItem(bool preserveCursor)
 {
     if (itemSP == 1) {
@@ -357,6 +448,12 @@ OLEDMenuItem *OLEDMenuManager::popItem(bool preserveCursor)
     itemUnderCursor = top->parent->subItems[0];
     return top;
 }
+
+/**
+ * @brief
+ *
+ * @param nav
+ */
 void OLEDMenuManager::tick(OLEDMenuNav nav)
 {
     if (this->disabled) {

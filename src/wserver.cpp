@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Saturday, 1st June 2024 1:46:59 am                       #
+# Last Modified: Sunday, 2nd June 2024 5:26:25 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -48,7 +48,6 @@ void serverInit()
     server.on(F("/data/restore"), HTTP_POST, serverFsUploadResponder, serverFsUploadHandler);
     server.on(F("/data/backup"), HTTP_GET, serverBackupDownload);
     // server.on(F("/data/dir"), HTTP_GET, serverFsDir);
-    // server.on(F("/data/format"), HTTP_GET, serverFsFormat);
     server.on(F("/wifi/status"), HTTP_GET, serverWiFiStatus);
     // server.on(F("/gbs/restore-filters"), HTTP_GET, serverRestoreFilters);
     // WiFi API
@@ -80,7 +79,6 @@ void serverHome()
         return;
     }
     server.send_P(200, mimeTextHtml, notFouldMessage);
-    // server.send(200, mimeTextHtml, webui_html, sizeof(webui_html));
 }
 
 /**
@@ -101,8 +99,6 @@ void serverSC()
         {
             serialCommand = '+';
         }
-        // _DBG(F("[w] serial command received: "));
-        // _DBGF("%c\n", serialCommand);
     }
     server.send(200, mimeAppJson, F("[]"));
 }
@@ -135,7 +131,7 @@ void serverSlots()
     fs::File slotsBinaryFile;
     if(slotGetData(slotsObject) == -1)
     {
-        _DBGN(F("unable to create /slots.bin"));
+        _DBGF(PSTR("unable to create %s\n"), FPSTR(slotsFile));
         goto stream_slots_bin_failed;
     }
     slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "r");
@@ -158,19 +154,12 @@ void serverSlotSet()
 
     if (server.args() > 0)
     {
-        // const String slotParamValue = server.arg(String(F("index"))).toInt();
         uint8_t slotIndex = lowByte(server.arg(String(F("index"))).toInt());
-        // char slotValue[2];
-        // slotParamValue.toCharArray(slotValue, sizeof(slotValue));
-        // uopt->presetSlot = static_cast<uint8_t>(slotParamValue.charAt(0));
         if(!slotLoad(slotIndex)) {
-            _DBGN(F("unable to read /slots.bin"));
+            _DBGF(PSTR("unable to read %s\n"), FPSTR(slotsFile));
             goto server_slot_set_failure;
         }
-        //// uopt->presetPreference = OutputCustomized;
-        // rto->presetID = OutputCustom;
-        // saveUserPrefs();     // user prefs being saved in userCommand handler
-        _WSF(PSTR("slot change success: %d\n"), uopt->presetSlot);
+        _WSF(PSTR("slot change success: %d\n"), uopt->slotID);
         server.send(200, mimeAppJson, F("[\"ok\"]"));
         // begin loading new preset on the next loop
         userCommand = '3';
@@ -195,7 +184,7 @@ void serverSlotSave()
         uint8_t slotIndex = server.arg(String(F("index"))).toInt();
         SlotMetaArray slotsObject;
         if(slotGetData(slotsObject) == -1) {
-            _DBGN(F("unable to access slots.bin"));
+            _DBGF(PSTR("unable to access to %s\n"), FPSTR(slotsFile));
             goto server_slot_save_end;
         }
         // updating the SlotMetaObject with data received
@@ -214,7 +203,7 @@ void serverSlotSave()
         slotUpdate(slotsObject, slotIndex, &slotName);
 
         if(!slotSetData(slotsObject))
-            _DBGN(F("failed to write to slots.bin"));
+            _DBGF(PSTR("failed to write to %s\n"), FPSTR(slotsFile));
 
         result = true;
     }
@@ -245,7 +234,7 @@ void serverSlotRemove()
         sprintf(buffer, PSTR(".%d"), slotIndex);
 
         if(slotGetData(slotsObject) == -1) {
-            _DBGN(F("unable to access to slots.bin"));
+            _DBGF(PSTR("unable to access to %s\n"), FPSTR(slotsFile));
             goto server_slot_remove_end;
         }
         _DBGF(
@@ -266,7 +255,7 @@ void serverSlotRemove()
         slotResetDefaults(slotsObject, slotIndex);
 
         if(!slotSetData(slotsObject))
-            _DBGN(F("failed to write to slots.bin"));
+            _DBGF(PSTR("failed to write to %s\n"), FPSTR(slotsFile));
         else
             result = true;
     }
@@ -274,7 +263,7 @@ void serverSlotRemove()
     setResetParameters();
     _DBGN(F("slot has been removed, parameters now reset to defaults"));
     // also reset resolution
-    rto->resolutionID = Output240p;
+    uopt->resolutionID = Output240p;
 
 server_slot_remove_end:
     server.send(200, mimeAppJson, result ? F("[\"ok\"]") : F("[\"fail\"]"));
@@ -406,7 +395,7 @@ void serverBackupDownload()
                     // let's leave here a "stop string" for now. The principle of
                     // slots storage may need to change to allow the simplier logic.
                     _b.println("\t\t");
-                    _DBGN(F("slots.bin dump complete"));
+                    _DBGF(PSTR("%s dump complete\n"), FPSTR(slotsFile));
                 } */
                 _f.close();
             }
@@ -496,9 +485,9 @@ void extractBackup() {
                     _f = LittleFS.open(FPSTR(slotsFile), "w");
                     _f.write((byte *)&slotsObject, sizeof(slotsObject));
                     _f.close();
-                    _DBGN(F("slots.bin extraction complete"));
+                    _DBGF(PSTR("%s extraction complete\n"), FPSTR(slotsFile));
                 } else
-                    _DBGN(F("unable to open/create slots.bin"));
+                    _DBGF(PSTR("unable to open/create %s\n"), FPSTR(slotsFile));
             } */
         }
     }
@@ -542,17 +531,6 @@ void extractBackup() {
 // }
 
 /**
- * @brief Do not use format method.
- *      We need a soft method to be able to remove all files
- *      except ones that strictly required
- *
- */
-// void serverFsFormat()
-// {
-//     server.send(200, mimeAppJson, LittleFS.format() ? F("[\"ok\"]") : F("[\"fail\"]"));
-// }
-
-/**
  * @brief
  *
  */
@@ -575,9 +553,9 @@ void serverWiFiStatus()
 //     bool result = false;
 //     if (slotGetData(slotsObject))
 //     {
-//         uopt->wantScanlines = slotsObject.slot[uopt->presetSlot].scanlines;
+//         uopt->wantScanlines = slotsObject.slot[uopt->slotID].scanlines;
 
-//         _WSF(PSTR("slot: %s (ID %d) scanlines: "), slotsObject.slot[uopt->presetSlot].name, uopt->presetSlot);
+//         _WSF(PSTR("slot: %s (ID %d) scanlines: "), slotsObject.slot[uopt->slotID].name, uopt->slotID);
 //         if (uopt->wantScanlines)
 //         {
 //             _WSN(F("on (Line Filter recommended)"));
@@ -589,10 +567,10 @@ void serverWiFiStatus()
 //         }
 //         saveUserPrefs();
 
-//         uopt->scanlineStrength = slotsObject.slot[uopt->presetSlot].scanlinesStrength;
-//         uopt->wantVdsLineFilter = slotsObject.slot[uopt->presetSlot].wantVdsLineFilter;
-//         uopt->wantStepResponse = slotsObject.slot[uopt->presetSlot].wantStepResponse;
-//         uopt->wantPeaking = slotsObject.slot[uopt->presetSlot].wantPeaking;
+//         uopt->scanlineStrength = slotsObject.slot[uopt->slotID].scanlinesStrength;
+//         uopt->wantVdsLineFilter = slotsObject.slot[uopt->slotID].wantVdsLineFilter;
+//         uopt->wantStepResponse = slotsObject.slot[uopt->slotID].wantStepResponse;
+//         uopt->wantPeaking = slotsObject.slot[uopt->slotID].wantPeaking;
 //         result = true;
 //     }
 
@@ -671,17 +649,6 @@ void serverWiFiWPS()
     // }
 }
 
-// void serverWiFiConnect()
-// {
-//     String ssid = server.arg("n");
-//     String pwd = server.arg("p");
-//     if (ssid.length() != 0) { // could be open
-//         wifiStartStaMode(ssid, pwd);
-//         server.send(200, mimeTextHtml, PSTR("connecting..."));
-//     } else
-//         server.send(406, mimeTextHtml, PSTR("empty ssid..."));
-// }
-
 /**
  * @brief switch WiFi in STA mode
  *
@@ -697,7 +664,7 @@ void serverWiFiConnect()
     } else
         server.send(406, mimeAppJson, F("[]"));
 
-    resetInMSec(1000);
+    resetInMSec(2000);
 }
 
 /**
@@ -812,7 +779,7 @@ void printInfo()
 void printVideoTimings()
 {
     // if (rto->presetID < 0x20) {
-    if (rto->resolutionID != PresetHdBypass && rto->resolutionID != PresetBypassRGBHV)
+    if (uopt->resolutionID != PresetHdBypass && uopt->resolutionID != PresetBypassRGBHV)
     {
         // horizontal
         _WSF(
@@ -942,10 +909,10 @@ void handleSerialCommand()
             serialCommand,
             serialCommand,
             // uopt->presetPreference,
-            uopt->presetSlot,
+            uopt->slotID,
             // rto->presetID
-            rto->resolutionID,
-            rto->resolutionID);
+            uopt->resolutionID,
+            uopt->resolutionID);
         // multistage with bad characters?
         if (inputStage > 0)
         {
@@ -1043,7 +1010,7 @@ void handleSerialCommand()
             {
                 // if (uopt->wantPeaking == 0) { GBS::VDS_PK_Y_H_BYPS::write(1); } // 3_4e 0
                 // if (rto->presetID == 0x05) {
-                if (rto->resolutionID == Output1080p)
+                if (uopt->resolutionID == Output1080p)
                 {
                     GBS::VDS_PK_LB_GAIN::write(0x16); // 3_45
                     GBS::VDS_PK_LH_GAIN::write(0x0A); // 3_47
@@ -1125,7 +1092,7 @@ void handleSerialCommand()
         case 'K': // set outputBypass
             setOutModeHdBypass(false);
             // uopt->presetPreference = OutputBypass;
-            rto->resolutionID = OutputBypass;
+            uopt->resolutionID = OutputBypass;
             _WSN(F("OutputBypass mode is now active"));
             saveUserPrefs();
             break;
@@ -1388,16 +1355,12 @@ void handleSerialCommand()
             uint8_t videoMode = getVideoMode();
             if (videoMode == 0)
                 videoMode = rto->videoStandardInput;
-            // OutputResolution backup = rto->presetID;
-            OutputResolution backup = rto->resolutionID;
+            // OutputResolution backup = uopt->resolutionID;
             // uopt->presetPreference = Output720P;
-            // rto->presetID = Output720p;
-            rto->resolutionID = Output720p;
+            // uopt->resolutionID = Output720p;
             rto->videoStandardInput = 0; // force hard reset
             applyPresets(videoMode);
-            // rto->presetID = backup;
-            rto->resolutionID = backup;
-            // uopt->presetPreference = backup;
+            // uopt->resolutionID = backup;
             saveUserPrefs();
         }
         break;
@@ -1415,12 +1378,12 @@ void handleSerialCommand()
             slotFlush();
             uint8_t vidMode = getVideoMode();
             // if (uopt->presetPreference == 0 && GBS::GBS_PRESET_ID::read() == 0x11) {
-            if (rto->resolutionID == Output240p && GBS::GBS_PRESET_ID::read() == Output960p50)
+            if (uopt->resolutionID == Output240p && GBS::GBS_PRESET_ID::read() == Output960p50)
             {
                 applyPresets(vidMode);
                 // } else if (uopt->presetPreference == 4 && GBS::GBS_PRESET_ID::read() == 0x02) {
             }
-            else if (rto->resolutionID == Output1024p && GBS::GBS_PRESET_ID::read() == Output1024p)
+            else if (uopt->resolutionID == Output1024p && GBS::GBS_PRESET_ID::read() == Output1024p)
             {
                 applyPresets(vidMode);
             }
@@ -2009,11 +1972,9 @@ void handleUserCommand()
             "user",
             userCommand,
             userCommand,
-            // uopt->presetPreference,
-            uopt->presetSlot,
-            // rto->presetID
-            rto->resolutionID,
-            rto->resolutionID);
+            uopt->slotID,
+            uopt->resolutionID,
+            uopt->resolutionID);
         switch (userCommand)
         {
         case '0':
@@ -2023,17 +1984,13 @@ void handleUserCommand()
                 _WSN(F("on"));
             else
                 _WSN(F("off"));
-            // saveUserPrefs();
             slotFlush();
             break;
         case '1':               // reset to defaults button
             loadDefaultUserOptions();
             saveUserPrefs();
             _WSN(F("options set to defaults, restarting"));
-            // delay(100);
-            // ESP.reset(); // don't use restart(), messes up websocket reconnects
-            resetInMSec(1000);
-            //
+            resetInMSec(2000);
             break;
         case '2':
             //
@@ -2041,7 +1998,6 @@ void handleUserCommand()
         case '3': // before: load custom preset, now: slot change
         {
             // @sk: see serverSlotSet()
-            // uopt->presetPreference = OutputCustomized; // custom
             // TODO: unknown logic
             if (rto->videoStandardInput == 14) {
                 // vga upscale path: let synwatcher handle it
@@ -2054,11 +2010,7 @@ void handleUserCommand()
             saveUserPrefs();
         }
         break;
-        // case '4': // save custom preset
-        //     savePresetToFS();
-        //     // uopt->presetPreference = OutputCustomized; // custom
-        //     rto->resolutionID = OutputCustom; // custom
-        //     saveUserPrefs();
+        // case '4':
         //     break;
         case '5':
             // Frame Time Lock toggle
@@ -2107,46 +2059,32 @@ void handleUserCommand()
         //    break;
         case 'e': // print files on data
         {
+            _WSN(F("file system:"));
             fs::Dir dir = LittleFS.openDir("/");
             while (dir.next())
             {
                 _WSF(
-                    PSTR("%s %ld\n"),
+                    PSTR("  %s %ld\n"),
                     dir.fileName().c_str(),
                     dir.fileSize());
-                // delay(1); // wifi stack
             }
             //
             fs::File f = LittleFS.open(FPSTR(preferencesFile), "r");
             if (!f)
             {
-                _WSN(F("\nfailed opening preferences file"));
+                _WSN(F("\nfailed to read system preferences"));
             }
             else
             {
                 _WSF(
-                    PSTR("\npresetNameID = %c\npreset slot = %c\nframe time lock = %c\n" \
-                        "frame lock method = %c\nauto gain = %c\n" \
-                        "scanlines = %c\ncomponent output = %c\ndeinterlacer mode = %c\n" \
-                        "line filter = %c\npeaking = %c\npreferScalingRgbhv = %c\n" \
-                        "6-tap = %c\npal force60 = %c\nmatched = %c\n" \
-                        "step response = %c\ndisable external clock generator = %c\n"),
+                    PSTR("\nsystem preferences:\n  slot ID = %d\n  component out. = %d\n  scaling RGBHV = %d\n" \
+                        "  ADC calibration = %d\n  ext. clock gen. = %d\n"),
                     f.read(),
                     f.read(),
                     f.read(),
                     f.read(),
-                    f.read(),
-                    f.read(),
-                    f.read(),
-                    f.read(),
-                    f.read(),
-                    f.read(),
-                    f.read(),
-                    f.read(),
-                    f.read(),
-                    f.read(),
-                    f.read(),
-                    f.read());
+                    f.read()
+                );
 
                 f.close();
             }
@@ -2174,26 +2112,26 @@ void handleUserCommand()
             // TODO missing resolutions below ?
             if (userCommand == 'f')
                 // uopt->presetPreference = Output960P; // 1280x960
-                rto->resolutionID = Output960p; // 1280x960
+                uopt->resolutionID = Output960p; // 1280x960
             if (userCommand == 'g')
                 // uopt->presetPreference = Output720P; // 1280x720
-                rto->resolutionID = Output720p; // 1280x720
+                uopt->resolutionID = Output720p; // 1280x720
             if (userCommand == 'h')
                 // uopt->presetPreference = Output480P; // 720x480/768x576
-                rto->resolutionID = Output480p; // 720x480/768x576
+                uopt->resolutionID = Output480p; // 720x480/768x576
             if (userCommand == 'p')
                 // uopt->presetPreference = Output1024P; // 1280x1024
-                rto->resolutionID = Output1024p; // 1280x1024
+                uopt->resolutionID = Output1024p; // 1280x1024
             if (userCommand == 's')
                 // uopt->presetPreference = Output1080P; // 1920x1080
-                rto->resolutionID = Output1080p; // 1920x1080
+                uopt->resolutionID = Output1080p; // 1920x1080
             if (userCommand == 'L')
                 // uopt->presetPreference = OutputDownscale; // downscale
-                rto->resolutionID = Output15kHz; // downscale
+                uopt->resolutionID = Output15kHz; // downscale
             if (userCommand == 'k')
-                rto->resolutionID = Output576p50; // PAL
+                uopt->resolutionID = Output576p50; // PAL
             if (userCommand == 'j')
-                rto->resolutionID = Output240p; // 240p
+                uopt->resolutionID = Output240p; // 240p
 
             rto->useHdmiSyncFix = 1; // disables sync out when programming preset
             if (rto->videoStandardInput == 14)
@@ -2205,7 +2143,7 @@ void handleUserCommand()
             else
             {
                 // normal path
-                _DBGF(PSTR("apply preset of videoMode: %d resolution: %d\n"), videoMode,  rto->resolutionID);
+                _DBGF(PSTR("apply preset of videoMode: %d resolution: %d\n"), videoMode,  uopt->resolutionID);
                 applyPresets(videoMode);
             }
             saveUserPrefs();
@@ -2426,7 +2364,7 @@ void handleUserCommand()
         case 'u':       // extract backup
             extractBackup();
             // reset device to apply new configuration
-            resetInMSec(1000);
+            resetInMSec(2000);
         case 'v':
         {
             uopt->wantFullHeight = !uopt->wantFullHeight;
@@ -2434,7 +2372,7 @@ void handleUserCommand()
             slotFlush();
             uint8_t vidMode = getVideoMode();
             // if (uopt->presetPreference == 5) {
-            if (rto->resolutionID == Output1080p)
+            if (uopt->resolutionID == Output1080p)
             {
                 if (GBS::GBS_PRESET_ID::read() == 0x05 || GBS::GBS_PRESET_ID::read() == 0x15)
                 {
@@ -2707,6 +2645,27 @@ void initUpdateOTA()
             _WSN(F("End Failed"));
     });
     ArduinoOTA.begin();
+}
+
+
+/**
+ * @brief This is destructive method for all the previously saved
+ *        slots and presets. As a result you'll get completely clean
+ *        filesystem just as before the first start.
+ *
+ * @return true
+ * @return false
+ */
+void fsToFactory() {
+    fs::Dir root = LittleFS.openDir("/");
+    String index = String(indexPage);
+    while (root.next())
+    {
+        String fn = root.fileName();
+        if (fn.compareTo(index) != 0)
+            LittleFS.remove(fn);
+        delay(50);
+    }
 }
 
 #endif // defined(ESP8266)

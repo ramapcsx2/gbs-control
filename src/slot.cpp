@@ -3,7 +3,7 @@
 # File: slot.cpp                                                          #
 # File Created: Friday, 31st May 2024 8:41:15 am                          #
 # Author: Sergey Ko                                                       #
-# Last Modified: Saturday, 1st June 2024 12:18:10 pm                      #
+# Last Modified: Sunday, 2nd June 2024 5:26:25 pm                         #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -21,14 +21,14 @@
  */
 bool slotLoad(const uint8_t & slotIndex) {
     SlotMetaArray slotsObject;
-    uopt->presetSlot = slotIndex;
+    uopt->slotID = slotIndex;
     fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "r");
     if (slotsBinaryFile)
     {
         slotsBinaryFile.read((byte *)&slotsObject, sizeof(slotsObject));
         slotsBinaryFile.close();
         // update parameters
-        rto->resolutionID = slotsObject.slot[slotIndex].resolutionID;
+        uopt->resolutionID = slotsObject.slot[slotIndex].resolutionID;
         uopt->wantScanlines = slotsObject.slot[slotIndex].scanlines;
         uopt->scanlineStrength = slotsObject.slot[slotIndex].scanlinesStrength;
         uopt->wantVdsLineFilter = slotsObject.slot[slotIndex].wantVdsLineFilter;
@@ -66,7 +66,7 @@ void slotUpdate(SlotMetaArray & slotsObject, const uint8_t & slotIndex, String *
             k ++;
         }
     }
-    slotsObject.slot[slotIndex].resolutionID = rto->resolutionID;
+    slotsObject.slot[slotIndex].resolutionID = uopt->resolutionID;
     slotsObject.slot[slotIndex].scanlines = uopt->wantScanlines;
     slotsObject.slot[slotIndex].scanlinesStrength = uopt->scanlineStrength;
     slotsObject.slot[slotIndex].wantVdsLineFilter = uopt->wantVdsLineFilter;
@@ -102,24 +102,24 @@ int8_t slotGetData(SlotMetaArray & slotsObject) {
         return 1;
     }
 
-    _DBGN(F("(?) /slots.bin not found"));
+    _DBGF(PSTR("%s not found\n"), FPSTR(slotsFile));
     String slot_name = String(emptySlotName);
     while (i < SLOTS_TOTAL)
     {
         slotsObject.slot[i].scanlines = 0;
         slotsObject.slot[i].resolutionID = Output240p;
-        slotsObject.slot[i].scanlinesStrength = 0;
-        slotsObject.slot[i].wantVdsLineFilter = false;
-        slotsObject.slot[i].wantStepResponse = true;
-        slotsObject.slot[i].wantPeaking = true;
-        slotsObject.slot[i].enableAutoGain = false;
-        slotsObject.slot[i].enableFrameTimeLock = false;
-        slotsObject.slot[i].frameTimeLockMethod = false;
-        slotsObject.slot[i].deintMode = false;
-        slotsObject.slot[i].wantTap6 = false;
-        slotsObject.slot[i].wantFullHeight = false;
-        slotsObject.slot[i].matchPresetSource = false;
-        slotsObject.slot[i].PalForce60 = false;
+        slotsObject.slot[i].scanlinesStrength = 0x30;
+        slotsObject.slot[i].wantVdsLineFilter = 0;
+        slotsObject.slot[i].wantStepResponse = 1;
+        slotsObject.slot[i].wantPeaking = 1;
+        slotsObject.slot[i].enableAutoGain = 0;
+        slotsObject.slot[i].enableFrameTimeLock = 0;
+        slotsObject.slot[i].frameTimeLockMethod = 0;
+        slotsObject.slot[i].deintMode = 0;
+        slotsObject.slot[i].wantTap6 = 0;
+        slotsObject.slot[i].wantFullHeight = 0;
+        slotsObject.slot[i].matchPresetSource = 0;
+        slotsObject.slot[i].PalForce60 = 0;
         strncpy(slotsObject.slot[i].name,
             slot_name.c_str(),
             sizeof(slotsObject.slot[i].name)
@@ -128,7 +128,7 @@ int8_t slotGetData(SlotMetaArray & slotsObject) {
         delay(1);
     }
     // file doesn't exist, let's create one
-    _DBG(F("attempt to write to slots.bin..."));
+    _DBGF(PSTR("attempt to write to %s\n"), FPSTR(slotsFile));
     slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "w");
     if(slotsBinaryFile) {
         slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
@@ -158,7 +158,7 @@ bool slotSetData(SlotMetaArray & slotsObject) {
 }
 
 /**
- * @brief Updates slots.bin with new parameters of current slot
+ * @brief Updates slots.bin with new parameter values of the current slot
  *
  * @return true
  * @return false
@@ -169,12 +169,33 @@ bool slotFlush() {
     if(slotGetData(slotObject) == -1)
         return false;
     // update current slot
-    slotUpdate(slotObject, uopt->presetSlot);
+    slotUpdate(slotObject, uopt->slotID);
     // write back the data
     if(!slotSetData(slotObject))
         return false;
 
-    _DBGF(PSTR("slot %d updated\n"), uopt->presetSlot);
+    _DBGF(PSTR("slot %d updated\n"), uopt->slotID);
+    return true;
+}
+
+/**
+ * @brief This does slot[slotIndex] parameter reset to
+ *      default values (see: slotResetDefaults) and saves it into slots.bin
+ *
+ * @return true
+ * @return false
+ */
+bool slotResetFlush(const uint8_t & slotIndex) {
+    SlotMetaArray slotObject;
+    // retrieve data
+    if(slotGetData(slotObject) == -1)
+        return false;
+    slotResetDefaults(slotObject, slotIndex);
+    // write back the data
+    if(!slotSetData(slotObject))
+        return false;
+
+    _DBGF(PSTR("slot %d reset success\n"), slotIndex);
     return true;
 }
 
@@ -208,9 +229,8 @@ void slotResetDefaults(SlotMetaArray & slotsObject, const uint8_t & slotIndex) {
     );
     // if that was current slot, also reset the runtime paramters
     // TODO: see loadDefaultUserOptions()
-    if(slotIndex == uopt->presetSlot) {
-        // uopt->presetPreference = Output960P;
-        rto->resolutionID = Output240p;
+    if(slotIndex == uopt->slotID) {
+        uopt->resolutionID = Output240p;
         uopt->wantScanlines = 0;
         uopt->scanlineStrength = 0x30;
         uopt->wantVdsLineFilter = 0;

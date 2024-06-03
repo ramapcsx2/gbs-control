@@ -1,10 +1,22 @@
 {
     "name": "gbscontrol-webui",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "gbscontrol-webui",
     "scripts": {
         "watch": "tsc --project ./tsconfig.json --watch",
         "build": "tsc --project ./tsconfig.json && cd ./public/scripts && node ./build.js && ./html2h.sh"
+    },
+    "prettier": {
+        "trailingComma": "es5",
+        "tabWidth": 4,
+        "tabs": false,
+        "semi": false,
+        "bracketSpacing": true,
+        "singleQuote": true,
+        "bracketSameLine": true,
+        "requirePragma": false,
+        "insertPragma": false,
+        "proseWrap": "preserve"
     },
     "author": "",
     "license": "GNU",

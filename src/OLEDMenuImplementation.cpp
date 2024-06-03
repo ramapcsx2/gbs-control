@@ -34,19 +34,22 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
     // OutputResolution preset = OutputBypass;
     OutputResolution preset = Output240p;
     switch (item->tag) {
-        case MT_1280x960:
-            preset = Output960p;
+        case MT1920x1080:
+            preset = Output1080p;
             break;
         case MT1280x1024:
             preset = Output1024p;
             break;
+        case MT_1280x960:
+            preset = Output960p;
+            break;
         case MT1280x720:
             preset = Output720p;
             break;
-        case MT1920x1080:
-            preset = Output1080p;
+        case MT_768x576:
+            preset = Output576p50;
             break;
-        case MT_480s576:
+        case MT_720x480:
             preset = Output480p;
             break;
         case MT_DOWNSCALE:
@@ -61,10 +64,10 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
     if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read()) {
         videoMode = rto->videoStandardInput;
     }
+    uopt->resolutionID = preset;
     if (item->tag != MT_BYPASS) {
         // uopt->presetPreference = preset;
         // rto->presetID= preset;
-        rto->resolutionID = preset;
         rto->useHdmiSyncFix = 1;
         if (rto->videoStandardInput == 14) {
             rto->videoStandardInput = 15;
@@ -75,7 +78,6 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
         setOutModeHdBypass(false);
         // uopt->presetPreference = preset;
         // rto->presetID = preset;
-        rto->resolutionID = preset;
         if (rto->videoStandardInput != 15) {
             rto->autoBestHtotalEnabled = 0;
             if (rto->applyPresetDoneStage == 11) {
@@ -117,11 +119,11 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     display->drawString(OLED_MENU_WIDTH / 2, 16, item->str);
     display->drawXbm((OLED_MENU_WIDTH - TEXT_LOADED_WIDTH) / 2, OLED_MENU_HEIGHT / 2, IMAGE_ITEM(TEXT_LOADED));
     display->display();
-    // uopt->presetSlot = 'A' + item->tag; // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,
-    uopt->presetSlot = item->tag;
+    // uopt->slotID = 'A' + item->tag; // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,
+    uopt->slotID = item->tag;
     // now we're free to load new slot data
-    if(!slotLoad(uopt->presetSlot)) {
-        _DBGN(F("unable to read /slots.bin"));
+    if(!slotLoad(uopt->slotID)) {
+        _DBGF(PSTR("unable to read %s\n"), FPSTR(slotsFile));
     }
     // uopt->presetPreference = OutputResolution::OutputCustomized;
     // saveUserPrefs();
@@ -158,8 +160,9 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     // if (slotsBinaryFileRead) {
     //     slotsBinaryFileRead.read((byte *)&slotsObject, sizeof(slotsObject));
     //     slotsBinaryFileRead.close();
+        int i = 0;
         String slot_name = String(emptySlotName);
-        for (int i = 0; i < SLOTS_TOTAL; ++i) {
+        while (i < SLOTS_TOTAL) {
             const SlotMeta &slot = slotsObject.slot[i];
             if (strncmp(slot_name.c_str(), slot.name, sizeof(slot.name)) == 0) {
                 continue;
@@ -169,6 +172,7 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
                 break;
             }
             manager->registerItem(item, i/* slot.slot */, slot.name, presetSelectionMenuHandler);
+            i++;
         }
     }
     // show notice for user to go to webUI
@@ -226,13 +230,13 @@ bool resetMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav,
             WiFi.disconnect();
             break;
         case MT_RESTORE_FACTORY:
-            loadDefaultUserOptions();
-            saveUserPrefs();
+            fsToFactory();
             break;
     }
     manager->freeze();
     oledMenuFreezeStartTime = millis();
     oledMenuFreezeTimeoutInMS = 2000; // freeze for 2 seconds
+    resetInMSec(2500);
     return false;
 }
 
@@ -278,33 +282,33 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
         float ofr = getOutputFrameRate();
         uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
         // rto->presetID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
-        rto->resolutionID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
+        // uopt->resolutionID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
 
         display.setFont(URW_Gothic_L_Book_20);
         display.setTextAlignment(TEXT_ALIGN_LEFT);
 
         // if (rto->presetID == 0x01 || rto->presetID == 0x11) {
-        if (rto->resolutionID == Output960p || rto->resolutionID == Output960p50) {
+        if (uopt->resolutionID == Output960p || uopt->resolutionID == Output960p50) {
             display.drawString(0, 0, "1280x960");
         // } else if (rto->presetID == 0x02 || rto->presetID == 0x12) {
-        } else if (rto->resolutionID == Output1024p || rto->resolutionID == Output1024p50) {
+        } else if (uopt->resolutionID == Output1024p || uopt->resolutionID == Output1024p50) {
             display.drawString(0, 0, "1280x1024");
         // } else if (rto->presetID == 0x03 || rto->presetID == 0x13) {
-        } else if (rto->resolutionID == Output720p || rto->resolutionID == Output720p50) {
+        } else if (uopt->resolutionID == Output720p || uopt->resolutionID == Output720p50) {
             display.drawString(0, 0, "1280x720");
         // } else if (rto->presetID == 0x05 || rto->presetID == 0x15) {
-        } else if (rto->resolutionID == Output1080p || rto->resolutionID == Output1080p50) {
+        } else if (uopt->resolutionID == Output1080p || uopt->resolutionID == Output1080p50) {
             display.drawString(0, 0, "1920x1080");
         // } else if (rto->presetID == 0x06 || rto->presetID == 0x16) {
-        } else if (rto->resolutionID == Output15kHz || rto->resolutionID == Output15kHz50) {
+        } else if (uopt->resolutionID == Output15kHz || uopt->resolutionID == Output15kHz50) {
             display.drawString(0, 0, "Downscale");
         // } else if (rto->presetID == 0x04) {
-        } else if (rto->resolutionID == Output720p) {
+        } else if (uopt->resolutionID == Output720p) {
             display.drawString(0, 0, "720x480");
         // } else if (rto->presetID == 0x14) {
-        } else if (rto->resolutionID == Output576p50) {
-            display.drawString(0, 0, "768x576");        // ??? 720x576 ???
-        } else if (rto->resolutionID == OutputBypass) { // OutputBypass
+        } else if (uopt->resolutionID == Output576p50) {
+            display.drawString(0, 0, "768x576");
+        } else if (uopt->resolutionID == OutputBypass) { // OutputBypass
             display.drawString(0, 0, "bypass");
         } else {
             display.drawString(0, 0, "240p");
@@ -446,8 +450,8 @@ void initOLEDMenu()
 
     // Resolutions
     OLEDMenuItem *resMenu = oledMenu.registerItem(root, MT_NULL, IMAGE_ITEM(OM_RESOLUTION));
-    const char *resolutions[5] = {"1280x960", "1280x1024", "1280x720", "1920x1080", "480/576"};
-    uint8_t tags[5] = {MT_1280x960, MT1280x1024, MT1280x720, MT1920x1080, MT_480s576};
+    const char *resolutions[6] = {"1920x1080", "1280x1024", "1280x960", "1280x720", "768x576", "720x480" };
+    uint8_t tags[6] =            {MT1920x1080, MT1280x1024, MT_1280x960, MT1280x720, MT_768x576, MT_720x480};
     for (int i = 0; i < 5; ++i) {
         oledMenu.registerItem(resMenu, tags[i], resolutions[i], resolutionMenuHandler);
     }

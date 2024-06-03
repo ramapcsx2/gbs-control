@@ -1,4 +1,8 @@
-# gbs-control
+<p align="center">
+
+![GBS-Control](./doc/img/logo.jpg)
+
+</p>
 
 <p>
 
@@ -6,7 +10,9 @@
 
 </p>
 
-Gbscontrol is an alternative firmware for Tvia Trueview5725 based upscalers / video converter boards.  
+## GBS-Control
+
+GBS-Control is an alternative firmware for Tvia Trueview5725 based upscalers / video converter boards.  
 Its growing list of features includes:   
 - very low lag
 - sharp and defined upscaling, comparing well to other -expensive- units

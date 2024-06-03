@@ -3,7 +3,7 @@
 # File: utils.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 5:37:47 pm                                   #
 # Author:                                                                           #
-# Last Modified: Friday, 31st May 2024 11:09:56 pm                        #
+# Last Modified: Sunday, 2nd June 2024 4:36:33 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -446,40 +446,53 @@ void dumpRegisters(byte segment)
     if (segment > 5)
         return;
     writeOneByte(0xF0, segment);
-
+    int x = 0x40;
     switch (segment) {
         case 0:
-            for (int x = 0x40; x <= 0x5F; x++) {
+            do {
                 printReg(0, x);
-            }
-            for (int x = 0x90; x <= 0x9F; x++) {
+                x++;
+            } while(x <= 0x5F);
+            x = 0x90;
+            do {
                 printReg(0, x);
-            }
+                x++;
+            } while(x <= 0x9F);
             break;
         case 1:
-            for (int x = 0x0; x <= 0x2F; x++) {
+            x = 0x0;
+            do {
                 printReg(1, x);
-            }
+                x++;
+            } while(x <= 0x2F);
             break;
         case 2:
-            for (int x = 0x0; x <= 0x3F; x++) {
+            x = 0x0;
+            do {
                 printReg(2, x);
-            }
+                x++;
+            } while(x <= 0x3F);
             break;
         case 3:
-            for (int x = 0x0; x <= 0x7F; x++) {
+            x = 0x0;
+            do {
                 printReg(3, x);
-            }
+                x++;
+            } while(x <= 0x7F);
             break;
         case 4:
-            for (int x = 0x0; x <= 0x5F; x++) {
+            x = 0x0;
+            do {
                 printReg(4, x);
-            }
+                x++;
+            } while(x <= 0x5F);
             break;
         case 5:
-            for (int x = 0x0; x <= 0x6F; x++) {
+            x = 0x0;
+            do {
                 printReg(5, x);
-            }
+                x++;
+            } while(x <= 0x6F);
             break;
     }
 }
@@ -488,25 +501,25 @@ void dumpRegisters(byte segment)
  * @brief
  *
  */
-void readEeprom()
-{
-    int addr = 0;
-    const uint8_t eepromAddr = 0x50;
-    Wire.beginTransmission(eepromAddr);
-    // if (addr >= 0x1000) { addr = 0; }
-    Wire.write(addr >> 8);     // high addr byte, 4 bits +
-    Wire.write((uint8_t)addr); // low addr byte, 8 bits = 12 bits (0xfff max)
-    Wire.endTransmission();
-    Wire.requestFrom(eepromAddr, (uint8_t)128);
-    uint8_t readData = 0;
-    uint8_t i = 0;
-    while (Wire.available()) {
-        readData = Wire.read();
-        _WSF(PSTR("addr 0x%04X : 0x%04X\n"), i, readData);
-        // addr++;
-        i++;
-    }
-}
+// void readEeprom()
+// {
+//     int addr = 0;
+//     const uint8_t eepromAddr = 0x50;
+//     Wire.beginTransmission(eepromAddr);
+//     // if (addr >= 0x1000) { addr = 0; }
+//     Wire.write(addr >> 8);     // high addr byte, 4 bits +
+//     Wire.write((uint8_t)addr); // low addr byte, 8 bits = 12 bits (0xfff max)
+//     Wire.endTransmission();
+//     Wire.requestFrom(eepromAddr, (uint8_t)128);
+//     uint8_t readData = 0;
+//     uint8_t i = 0;
+//     while (Wire.available()) {
+//         readData = Wire.read();
+//         _WSF(PSTR("addr 0x%04X : 0x%04X\n"), i, readData);
+//         // addr++;
+//         i++;
+//     }
+// }
 
 /**
  * @brief

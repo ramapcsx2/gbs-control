@@ -3,7 +3,7 @@
 # File: video.h                                                                     #
 # File Created: Thursday, 2nd May 2024 4:08:03 pm                                   #
 # Author:                                                                           #
-# Last Modified: Tuesday, 7th May 2024 3:31:47 pm                         #
+# Last Modified: Sunday, 2nd June 2024 12:35:31 am                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -37,7 +37,7 @@ bool getStatus16SpHsStable();
 float getSourceFieldRate(bool useSPBus);
 float getOutputFrameRate();
 void externalClockGenSyncInOutRate();
-void externalClockGenDetectAndInitialize();
+int8_t externalClockGenDetectAndInitialize();
 void externalClockGenResetClock();
 void setExternalClockGenFrequencySmooth(uint32_t freq);
 bool applyBestHTotal(uint16_t bestHTotal);

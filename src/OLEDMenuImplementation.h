@@ -8,6 +8,7 @@
 #include "OSDManager.h"
 #include "fonts.h"
 #include "slot.h"
+#include "wserver.h"
 
 extern void applyPresets(uint8_t videoMode);
 extern void setOutModeHdBypass(bool bypass);
@@ -21,11 +22,12 @@ extern userOptions *uopt;
 enum MenuItemTag: uint16_t {
     // unique identifiers for sub-items
     MT_NULL, // null tag, used by root menu items, since they can be differentiated by handlers
-    MT_1280x960,
-    MT1280x1024,
-    MT1280x720,
     MT1920x1080,
-    MT_480s576,
+    MT1280x1024,
+    MT_1280x960,
+    MT1280x720,
+    MT_720x480,
+    MT_768x576,
     MT_DOWNSCALE,
     MT_BYPASS,
     MT_RESET_GBS,

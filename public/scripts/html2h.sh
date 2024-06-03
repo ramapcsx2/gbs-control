@@ -11,7 +11,7 @@
 cd ../../data
 gzip -c9 webui.html > __index
 
-rm -f webui.html
+rm -f webui.html .??*
 
 # echo "webui_html.h GENERATED";
 echo -e "index.html GENERATED\n";

@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Saturday, 1st June 2024 5:31:23 pm                       #
+# Last Modified: Sunday, 2nd June 2024 6:04:19 pm                         #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -92,6 +92,10 @@ void resetInMSec(unsigned long ms) {
  */
 void setup()
 {
+    unsigned long initDelay = millis();
+    bool retryExtClockDetect = false;
+    bool powerOrWireIssue = false;
+
     display.init();                 // inits OLED on I2C bus
     display.flipScreenVertically(); // orientation fix for OLED
 
@@ -107,8 +111,6 @@ void setup()
     Serial.begin(115200); // Arduino IDE Serial Monitor requires the same 115200 bauds!
     Serial.setTimeout(10);
 
-    _DBGN(F("\nstartup\n"));
-
     startWire();
     // run some dummy commands to init I2C to GBS and cached segments
     GBS::SP_SOG_MODE::read();
@@ -116,48 +118,11 @@ void setup()
     writeOneByte(0x00, 0);
     GBS::STATUS_00::read();
 
-    if (rto->webServerEnabled) {
-        rto->allowUpdatesOTA = false;       // need to initialize for wifiLoop()
-        wifiInit();
-        webSocket.begin(); // Websocket for interaction
-        serverInit();
-
-    #ifdef HAVE_PINGER_LIBRARY
-        // pinger library
-        pinger.OnReceive([](const PingerResponse &response) {
-            if (response.ReceivedResponse) {
-                _DBGF(
-                    PSTR("Reply from %s: time=%lums\n"),
-                    response.DestIPAddress.toString().c_str(),
-                    response.ResponseTime);
-
-                pingLastTime = millis() - 900; // produce a fast stream of pings if connection is good
-            } else {
-                _DBGN(F("Request timed out."));
-            }
-
-            // Return true to continue the ping sequence.
-            // If current event returns false, the ping sequence is interrupted.
-            return true;
-        });
-
-        pinger.OnEnd([](const PingerResponse &response) {
-            // detailed info not necessary
-            return true;
-        });
-    #endif                  // HAVE_PINGER_LIBRARY
-        rto->webServerStarted = true;
-    } else {
-        wifiDisable();
-    }
-
 #ifdef HAVE_PINGER_LIBRARY
     pingLastTime = millis();
 #endif
 
     loadDefaultUserOptions();
-    // globalDelay = 0;
-
     rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
     rto->enableDebugPings = false;
     rto->autoBestHtotalEnabled = true; // automatically find the best horizontal total pixel value for a given input timing
@@ -167,8 +132,7 @@ void setup()
     rto->phaseADC = 16;
     rto->phaseSP = 16;
     rto->failRetryAttempts = 0;
-    // rto->presetID = OutputBypass;
-    rto->resolutionID = Output240p;
+    uopt->resolutionID = Output240p;
     rto->isCustomPreset = false;
     rto->HPLLState = 0;
     rto->motionAdaptiveDeinterlaceActive = false;
@@ -211,17 +175,45 @@ void setup()
     adco->g_off = 0;
     adco->b_off = 0;
 
-    // serialCommand = '@'; // ASCII @ = 0
-    // userCommand = '@';
-
     pinMode(DEBUG_IN_PIN, INPUT);
     pinMode(LED_BUILTIN, OUTPUT);
     LEDON; // enable the LED, lets users know the board is starting up
 
-    // Serial.setDebugOutput(true); // if you want simple wifi debug info
+    if (rto->webServerEnabled) {
+        wifiInit();
+        webSocket.begin();
+        serverInit();
+
+    #ifdef HAVE_PINGER_LIBRARY
+        // pinger library
+        pinger.OnReceive([](const PingerResponse &response) {
+            if (response.ReceivedResponse) {
+                _DBGF(
+                    PSTR("Reply from %s: time=%lums\n"),
+                    response.DestIPAddress.toString().c_str(),
+                    response.ResponseTime);
+
+                pingLastTime = millis() - 900; // produce a fast stream of pings if connection is good
+            } else {
+                _DBGN(F("Request timed out."));
+            }
+
+            // Return true to continue the ping sequence.
+            // If current event returns false, the ping sequence is interrupted.
+            return true;
+        });
+
+        pinger.OnEnd([](const PingerResponse &response) {
+            // detailed info not necessary
+            return true;
+        });
+    #endif                  // HAVE_PINGER_LIBRARY
+        rto->webServerStarted = true;
+    } else {
+        wifiDisable();
+    }
 
     // delay 1 of 2
-    unsigned long initDelay = millis();
     // upped from < 500 to < 1500, allows more time for wifi and GBS startup
     while (millis() - initDelay < 1500) {
         display.drawXbm(2, 2, gbsicon_width, gbsicon_height, gbsicon_bits);
@@ -248,77 +240,21 @@ void setup()
             saveUserPrefs(); // if this fails, there must be a data problem
         } else {
             // !###############################
-            // ! preferencesv2.txt structure
+            // ! prefs.dat structure
             // !###############################
-            // on a fresh / data not formatted yet MCU:  userprefs.txt open ok //result = 207
-            // uopt->presetPreference = (OutputResolution)(f.read() - '0'); // #1
-            // if (uopt->presetPreference > 10)
-            //     uopt->presetPreference = Output960P; // fresh data ?
-            uopt->presetSlot = lowByte(f.read());
-
+            uopt->slotID = f.read();
             uopt->wantOutputComponent = f.read();
-            // if (uopt->wantOutputComponent > 1)
-            //     uopt->wantOutputComponent = 0;
-
             uopt->preferScalingRgbhv = f.read();
-            // if (uopt->preferScalingRgbhv > 1)
-            //     uopt->preferScalingRgbhv = 1;
-
             uopt->enableCalibrationADC = f.read(); // #17
-            // if (uopt->enableCalibrationADC > 1)
-            //     uopt->enableCalibrationADC = 1;
-
             uopt->disableExternalClockGenerator = f.read(); // #19
-            // if (uopt->disableExternalClockGenerator > 1)
-            //     uopt->disableExternalClockGenerator = 0;
-
-            // @sk: the commented options were merged with/moved to slots
-            // uopt->enableFrameTimeLock = (uint8_t)(f.read() - '0');
-            // if (uopt->enableFrameTimeLock > 1)
-            //     uopt->enableFrameTimeLock = 0;
-            // uopt->frameTimeLockMethod = (uint8_t)(f.read() - '0');
-            // if (uopt->frameTimeLockMethod > 1)
-            //     uopt->frameTimeLockMethod = 0;
-            // uopt->enableAutoGain = (uint8_t)(f.read() - '0');
-            // if (uopt->enableAutoGain > 1)
-            //     uopt->enableAutoGain = 0;
-            // uopt->wantPeaking = (uint8_t)(f.read() - '0');
-            // if (uopt->wantPeaking > 1)
-            //     uopt->wantPeaking = 1;
-            // uopt->wantScanlines = (uint8_t)(f.read() - '0');
-            // if (uopt->wantScanlines > 1)
-            //     uopt->wantScanlines = 0;
-            // uopt->deintMode = (uint8_t)(f.read() - '0');
-            // if (uopt->deintMode > 2)
-            //     uopt->deintMode = 0;
-            // uopt->wantVdsLineFilter = (uint8_t)(f.read() - '0');
-            // if (uopt->wantVdsLineFilter > 1)
-            //     uopt->wantVdsLineFilter = 0;
-            // uopt->wantTap6 = (uint8_t)(f.read() - '0');
-            // if (uopt->wantTap6 > 1)
-            //     uopt->wantTap6 = 1;
-            // uopt->PalForce60 = (uint8_t)(f.read() - '0');
-            // if (uopt->PalForce60 > 1)
-            //     uopt->PalForce60 = 0;
-            // uopt->matchPresetSource = (uint8_t)(f.read() - '0'); // #14
-            // if (uopt->matchPresetSource > 1)
-            //     uopt->matchPresetSource = 1;
-            // uopt->wantStepResponse = (uint8_t)(f.read() - '0'); // #15
-            // if (uopt->wantStepResponse > 1)
-            //     uopt->wantStepResponse = 1;
-            // uopt->wantFullHeight = (uint8_t)(f.read() - '0'); // #16
-            // if (uopt->wantFullHeight > 1)
-            //     uopt->wantFullHeight = 1;
-            // uopt->scanlineStrength = (uint8_t)(f.read() - '0'); // #18
-            // if (uopt->scanlineStrength > 0x60)
-            //     uopt->enableCalibrationADC = 0x30;
 
             f.close();
         }
     }
 
     GBS::PAD_CKIN_ENZ::write(1); // disable to prevent startup spike damage
-    externalClockGenDetectAndInitialize();
+    if(externalClockGenDetectAndInitialize() == -1)
+        retryExtClockDetect = true;
     // library may change i2c clock or pins, so restart
     startWire();
     GBS::STATUS_00::read();
@@ -333,24 +269,16 @@ void setup()
         delay(1);
     }
 
-    // if (WiFi.status() == WL_CONNECTED) {
-    //     // nothing
-    // } else if (WiFi.SSID().length() == 0) {
-    //     _WSN(ap_info_string);
-    // } else {
-    //     _WSN(F("(WiFi): still connecting.."));
-    //     WiFi.reconnect(); // only valid for station class (ok here)
-    // }
-
     // dummy commands
     GBS::STATUS_00::read();
     GBS::STATUS_00::read();
     GBS::STATUS_00::read();
 
-    bool powerOrWireIssue = 0;
+    // check board vitals
     if (!checkBoardPower()) {
+        int i = 0;
         stopWire(); // sets pinmodes SDA, SCL to INPUT
-        for (int i = 0; i < 40; i++) {
+        while (i < 40) {
             // I2C SDA probably stuck, attempt recovery (max attempts in tests was around 10)
             startWire();
             GBS::STATUS_00::read();
@@ -363,6 +291,7 @@ void setup()
             if ((i % 7) == 0) {
                 delay(1);
             }
+            i++;
         }
 
         // restart and dummy
@@ -379,31 +308,31 @@ void setup()
         } else { // recover success
             rto->syncWatcherEnabled = true;
             rto->boardHasPower = true;
-            _WSN(F("recovered"));
+            _DBGN(F("recovered"));
         }
     }
 
     if (powerOrWireIssue == 0) {
         // second init, in cases where i2c got stuck earlier but has recovered
         // *if* ext clock gen is installed and *if* i2c got stuck, then clockgen must be already running
-        if (!rto->extClockGenDetected) {
+        if (!rto->extClockGenDetected && retryExtClockDetect) {
             externalClockGenDetectAndInitialize();
         }
         if (rto->extClockGenDetected == 1) {
-            _WSN(F("ext clockgen detected"));
+            _DBGN(F("ext clockgen detected"));
         } else {
-            _WSN(F("no ext clockgen"));
+            _DBGN(F("no ext clockgen"));
         }
 
         zeroAll();
         setResetParameters();
         prepareSyncProcessor();
-        // preferencesv2.txt data loaded, load current slot
-        slotLoad(uopt->presetSlot);
+        // prefs data loaded, load current slot
+        slotLoad(uopt->slotID);
 
         uint8_t productId = GBS::CHIP_ID_PRODUCT::read();
         uint8_t revisionId = GBS::CHIP_ID_REVISION::read();
-        _WSF(PSTR("Chip ID: 0x%02X 0x%02X\n"), productId, revisionId);
+        _DBGF(PSTR("Chip ID: 0x%02X 0x%02X\n"), productId, revisionId);
 
         if (uopt->enableCalibrationADC) {
             // enabled by default
@@ -412,9 +341,7 @@ void setup()
         // FIXME double reset?
         // setResetParameters();
 
-        // delay(4); // help wifi (presets are unloaded now)
-        wifiLoop(1);
-        // delay(4);
+        // wifiLoop(1);
 
         // startup reliability test routine
         /*rto->videoStandardInput = 1;

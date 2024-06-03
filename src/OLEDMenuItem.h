@@ -1,5 +1,5 @@
-/* 
-   See https://github.com/PSHarold/OLED-SSD1306-Menu 
+/*
+   See https://github.com/PSHarold/OLED-SSD1306-Menu
    for original code, license and documentation
 */
 #ifndef OLED_MENU_ITEM_H_
@@ -46,12 +46,14 @@ private:
    //  }
     void clearSubItems()
     {
-        for (int i = 0; i < this->numSubItem; ++i) {
+        int i = 0;
+        while (i < this->numSubItem) {
             subItems[i]->used = false;
             subItems[i] = nullptr;
         }
         this->numSubItem = 0;
         this->maxPageIndex = 0;
+        i++;
     }
     void calculate();
 

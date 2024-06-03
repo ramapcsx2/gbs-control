@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Saturday, 1st June 2024 5:11:36 pm                       #
+# Last Modified: Sunday, 2nd June 2024 5:26:25 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -100,9 +100,9 @@ void updateWebSocketData()
             memset(toSend, 0, MESSAGE_LEN);
             // special character # used for message filtering in WebUI
             toSend[0] = '#';
-            toSend[1] = uopt->presetSlot + '0';
+            toSend[1] = uopt->slotID + '0';
             // TODO: resolutionID must be INTEGER too?
-            toSend[2] = (char)rto->resolutionID;
+            toSend[2] = (char)uopt->resolutionID;
             //
             if (uopt->wantScanlines)
                 toSend[3] |= (1 << 0);
@@ -276,8 +276,8 @@ void wifiLoop(bool instant) {
             && millis() > (_connectCheckTime + 10000UL)) {
         // if empty - use last stored credentials
         String s = WiFi.SSID();
-        _DBGF("SSID: %s\n", WiFi.SSID().c_str());
         if(s.length() != 0) {
+            // _DBGF("SSID: %s\n", WiFi.SSID().c_str());
             _connectCheckTime = millis();
             WiFi.reconnect();
         } else {
@@ -333,13 +333,3 @@ int8_t wifiGetRSSI() {
     }
     return 0;
 }
-
-/**
- * @brief Erase previous credentials and reset the device
- *
- */
-// void wifiReset() {
-//     WiFi.disconnect();
-//     delay(100);
-//     ESP.reset();
-// }

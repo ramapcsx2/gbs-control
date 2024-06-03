@@ -3,7 +3,8 @@
     // for the documentation about the extensions.json format
     "recommendations": [
         "platformio.platformio-ide",
-        "psioniq.psi-header"
+        "psioniq.psi-header",
+        "cschlosser.doxdocgen"
     ],
     "unwantedRecommendations": [
         "ms-vscode.cpptools-extension-pack"
