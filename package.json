@@ -3,8 +3,12 @@
     "version": "1.2.0",
     "description": "gbscontrol-webui",
     "scripts": {
-        "watch": "tsc --project ./tsconfig.json --watch",
-        "build": "tsc --project ./tsconfig.json && cd ./public/scripts && node ./build.js && ./html2h.sh"
+        "watch": "run-script-os",
+        "watch:windows": "tsc --project .\\tsconfig.json --watch",
+        "watch:linux:darwin": "tsc --project ./tsconfig.json --watch",
+        "build": "run-script-os",
+        "build:windows": "tsc --project .\\tsconfig.json && start .\\public\\scripts\\build.bat",
+        "build:linux:darwin": "./public/scripts/build.sh"
     },
     "prettier": {
         "trailingComma": "es5",

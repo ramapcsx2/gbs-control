@@ -11,51 +11,79 @@
 // #define FRAMESYNC_DEBUG
 // #define FRAMESYNC_DEBUG_LED                  // just blink LED (off = adjust phase, on = normal phase)
 // #define HAVE_BUTTONS
-#ifdef HAVE_BUTTONS
-#define INPUT_SHIFT 0
-#define DOWN_SHIFT 1
-#define UP_SHIFT 2
-#define MENU_SHIFT 3
-#define BACK_SHIFT 4
-#endif                      // HAVE_BUTTONS
-#if !defined(DISPLAY_SDA)
-// SDA = D2 (Lolin), D14 (Wemos D1) // ESP8266 Arduino default map: SDA
-#define DISPLAY_SDA                     D2
-#endif                      // DISPLAY_SDA
-#if !defined(DISPLAY_SCL)
-// SCL = D1 (Lolin), D15 (Wemos D1) // ESP8266 Arduino default map: SCL
-#define DISPLAY_SCL                     D1
-#endif                      // DISPLAY_SCL
-#if !defined(DEBUG_IN_PIN)
-// marked "D12/MISO/D6" (Wemos D1) or D6 (Lolin NodeMCU)
-#define DEBUG_IN_PIN                    D6   // 12
-#endif                      // DEBUG_IN_PIN
-#define USE_NEW_OLED_MENU               1
+// #define HAVE_PINGER_LIBRARY
 #define PIN_CLK                         14   // D5 = GPIO14 (input of one direction for encoder)
 #define PIN_DATA                        13   // D7 = GPIO13	(input of one direction for encoder)
 #define PIN_SWITCH                      0    // D3 = GPIO0 pulled HIGH, else boot fail (middle push button for encoder)
 #define MENU_WIDTH                      131
 #define MENU_HEIGHT                     19
-#define SLOTS_TOTAL                     50   // max number of slots (UI: GBSControl.maxSlots)
-#define OSD_TIMEOUT                     8000
 #define AUTO_GAIN_INIT                  0x48
 #define THIS_DEVICE_MASTER
-// #define HAVE_PINGER_LIBRARY
+#ifdef HAVE_BUTTONS
+#define INPUT_SHIFT                     0
+#define DOWN_SHIFT                      1
+#define UP_SHIFT                        2
+#define MENU_SHIFT                      3
+#define BACK_SHIFT                      4
+#endif          // HAVE_BUTTONS
+#if !defined(DISPLAY_SDA)
+// SDA = D2 (Lolin), D14 (Wemos D1) // ESP8266 Arduino default map: SDA
+#define DISPLAY_SDA                     D2
+#endif          // DISPLAY_SDA
+#if !defined(DISPLAY_SCL)
+// SCL = D1 (Lolin), D15 (Wemos D1) // ESP8266 Arduino default map: SCL
+#define DISPLAY_SCL                     D1
+#endif          // DISPLAY_SCL
+#if !defined(DEBUG_IN_PIN)
+// marked "D12/MISO/D6" (Wemos D1) or D6 (Lolin NodeMCU)
+#define DEBUG_IN_PIN                    D6   // 12
+#endif          // DEBUG_IN_PIN
+#ifndef SLOTS_TOTAL
+#define SLOTS_TOTAL                     50   // max number of slots (UI: GBSControl.maxSlots)
+#endif          // SLOTS_TOTAL
+
+#ifndef USE_NEW_OLED_MENU
+#define USE_NEW_OLED_MENU               1
+#endif          // USE_NEW_OLED_MENU
 #define OLED_MENU_WIDTH                                 128
 #define OLED_MENU_HEIGHT                                64
-#define OLED_MENU_MAX_SUBITEMS_NUM                      16 // should be less than 256
+#ifndef OLED_MENU_MAX_ITEMS_NUM
 #define OLED_MENU_MAX_ITEMS_NUM                         64    // should be less than 1024
+#endif          // OLED_MENU_MAX_ITEMS_NUM
+#ifndef OLED_MENU_MAX_SUBITEMS_NUM
+#define OLED_MENU_MAX_SUBITEMS_NUM                      16 // should be less than 256
+#endif          // OLED_MENU_MAX_SUBITEMS_NUM
+#ifndef OLED_MENU_MAX_DEPTH
 #define OLED_MENU_MAX_DEPTH                             8 // maximum levels of submenus
+#endif          // OLED_MENU_MAX_DEPTH
+#ifndef OLED_MENU_REFRESH_INTERVAL_IN_MS
 #define OLED_MENU_REFRESH_INTERVAL_IN_MS                50 // not precise
+#endif          // OLED_MENU_REFRESH_INTERVAL_IN_MS
+#ifndef OLED_MENU_SCREEN_SAVER_REFRESH_INTERVAL_IN_MS
 #define OLED_MENU_SCREEN_SAVER_REFRESH_INTERVAL_IN_MS   5000 // not precise
+#endif          // OLED_MENU_SCREEN_SAVER_REFRESH_INTERVAL_IN_MS
+#ifndef OLED_MENU_SCROLL_LEAD_IN_TIME_IN_MS
 #define OLED_MENU_SCROLL_LEAD_IN_TIME_IN_MS             600 // milliseconds before items start to scroll after being selected
+#endif          // OLED_MENU_SCROLL_LEAD_IN_TIME_IN_MS
+#ifndef OLED_MENU_SCREEN_SAVER_KICK_IN_SECONDS
 #define OLED_MENU_SCREEN_SAVER_KICK_IN_SECONDS          180 // after "OLED_MENU_SCREEN_SAVE_KICK_IN_SECONDS" seconds, screen saver will show up until any key is pressed
+#endif          // OLED_MENU_SCREEN_SAVER_KICK_IN_SECONDS
+#ifndef OLED_MENU_OVER_DRAW
 #define OLED_MENU_OVER_DRAW                             0 // if set to 0, the last menu item of a page will not be drawn at all if partially outside the screen, and you need to scroll down to see them
+#endif          // OLED_MENU_OVER_DRAW
+#ifndef OLED_MENU_RESET_ALWAYS_SCROLL_ON_SELECTION
 #define OLED_MENU_RESET_ALWAYS_SCROLL_ON_SELECTION      0 // if set 1, scrolling items will reset to original position on selection
+#endif          // OLED_MENU_RESET_ALWAYS_SCROLL_ON_SELECTION
 #define OLED_MENU_WRAPPING_SPACE                        (OLED_MENU_WIDTH / 3)
+#ifndef REVERSE_ROTARY_ENCODER_FOR_OLED_MENU
 #define REVERSE_ROTARY_ENCODER_FOR_OLED_MENU            0 // if set 1, rotary encoder will be reversed for menu navigation
+#endif          // REVERSE_ROTARY_ENCODER_FOR_OLED_MENU
+#ifndef REVERSE_ROTARY_ENCODER_FOR_OSD
 #define REVERSE_ROTARY_ENCODER_FOR_OSD                  0 // if set 1, rotary encoder will be reversed for OSD navigation
+#endif          // REVERSE_ROTARY_ENCODER_FOR_OSD
+#ifndef OSD_TIMEOUT
 #define OSD_TIMEOUT                                     8000 // OSD will disappear after OSD_TIMEOUT milliseconds without inputs
+#endif          // OSD_TIMEOUT
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) > (b) ? (b) : (a))

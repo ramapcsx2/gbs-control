@@ -133,7 +133,9 @@ public:
 
     static void cleanup()
     {
+        #ifdef FRAMESYNC_DEBUG
         _WSN(F("FrameSyncManager::cleanup(), reset video frequency"));
+        #endif
 
         syncLastCorrection = 0; // the important bit
         syncLockReady = 0;

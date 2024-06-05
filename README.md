@@ -79,6 +79,23 @@ The following diagram represents the structure of system and user configurations
 
 ESP8266 version of GBSC could boot into a firmware upload mode by pressing the knob button while the device is off and connecting it to a computer with USB cable.
 
+### Toolkit
+
+#### Windows
+- [NodeJS](https://nodejs.org)
+- [Git](https://git-scm.com/download/win)
+- [Python 3+](https://www.python.org/downloads)
+
+#### MacOS
+```bash
+brew install node git python@3
+```
+
+#### Linux
+```bash
+your_package_manager install node git python
+```
+
 
 ## Build and Upload<a id="build-n-upload"></a>
 
@@ -108,19 +125,19 @@ http://arduino.esp8266.com/stable/package_esp8266com_index.json
 3. Download/clone the following repositories into your Arduino libraries directory (see: "Preferences - Sketchbook location" + libraries). 
 For more intfrmation please refer to http://www.arduino.cc/en/Guide/Libraries
 
-```
-https://github.com/Links2004/arduinoWebSockets.git
-https://github.com/pavelmc/Si5351mcu.git
-https://github.com/ThingPulse/esp8266-oled-ssd1306.git
+```bash
+git clone https://github.com/Links2004/arduinoWebSockets.git
+git clone https://github.com/pavelmc/Si5351mcu.git
+git clone https://github.com/ThingPulse/esp8266-oled-ssd1306.git
 ```
 
 If you plan to be using ping-library (see: HAVE_PINGER_LIBRARY in options.h) in addition to the above clone/download the following sources:
 
-```
-https://github.com/bluemurder/esp8266-ping.git
+```bash
+git clone https://github.com/bluemurder/esp8266-ping.git
 ```
 
-4. In menu "Tools" select the board "LOLIN(WEMOS) D1 R2 & mini". Then change "Flash size" to "4MB (FS:1MB OTA:~1019KB), "CPU frequency" to 160MHz, "SSL Support" to "Basic SSL cyphers".
+4. In menu "Tools" select the board "LOLIN(WEMOS) D1 R2 & mini". Then change "Flash size" to `4MB (FS:1MB OTA:~1019KB), "CPU frequency" to 160MHz, "SSL Support` to `Basic SSL cyphers`.
 5. Now remove src/main.cpp file. Arduino IDE will NOT compile your project if you omit this step. You can always restore main.cpp from main repository/active branch.
 6. Build/Upload the Project.
 
@@ -147,33 +164,43 @@ If you're still using Arduino IDE you need to do a few extra steps to generate/c
 2. Make sure you have installed the latest version of Python on your machine
 3. Install ***pillow***:
    
-```
+```bash
 python -m pip install pillow
 ```
    
 4. Build UI 
 
+#### Linux / MacOS
+```bash
+python scripts/generate_translations.py FONT_SIZE@FONT_NAME,FONT_SIZE@FONT_NAME your-LOCALE
 ```
-python /scripts/generate_translations.py --fonts=YOUR_FONT your-LOCALE
+#### Windows
+```cmd
+python scripts\generate_translations.py FONT_SIZE@FONT_NAME,FONT_SIZE@FONT_NAME your-LOCALE
 ```
 
 5. Now you're ready to build and upload the firmware.
 
-
 ## WebUI
 
-Make sure the latest version of ```node-js``` installed on your machine. The following will do all the preparations automatically and it's the same in all environments, however the conversion scripts for Windows are not ready yet (see: public/scripts).
+Make sure the latest version of `node-js` installed on your machine. The following will do all the preparations automatically and it's the same in all environments.
+After installing `node-js`, run the following in your OS command prompt:
+
+```bash
+npm install -g typescript run-script-os
+```
 
 ### Using Platformio IDE (recommended)
 
-You can use "Platform - Build or Upload Filesystem Image" command in Platformio menu to get the web-interface re-generated and uploaded. Either you may use the manual method described below.
+You can use `Platform - Build Filesystem Image` command in Platformio tab to get the WebUI re-generated.
+Either you may use the manual method described below.
 
->***PRO Tip:***\
-When you first time open the project you may not find "Platform - Build or Upload Filesystem Image" menu in PlatformIO tab. This happens because `/data` directory will be only available after you run `Build project`. Run `Build`, then press `Refresh Project Tasks` on top of PlatformIO tab, the required menu will be loaded once it reloads.
+>***Please note:***\
+When you first time open the project you may not find `Platform` section in PlatformIO tab. This happens because `/data` directory will be only available after you run `Build project`. Run `Build`, then press `Refresh Project Tasks` on top of PlatformIO tab, the required menu will be available once it reloads.
 
 ### Manually build WebUI
 
-If any changes were made, run the following command in Project root directory to update the web-interface:
+If you've changed `public/src/build.ts` or `public/src/index.html.tpl`, run the following command in Project root directory to re-build the WebUI:
 
 ```
 npm run build
@@ -182,14 +209,14 @@ npm run build
 #### Uploading via Arduino IDE
 
 1. Download the latest release of (ESP8266LittleFS.jar](https://github.com/earlephilhower/arduino-esp8266littlefs-plugin/releases).
-2. Copy JAR file into your Arduino tools directory (see: "Preferences - Sketchbook location" + tools)
+2. Extract archive into your Arduino tools directory, keep original directory names and its structure (see: "Preferences - Sketchbook location" + tools)
 3. Restart Arduino IDE, open [gbs-control.ino](./gbs-control.ino) file.
-4. From the Tools menu, select “ESP8266 LittleFS Data Upload“. The contents of [/data](./data/) directory will be converted into a binary image file and the upload process will begin.
-
+    >At this point `/data` directory must exist in the Project root.
+4. From the Tools menu, select “ESP8266 LittleFS Data Upload“. The contents of `/data` directory will be converted into a binary image file and the upload process will begin.
 
 ## OTA update
 
->***A work of warning:***\
+>***A word of warning:***\
 Do not interrupt the network connection or upload process while updating via OTA. Your device may stop working properly.
 
 Make sure you've enabled OTA mode in Control panel of GBSС.

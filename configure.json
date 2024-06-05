@@ -1,4 +1,24 @@
 {
+    "d1_mini": {
+        "slots_total": 50,
+        "menu_width": 131,
+        "menu_height": 19,
+
+        "osd_timeout": 8000,
+
+        "use_new_oled_menu": 1,
+        "reverse_rotary_encoder_for_osd": 0,
+        "reverse_rotary_encoder_for_oled_menu": 0,
+        "oled_menu_max_items_num": 64,
+        "oled_menu_max_subitems_num": 16,
+        "oled_menu_max_depth": 8,
+        "oled_menu_refresh_interval_in_ms": 50,
+        "oled_menu_screen_saver_refresh_interval_in_ms": 5000,
+        "oled_menu_scroll_lead_in_time_in_ms": 600,
+        "oled_menu_screen_saver_kick_in_seconds": 180,
+        "oled_menu_over_draw": 0,
+        "oled_menu_reset_always_scroll_on_selection": 0
+    },
     "ui-lang": "en-US",
     "ui-fonts": "12@FreeSans,16@FreeSans",
     "version": "24.0602"

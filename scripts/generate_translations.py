@@ -7,9 +7,12 @@ import pathlib
 # from argparse import ArgumentParser
 from PIL import Image, ImageDraw, ImageFont
 
-MENU_WIDTH = 128
-MENU_HEIGHT = 64
-MENU_STATUS_BAR_HEIGHT = MENU_HEIGHT / 4
+root=os.getcwd()
+output=f'{root}/src/OLEDMenuTranslations.h'
+
+# MENU_WIDTH = 128
+# MENU_HEIGHT = 64
+# MENU_STATUS_BAR_HEIGHT = MENU_HEIGHT / 4
 LEFT_RIGHT_PADDING = 0
 TOP_BOTTOM_PADDING = 1
 X_OFFSET = 0
@@ -108,14 +111,12 @@ const unsigned char %(name)s [] PROGMEM = {
 
 class ArgObj(object):
     fonts = ([],)
-    output = ("src/OLEDMenuTranslations.h",)
     lang = "en-US"
 
 if __name__ == "__main__":
     args = ArgObj()
-    args.fonts = sys.argv[1].split(" ")
-    args.output = sys.argv[2]
-    args.lang = sys.argv[3]
+    args.fonts = sys.argv[1].split(',')
+    args.lang = sys.argv[2]
     ### this is cool but doesnt wotk in PIO
     # parser = ArgumentParser()
     # parser.add_argument('--fonts', '-f', nargs='*', default=[])
@@ -136,7 +137,7 @@ if __name__ == "__main__":
                 font_size = int(font_size)
             except ValueError:
                 raise ValueError("Not a valid integer: {:}".format(font_size)) from None
-            fonts_map[font_size] = font_path
+            fonts_map[font_size] = f'{root}/public/assets/fonts/{font_path}.ttf'
 
     collect(args.lang)
     tag_res_map = {}
@@ -153,7 +154,7 @@ if __name__ == "__main__":
         except (OSError, FileNotFoundError):
             raise FileNotFoundError("Font does not exist: {:}".format(font)) from None
 
-    with open(args.output, "w") as fp:
+    with open(output, "w") as fp:
         fp.write("#ifndef OLED_MENU_TRANSLATIONS_H_\n")
         fp.write("#define OLED_MENU_TRANSLATIONS_H_\n")
         for tag, (text, size) in tags_map.items():
@@ -178,4 +179,4 @@ if __name__ == "__main__":
             )
 
         fp.write("#endif")
-        print(f"Output file: {pathlib.Path(args.output).absolute()}")
+        print(f"  Output file: {pathlib.Path(output).absolute()}")

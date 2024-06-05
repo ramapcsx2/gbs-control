@@ -18,20 +18,13 @@ with open(f'{root}/configure.json', 'r') as data:
 subprocess.call([sys.executable, '-m', 'pip', 'install', 'pillow'],
                     stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 # starting with i18n
-print(f'\n\U0001F37A: generating locale data ({conf["ui-lang"]})\n')
-argFonts = ''
-farr = conf["ui-fonts"].split(',')
-for f in farr:
-    size, name = f.split('@')
-    argFonts += f'{size}@{root}/public/assets/fonts/{name}.ttf '
+print(f'\n\U0001F37A generating locale data ({conf["ui-lang"]})\n')
 
-fLen = len(argFonts) - 1
 r = subprocess.Popen([
         sys.executable,
         f'{root}/scripts/generate_translations.py',
-        f'{argFonts[0:fLen]}',               # fonts
-        f'{root}/src/OLEDMenuTranslations.h',               # output
-        f'{conf["ui-lang"]}'                                # lang
+        f'{conf["ui-fonts"]}',
+        f'{conf["ui-lang"]}'
     ],
     stderr=subprocess.STDOUT
 )
@@ -45,7 +38,11 @@ if r.returncode != 0 :
     sys.exit()
 
 defs = [('VERSION', conf['version'])]
+
+for (k, v) in conf[env.get('PIOENV')].items():
+    defs.append((k.upper(), v))
+
 env.Append(CPPDEFINES=defs)
 
 # continue execution
-print(f"\n\U0001F37A: running build of v.{conf['version']}\n")
+print(f"\n\U0001F37A running build of v.{conf['version']}\n")
