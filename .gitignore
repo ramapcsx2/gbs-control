@@ -386,9 +386,9 @@ ASALocalRun/
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
-i18n/
-!public/scripts/bin
+tmp/
 
 # WebUI
 data/
-public/src/index.js
+!public/scripts/bin
+public/src/**/*.js

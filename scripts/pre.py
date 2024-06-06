@@ -17,13 +17,13 @@ with open(f'{root}/configure.json', 'r') as data:
 # silently check if all modules are installed
 subprocess.call([sys.executable, '-m', 'pip', 'install', 'pillow'],
                     stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-# starting with i18n
-print(f'\n\U0001F37A generating locale data ({conf["ui-lang"]})\n')
+# HardwareUI translations
+print(f'\n\U0001F37A generate HardwareUI locale data ({conf["ui-lang"]})\n')
 
 r = subprocess.Popen([
         sys.executable,
         f'{root}/scripts/generate_translations.py',
-        f'{conf["ui-fonts"]}',
+        f'{conf["ui-hdw-fonts"]}',
         f'{conf["ui-lang"]}'
     ],
     stderr=subprocess.STDOUT

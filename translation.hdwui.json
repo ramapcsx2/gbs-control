@@ -1,0 +1,135 @@
+{
+    "OM_STATUS_CUSTOM": {
+        "en": "Main Menu",
+        "zh": "主菜单",
+        "es": "Menu Principal",
+        "ru": "Главное меню",
+        "size": 12
+    },
+    "OM_STATUS_BAR_BACK": {
+        "en": "←Back",
+        "es": "←Atras",
+        "ru": "←Назад",
+        "size": 12
+    },
+    "OM_SCREEN_SAVER": {
+        "en": "Press any key",
+        "es": "Presione el botón",
+        "ru": "Нажмите кнопку"
+    },
+    "OM_RESOLUTION": {
+        "en": "Resolutions",
+        "es": "Resolución de imagen",
+        "ru": "Выходное разрешение"
+    },
+    "OM_PASSTHROUGH": {
+        "en": "Passthrough",
+        "es": "Sin cambios",
+        "ru": "Без изменений"
+    },
+    "OM_DOWNSCALE": {
+        "en": "Down-Scale",
+        "es": "Imagen reducida",
+        "ru": "Меньший размер картинки"
+    },
+    "OM_PRESET": {
+        "en": "Slots",
+        "es": "Perfiles",
+        "ru": "Профили настроек"
+    },
+    "OM_RESET_RESTORE": {
+        "en": "Reset/Restore",
+        "es": "Resetear",
+        "ru": "Сброс"
+    },
+    "OM_RESET_GBS": {
+        "en": "Reset GBS",
+        "es": "Resetear ajustes",
+        "ru": "Сбросить настройки"
+    },
+    "OM_RESET_WIFI": {
+        "en": "Clear WiFi Connections",
+        "es": "Borrar ajustes WiFi",
+        "ru": "Сброс настройек WiFi"
+    },
+    "OM_RESTORE_FACTORY": {
+        "en": "Restore Factory",
+        "es": "Ajustes de fabrica",
+        "ru": "Восстановить по-умолчанию"
+    },
+    "OM_CURRENT": {
+        "en": "Current Output",
+        "es": "Salida actual",
+        "ru": "Выходной сигнал"
+    },
+    "OM_WIFI": {
+        "en": "WiFi Info",
+        "es": "Informacion de WiFi",
+        "ru": "Параметры WiFi"
+    },
+    "TEXT_NO_PRESETS": {
+        "en": "No Presets. Please use the Web UI to create one first",
+        "es": "No hay perfiles. Usa navegador para crear uno nuevo",
+        "ru": "Ничего не найдено. Для создания профиля используйте браузер"
+    },
+    "TEXT_TOO_MANY_PRESETS": {
+        "en": "Please use WebUI to access more presets",
+        "es": "Por favor usa navegador para acceder a los demás perfiles",
+        "ru": "Для доступа к другим профилям используйте браузер"
+    },
+    "TEXT_RESETTING_GBS": {
+        "en": "Resetting GBS\nPlease wait\n...",
+        "es": "Reseteando ajustes\nPor favor espere\n...",
+        "ru": "Сброс настроек GBS\nПожалуйста подождите\n...",
+        "size": 16
+    },
+    "TEXT_RESETTING_WIFI": {
+        "en": "Resetting WiFi\nPlease wait\n...",
+        "es": "Borrando ajustes de WiFi\nPor favor espere\n...",
+        "ru": "Сброс настроек WiFi\nПожалуйста подождите\n...",
+        "size": 16
+    },
+    "TEXT_RESTORING": {
+        "en": "Factory Restoring\nPlease wait\n...",
+        "es": "Reseteando al estado de fabrica\nPor favor espere\n...",
+        "ru": "Установка заводских настроек\nПожалуйста подождите\n...",
+        "size": 16
+    },
+    "TEXT_WIFI_CONNECT_TO": {
+        "en": "Connect to the following SSID (password) before using the Web UI",
+        "es": "Conecta al siguiente SSID para acceder al Panel de Control",
+        "ru": "Для доступа к Панели управления подключитесь к указанной сети"
+    },
+    "TEXT_WIFI_CONNECTED": {
+        "en": "Status: Connected",
+        "es": "Estado: Conectado",
+        "ru": "Состояние: Подключено"
+    },
+    "TEXT_WIFI_DISCONNECTED": {
+        "en": "Status: Disconnected",
+        "es": "Estado: Desconectado",
+        "ru": "Состояние: Отключено"
+    },
+    "TEXT_WIFI_URL": {
+        "en": "Use one of the following URLs to use the Web UI",
+        "es": "Usa uno de los siguientes enlaces para acceder al Panel de Control",
+        "ru": "Для доступа к Панели управления перейдите по одной из следующих ссылок"
+    },
+    "TEXT_LOADED": {
+        "en": "Loaded",
+        "es": "activado",
+        "ru": "активирован",
+        "size": 16
+    },
+    "TEXT_NO_INPUT": {
+        "en": "No Input",
+        "es": "No hay señal",
+        "ru": "Нет сигнала",
+        "size": 16
+    },
+    "OM_OSD": {
+        "en": "Open OSD Menu",
+        "es": "Abrir menu de pantalla",
+        "ru": "Показать экранное меню"
+    }
+}

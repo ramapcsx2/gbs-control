@@ -1,0 +1,688 @@
+{
+    "SLOTS": {
+        "en": "Slots",
+        "es": "Perfiles",
+        "ru": "Профили настроек",
+        "zh": "设置配置文件"
+    },
+    "SLOTS_HELP_1": {
+        "en": "The selected Slot will be loaded on the next power-on.",
+        "es": "El Perfil seleccionado se activará después de reiniciar su GBS-Control.",
+        "ru": "Выбранный Профиль сохраняется в настройках так, что он активируется при следующем включении устройства.",
+        "zh": ""
+    },
+    "REMOVE_PRESET": {
+        "en": "remove slot",
+        "es": "borrar perfil",
+        "ru": "удалить профиль",
+        "zh": ""
+    },
+    "SAVE_PRESET": {
+        "en": "save to slot",
+        "es": "crear perfil",
+        "ru": "создать профиль",
+        "zh": ""
+    },
+    "OUTPUT_RESOLUTION": {
+        "en": "Output resolution",
+        "es": "Resolució de salida",
+        "ru": "Выходное разршение",
+        "zh": ""
+    },
+    "OUT_RES_HELP_1": {
+        "en": "The selected resolution will stay active on the next power-on.",
+        "es": "La resolución seleccionada permanecerá activa en el próximo encendido.",
+        "ru": "Выбранное разрешение будет активировано при следующем включении.",
+        "zh": ""
+    },
+    "OUT_RES_HELP_2": {
+        "en": "1280x960 is recommended for NTSC sources, 1280x1024 for PAL.",
+        "es": "Se recomienda resolución de 1280x960 para fuentes NTSC y 1280x1024 para PAL.",
+        "ru": "Для NTSC рекомендуется разрешение 1280x960, для PAL — 1280x1024.",
+        "zh": ""
+    },
+
+
+
+
+    "OUT_RES_HELP_3": {
+        "en": "Use the \"Matched Presets\" option to switch between the two automatically (Preferences tab)",
+        "es": "Utilice la opción \"Preajustes coincidentes\" para cambiar entre los dos automáticamente (pestaña Preferencias)",
+        "ru": "Используйте опцию \"Соответствующие пресеты\" для автоматического переключения между ними (вкладка \"Настройки\").",
+        "zh": ""
+    },
+
+
+
+
+    "PASS_THROUGH": {
+        "en": "Passthrough",
+        "es": "Sin cambios",
+        "ru": "Без изменений",
+        "zh": ""
+    },
+    "ADC_GAIN_LEGEND": {
+        "en": "ADC Gain (brightness)",
+        "es": "Aumento de CAD (brillo)",
+        "ru": "Усиление АЦП (яркость)",
+        "zh": ""
+    },
+    "ADC_GAIN_LEGEND_HELP_1": {
+        "en": "Auto Gain is the mechanism for controlling image brightness within specified limits (clipping). Calibrate for a few seconds on a white screen.",
+        "es": "Auto Gain es un mecanismo para controlar el brillo de la imagen dentro de límites predeterminados. Se necesita calibrar con la pantalla en color blanco.",
+        "ru": "Auto Gain механизм контроля яркости изображения в заданных пределах (clipping). Требуется калибровка в течение нескольких секунд на белом экране.",
+        "zh": ""
+    },
+    "GAIN_BUTTON": {
+        "en": "gain",
+        "es": "aumento",
+        "ru": "усиление",
+        "zh": ""
+    },
+    "AUTO_GAIN_BUTTON": {
+        "en": "Auto Gain",
+        "es": "Aumento automatico",
+        "ru": "Авто. усиление",
+        "zh": ""
+    },
+    "PICTURE_CONTROL_LEGEND": {
+        "en": "Picture Control",
+        "es": "Control de imagen",
+        "ru": "Управление изображением",
+        "zh": ""
+    },
+    "MOVE_BUTTON": {
+        "en": "move",
+        "es": "mover",
+        "ru": "сдвиг",
+        "zh": ""
+    },
+    "SCALE_BUTTON": {
+        "en": "scale",
+        "es": "escala",
+        "ru": "масштаб",
+        "zh": ""
+    },
+    "BORDERS_BUTTON": {
+        "en": "borders",
+        "es": "orillas",
+        "ru": "границы",
+        "zh": ""
+    },
+    "FILTERS_LEGEND": {
+        "en": "Filters",
+        "es": "Filtros",
+        "ru": "Фильтры",
+        "zh": ""
+    },
+    "SCANLINES_BUTTON": {
+        "en": "scanlines",
+        "es": "scanlines",
+        "ru": "строчность",
+        "zh": ""
+    },
+    "INTENSITY_BUTTON": {
+        "en": "intensity",
+        "es": "intensidad",
+        "ru": "интенсивность",
+        "zh": ""
+    },
+    "LINE_FILTER_BUTTON": {
+        "en": "line filter",
+        "es": "filtro lineal",
+        "ru": "строчный фильтр",
+        "zh": ""
+    },
+    "FILTERS_HELP_1": {
+        "en": "Scanlines only work with 240p sources, or 480i with Bob deinterlacing.",
+        "es": "Scanlines solo funcionan señal de entrada de 240p o 480i con desentrelazado Bob.",
+        "ru": "Строки развёртки работают только с источниками входного сигнала 240p или 480i с Bob-деинтерлейсингом.",
+        "zh": ""
+    },
+    "FILTERS_HELP_2": {
+        "en": "Line Filter eliminates blocky-pixel artifacts when upscaling beyond 480p. Recommended to keep it active.",
+        "es": "El filtro líneal elimina los artefactos de píxeles en bloques cuando se escala más allá de 480p. Se recomienda activarlo.",
+        "ru": "Строчный Фильтр устраняет артефакты при масштабировании выше 480p. Рекомендуется включить.",
+        "zh": ""
+    },
+    "PEAKING_BUTTON": {
+        "en": "peaking",
+        "es": "sensibilidad",
+        "ru": "чувствительность",
+        "zh": ""
+    },
+    "STEP_RESPONSE_BUTTON": {
+        "en": "step response",
+        "es": "respuesta escalonada",
+        "ru": "ступенчатая хар-ка",
+        "zh": ""
+    },
+    "PEAKING_HELP_1": {
+        "en": "Peaking increases the contrast around areas of high brightness, which improves image sharpness. Recommended to keep it active.",
+        "es": "La \"Sensibilidad\" aumenta el contraste alrededor de áreas de alto brillo, lo que mejora la nitidez de la imagen. Se recomienda activarlo.",
+        "ru": "Параметр Чувствительность увеличивает контраст вокруг областей повышенной яркости, это позволяет повысить чёткость и детализацию изображения. Рекомендуется включить.",
+        "zh": ""
+    },
+    "PEAKING_HELP_2": {
+        "en": "Step Response increases the sharpness of horizontal color steps. Recommended to keep it active.",
+        "es": "La respuesta al paso aumenta la nitidez de las transiciones de color horizontales. Se recomienda activarlo.",
+        "ru": "Step Response увеличивает резкость горизонтальных цветовых переходов. Рекомендуется включить.",
+        "zh": ""
+    },
+    "SLOT_SETTINGS_LEGEND": {
+        "en": "Current slot settings",
+        "es": "Ajustes de perfil activo",
+        "ru": "Настройки активного профиля",
+        "zh": ""
+    },
+    "MATCH_PRESETS_SWITCH": {
+        "en": "Matched Presets",
+        "es": "Coincidir con el perfil",
+        "ru": "Соответствать профилю",
+        "zh": ""
+    },
+    "MATCH_PRESETS_SWITCH_HELP_1": {
+        "en": "If enabled, default to 1280x960 for NTSC 60 and 1280x1024 for PAL 50 (does not apply for 720p / 1080p presets).",
+        "es": "Si está habilitado, el valor predeterminado es 1280x960 para NTSC 60 y 1280x1024 para PAL 50 (no se aplica a los ajustes preestablecidos de 720p/1080p).",
+        "ru": "Если этот параметр включен, по умолчанию используется разрешение 1280x960 для NTSC 60 и 1280x1024 для PAL 50 (не применяется к предустановкам 720p/1080p).",
+        "zh": ""
+    },
+    "FULL_HEIGHT_SWITCH": {
+        "en": "Full Height",
+        "es": "Estirar en altura",
+        "ru": "Растягивать по-высоте",
+        "zh": ""
+    },
+    "FULL_HEIGHT_SWITCH_HELP_1": {
+        "en": "In some cases, the device generates an output signal resolution that does not use the full height of the screen; dark bars appear at the top and bottom.",
+        "es": "En algunos casos, el dispositivo genera una resolución de señal de salida que no utiliza toda la altura de la pantalla; Aparecen barras oscuras en la parte superior e inferior.",
+        "ru": "В некоторых случаях устройство формирует разрешение выходного сигнала который не используют полную высоту экрана, появляются тёмные полосы вверху и внизу.",
+        "zh": ""
+    },
+    "FULL_HEIGHT_SWITCH_HELP_2": {
+        "en": "With \"Full Height\" enabled, these presets will instead scale to fill more of the screen height.",
+        "es": "Con \"Estirar en altura\" habilitada, la señal de salida aumentará para ocupar una mayor parte de la altura de la pantalla",
+        "ru": "Если включена функция \"Растягивать по-высоте\", выходной сигнал будет масштабироваться, чтобы заполнить большую часть экрана по высоте",
+        "zh": ""
+    },
+    "FULL_HEIGHT_SWITCH_HELP_3": {
+        "en": "This currently only works with 1920 x 1080 (1080p) resolution",
+        "es": "Actualmente esto sólo funcciona con la resolucion 1920 x 1080 (1080p)",
+        "ru": "На данный момент эта функция работает только с выходным разрешением 1920 x 1080 (1080p)",
+        "zh": ""
+    },
+    "FORCE_FRAME_RATE_SWITCH": {
+        "en": "Force increase frequency for PAL 50Hz to 60Hz",
+        "es": "Forzar el aumento de la frequencia de salida PAL 50 Hz hasta 60 Hz",
+        "ru": "Принудительно повышать частоту для PAL 50 Гц до 60 Гц",
+        "zh": ""
+    },
+    "FORCE_FRAME_RATE_SWITCH_HELP_1": {
+        "en": "Try this option if your TV does not support 50Hz sources (some non-standard input signal formats). When this feature is enabled, the frame rate may be unstable. Reboot required.",
+        "es": "Pruebe esta opción si su televisor no admite fuentes de 50Hz (algunos formatos de señal de entrada desconocidos). Cuando esta función está habilitada, la frequencia de salida puede ser inestable. Se require reiniciar GBS-Control.",
+        "ru": "Используйте эту функцию, если ваш телевизор не поддерживает источники с частотой 50Гц (некоторые нестандартные форматы входного сигнала). При включении этой функции, может нарушаться частота кадров. Требуется перезагрузка.",
+        "zh": ""
+    },
+    "ACTIVE_FRAME_LOCK_SWITCH": {
+        "en": "Active FrameTime Lock",
+        "es": "Bloqueo Activo de FrameTime",
+        "ru": "Активная блокировка FrameTime",
+        "zh": ""
+    },
+    "ACTIVE_FRAME_LOCK_SWITCH_HELP_1": {
+        "en": "This option keeps the input and output timings aligned, fixing the horizontal screen tearing lines.",
+        "es": "Esta opción mantiene alineados las cadencias de señales de entrada y salida. Se usa para corregir líneas horizontales de corte/desgarro en el video.",
+        "ru": "Эта опция позволяет согласованность входной и выходной сигналы, исправляя горизонтальные линии сдвига/разрыва выходного сигнала.",
+        "zh": ""
+    },
+    "ACTIVE_FRAME_LOCK_SWITCH_HELP_2": {
+        "en": "Two methods are available. Try switching methods if your display goes blank or shifts vertically.",
+        "es": "Hay dos métodos disponibles. Intente cambiar de método si la pantalla se queda en blanco o se desplaza verticalmente.",
+        "ru": "Доступны два метода. Попробуйте переключить методы, если изображение пропадает или смещается по вертикали.",
+        "zh": ""
+    },
+    "FRAME_LOCK_SWITCH_GROUP": {
+        "en": "FrameTime Lock",
+        "es": "Bloqueo de FrameTime",
+        "ru": "Блокировка FrameTime",
+        "zh": ""
+    },
+    "LOCK_METHOD_SWITCH": {
+        "en": "Switch Lock Method",
+        "es": "Cambiar método",
+        "ru": "Переключить метод",
+        "zh": ""
+    },
+    "DEINTERLACE_METHOD_SWITCH_GROUP": {
+        "en": "Deinterlacing filter",
+        "es": "Filtro de desentrelazado",
+        "ru": "Деинтерлейсинг (устранение чересстрочности)",
+        "zh": ""
+    },
+    "DEINTERLACE_METHOD_SWITCH_GROUP_HELP_1": {
+        "en": "GBS-Control detects interlaced content and automatically toggles \"Deinterlacing\".",
+        "es": "GBS-Control detecta contenido entrelazado y automáticamente activa el \"Filtro de desentrelazado\".",
+        "ru": "GBS-Control обнаруживает чересстрочный контент и автоматически включает Деинтерлейсинг.",
+        "zh": ""
+    },
+    "DEINTERLACE_METHOD_SWITCH_GROUP_HELP_2": {
+        "en": "Bob Method: essentially no \"Deinterlacing\", does not add delay, but flickering is possible. Works well with the \"Scanlines\".",
+        "es": "Método Bob: esencialmente sin \"Desentrelazado\", no presenta retrasos, pero es posible el parpadeo. Funciona bien con las \"Scanlines\"",
+        "ru": "Bob-метод: практически не фильтрует Чересстрочность, не добавляет задержки, но возможны мерцания. Хорошо работает вместе с функцией Строчности.",
+        "zh": ""
+    },
+    "DEINTERLACE_METHOD_SWITCH_GROUP_HELP_3": {
+        "en": "Motion Adaptive: eliminates flickering and artifacts on moving frame areas.",
+        "es": "Motion Adaptive: elimina el parpadeo y unos artefactos en las áreas de movimiento en fotograma.",
+        "ru": "Motion Adaptive: устраняет мерцание и некоторые искажения движущихся зон кадра.",
+        "zh": ""
+    },
+    "DEINTERLACE_METHOD_SWITCH_GROUP_HELP_4": {
+        "en": "Configure the source for progressive output if possible. Otherwise, using \"Motion Adaptive\" is recommended.",
+        "es": "Configure la fuente de señal para salida progresiva si es posible. De lo contrario, se recomienda utilizar \"Motion Adaptive\".",
+        "ru": "Если возможно, установите прогрессивный выходной сигнал на источнике. В противном случае рекомендуется использовать \"Motion Adaptive\".",
+        "zh": ""
+    },
+    "MOTION_ADAPTIVE_SWITCH": {
+        "en": "Motion Adaptive",
+        "es": "Motion Adaptive",
+        "ru": "Motion Adaptive",
+        "zh": ""
+    },
+    "BOB_SWITCH": {
+        "en": "Bob (vertical interpolation)",
+        "es": "Método Bob (interpolación vertical)",
+        "ru": "Bob-метод (вертикальная интерполяция)",
+        "zh": ""
+    },
+    "SYSTEM_PREFERENCES_LEGEND": {
+        "en": "System-wide settings",
+        "es": "Ajustes de todo el Sistema",
+        "ru": "Общесистемные настройки",
+        "zh": ""
+    },
+    "LOW_RES_UPSCALE_SWITCH": {
+        "en": "Upscaling for Low resolutions",
+        "es": "Usar Ampliación (Upscaling) para resoluciones bajas",
+        "ru": "При низком разрешении использовать масштабирование (Upsacale)",
+        "zh": ""
+    },
+    "LOW_RES_UPSCALE_SWITCH_HELP_1": {
+        "en": "Pass-through or Upscale for Low resolution on VGA input",
+        "es": "Usar modo \"Sin cambios\" (Pass-through) o Ampliación (Upscale) para resoluciones bajas de entrada VGA",
+        "ru": "При низком разрешении на входе VGA использовать режим \"Без изменений\" или Масштабирование (Upscale)",
+        "zh": ""
+    },
+    "LOW_RES_UPSCALE_SWITCH_HELP_2": {
+        "en": "Low resolution sources can be either Passed through directly or get Upscaled.",
+        "es": "Las fuentes de baja resolución se pueden pasar directamente (Sin cambios) o Ampliar (Upscale)",
+        "ru": "Источники с низким разрешением можно либо передать напрямую без изменений, либо масштабировать.",
+        "zh": ""
+    },
+    "LOW_RES_UPSCALE_SWITCH_HELP_3": {
+        "en": "While using Upscaling a border around an output image may appear.",
+        "es": "La ampliación puede tener un borde alrededor de la imagen de salida.",
+        "ru": "При Масштабировании могут измениться границы вокруг выходного изображения",
+        "zh": ""
+    },
+    "LOW_RES_UPSCALE_SWITCH_HELP_4": {
+        "en": "Refresh rates other than 60Hz are not well supported yet.",
+        "es": "Frecuencias de fotogramas distintas de 60Hz aún no son compatibles.",
+        "ru": "Частоты входного сигнала, отличные от 60Гц, пока не поддерживаются поддерживается.",
+        "zh": ""
+    },
+    "LOW_RES_UPSCALE_SWITCH_HELP_5": {
+        "en": "Low resolution is currently set at below or equal to 640x480 (525 active lines).",
+        "es": "Baja resolución actualmente está configurada en 640x480 (525 líneas activas) o menos.",
+        "ru": "В настоящее время низким разрешением считаеются 640x480 (525 активных строк) и ниже.",
+        "zh": ""
+    },
+    "FORCE_COMPONENET_OUT_SWITCH": {
+        "en": "Force output to RGBHV/Component",
+        "es": "Forzar salida a RGBHV/Componente",
+        "ru": "Принудительно изменять выход на RGBHV/Компонентный",
+        "zh": ""
+    },
+    "FORCE_COMPONENET_OUT_SWITCH_HELP_1": {
+        "en": "The default output mode is RGBHV, suitable for use with VGA cables or HDMI converters.",
+        "es": "El modo de salida predeterminado es RGBHV, adecuado para usar con cables VGA o convertidores HDMI.",
+        "ru": "Режим вывода по-умолчанию — RGBHV. Подходит для использования с кабелями VGA или преобразователями HDMI.",
+        "zh": ""
+    },
+    "FORCE_COMPONENET_OUT_SWITCH_HELP_2": {
+        "en": "An experimental YPbPr mode can also be selected. Compatibility is still spotty.",
+        "es": "También se puede seleccionar un modo YPbPr experimental. La compatibilidad sigue siendo irregular.",
+        "ru": "Также можно выбрать экспериментальный режим YPbPr. Совместимость по-прежнему нестабильна.",
+        "zh": ""
+    },
+    "DISABLE_EXT_CLOCK_SWITCH": {
+        "en": "Disable External Clock Generator",
+        "es": "Deshabilitar el generador de reloj externo",
+        "ru": "Отключить внешний тактовый генератор",
+        "zh": ""
+    },
+    "DISABLE_EXT_CLOCK_SWITCH_HELP_1": {
+        "en": "By default the external clock generator is enabled (when installed).",
+        "es": "El generador de reloj externo está habilitado de forma predeterminada (cuando esta instalado).",
+        "ru": "По-умолчанию внешний тактовый генератор включен (если он установлен).",
+        "zh": ""
+    },
+    "DISABLE_EXT_CLOCK_SWITCH_HELP_2": {
+        "en": "You can disable it if you have issues with other options, e.g \"Force increase frequency for PAL 50Hz to 60Hz\". Reboot required.",
+        "es": "Puede desactivarlo si tiene problemas con otras opciones, por ejemplo, \"Forzar el aumento de la frequencia de salida PAL 50 Hz hasta 60 Hz\". Reinicio requerido.",
+        "ru": "Вы можете отключить его, если есть проблемы с другими параметрами, например, \"Принудительно повышать частоту для PAL 50 Гц до 60 Гц\". Требуется перезагрузка.",
+        "zh": ""
+    },
+    "ADC_CALIBRATION_SWITCH": {
+        "en": "ADC calibration",
+        "es": "Calibración del CAD",
+        "ru": "Калибровка АЦП",
+        "zh": ""
+    },
+    "ADC_CALIBRATION_SWITCH_HELP_1": {
+        "en": "GBS-Control calibrates the ADC offsets on startup.",
+        "es": "GBS-Control calibra las compensaciones del CAD al inicio.",
+        "ru": "GBS-Control калибрует смещения АЦП при запуске.",
+        "zh": ""
+    },
+    "ADC_CALIBRATION_SWITCH_HELP_2": {
+        "en": "In case of color shift problems, try disabling this function.",
+        "es": "En caso de problemas de cambio de color, intente desactivar esta función.",
+        "ru": "В случае проблем с цветопередачей попробуйте отключить эту функцию.",
+        "zh": ""
+    },
+    "DEVELOPER_MODE_SWITCH": {
+        "en": "Developer Mode",
+        "es": "Modo desarrollador",
+        "ru": "Режим разработчика",
+        "zh": ""
+    },
+    "DEVELOPER_MODE_SWITCH_HELP_1": {
+        "en": "Enables the developer menu which contains various debugging tools",
+        "es": "Habilita el menú de desarrollador que contiene varias herramientas adicionales.",
+        "ru": "Включает меню разработчика, содержащее различные инструменты отладки.",
+        "zh": ""
+    },
+    "DEVELOPER_LEGEND": {
+        "en": "Developer",
+        "es": "Desarrollador",
+        "ru": "Разработчик",
+        "zh": ""
+    },
+    "TOGGLE_CONSOLE_BUTTON": {
+        "en": "Toggle Console",
+        "es": "Ocultar/Mostrar consola",
+        "ru": "Скрыть/Показать консоль",
+        "zh": ""
+    },
+    "MEM_LEFT_BUTTON": {
+        "en": "← MEM",
+        "es": "← MEM",
+        "ru": "← Память",
+        "zh": ""
+    },
+    "MEM_RIGHT_BUTTON": {
+        "en": "MEM →",
+        "es": "MEM →",
+        "ru": "Память →",
+        "zh": ""
+    },
+    "HS_LEFT_BUTTON": {
+        "en": "← HS",
+        "es": "← HS",
+        "ru": "← HS",
+        "zh": ""
+    },
+    "HS_RIGHT_BUTTON": {
+        "en": "HS →",
+        "es": "HS →",
+        "ru": "HS →",
+        "zh": ""
+    },
+    "LIST_OPTIONS_BUTTON": {
+        "en": "FS+Runtime",
+        "es": "Parám.Tmp.Ejec.",
+        "ru": "ФС+ПВВ",
+        "zh": ""
+    },
+    "PRINT_INFO_BUTTON": {
+        "en": "Print Debug Info",
+        "es": "Mostrar Debug Info",
+        "ru": "Отладочная информация",
+        "zh": ""
+    },
+    "GET_VIDEO_TIMING_BUTTON": {
+        "en": "Get Video Timings",
+        "es": "Obtener Video Timings",
+        "ru": "Video Timings",
+        "zh": ""
+    },
+    "FREEZE_CAPTURE_BUTTON": {
+        "en": "Freeze Capture",
+        "es": "Hacer Captura",
+        "ru": "Стоп-кадр",
+        "zh": ""
+    },
+    "ADC_FILTER_BUTTON": {
+        "en": "ADC Filter",
+        "es": "Filtro CAD",
+        "ru": "Фильтр АЦП",
+        "zh": ""
+    },
+    "CYCLE_SDRAM_BUTTON": {
+        "en": "Cycle SDRAM",
+        "es": "Actualizar SDRAM",
+        "ru": "Обновить SDRAM",
+        "zh": ""
+    },
+    "DEBUG_VIEW_BUTTON": {
+        "en": "Debug View",
+        "es": "Debug View",
+        "ru": "Режим отладки",
+        "zh": ""
+    },
+    "HTOTAL_INCR_BUTTON": {
+        "en": "HTotal++",
+        "es": "HTotal++",
+        "ru": "HTotal++",
+        "zh": ""
+    },
+    "HTOTAL_DECR_BUTTON": {
+        "en": "HTotal--",
+        "es": "HTotal--",
+        "ru": "HTotal--",
+        "zh": ""
+    },
+    "RESYNC_HTOTAL_BUTTON": {
+        "en": "Resync HTotal",
+        "es": "Resync HTotal",
+        "ru": "Resync HTotal",
+        "zh": ""
+    },
+    "PLL_DIVIDER_INCR_BUTTON": {
+        "en": "PLL divider++",
+        "es": "Divisor PLL++",
+        "ru": "Делитель PLL++",
+        "zh": ""
+    },
+    "INVERT_SYNC_BUTTON": {
+        "en": "Invert Sync.",
+        "es": "Invertir Sinc.",
+        "ru": "Инвертировать Sync.",
+        "zh": ""
+    },
+    "SYNC_WATCHER_BUTTON": {
+        "en": "SyncWatcher",
+        "es": "SyncWatcher",
+        "ru": "SyncWatcher",
+        "zh": ""
+    },
+    "SYNC_PROCESSOR_BUTTON": {
+        "en": "SyncProcessor",
+        "es": "SyncProcessor",
+        "ru": "SyncProcessor",
+        "zh": ""
+    },
+    "OVERSAMPLING_BUTTON": {
+        "en": "Oversampling",
+        "es": "Oversampling",
+        "ru": "Oversampling",
+        "zh": ""
+    },
+    "HDMI_50FREQ60_BUTTON": {
+        "en": "60/50Hz HDMI",
+        "es": "60/50Hz HDMI",
+        "ru": "60/50Hz HDMI",
+        "zh": ""
+    },
+    "IF_AUTO_OFFSET_BUTTON": {
+        "en": "IF Auto Offset",
+        "es": "IF Auto Offset",
+        "ru": "IF Auto Offset",
+        "zh": ""
+    },
+    "SOG_LEVEL_DECR_BUTTON": {
+        "en": "SOG Level--",
+        "es": "Nivel SOG--",
+        "ru": "Уровень SOG--",
+        "zh": ""
+    },
+    "RESET_CHIP_BUTTON": {
+        "en": "Reset Chip",
+        "es": "Resetear Chip",
+        "ru": "Сбросить Чип",
+        "zh": ""
+    },
+    "SYSTEM_LEGEND": {
+        "en": "System",
+        "es": "Sistema",
+        "ru": "Система",
+        "zh": ""
+    },
+    "ENABLE_OTA_BUTTON": {
+        "en": "Enable OTA",
+        "es": "Habilitar OTA",
+        "ru": "Включить OTA",
+        "zh": ""
+    },
+    "RESTART_DEVICE_BUTTON": {
+        "en": "Restart",
+        "es": "Reiniciar",
+        "ru": "Перезагрузить",
+        "zh": ""
+    },
+    "RESET_DEFAULTS_BUTTON": {
+        "en": "Reset to Defaults",
+        "es": "Resetear ajustes",
+        "ru": "Сброс настроек",
+        "zh": ""
+    },
+    "BACKUP_LEGEND": {
+        "en": "Backup and Restore",
+        "es": "Copia de seguridad",
+        "ru": "Резервное копирование",
+        "zh": ""
+    },
+    "BACKUP_BUTTON_HELP_1": {
+        "en": "Backup / Restore of configuration files",
+        "es": "Copia de seguridad/Restauración de archivos de configuración",
+        "ru": "Резервное копирование/восстановление файлов конфигурации",
+        "zh": ""
+    },
+    "BACKUP_BUTTON_HELP_2": {
+        "en": "Restore backup data may fail if devices have different firmware versions",
+        "es": "La Restauración de datos de copia de seguridad puede fallar si los dispositivos tienen diferentes versiones de firmware",
+        "ru": "Восстановление данных из резервной копии может оказаться неудачным, если на устройствах установлены разные версии прошивки.",
+        "zh": ""
+    },
+    "BACKUP_BUTTON": {
+        "en": "Backup",
+        "es": "Respaldar",
+        "ru": "Копировать",
+        "zh": ""
+    },
+    "RESTORE_BUTTON": {
+        "en": "Restore",
+        "es": "Restaurar",
+        "ru": "Восстановить",
+        "zh": ""
+    },
+    "WIFI_LEGEND": {
+        "en": "WiFi",
+        "es": "WiFi",
+        "ru": "WiFi",
+        "zh": ""
+    },
+    "ACCESS_POINT_MODE_BUTTON": {
+        "en": "Access Point",
+        "es": "Punto de acceso",
+        "ru": "Точка доступа",
+        "zh": ""
+    },
+    "STATION_MODE_BUTTON": {
+        "en": "Station",
+        "es": "Estación",
+        "ru": "Станция",
+        "zh": ""
+    },
+    "SSID_SELECT_LEGEND": {
+        "en": "Select SSID",
+        "es": "Seleccione SSID",
+        "ru": "Выберите SSID",
+        "zh": ""
+    },
+    "CONNECTO_TO_SSID_BUTTON": {
+        "en": "Connect to SSID",
+        "es": "Conectar a SSID",
+        "ru": "Подключиться к SSID",
+        "zh": ""
+    },
+    "CONNECT_BUTTON": {
+        "en": "Connect",
+        "es": "Conectar",
+        "ru": "Подключиться",
+        "zh": ""
+    },
+    "PROMPT_LEGEND": {
+        "en": "Prompt",
+        "es": "Prompt",
+        "ru": "Prompt",
+        "zh": ""
+    },
+    "CANCEL_BUTTON": {
+        "en": "CANCEL",
+        "es": "CANCELAR",
+        "ru": "ОТМЕНА",
+        "zh": ""
+    },
+    "OK_BUTTON": {
+        "en": "OK",
+        "es": "PROCEDER",
+        "ru": "ПРОДОЛЖИТЬ",
+        "zh": ""
+    },
+    "ALERT_LEGEND": {
+        "en": "ALERT",
+        "es": "ALERTA",
+        "ru": "УВЕДОМЛЕНИЕ",
+        "zh": ""
+    },
+    "CONSOLE_OUTPUT_LEGEND": {
+        "en": "Console",
+        "es": "Consola",
+        "ru": "Консоль",
+        "zh": ""
+    },
+    "SSID_PLACEHOLDER": {
+        "en": "SSID",
+        "es": "SSID",
+        "ru": "SSID",
+        "zh": ""
+    },
+    "PASSWORD_PLACEHOLDER": {
+        "en": "password",
+        "es": "contraseña",
+        "ru": "Пароль",
+        "zh": ""
+    }
+}

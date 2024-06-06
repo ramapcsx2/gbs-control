@@ -20,7 +20,7 @@ Y_OFFSET = -1
 DEFAULT_FONT_SIZE = 12
 
 # load translations
-with open(os.getcwd() + "/translation.json", "r", encoding="utf-8") as data:
+with open(os.getcwd() + "/translation.hdwui.json", "r", encoding="utf-8") as data:
     menu_items = json.load(data)
 
 res = """
@@ -36,10 +36,9 @@ fonts_map = {}
 default_font = None
 
 # we need a temporary directory to exist
-i18npath = os.path.join(os.getcwd(), "i18n")
-if os.path.isdir(i18npath) == False:
-    os.mkdir(i18npath)
-
+tmpPath = os.path.join(os.getcwd(), "tmp")
+if os.path.isdir(tmpPath) == False:
+    os.mkdir(tmpPath)
 
 def convert(text, font):
     img = Image.new("L", (0, 0), color=0)
@@ -74,30 +73,30 @@ def convert(text, font):
             bytes_arr.append(number)
             number = 0
             byte_index = 0
-    img.save(os.path.join(i18npath, "i18n_preview_{:}.jpg".format(tag)))
+    img.save(os.path.join(tmpPath, "i18n_preview_{:}.jpg".format(tag)))
     return width, height, bytes_arr
 
 
 def collect(lang):
     key = lang
     if not lang:
-        key = "en-US"
+        key = "en"
     for obj in menu_items:
-        if not isinstance(obj, dict):
+        if not isinstance(menu_items[obj], dict):
             raise TypeError("{:} is not a dict".format(obj))
-        if "tag" not in obj:
-            raise KeyError('Key "tag" is missing in {:}'.format(obj))
-        if key not in obj:
+        # if "tag" not in obj:
+        #     raise KeyError('Key "tag" is missing in {:}'.format(obj))
+        if key not in menu_items[obj]:
             raise KeyError(
                 'Key "{:}" does not exist in {:}'.format(
                     key, json.dumps(obj, ensure_ascii=False)
                 )
             )
-        size = obj.get("size")
-        tag = obj["tag"]
+        size = menu_items[obj].get("size")
+        tag = obj
         if tag in tags_map:
             raise ValueError("Duplicated tag: {:}".format(tag))
-        translated = obj[key]
+        translated = menu_items[obj][key]
         tags_map[tag] = translated, size
 
 
@@ -111,7 +110,7 @@ const unsigned char %(name)s [] PROGMEM = {
 
 class ArgObj(object):
     fonts = ([],)
-    lang = "en-US"
+    lang = "en"
 
 if __name__ == "__main__":
     args = ArgObj()
@@ -121,7 +120,7 @@ if __name__ == "__main__":
     # parser = ArgumentParser()
     # parser.add_argument('--fonts', '-f', nargs='*', default=[])
     # parser.add_argument('--output', '-o', default='src/OLEDMenuTranslations.h')
-    # parser.add_argument('--lang', help='Language code', nargs='?', default='en-US')
+    # parser.add_argument('--lang', help='Language code', nargs='?', default='en')
     # args = parser.parse_args()
     for font in args.fonts:
         tokens = font.split("@")

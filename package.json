@@ -2,6 +2,17 @@
     "name": "gbscontrol-webui",
     "version": "1.2.0",
     "description": "gbscontrol-webui",
+    "author": "",
+    "license": "GPL-3.0",
+    "directories": {
+        "doc": "doc",
+        "test": "public/test"
+    },
+    "main": "index.js",
+    "keywords": [
+        "GBS-Control",
+        "GBSC"
+    ],
     "scripts": {
         "watch": "run-script-os",
         "watch:windows": "tsc --project .\\tsconfig.json --watch",
@@ -22,9 +33,8 @@
         "insertPragma": false,
         "proseWrap": "preserve"
     },
-    "author": "",
-    "license": "GNU",
     "devDependencies": {
+        "@types/node": "^20.14.2",
         "prettier": "^3.2.5",
         "typescript": "^4.1.3"
     }

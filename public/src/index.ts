@@ -1,6 +1,6 @@
 /*
  * DEVELOPER MEMO:
- *   1. WebUI icons: https://fonts.google.com/icons
+ *   1. WebUI icons: https://jossef.github.io/material-design-icons-iconfont
  *   2. prettier config: https://prettier.io/docs/en/options
  *
  */

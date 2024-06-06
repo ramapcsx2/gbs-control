@@ -10,9 +10,10 @@ IF not exist %DDIR% (
     ECHO
 )
 
-CD %SDIR%
-node .\build.js
+@REM CD %SDIR%
+node public\scripts\build.js
 %SDIR%\bin\gzip.exe -c9 "%DDIR%\webui.html" > "%DDIR%\__index"
+:: cleanup
 DEL "%DDIR%\webui.html"
 
 EXIT 0

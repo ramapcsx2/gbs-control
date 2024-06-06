@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Sunday, 2nd June 2024 11:01:41 pm                        #
+# Last Modified: Tuesday, 4th June 2024 6:56:22 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -2054,9 +2054,9 @@ void handleUserCommand()
         // case '9':
             //
             // break;
-        // case 'a':
-        //
-        //    break;
+        case 'a':           // device restart
+            resetInMSec(2000);
+            break;
         case 'e': // print files on data
         {
             _WSN(F("file system:"));

@@ -10,10 +10,11 @@
 
 </p>
 
-## GBS-Control
+<h2>GBS-Control</h2>
 
-GBS-Control is an alternative firmware for Tvia Trueview5725 based upscalers / video converter boards.  
-Its growing list of features includes:   
+GBS-Control is an alternative firmware for Tvia Trueview5725 based upscalers / video converter boards.
+Its growing list of features includes:
+
 - very low lag
 - sharp and defined upscaling, comparing well to other -expensive- units
 - no synchronization loss switching 240p/480i (output runs independent from input, sync to display never drops)
@@ -29,14 +30,213 @@ Supported standards are NTSC / PAL, the EDTV and HD formats, as well as VGA from
 Sources can be connected via RGB/HV (VGA), RGBS (game consoles, SCART) or Component Video (YUV).
 Various variations are supported, such as the PlayStation 2's VGA modes that run over Component cables.
 
-Gbscontrol is a continuation of previous work by dooklink, mybook4, Ian Stedman and others.  
+Gbscontrol is a continuation of previous work by dooklink, mybook4, Ian Stedman and others.
 
-Bob from RetroRGB did an overview video on the project. This is a highly recommended watch!   
+Bob from RetroRGB did an overview video on the project. This is a highly recommended watch!
 https://www.youtube.com/watch?v=fmfR0XI5czI
 
-Development threads:  
-https://shmups.system11.org/viewtopic.php?f=6&t=52172   
-https://circuit-board.de/forum/index.php/Thread/15601-GBS-8220-Custom-Firmware-in-Arbeit/   
+Development threads:
+- [shmups.system11.org](https://shmups.system11.org/viewtopic.php?f=6&t=52172)
+- [circuit-board.de/forum](https://circuit-board.de/forum/index.php/Thread/15601-GBS-8220-Custom-Firmware-in-Arbeit)
+
+<h2>Table of Contents</h2>
+ 
+- [Toolkit](#toolkit)
+    - [Windows](#windows)
+    - [MacOS](#macos)
+    - [Linux](#linux)
+- [Prepare](#prepare)
+- [Build and Upload Firmware Image](#build-and-upload-firmware-image)
+  - [Using Platformio IDE (preferred)](#using-platformio-ide-preferred)
+  - [Using Arduino IDE](#using-arduino-ide)
+- [Filesystem Image and UI Translations](#filesystem-image-and-ui-translations)
+  - [Platformio IDE (preferred)](#platformio-ide-preferred)
+  - [Arduino IDE](#arduino-ide)
+    - [HardwareUI](#hardwareui)
+    - [WebUI](#webui)
+  - [Uploading Filesystem image via Platformio IDE (recommended)](#uploading-filesystem-image-via-platformio-ide-recommended)
+  - [Uploading Filesystem image via Arduino IDE](#uploading-filesystem-image-via-arduino-ide)
+- [OTA update](#ota-update)
+  - [Using Platformio IDE](#using-platformio-ide)
+  - [Using Arduino IDE](#using-arduino-ide-1)
+- [Theory of operation](#theory-of-operation)
+  - [Slots vs Presets](#slots-vs-presets)
+  - [Vocabulary](#vocabulary)
+  - [How-to switch GBS-Control to upload mode?](#how-to-switch-gbs-control-to-upload-mode)
+- [Additional information](#additional-information)
+- [Old documentation](#old-documentation)
+
+## Toolkit
+
+#### Windows
+- [NodeJS](https://nodejs.org)
+- [Git](https://git-scm.com/download/win)
+- [Python 3+](https://www.python.org/downloads)
+
+#### MacOS
+```bash
+brew install node git python@3
+```
+
+#### Linux
+```bash
+your_package_manager install node git python
+```
+
+## Prepare
+
+Make sure the latest version of `node-js` installed on your computer. After installing `node-js`, run the following in your OS command prompt from the Project root duirctory:
+
+```bash
+npm install -g typescript run-script-os
+
+npm install
+```
+
+## Build and Upload Firmware Image<a id="build-n-upload"></a>
+
+<!-- >***PRO Tip:***\
+You may consider using the latest compiled binaries from [/builds](./builds/) directory. -->
+
+### Using Platformio IDE (preferred)
+
+>***Please note:***\
+If your objective is to make changes to the Project, please use VSCode + Platformio IDE.
+
+1. Clone the repository, open it with your VSCode and press Build/Upload. It's never been easier :)
+
+>***Please note:***\
+Platformio IDE enables upload speed limitation on ESP8266. Upload process at any higher upload speed will fail.
+
+### Using Arduino IDE<a id="build-n-upload-arduino"></a>
+
+1. Open "Preferences" in Arduino IDE. In "Additional Boards Manager URLs" put the following source links:
+
+```
+https://dl.espressif.com/dl/package_esp32_index.json 
+http://arduino.esp8266.com/stable/package_esp8266com_index.json
+```
+
+2. Save and close Preferences window. Go to the "Board Manager" and search for ESP8266. Make sure that the latest version of the framework installed.
+3. Download/clone the following repositories into your Arduino libraries directory (see: "Preferences - Sketchbook location" + libraries). 
+For more intfrmation please refer to http://www.arduino.cc/en/Guide/Libraries
+
+```bash
+git clone https://github.com/Links2004/arduinoWebSockets.git
+git clone https://github.com/pavelmc/Si5351mcu.git
+git clone https://github.com/ThingPulse/esp8266-oled-ssd1306.git
+```
+
+If you plan to be using ping-library (see: HAVE_PINGER_LIBRARY in options.h) in addition to the above clone/download the following sources:
+
+```bash
+git clone https://github.com/bluemurder/esp8266-ping.git
+```
+
+4. In menu "Tools" select the board "LOLIN(WEMOS) D1 R2 & mini". Then change "Flash size" to `4MB (FS:1MB OTA:~1019KB), "CPU frequency" to 160MHz, "SSL Support` to `Basic SSL cyphers`.
+5. Now remove src/main.cpp file. Arduino IDE will NOT compile your project if you omit this step. You can always restore main.cpp from main repository/active branch.
+6. Build/Upload the Project.
+
+>***Please note:***\
+If you erase the whole chip or doing fresh install, you need to upload both, firmware and filesystem images. See how-to below.
+
+## Filesystem Image and UI Translations
+
+HardwareUI (OLED display) can be translated using [`translation.hdwui.json`](./translation.hdwui.json) file, WebUI using [`translation.webui.json`](./translation.webui.json) in the Project root directory. If you wish to add a new language, please use ISO 639-1 formatted locale tag names.
+
+### Platformio IDE (preferred)
+
+By changing value of `ui-lang` parameter in `configure.json` you're changing UI (both Web and Hardware) language. You also may change the UI fonts the same way (`ui-hdw-fonts`, `ui-web-font`).
+HardwareUI font size may be specified for every translation block in [translation.hdwui.json](./translation.hdwui.json), the default size if `12`. If you add a font size which is not specified in [configure.json](./configure.json), translation generator will ask you to do that by throwing an error.
+
+- `ui-hdw-fonts` parameter should be formatted as: `FONT_SIZE@FONT_NAME[,FONT_SIZE@FONT_NAME[,...]]`. 
+- `ui-web-fonts` parameter must match with font-family name in CSS and the Font file name.
+
+To add a new font (Hardware and Web UI alike) drop it into [/public/assets/fonts](./public/assets/fonts/) directory, only `.ttf` fonts may be used for HardwareUI and only `.woff2` for WebUI.
+
+>***Please note:***\
+The default and fallback translation is always "en".
+
+### Arduino IDE
+
+If you're still using Arduino IDE you need to do a few extra steps to generate translated UI. Please follow steps below:
+
+#### HardwareUI
+
+1. Do the necessary changes in ```translation.hdw.json```
+2. Make sure you have installed the latest version of Python on your computer
+3. Install ***pillow***:
+
+    ```bash
+    python -m pip install pillow
+    ```
+
+4. Generate translations
+
+    >_The following commands executed from Project root directory._
+
+    4.1. Hardare UI 
+
+    #### Linux / MacOS
+    ```bash
+    python scripts/generate_translations.py FONT_SIZE@FONT_NAME,FONT_SIZE@FONT_NAME LOCALE
+    ```
+    #### Windows
+    ```bash
+    python scripts\generate_translations.py FONT_SIZE@FONT_NAME,FONT_SIZE@FONT_NAME LOCALE
+    ```
+
+5. Now you're ready to build and upload the `firmware` image.
+
+#### WebUI
+
+The WebUI consists of two main parts:  `public/src/index.ts` and `public/src/index.html.tpl`. Changin any one of them likewise `translation.webui.json`, require re-build the WebUI.
+
+1. Do the necessary changes in `translation.web.json`
+2. Generate WebUI by running the following command:
+
+```bash
+npm run build
+```
+
+3. Now you're ready to build and upload the `filesystem` image.
+
+### Uploading Filesystem image via Platformio IDE (recommended)
+
+You can use `Platform - Build Filesystem Image` command in PlatformIO tab to get the WebUI re-generated.
+Either you may use the manual method described below.
+
+>***Please note:***\
+When you first time open the Project you may not find `Platform` section in PlatformIO tab. This happens because `/data` directory will be only available after you run `Build project`. Run `Build`, then press `Refresh Project Tasks` on top of PlatformIO tab, the required menu will be available once it reloads.
+
+### Uploading Filesystem image via Arduino IDE
+
+1. Download the latest release of (ESP8266LittleFS.jar](https://github.com/earlephilhower/arduino-esp8266littlefs-plugin/releases).
+2. Extract archive into your Arduino tools directory, keep original directory names and its structure (see: "Preferences - Sketchbook location" + tools)
+3. Restart Arduino IDE, open [gbs-control.ino](./gbs-control.ino) file.
+    >At this point `/data` directory must exist in the Project root.
+4. From the Tools menu, select “ESP8266 LittleFS Data Upload“. The contents of `/data` directory will be converted into a binary image file and the upload process will begin.
+
+## OTA update
+
+>***A word of warning:***\
+Do not interrupt the network connection or upload process while updating via OTA. Your device may stop working properly.
+
+Make sure you've enabled OTA mode in Control panel of GBSС.
+
+### Using Platformio IDE
+
+1. Open [platformio.ini](./platformio.ini) and uncomment ```upload_protocol, upload_port``` options. Option ```upload_port``` should be equal to the IP address of your GBSС (ex.: upload_port = 192.168.4.1)
+2. Now go to "Platformio - Build and Upload" the firmware.
+
+### Using Arduino IDE
+
+1. Open sketch (gbs-control.ino). Make sure you already completed the steps 1-5 from ["Build and Upload - Using Arduino IDE"](#build-n-upload-arduino)
+2. Go to "Tools - Ports". At the very end of dropdown menu find and chouse your device.
+3. Proceed with build/upload.
+
+For more details visit: https://github.com/JAndrassy/ArduinoOTA/blob/master/README.md
+
 
 ## Theory of operation
 
@@ -75,164 +275,24 @@ The following diagram represents the structure of system and user configurations
 
 ![gbs-control user configuration structure](./doc/img/Slot-Preset-prefs.png)
 
-### How to switch GBSC to upload mode?
+### Vocabulary
 
-ESP8266 version of GBSC could boot into a firmware upload mode by pressing the knob button while the device is off and connecting it to a computer with USB cable.
+- Auto Gain - the functionality or circuit the purpose of which is to maintain a suitable signal amplitude at its output, despite variation of the signal amplitude at the input.
+- Clipping - a form of distortion that limits a signal once it exceeds a threshold. Clipping may occur when a signal is recorded by a sensor that has constraints on the range of data it can measure, it can occur when a signal is digitized, or it can occur any other time an analog or digital signal is transformed, particularly in the presence of gain or overshoot and undershoot. [[?]](https://en.wikipedia.org/wiki/Clipping_%28signal_processing)
+- FrameTime - the time a frame takes to be rendered and displayed.
+- Deinterlacing - the process of converting interlaced video into a non-interlaced or progressive form. [[?]](https://en.wikipedia.org/wiki/Deinterlacing)
+  - Bob (a.k.a linear spatial) - vertical interpolation from the same frame, this method interpolates the missing pixels from the pixels located directly above and below them in the same frame. The Bob method avoids motion artifacts, but at the cost of considerable vertical detail.
+  - Line doubling (a.k.a linear temporal, weave, static mesh) - this method generates the missing pixels by copying the corresponding pixels from the previous frame (meshing two fields together to create a single frame).
+  - Motion adaptive - the method of dynamic weights (functions of measured pixel based motion), it combines the best aspects of both Bob and Weave by isolating the de-interlacing compensation to the pixel level. Spatial and temporal comparisons are performed to decide whether or not an individual pixel has motion. Areas of no motion are statically meshed (weave) and areas where motion is detected are treated with a proprietary filtering technique resulting in very high quality, progressive-scan images.
+- Interlacing - a type of video scanning where each frame is made up of 2 images that divide it horizontally by alternating pixel lines (the even and the odd). [[?]](https://en.wikipedia.org/wiki/Interlaced_video)
+- Peaking - it takes the high resolution RGB video signal and increases its signal amplitude (the higher peaking the sharper image with more details).
+- Progressive scanning (a.k.a noninterlaced scanning) - a format of displaying, storing, or transmitting moving images in which all the lines of each frame are drawn in sequence. [[?]](https://en.wikipedia.org/wiki/Progressive_scan)
+- Scanline - one row in a raster scanning pattern, such as a line of video on a CRT display.
+- Step Response - system response to the step input.
 
-### Toolkit
+### How-to switch GBS-Control to upload mode?
 
-#### Windows
-- [NodeJS](https://nodejs.org)
-- [Git](https://git-scm.com/download/win)
-- [Python 3+](https://www.python.org/downloads)
-
-#### MacOS
-```bash
-brew install node git python@3
-```
-
-#### Linux
-```bash
-your_package_manager install node git python
-```
-
-
-## Build and Upload<a id="build-n-upload"></a>
-
-<!-- >***PRO Tip:***\
-You may consider using the latest compiled binaries from [/builds](./builds/) directory. -->
-
-### Using Platformio IDE (preferred)
-
->***Please note:***\
-If your objective is to make changes to the Project, please use VSCode + Platformio IDE.
-
-1. Clone the repository, open it with your VSCode and press Build/Upload. It's never been easier :)
-
->***Please note:***\
-Platformio IDE enables upload speed limitation on ESP8266. Upload process at any higher upload speed will fail.
-
-### Using ArduinoIDE<a id="build-n-upload-arduino"></a>
-
-1. Open "Preferences" in ArduinoIDE. In "Additional Boards Manager URLs" put the following source links:
-
-```
-https://dl.espressif.com/dl/package_esp32_index.json 
-http://arduino.esp8266.com/stable/package_esp8266com_index.json
-```
-
-2. Save and close Preferences window. Go to the "Board Manager" and search for ESP8266. Make sure that the latest version of the framework installed.
-3. Download/clone the following repositories into your Arduino libraries directory (see: "Preferences - Sketchbook location" + libraries). 
-For more intfrmation please refer to http://www.arduino.cc/en/Guide/Libraries
-
-```bash
-git clone https://github.com/Links2004/arduinoWebSockets.git
-git clone https://github.com/pavelmc/Si5351mcu.git
-git clone https://github.com/ThingPulse/esp8266-oled-ssd1306.git
-```
-
-If you plan to be using ping-library (see: HAVE_PINGER_LIBRARY in options.h) in addition to the above clone/download the following sources:
-
-```bash
-git clone https://github.com/bluemurder/esp8266-ping.git
-```
-
-4. In menu "Tools" select the board "LOLIN(WEMOS) D1 R2 & mini". Then change "Flash size" to `4MB (FS:1MB OTA:~1019KB), "CPU frequency" to 160MHz, "SSL Support` to `Basic SSL cyphers`.
-5. Now remove src/main.cpp file. Arduino IDE will NOT compile your project if you omit this step. You can always restore main.cpp from main repository/active branch.
-6. Build/Upload the Project.
-
-
-## Translations and UI locale
-
-WebUI currently can be translated using ```translation.json``` file in the Project root directory. If you wish to add a translation, please use tag-SUBTAG format (IETF BCP 47 standard) for locale names.
-
-### Platformio IDE (preferred)
-
-By changing value of `ui-lang` parameter in ```configure.json``` you're changing current UI translation. You also may change the UI fonts the same way (`ui-fonts`). 
-Font size may be specified for every translation block. If you add the Font size which is not specified in config, translation generator will ask you to do that risin an error. `ui-fonts` parameter should be formatted as: `FONT_SIZE@FONT_NAME[,FONT_SIZE@FONT_NAME[,...]]`. 
-
-To add a new font drop it into [/public/assets/fonts](./public/assets/fonts/) directory, only TTF fonts could be used.
-
->***Please note:***\
-The default translation is "en-US", the font is "FreeSans".
-
-### Arduino IDE
-
-If you're still using Arduino IDE you need to do a few extra steps to generate/change UI locale. Please follow the steps below:
-
-1. Make necessary changes in ```translation.json```
-2. Make sure you have installed the latest version of Python on your machine
-3. Install ***pillow***:
-   
-```bash
-python -m pip install pillow
-```
-   
-4. Build UI 
-
-#### Linux / MacOS
-```bash
-python scripts/generate_translations.py FONT_SIZE@FONT_NAME,FONT_SIZE@FONT_NAME your-LOCALE
-```
-#### Windows
-```cmd
-python scripts\generate_translations.py FONT_SIZE@FONT_NAME,FONT_SIZE@FONT_NAME your-LOCALE
-```
-
-5. Now you're ready to build and upload the firmware.
-
-## WebUI
-
-Make sure the latest version of `node-js` installed on your machine. The following will do all the preparations automatically and it's the same in all environments.
-After installing `node-js`, run the following in your OS command prompt:
-
-```bash
-npm install -g typescript run-script-os
-```
-
-### Using Platformio IDE (recommended)
-
-You can use `Platform - Build Filesystem Image` command in Platformio tab to get the WebUI re-generated.
-Either you may use the manual method described below.
-
->***Please note:***\
-When you first time open the project you may not find `Platform` section in PlatformIO tab. This happens because `/data` directory will be only available after you run `Build project`. Run `Build`, then press `Refresh Project Tasks` on top of PlatformIO tab, the required menu will be available once it reloads.
-
-### Manually build WebUI
-
-If you've changed `public/src/build.ts` or `public/src/index.html.tpl`, run the following command in Project root directory to re-build the WebUI:
-
-```
-npm run build
-```
-
-#### Uploading via Arduino IDE
-
-1. Download the latest release of (ESP8266LittleFS.jar](https://github.com/earlephilhower/arduino-esp8266littlefs-plugin/releases).
-2. Extract archive into your Arduino tools directory, keep original directory names and its structure (see: "Preferences - Sketchbook location" + tools)
-3. Restart Arduino IDE, open [gbs-control.ino](./gbs-control.ino) file.
-    >At this point `/data` directory must exist in the Project root.
-4. From the Tools menu, select “ESP8266 LittleFS Data Upload“. The contents of `/data` directory will be converted into a binary image file and the upload process will begin.
-
-## OTA update
-
->***A word of warning:***\
-Do not interrupt the network connection or upload process while updating via OTA. Your device may stop working properly.
-
-Make sure you've enabled OTA mode in Control panel of GBSС.
-
-### Using Platformio IDE
-
-1. Open [platformio.ini](./platformio.ini) and uncomment ```upload_protocol, upload_port``` options. Option ```upload_port``` should be equal to the IP address of your GBSС (ex.: upload_port = 192.168.4.1)
-2. Now go to "Platformio - Build and Upload" the firmware.
-
-### Using Arduino IDE
-
-1. Open sketch (gbs-control.ino). Make sure you already completed the steps 1-5 from ["Build and Upload - Using Arduino IDE"](#build-n-upload-arduino)
-2. Go to "Tools - Ports". At the very end of dropdown menu find and chouse your device.
-3. Proceed with build/upload.
-
-For more details visit: https://github.com/JAndrassy/ArduinoOTA/blob/master/README.md
+ESP8266 version of the factory built GBSC, boots into firmware upload mode by pressing the knob button while the device is off and connecting it to a computer with USB cable.
 
 ## Additional information
 

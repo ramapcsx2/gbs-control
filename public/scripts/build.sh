@@ -11,10 +11,11 @@
 ROOT=$(pwd)
 
 tsc --project ./tsconfig.json
-cd $ROOT/public/scripts
-node ./build.js
+# cd $ROOT/public/scripts
+node public/scripts/build.js
 cd $ROOT/data
 gzip -c9 webui.html > __index
+### cleanup
 rm -f webui.html .??*
 
 echo -e "\xE2\x9C\x85 WebUI is ready\n";
