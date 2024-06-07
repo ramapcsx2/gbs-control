@@ -526,9 +526,9 @@ section[name="alert"] {
 }
 
 .gbs-modal__message {
-    text-align: right;
     margin-top: 16px;
     margin-bottom: 32px;
+    text-align: left;
 }
 
 /* HELPERS */

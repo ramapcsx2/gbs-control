@@ -5,6 +5,19 @@
  *
  */
 
+interface String {
+    format(...params: string[]): string;
+}
+
+if (!String.prototype.format) {
+    String.prototype.format = function(...arg) {
+        const a = arg
+        return this.replace(/\[(\d+)\]/g, function(val, i) {
+            return undefined !== typeof(a[i]) ? a[i] : val
+        });
+    }
+}
+
 /**
  * Description placeholder
  *
@@ -355,7 +368,7 @@ const gbsAlert = (text: string, ackText: string = '', actText: string = '') => {
     } else
         GBSControl.ui.alertAck.insertAdjacentHTML(
             'afterbegin',
-            '<div class="gbs-icon">done</div><div>Ok</div>'
+            '<div class="gbs-icon">done</div><div>L{JS_YES}</div>'
         )
 
     if (actText !== '') {
@@ -744,7 +757,7 @@ const loadDoc = (link: string) => {
 const loadUser = (link: string) => {
     if (link == 'a' || link == '1') {
         GBSControl.isWsActive = false
-        GBSControl.ui.terminal.value += '\nGBSC is now restarting\n'
+        GBSControl.ui.terminal.value += '\nL{DEVICE_RESTARTING_CONSOLE_MESSAGE}\n'
         GBSControl.ui.terminal.scrollTop = GBSControl.ui.terminal.scrollHeight
     }
 
@@ -759,8 +772,9 @@ const wifiGetStatus = () => {
         .then((r) => r.json())
         .then((wifiStatus: { mode: string; ssid: string }) => {
             GBSControl.wifi = wifiStatus
-            if (GBSControl.wifi.mode === 'ap') {
+            if (GBSControl.wifi.mode === 'ap' || GBSControl.wifi.ssid.length == 0) {
                 GBSControl.ui.wifiApButton.setAttribute('active', '')
+                GBSControl.ui.wifiApButton.setAttribute('disabled', '')
                 GBSControl.ui.wifiApButton.classList.add(
                     'gbs-button__secondary'
                 )
@@ -804,7 +818,8 @@ const wifiConnect = () => {
         body: formData,
     }).then(() => {
         gbsAlert(
-            `GBSControl will restart and will connect to ${ssid}. Please wait few seconds then press OK`
+            'L{CONNECT_JS_ALERT_MESSAGE}'.format(ssid)
+            // `GBSControl will restart and will connect to ${ssid}. Please wait few seconds then press OK`
         )
             .then(() => {
                 window.location.href = 'http://gbscontrol.local/'
@@ -838,11 +853,11 @@ const wifiScanSSID = () => {
             GBSControl.scanSSIDDone = false
             return result.length
                 ? result
-                      .split('\n')
-                      .map((line) => line.split(','))
-                      .map(([strength, encripted, ssid]) => {
-                          return { strength, encripted, ssid }
-                      })
+                    .split('\n')
+                    .map((line) => line.split(','))
+                    .map(([strength, encripted, ssid]) => {
+                        return { strength, encripted, ssid }
+                    })
                 : []
         })
         .then((ssids) => {
@@ -896,7 +911,8 @@ const wifiSetAPMode = () => {
         // body: formData,
     }).then((response) => {
         gbsAlert(
-            'Switching to AP mode. Please connect to gbscontrol SSID and then click OK'
+            'L{ACCESS_POINT_MODE_JS_ALERT_MESSAGE}'
+            // 'Switching to AP mode. Please connect to gbscontrol SSID and then click OK'
         )
             .then(() => {
                 window.location.href = 'http://192.168.4.1'
@@ -1026,9 +1042,10 @@ const removePreset = () => {
     const currentName = currentSlot.getAttribute('gbs-name')
     if (currentName && currentName.trim() !== 'Empty') {
         gbsAlert(
-            `<p>Are you sure to remove slot: ${currentName}?</p><p>This action also removes all related presets.</p>`,
-            '<div class="gbs-icon">done</div><div>Yes</div>',
-            '<div class="gbs-icon">close</div><div>No</div>'
+            'L{REMOVE_SLOT_JS_ALERT_MESSAGE}'.format(currentName),
+            // `<p>Are you sure to remove slot: ${currentName}?</p><p>This action also removes all related presets.</p>`,
+            '<div class="gbs-icon">done</div><div>L{JS_YES}</div>',
+            '<div class="gbs-icon">close</div><div>L{JS_NO}</div>'
         )
             .then(() => {
                 return fetch(
@@ -1341,17 +1358,18 @@ const doRestore = (f: File) => {
     const setAlertBody = () => {
         const fsize = f.size / 1024
         return (
-            '<p>Backup File:</p><p>Backup date: ' +
-            backupDate.toLocaleString() +
-            '</p><p>Size: ' +
-            fsize.toFixed(2) +
-            ' kB</p>'
+            'L{RESTORE_JS_ALERT_MESSAGE}'.format(backupDate.toLocaleString(), fsize.toFixed(2))
+            // '<p>Backup File:</p><p>Backup date: ' +
+            // backupDate.toLocaleString() +
+            // '</p><p>Size: ' +
+            // fsize.toFixed(2) +
+            // ' kB</p>'
         )
     }
     gbsAlert(
         setAlertBody() as string,
-        '<div class="gbs-icon">close</div><div>Reject</div>',
-        '<div class="gbs-icon">done</div><div>Restore</div>'
+        '<div class="gbs-icon">close</div><div>L{ALERT_BUTTON_JS_REJECT}</div>',
+        '<div class="gbs-icon">done</div><div>L{ALERT_BUTTON_JS_RESTORE}</div>'
     )
         .then(
             () => {
@@ -1462,9 +1480,32 @@ const initGBSButtons = () => {
         const action = actions[messageType]
 
         if (clickMode === 'normal') {
+            // custom events applied for some buttons
             button.addEventListener('click', () => {
-                action(message, button)
-            })
+                if(message == '1' && messageType == 'user') {
+                    // reset to defaults button
+                    gbsAlert(
+                        'L{RESET_BUTTON_JS_ALERT_MESSAGE}',
+                        '<div class="gbs-icon">close</div><div>L{JS_NO}</div>',
+                        '<div class="gbs-icon">done</div><div>L{ALERT_BUTTON_JS_ACK}</div>'
+                    )
+                    .then(
+                        () => {
+                            // do nothing
+                        },
+                        () => {
+                            action(message, button)
+                            window.setTimeout(() => {
+                                window.location.reload()
+                            }, 5000)
+                        }
+                    ).catch(() => {
+                    });
+                } else {
+                    // all other buttons
+                    action(message, button)
+                }
+            });
         }
 
         if (clickMode === 'repeat') {

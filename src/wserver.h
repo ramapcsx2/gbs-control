@@ -3,7 +3,7 @@
 # File: wserver.h                                                                    #
 # File Created: Friday, 19th April 2024 3:11:47 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Sunday, 2nd June 2024 4:39:55 pm                         #
+# Last Modified: Friday, 7th June 2024 3:55:49 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -42,7 +42,7 @@ const char indexPage[] PROGMEM = "/__index";
 const char backupFile[] PROGMEM = "/__backup";
 const char notFouldMessage[] PROGMEM = "<p style=\"align:center;\">404 | Page Not Found</p>";
 // const char slotIndexMap[] PROGMEM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
-const char lomemMessage[] PROGMEM = "%d it's not enough memory...";
+const char lomemMessage[] PROGMEM = "<div style=\"align:center;font-size:16px;\"><p>Not enough memory to continue (%.2f kb).</p><p>Please, try again in a few moments...</p></div>";
 const char mimeTextHtml[] PROGMEM = "text/html";
 const char mimeOctetStream[] PROGMEM = "application/octet-stream";
 const char mimeAppJson[] PROGMEM = "application/json";

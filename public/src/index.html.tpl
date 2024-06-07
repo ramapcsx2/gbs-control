@@ -71,7 +71,7 @@
                         <button class="gbs-button gbs-button__control-action" gbs-element-ref="buttonRemoveCustomPreset"
                             disabled>
                             <div class="gbs-icon">delete</div>
-                            <div>L{REMOVE_PRESET}</div>
+                            <div>L{REMOVE_SLOT}</div>
                         </button>
                         <button class="gbs-button gbs-button__control-action gbs-button__secondary"
                             onclick="savePreset()" active>
@@ -587,7 +587,7 @@
                         </button>
                         <button gbs-message="i" gbs-message-type="action" gbs-click="normal" class="gbs-button">
                             <div class="gbs-icon">info</div>
-                            <div>L{PTINT_INFO_BUTTON}</div>
+                            <div>L{PRINT_INFO_BUTTON}</div>
                         </button>
                         <button gbs-message="," gbs-message-type="action" gbs-click="normal" class="gbs-button">
                             <div class="gbs-icon">alarm</div>
@@ -694,7 +694,7 @@
                 <fieldset class="gbs-fieldset">
                     <legend class="gbs-fieldset__legend">
                         <div class="gbs-icon">bolt</div>
-                        <div>L{SYSTEM_LEGEND}</div>
+                        <div>L{DEVICE_MANAGEMENT_LEGEND}</div>
                     </legend>
                     <div class="gbs-flex">
                         <button gbs-message="c" gbs-message-type="action" gbs-click="normal"
@@ -726,7 +726,6 @@
                     <!-- prettier-ignore -->
                     <ul class="gbs-help">
                         <li>L{BACKUP_BUTTON_HELP_1}</li>
-                        <li>L{BACKUP_BUTTON_HELP_2}</li>
                     </ul>
                     <div class="gbs-flex">
                         <button class="gbs-button gbs-button__control gbs-button__secondary gbs-backup-button">

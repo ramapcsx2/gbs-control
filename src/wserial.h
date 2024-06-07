@@ -3,7 +3,7 @@
 # File: wserial.h                                                                    #
 # File Created: Friday, 19th April 2024 4:13:41 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Monday, 27th May 2024 12:23:27 pm                        #
+# Last Modified: Friday, 7th June 2024 12:17:54 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -20,10 +20,10 @@ extern char userCommand;
 extern WebSocketsServer webSocket;
 
 // TODO: useless ?
-#define LOMEM_SP                        ((ESP.getFreeHeap() > 10000))
+/* #define LOMEM_SP                        ((ESP.getFreeHeap() > 10000))
 #define ASSERT_LOMEM_SP()   do {                                    \
     if(LOMEM_SP) webSocket.disconnect();                            \
-} while(0)
+} while(0) */
 
 void discardSerialRxData();
 

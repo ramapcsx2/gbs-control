@@ -39,8 +39,8 @@
     },
     "OM_RESET_RESTORE": {
         "en": "Reset/Restore",
-        "es": "Resetear",
-        "ru": "Сброс"
+        "es": "Resetear/Restaurar",
+        "ru": "Сброс/Восстановление"
     },
     "OM_RESET_GBS": {
         "en": "Reset GBS",
@@ -48,14 +48,14 @@
         "ru": "Сбросить настройки"
     },
     "OM_RESET_WIFI": {
-        "en": "Clear WiFi Connections",
+        "en": "Reset WiFi settings",
         "es": "Borrar ajustes WiFi",
         "ru": "Сброс настройек WiFi"
     },
     "OM_RESTORE_FACTORY": {
         "en": "Restore Factory",
-        "es": "Ajustes de fabrica",
-        "ru": "Восстановить по-умолчанию"
+        "es": "Ajustes de Fabrica",
+        "ru": "Восстановить заводские настройки"
     },
     "OM_CURRENT": {
         "en": "Current Output",
@@ -78,22 +78,22 @@
         "ru": "Для доступа к другим профилям используйте браузер"
     },
     "TEXT_RESETTING_GBS": {
-        "en": "Resetting GBS\nPlease wait\n...",
-        "es": "Reseteando ajustes\nPor favor espere\n...",
-        "ru": "Сброс настроек GBS\nПожалуйста подождите\n...",
-        "size": 16
+        "en": "Restarting\nPlease wait\n...",
+        "es": "Reiniciando\nPor favor espere\n...",
+        "ru": "Перезагрузка\nПожалуйста подождите\n...",
+        "size": 12
     },
     "TEXT_RESETTING_WIFI": {
         "en": "Resetting WiFi\nPlease wait\n...",
-        "es": "Borrando ajustes de WiFi\nPor favor espere\n...",
-        "ru": "Сброс настроек WiFi\nПожалуйста подождите\n...",
-        "size": 16
+        "es": "Reseteando WiFi\nPor favor espere\n...",
+        "ru": "Сброс WiFi\nПожалуйста подождите\n...",
+        "size": 12
     },
     "TEXT_RESTORING": {
-        "en": "Factory Restoring\nPlease wait\n...",
-        "es": "Reseteando al estado de fabrica\nPor favor espere\n...",
-        "ru": "Установка заводских настроек\nПожалуйста подождите\n...",
-        "size": 16
+        "en": "Factory Restore\nPlease wait\n...",
+        "es": "Reseteando\nPor favor espere\n...",
+        "ru": "Пожалуйста подождите\n...",
+        "size": 12
     },
     "TEXT_WIFI_CONNECT_TO": {
         "en": "Connect to the following SSID (password) before using the Web UI",

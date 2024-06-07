@@ -4,12 +4,16 @@ if (!fs.existsSync('data')) {
 }
 const path = require('path');
 var html = fs.readFileSync('public/src/index.html.tpl', 'utf-8')
-const js = fs.readFileSync('public/src/index.js', 'utf-8')
+var js = fs.readFileSync('public/src/index.js', 'utf-8')
 
+//
 // A simple script which does i18n of HTML template.
-//      If a variable data reqired in sentence the following expressions may be used:
-//                      L{TAG_NAME[:VAR1[:VAR2[...]]]}
-// TODO: implement in TS
+// If a variable data reqired in sentence the following expressions may be used:
+//          in HTML: L{TAG_NAME[:VAR1[:VAR2[...]]]}
+//          in Typescript: 'L{TAG_NAME}'.format([...])
+// mind bracket and quotes type around tags...
+// In order to keep things "as is" as possible, let's search and replace a tag both HTML and JS
+//
 const default_ui_lang = 'en';
 const config = require(path.resolve(__dirname + '/../../configure.json'));
 const lang = require(path.resolve(__dirname + '/../../translation.webui.json'));
@@ -20,27 +24,39 @@ String.prototype.format = function() {
     }
     return a
 };
+const replaceLangRegex = function(matchObj, source, mask, data) {
+    matchObj.forEach((res) => {
+        let params = [];
+        const r0 = new String(res[1]);
+        if(r0 !== 'undefined' && r0.length != 0)
+            params = r0.substring(1).split(':');
+        source = source.replaceAll(
+            mask,
+            (params.length != 0) ? data.format(...params) : data.toString()
+        );
+    });
+    return source;
+};
 for(const l in lang) {
     // get sentense with fallback
     let sents = new String(lang[l][config['ui-lang']]);
     if(sents.length == 0)
-        sents = String(lang[l][default_ui_lang]);
+        sents = new String(lang[l][default_ui_lang]);
     const tag = l;
     if(tag !== "" && sents.length != 0) {
         const regex = new RegExp(String.raw`L{${tag}(\:.+)?}`, 'gm');
-        const f = [...html.matchAll(regex)];
-        if(f !== undefined || f.length != 0) {
-            f.forEach((res) => {
-                let params = [];
-                if(res[1] !== undefined)
-                    params = res[1].substring(1).split(':');
-                if(params.length != 0) {
-                    html = html.replace(regex, sents.format(...params));
-                } else
-                    html = html.replace(regex, sents.toString());
-            });
-        } else
-            console.log(`(!) nothing found for '${tag}', check translation tag names`);
+        let f = [...html.matchAll(regex)];
+        if(f !== "undefined" && f.length != 0) {
+            html = replaceLangRegex(f, html, regex, sents);
+        } else {
+            // try to find this tag in JS
+            f = [...js.matchAll(regex)];
+            // console.log(`searching ${tag} in JS...`)
+            if(f !== undefined || f.length != 0) {
+                js = replaceLangRegex(f, js, regex, sents);
+            } else
+                console.log(`(!) nothing found for '${tag}', check translation tag names`);
+        }
     }
 }
 // i18n end

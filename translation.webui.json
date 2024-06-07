@@ -11,10 +11,16 @@
         "ru": "Выбранный Профиль сохраняется в настройках так, что он активируется при следующем включении устройства.",
         "zh": ""
     },
-    "REMOVE_PRESET": {
+    "REMOVE_SLOT": {
         "en": "remove slot",
         "es": "borrar perfil",
         "ru": "удалить профиль",
+        "zh": ""
+    },
+    "REMOVE_SLOT_JS_ALERT_MESSAGE": {
+        "en": "<p>Are you sure to remove Slot: [0]?</p><p>This action also removes all related presets, except sistem-wide settings.</p>",
+        "es": "<p>Está seguro de eliminar Perfil: [0]?</p><p>Esta acción también elimina todos los ajustes relacionados, excepto la Configuración común.</p>",
+        "ru": "<p>Продолжить удаление Профиля: [0]?</p><p>При этом будут удалены все связанные настройки за исключением общесистемных.</p>",
         "zh": ""
     },
     "SAVE_PRESET": {
@@ -170,17 +176,24 @@
         "zh": ""
     },
     "SLOT_SETTINGS_LEGEND": {
-        "en": "Current slot settings",
-        "es": "Ajustes de perfil activo",
-        "ru": "Настройки активного профиля",
+        "en": "Active Slot parameters",
+        "es": "Parámetros de Perfil activo",
+        "ru": "Параиетры активного Профиля",
         "zh": ""
     },
+
+
+
     "MATCH_PRESETS_SWITCH": {
         "en": "Matched Presets",
-        "es": "Coincidir con el perfil",
-        "ru": "Соответствать профилю",
+        "es": "Coincidir con el Perfil",
+        "ru": "Соответствать Профилю",
         "zh": ""
     },
+
+
+
+
     "MATCH_PRESETS_SWITCH_HELP_1": {
         "en": "If enabled, default to 1280x960 for NTSC 60 and 1280x1024 for PAL 50 (does not apply for 720p / 1080p presets).",
         "es": "Si está habilitado, el valor predeterminado es 1280x960 para NTSC 60 y 1280x1024 para PAL 50 (no se aplica a los ajustes preestablecidos de 720p/1080p).",
@@ -296,8 +309,8 @@
         "zh": ""
     },
     "SYSTEM_PREFERENCES_LEGEND": {
-        "en": "System-wide settings",
-        "es": "Ajustes de todo el Sistema",
+        "en": "Common parameters",
+        "es": "Configuración común",
         "ru": "Общесистемные настройки",
         "zh": ""
     },
@@ -553,10 +566,10 @@
         "ru": "Сбросить Чип",
         "zh": ""
     },
-    "SYSTEM_LEGEND": {
-        "en": "System",
-        "es": "Sistema",
-        "ru": "Система",
+    "DEVICE_MANAGEMENT_LEGEND": {
+        "en": "Device management",
+        "es": "Administración del dispositivo",
+        "ru": "Управление устройством",
         "zh": ""
     },
     "ENABLE_OTA_BUTTON": {
@@ -577,6 +590,12 @@
         "ru": "Сброс настроек",
         "zh": ""
     },
+    "RESET_BUTTON_JS_ALERT_MESSAGE": {
+        "en": "<p>This action will reset:</p><ul><li>Active Slot parameters,</li><li>Common parameters</li></ul><p>Are you ready to continue?</p>",
+        "es": "<p>Esta por resetear:</p><ul><li>Parámetros del Perfil activo,</li><li>Configuración común</li></ul><p>Quiere seguir reiniciando?</p>",
+        "ru": "<p>Следующие параметры будут сброшены:</p><ul><li>Параметры активного Профиля,</li><li>Общесистемные параметры</li></ul><p>Желаете продолжить?</p>",
+        "zh": ""
+    },
     "BACKUP_LEGEND": {
         "en": "Backup and Restore",
         "es": "Copia de seguridad",
@@ -584,12 +603,6 @@
         "zh": ""
     },
     "BACKUP_BUTTON_HELP_1": {
-        "en": "Backup / Restore of configuration files",
-        "es": "Copia de seguridad/Restauración de archivos de configuración",
-        "ru": "Резервное копирование/восстановление файлов конфигурации",
-        "zh": ""
-    },
-    "BACKUP_BUTTON_HELP_2": {
         "en": "Restore backup data may fail if devices have different firmware versions",
         "es": "La Restauración de datos de copia de seguridad puede fallar si los dispositivos tienen diferentes versiones de firmware",
         "ru": "Восстановление данных из резервной копии может оказаться неудачным, если на устройствах установлены разные версии прошивки.",
@@ -607,16 +620,28 @@
         "ru": "Восстановить",
         "zh": ""
     },
+    "RESTORE_JS_ALERT_MESSAGE": {
+        "en": "<p>Backup File:</p><p>Backup date: [0]</p><p>Size: [1] kB</p>",
+        "es": "<p>Backup File:</p><p>Backup date: [0]</p><p>Size: [1] kB</p>",
+        "ru": "<p>Backup File:</p><p>Backup date: [0]</p><p>Size: [1] kB</p>",
+        "zh": ""
+    },
     "WIFI_LEGEND": {
         "en": "WiFi",
         "es": "WiFi",
-        "ru": "WiFi",
+        "ru": "Параметры WiFi",
         "zh": ""
     },
     "ACCESS_POINT_MODE_BUTTON": {
         "en": "Access Point",
         "es": "Punto de acceso",
         "ru": "Точка доступа",
+        "zh": ""
+    },
+    "ACCESS_POINT_MODE_JS_ALERT_MESSAGE": {
+        "en": "Switching to AP mode. Please connect to \"gbscontrol\" and then click OK",
+        "es": "Punto de Acceso ha sido activado. Conéctese a la red \"gbscontrol\" y luego haga clic en OK",
+        "ru": "Переключение в режим Точки Доступа. Подключитесь к сети \"gbscontrol\" и нажмите \"ОК\"",
         "zh": ""
     },
     "STATION_MODE_BUTTON": {
@@ -641,6 +666,12 @@
         "en": "Connect",
         "es": "Conectar",
         "ru": "Подключиться",
+        "zh": ""
+    },
+    "CONNECT_JS_ALERT_MESSAGE": {
+        "en": "GBS-Control is now connecting to [0]. If connection fails GBS-Control will switch back to Access Point mode. Please wait a few seconds.",
+        "es": "GBS-Control está conectando a [0]. Si la conexión falla, GBS-Control volverá al modo Punto de Acceso. Espere unos segundos.",
+        "ru": "GBS-Control пытается подключиться к [0]. Если соединение не удастся, GBS-Control переключится обратно в режим Точки Доступа. Пожалуйста, подождите несколько секунд.",
         "zh": ""
     },
     "PROMPT_LEGEND": {
@@ -683,6 +714,42 @@
         "en": "password",
         "es": "contraseña",
         "ru": "Пароль",
+        "zh": ""
+    },
+    "ALERT_BUTTON_JS_REJECT": {
+        "en": "Cancel",
+        "es": "Cancelar",
+        "ru": "Отмена",
+        "zh": ""
+    },
+    "ALERT_BUTTON_JS_ACK": {
+        "en": "Accept",
+        "es": "Aceptar",
+        "ru": "Продолжить",
+        "zh": ""
+    },
+    "ALERT_BUTTON_JS_RESTORE": {
+        "en": "Restore",
+        "es": "Restaurar",
+        "ru": "Восстановить",
+        "zh": ""
+    },
+    "JS_NO": {
+        "en": "No",
+        "es": "No",
+        "ru": "Нет",
+        "zh": ""
+    },
+    "JS_YES": {
+        "en": "Yes",
+        "es": "Si",
+        "ru": "Да",
+        "zh": ""
+    },
+    "DEVICE_RESTARTING_CONSOLE_MESSAGE": {
+        "en": "GBS-Control is now restarting...",
+        "es": "GBS-Control está reiniciando...",
+        "ru": "GBS-Control перезагружается...",
         "zh": ""
     }
 }

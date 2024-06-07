@@ -198,18 +198,18 @@ bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
  */
 bool resetMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool isFirstTime)
 {
+    unsigned long resetDelay = 2500;
+    OLEDDisplay *display = nullptr;
     if (!isFirstTime) {
         // not precise
         if (millis() - oledMenuFreezeStartTime >= oledMenuFreezeTimeoutInMS) {
             manager->unfreeze();
-            // ESP.reset();
-            // return false;
-            resetInMSec(1000);
+            goto reset_menu_handler_end;
         }
         return false;
     }
 
-    OLEDDisplay *display = manager->getDisplay();
+    display = manager->getDisplay();
     display->clear();
     display->setColor(OLEDDISPLAY_COLOR::WHITE);
     switch (item->tag) {
@@ -236,8 +236,9 @@ bool resetMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav,
     }
     manager->freeze();
     oledMenuFreezeStartTime = millis();
-    oledMenuFreezeTimeoutInMS = 2000; // freeze for 2 seconds
-    resetInMSec(2500);
+    oledMenuFreezeTimeoutInMS = resetDelay; // freeze for 2 seconds
+reset_menu_handler_end:
+    resetInMSec(resetDelay);
     return false;
 }
 
@@ -487,6 +488,6 @@ void initOLEDMenu()
     // Reset (Misc.)
     OLEDMenuItem *resetMenu = oledMenu.registerItem(root, MT_NULL, IMAGE_ITEM(OM_RESET_RESTORE));
     oledMenu.registerItem(resetMenu, MT_RESET_GBS, IMAGE_ITEM(OM_RESET_GBS), resetMenuHandler);
-    oledMenu.registerItem(resetMenu, MT_RESTORE_FACTORY, IMAGE_ITEM(OM_RESTORE_FACTORY), resetMenuHandler);
     oledMenu.registerItem(resetMenu, MT_RESET_WIFI, IMAGE_ITEM(OM_RESET_WIFI), resetMenuHandler);
+    oledMenu.registerItem(resetMenu, MT_RESTORE_FACTORY, IMAGE_ITEM(OM_RESTORE_FACTORY), resetMenuHandler);
 }

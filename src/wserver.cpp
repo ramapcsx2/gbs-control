@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Tuesday, 4th June 2024 6:56:22 pm                        #
+# Last Modified: Friday, 7th June 2024 4:13:41 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -12,17 +12,17 @@
 
 #include "wserver.h"
 
-#define LOMEM_WEB ((ESP.getFreeHeap() < 10000UL))
-#define ASSERT_LOMEM_RETURN()                                \
-    do                                                       \
-    {                                                        \
-        if (LOMEM_WEB)                                       \
-        {                                                    \
-            char msg[128] = "";                              \
-            sprintf_P(msg, lomemMessage, ESP.getFreeHeap()); \
-            server.send(200, mimeTextHtml, msg);             \
-            return;                                          \
-        }                                                    \
+#define LOMEM_WEB ((ESP.getFreeHeap() < 1024UL))
+#define ASSERT_LOMEM_RETURN()                                                   \
+    do                                                                          \
+    {                                                                           \
+        if (LOMEM_WEB)                                                          \
+        {                                                                       \
+            char msg[128] = "";                                                 \
+            sprintf_P(msg, lomemMessage, (float)(ESP.getFreeHeap()/1024.0));    \
+            server.send(500, mimeTextHtml, msg);                                \
+            return;                                                             \
+        }                                                                       \
     } while (0)
 #define ASSERT_LOMEM_GOTO(G) \
     do                       \
@@ -584,7 +584,7 @@ void serverWiFiStatus()
  */
 void serverWiFiList()
 {
-    String s;
+    String s = "";
     uint8_t i = 0;
     int8_t n = WiFi.scanNetworks();
     while (n == -1)
@@ -632,7 +632,9 @@ void serverWiFiList()
         server.chunkedResponseFinalize();
     }
     else
-        server.send(200, mimeTextHtml, F("[]"));
+        server.send(200, mimeTextHtml, F(""));
+
+    WiFi.scanDelete();
 }
 
 /**
@@ -1987,6 +1989,9 @@ void handleUserCommand()
             slotFlush();
             break;
         case '1':               // reset to defaults button
+            // active slot settings reset
+            slotResetFlush(uopt->slotID);
+            // common parameters reset
             loadDefaultUserOptions();
             saveUserPrefs();
             _WSN(F("options set to defaults, restarting"));
@@ -2657,7 +2662,7 @@ void initUpdateOTA()
  */
 void fsToFactory() {
     fs::Dir root = LittleFS.openDir("/");
-    String index = String(indexPage);
+    String index = String(indexPage).substring(1);
     while (root.next())
     {
         String fn = root.fileName();

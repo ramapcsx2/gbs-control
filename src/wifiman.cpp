@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Sunday, 2nd June 2024 5:26:25 pm                         #
+# Last Modified: Friday, 7th June 2024 12:13:29 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -175,7 +175,7 @@ void wifiInit() {
 
     if (!wifiStartStaMode("")) {
         _connectCheckTime = millis();
-        // no stored network to connect to > start AP mode right away
+        // no stored network to connect to -> start AP mode at once
         // wifiStartApMode();
     }
 }
@@ -204,8 +204,7 @@ bool wifiStartStaMode(const String & ssid, const String & pass) {
         // using credentials stored in flash
         WiFi.begin();
     }
-    _DBG(F("connecting to: "));
-    _DBGF("%s...\n", ssid.c_str());
+    _DBGF("connecting to: %s...\n", ssid.c_str());
     // no fancy stuffs here :)
     // while(WiFi.status() == WL_DISCONNECTED && cntr != 0) {
     //     delay(500);
@@ -221,7 +220,6 @@ bool wifiStartStaMode(const String & ssid, const String & pass) {
  */
 bool wifiStartApMode() {
     bool ret  = false;
-    // WiFi.disconnect();
     // delay(100);
     IPAddress apIP(192, 168, 4, 1);
     WiFi.mode(WIFI_AP);
