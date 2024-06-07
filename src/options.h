@@ -226,6 +226,7 @@ struct runTimeOptions
     bool extClockGenDetected;
     // dev
     bool invertSync;
+    bool debugView;
 };
 // remember adc options across presets
 struct adcOptions

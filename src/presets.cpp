@@ -3,7 +3,7 @@
 # File: preset.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 6:38:23 pm                                   #
 # Author:                                                                           #
-# Last Modified: Sunday, 2nd June 2024 11:34:42 pm                        #
+# Last Modified: Friday, 7th June 2024 4:52:58 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -96,6 +96,7 @@ void setResetParameters()
 
     // DEV
     rto->invertSync = false;
+    rto->debugView = false;
 
     adco->r_gain = 0;
     adco->g_gain = 0;

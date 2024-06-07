@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Friday, 7th June 2024 12:13:29 pm                        #
+# Last Modified: Friday, 7th June 2024 4:52:58 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -151,6 +151,8 @@ void updateWebSocketData()
                 toSend[6] |= (1 << 2);
             if(GBS::ADC_FLTR::read() != 0)
                 toSend[6] |= (1 << 3);
+            if(rto->debugView)
+                toSend[6] |= (1 << 4);
 
             // system tab controls
             if(rto->allowUpdatesOTA)

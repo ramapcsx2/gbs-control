@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Sunday, 2nd June 2024 11:15:45 pm                        #
+# Last Modified: Friday, 7th June 2024 4:52:58 pm                         #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -168,6 +168,7 @@ void setup()
 
     // dev
     rto->invertSync = false;
+    rto->debugView = false;
 
     adco->r_gain = 0;
     adco->g_gain = 0;

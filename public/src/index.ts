@@ -554,7 +554,7 @@ const createWebSocket = () => {
             optionByte4, // deintMode & wantTap6 & wantFullHeight & matchPresetSource & PalForce60
             optionByte5, // wantOutputComponent & enableCalibrationADC & preferScalingRgbhv & disableExternalClockGenerator
             // developer tab
-            optionByte6, // printInfos, invertSync, oversampling, ADC Filter
+            optionByte6, // printInfos, invertSync, oversampling, ADC Filter, debugView
             // system tab
             optionByte7, // enableOTA
         ] = bufArr
@@ -672,6 +672,9 @@ const createWebSocket = () => {
         const adcFilter = document.querySelector(
             `button[gbs-message="F"][gbs-message-type="action"]`
         )
+        const debugView = document.querySelector(
+            `button[gbs-message="D"][gbs-message-type="action"]`
+        )
         if ((optionByte6 & 0x01) == 0x01)
             printInfoButton.setAttribute('active', '')
         else printInfoButton.removeAttribute('active')
@@ -682,6 +685,9 @@ const createWebSocket = () => {
         else oversampling.removeAttribute('active')
         if ((optionByte6 & 0x08) == 0x08) adcFilter.setAttribute('active', '')
         else adcFilter.removeAttribute('active')
+        if ((optionByte6 & 0x10) == 0x10)
+            debugView.setAttribute('active', '')
+        else debugView.removeAttribute('active')
 
         // system tab
         const enableOTAButton = document.querySelector(
@@ -1227,7 +1233,8 @@ const toggleDeveloperMode = () => {
     const developerMode = GBSStorage.read('developerMode') || false
 
     GBSStorage.write('developerMode', !developerMode)
-    updateDeveloperMode(!developerMode)
+    // updateDeveloperMode(!developerMode)
+    initDeveloperMode();
 }
 
 /**

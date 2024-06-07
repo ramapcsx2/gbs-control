@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Friday, 7th June 2024 4:13:41 pm                         #
+# Last Modified: Friday, 7th June 2024 4:55:29 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -986,10 +986,10 @@ void handleSerialCommand()
             togglePhaseAdjustUnits();
             // enableVDS();
             break;
-        case 'D':
+        case 'D':               // toggle debug mode
             _WS(F("debug view: "));
             if (GBS::ADC_UNUSED_62::read() == 0x00)
-            { // "remembers" debug view
+            {
                 // if (uopt->wantPeaking == 0) { GBS::VDS_PK_Y_H_BYPS::write(0); } // 3_4e 0 // enable peaking but don't store
                 GBS::VDS_PK_LB_GAIN::write(0x3f);                   // 3_45
                 GBS::VDS_PK_LH_GAIN::write(0x3f);                   // 3_47
@@ -1006,6 +1006,7 @@ void handleSerialCommand()
                     GBS::HD_V_OFFSET::write(GBS::HD_V_OFFSET::read() + 0x24);
                 }
                 // GBS::IF_IN_DREG_BYPS::write(1); // enhances noise from not delaying IF processing properly
+                rto->debugView = true;
                 _WSN(F("on"));
             }
             else
@@ -1035,6 +1036,7 @@ void handleSerialCommand()
                 GBS::ADC_UNUSED_60::write(0); // .. and clear
                 GBS::ADC_UNUSED_61::write(0);
                 GBS::ADC_UNUSED_62::write(0);
+                rto->debugView = false;
                 _WSN(F("off"));
             }
             serialCommand = '@';
@@ -1123,7 +1125,7 @@ void handleSerialCommand()
             writeProgramArrayNew(pal_240p, false);
             doPostPresetLoadSteps();
             break;
-        case '.':
+        case '.':               // resync HTotal
         {
             if (!rto->outModeHdBypass)
             {
@@ -1140,8 +1142,9 @@ void handleSerialCommand()
                     autoBestHtotalSuccess = runAutoBestHTotal();
                     if (!autoBestHtotalSuccess)
                     {
-                        _WSN(F("(unchanged)"));
-                    }
+                        _WSN(F("HTotal is unchanged"));
+                    } else
+                        _WSN(F("resync HTotal success"));
                 }
             }
         }
@@ -1952,10 +1955,11 @@ void handleSerialCommand()
         {
             // in case we handled a Serial or web server command and there's no more extra commands
             // but keep debug view command (resets once called)
-            if (serialCommand != 'D')
-            {
-                serialCommand = '@';
-            }
+            // @sk: we have rto->debugView
+            // if (serialCommand != 'D')
+            // {
+            //     serialCommand = '@';
+            // }
             wifiLoop(1);
         }
     }
@@ -2446,14 +2450,15 @@ void handleUserCommand()
                 _WSN(F("off"));
             }
             break;
-        case 'F':
-            // freeze pic
+        case 'F':           // freeze pic
             if (GBS::CAPTURE_ENABLE::read())
             {
+                _WSN(F("capture: disabled"));
                 GBS::CAPTURE_ENABLE::write(0);
             }
             else
             {
+                _WSN(F("capture: enabled"));
                 GBS::CAPTURE_ENABLE::write(1);
             }
             break;

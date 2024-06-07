@@ -3,7 +3,7 @@
 # File: video.cpp                                                                   #
 # File Created: Thursday, 2nd May 2024 4:07:57 pm                                   #
 # Author:                                                                           #
-# Last Modified: Sunday, 2nd June 2024 11:07:47 pm                        #
+# Last Modified: Friday, 7th June 2024 4:57:34 pm                         #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -1410,13 +1410,15 @@ void setOutModeHdBypass(bool regsInitialized)
     externalClockGenResetClock();
     updateSpDynamic(0);
     loadHdBypassSection(); // this would be ignored otherwise
-    if (GBS::ADC_UNUSED_62::read() != 0x00) {
+
+    // TODO: needs clarification (see: rto->debugView)
+    // if (GBS::ADC_UNUSED_62::read() != 0x00) {
         // remember debug view
         // if (uopt->presetPreference != 2) {
         // if (uopt->resolutionID != OutputCustom) {
-        serialCommand = 'D';
+        // serialCommand = 'D';
         // }
-    }
+    // }
 
     GBS::SP_NO_COAST_REG::write(0);  // enable vblank coast (just in case)
     GBS::SP_COAST_INV_REG::write(0); // also just in case
