@@ -3,7 +3,7 @@
 # File: wserial.h                                                                    #
 # File Created: Friday, 19th April 2024 4:13:41 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Friday, 7th June 2024 12:17:54 pm                        #
+# Last Modified: Monday, 10th June 2024 12:14:34 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -14,10 +14,13 @@
 #define _WSERIAL_H_
 
 #include <WebSocketsServer.h>
+#include <options.h>
 
 extern char serialCommand;
 extern char userCommand;
 extern WebSocketsServer webSocket;
+extern runTimeOptions *rto;
+extern userOptions *uopt;
 
 // TODO: useless ?
 /* #define LOMEM_SP                        ((ESP.getFreeHeap() > 10000))
@@ -26,35 +29,42 @@ extern WebSocketsServer webSocket;
 } while(0) */
 
 void discardSerialRxData();
+void serialDevModeToggle();
+const char * serialGetBuffer();
+void serialBufferClean();
 
 #if defined(ESP8266)
 // serial mirror class for websocket logs
 class SerialMirror : public Stream
 {
+    void pushToBuffer(void * data, size_t size);
+
     size_t write(const uint8_t *data, size_t size)
     {
-        webSocket.broadcastTXT(data, size);
+        pushToBuffer((void *)data, size);
         Serial.write(data, size);
         return size;
     }
 
     size_t write(const char *data, size_t size)
     {
-        webSocket.broadcastTXT(data, size);
+        pushToBuffer((void *)data, size);
         Serial.write(data, size);
         return size;
     }
 
     size_t write(uint8_t data)
     {
-        webSocket.broadcastTXT(&data, 1);
+        size_t s = 1;
+        pushToBuffer(&data, s);
         Serial.write(data);
         return 1;
     }
 
     size_t write(char data)
     {
-        webSocket.broadcastTXT(&data, 1);
+        size_t s = 1;
+        pushToBuffer(&data, s);
         Serial.write(data);
         return 1;
     }

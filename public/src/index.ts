@@ -81,7 +81,7 @@ const Structs: StructDescriptors = {
         { name: 'motionAdaptive', type: 'byte', size: 1 },
         { name: 'bob', type: 'byte', size: 1 },
         { name: 'fullHeight', type: 'byte', size: 1 },
-        { name: 'matchPreset', type: 'byte', size: 1 },
+        // { name: 'matchPreset', type: 'byte', size: 1 },
         { name: 'palForce60', type: 'byte', size: 1 },
     ],
 }
@@ -203,7 +203,7 @@ const GBSControl = {
     scanSSIDDone: false,
     serverIP: '',
     structs: null,
-    timeOutWs: 0,
+    // timeOutWs: 0,
     ui: {
         backupButton: null,
         backupInput: null,
@@ -249,9 +249,42 @@ const GBSControl = {
     },
     ws: null,
     wsCheckTimer: 0,
-    wsConnectCounter: 0,
+    // wsConnectCounter: 0,
     wsNoSuccessConnectingCounter: 0,
-    wsTimeout: 0,
+    developerMode: false,
+    wsHeartbeatInterval: null
+    // wsTimeout: 0
+}
+
+/**
+ * Description placeholder
+ *
+ * @type {({ lsObject: {}; write(key: string, value: any): void; read(key: string): string | number | boolean; })}
+ */
+const GBSStorage = {
+    lsObject: {},
+    write(key: string, value: any) {
+        GBSStorage.lsObject = GBSStorage.lsObject || {}
+        GBSStorage.lsObject[key] = value
+        localStorage.setItem(
+            'GBSControlSlotNames',
+            JSON.stringify(GBSStorage.lsObject)
+        )
+    },
+    read(key: string): string | number | boolean {
+        GBSStorage.lsObject = JSON.parse(
+            localStorage.getItem('GBSControlSlotNames') || '{}'
+        )
+        return GBSStorage.lsObject[key]
+    },
+}
+
+
+/**
+ * Reset current section(tab) to slots
+ */
+const resetCurrentPageSection = () => {
+    GBSStorage.write('section', 'presets')
 }
 
 /** websocket services */
@@ -283,16 +316,16 @@ const checkWebSocketServer = () => {
 /**
  * Description placeholder
  */
-const timeOutWs = () => {
-    console.log('timeOutWs')
+// const timeOutWs = () => {
+//     console.log('timeOutWs')
 
-    if (GBSControl.ws) {
-        GBSControl.ws.close()
-    }
+//     if (GBSControl.ws) {
+//         GBSControl.ws.close()
+//     }
 
-    GBSControl.isWsActive = false
-    displayWifiWarning(true)
-}
+//     GBSControl.isWsActive = false
+//     displayWifiWarning(true)
+// }
 
 /**
  * Description placeholder
@@ -316,14 +349,13 @@ const nodelistToArray = <Element>(
  * @param {string} id
  * @returns {(button: HTMLElement, _index: any, _array: any) => void}
  */
-const toggleButtonActive =
-    (id: string) => (button: HTMLElement, _index: any, _array: any) => {
-        button.removeAttribute('active')
+const toggleButtonActive = (id: string) => (button: HTMLElement, _index: any, _array: any) => {
+    button.removeAttribute('active')
 
-        if (button.getAttribute('gbs-element-ref') === id) {
-            button.setAttribute('active', '')
-        }
+    if (button.getAttribute('gbs-element-ref') === id) {
+        button.setAttribute('active', '')
     }
+}
 
 /**
  * Description placeholder
@@ -511,40 +543,42 @@ const createWebSocket = () => {
 
     GBSControl.wsNoSuccessConnectingCounter = 0
     GBSControl.ws = new WebSocket(GBSControl.webSocketServerUrl, ['arduino'])
+    // change message data type
+    GBSControl.ws.binaryType = "arraybuffer";
+
+    if(!GBSControl.ws) {
+        displayWifiWarning(true)
+        return
+    }
 
     GBSControl.ws.onopen = () => {
-        // console.log("ws onopen");
-
+        console.log("ws.open")
         displayWifiWarning(false)
-
-        GBSControl.wsConnectCounter++
-        clearTimeout(GBSControl.wsTimeout)
-        GBSControl.wsTimeout = window.setTimeout(timeOutWs, 6000)
         GBSControl.isWsActive = true
         GBSControl.wsNoSuccessConnectingCounter = 0
     }
 
     GBSControl.ws.onclose = () => {
-        // console.log("ws.onclose");
-
-        clearTimeout(GBSControl.wsTimeout)
+        console.log("ws.close")
+        displayWifiWarning(true)
         GBSControl.isWsActive = false
     }
 
-    GBSControl.ws.onmessage = async (message: any) => {
-        clearTimeout(GBSControl.wsTimeout)
-        GBSControl.wsTimeout = window.setTimeout(timeOutWs, 2700)
+    GBSControl.ws.onmessage = (message: any) => {
+        // GBSControl.wsTimeout = window.setTimeout(timeOutWs, 2700)
         GBSControl.isWsActive = true
-        // message data is blob
-        let buf = null
-        try {
-            buf = await message.data.arrayBuffer()
-        } catch (err) {
-            // must not exit here since we're filtering out
-            // terminal data and system state data with '#'
-        }
+        // let buf = null
+        // try {
+        //     buf = await message.data.arrayBuffer()
+        // } catch (err) {
+        //     // must not exit here since we're filtering out
+        //     // terminal data and system state data with '#'
+        // }
+        if (!(message.data instanceof ArrayBuffer))
+            return;
         // into array of DEC values
-        const bufArr = Array.from(new Uint8Array(buf))
+        const bufUint8Arr = new Uint8Array(message.data)
+        const bufArr = Array.from(bufUint8Arr)
         const [
             optionByte0, // always #
             optionByte1, // current slot ID (int)
@@ -554,13 +588,17 @@ const createWebSocket = () => {
             optionByte4, // deintMode & wantTap6 & wantFullHeight & matchPresetSource & PalForce60
             optionByte5, // wantOutputComponent & enableCalibrationADC & preferScalingRgbhv & disableExternalClockGenerator
             // developer tab
-            optionByte6, // printInfos, invertSync, oversampling, ADC Filter, debugView
+            optionByte6, // developerMode, printInfos, invertSync, oversampling, ADC Filter, debugView, freezeCapture
             // system tab
             optionByte7, // enableOTA
         ] = bufArr
 
         if (optionByte0 != '#'.charCodeAt(0)) {
-            GBSControl.queuedText += message.data
+            if (!("TextDecoder" in window))
+                GBSControl.queuedText = 'L{DEVELOPER_JS_ALERT_TEXTDECODER}';
+            const decoder = new TextDecoder("utf-8")
+
+            GBSControl.queuedText += decoder.decode(bufUint8Arr)
             GBSControl.dataQueued += message.data.length
 
             if (GBSControl.dataQueued >= 70000) {
@@ -637,12 +675,12 @@ const createWebSocket = () => {
                     case 'fullHeight':
                         toggleButtonCheck(button, (optionByte4 & 0x04) == 0x04)
                         break
-                    case 'matchPreset':
+                    case 'palForce60':
                         toggleButtonCheck(button, (optionByte4 & 0x08) == 0x08)
                         break
-                    case 'palForce60':
-                        toggleButtonCheck(button, (optionByte4 & 0x10) == 0x10)
-                        break
+                    // case 'matchPreset':
+                    //     toggleButtonCheck(button, (optionByte4 & 0x08) == 0x08)
+                    //     break
                     /** 4: system preferences tab */
                     case 'wantOutputComponent':
                         toggleButtonCheck(button, (optionByte5 & 0x01) == 0x01)
@@ -675,19 +713,39 @@ const createWebSocket = () => {
         const debugView = document.querySelector(
             `button[gbs-message="D"][gbs-message-type="action"]`
         )
+        const freezeCaptureButton = document.querySelector(
+            `button[gbs-message="F"][gbs-message-type="user"]`
+        );
         if ((optionByte6 & 0x01) == 0x01)
+            GBSControl.developerMode = true;
+        else
+            GBSControl.developerMode = false;
+        toggleDeveloperMode()
+
+        if ((optionByte6 & 0x02) == 0x02)
             printInfoButton.setAttribute('active', '')
-        else printInfoButton.removeAttribute('active')
-        if ((optionByte6 & 0x02) == 0x02) invertSync.setAttribute('active', '')
-        else invertSync.removeAttribute('active')
+        else
+            printInfoButton.removeAttribute('active')
         if ((optionByte6 & 0x04) == 0x04)
+            invertSync.setAttribute('active', '')
+        else
+            invertSync.removeAttribute('active')
+        if ((optionByte6 & 0x08) == 0x08)
             oversampling.setAttribute('active', '')
-        else oversampling.removeAttribute('active')
-        if ((optionByte6 & 0x08) == 0x08) adcFilter.setAttribute('active', '')
-        else adcFilter.removeAttribute('active')
+        else
+            oversampling.removeAttribute('active')
         if ((optionByte6 & 0x10) == 0x10)
+            adcFilter.setAttribute('active', '')
+        else
+            adcFilter.removeAttribute('active')
+        if ((optionByte6 & 0x20) == 0x20)
             debugView.setAttribute('active', '')
-        else debugView.removeAttribute('active')
+        else
+            debugView.removeAttribute('active')
+        if ((optionByte6 & 0x40) == 0x40)
+            freezeCaptureButton.setAttribute('active', '')
+        else
+            freezeCaptureButton.removeAttribute('active')
 
         // system tab
         const enableOTAButton = document.querySelector(
@@ -751,7 +809,9 @@ const createIntervalChecks = () => {
 const loadDoc = (link: string) => {
     return fetch(
         `http://${GBSControl.serverIP}/sc?${link}&nocache=${new Date().getTime()}`
-    )
+    ).catch(() => {
+        // do something
+    })
 }
 
 /**
@@ -765,11 +825,14 @@ const loadUser = (link: string) => {
         GBSControl.isWsActive = false
         GBSControl.ui.terminal.value += '\nL{DEVICE_RESTARTING_CONSOLE_MESSAGE}\n'
         GBSControl.ui.terminal.scrollTop = GBSControl.ui.terminal.scrollHeight
+        resetCurrentPageSection()
     }
 
     return fetch(
         `http://${GBSControl.serverIP}/uc?${link}&nocache=${new Date().getTime()}`
-    )
+    ).catch(() => {
+        // do something
+    })
 }
 
 /** WIFI management */
@@ -800,6 +863,8 @@ const wifiGetStatus = () => {
                 )
                 GBSControl.ui.wifiStaSSID.innerHTML = `${GBSControl.wifi.ssid}`
             }
+        }).catch(() => {
+            // do something
         })
 }
 
@@ -831,6 +896,8 @@ const wifiConnect = () => {
                 window.location.href = 'http://gbscontrol.local/'
             })
             .catch(() => {})
+    }).catch(() => {
+        // do something
     })
 }
 
@@ -847,6 +914,8 @@ const wifiScanSSID = () => {
         }).then(() => {
             GBSControl.scanSSIDDone = true
             window.setTimeout(wifiScanSSID, 3000)
+        }).catch(() => {
+            // do something
         })
         return
     }
@@ -885,6 +954,8 @@ const wifiScanSSID = () => {
                 GBSControl.ui.wifiList.removeAttribute('hidden')
                 GBSControl.ui.wifiConnect.setAttribute('hidden', '')
             }
+        }).catch(() => {
+            // do something
         })
 }
 
@@ -925,6 +996,8 @@ const wifiSetAPMode = () => {
             })
             .catch(() => {})
         return response
+    }).catch(() => {
+        // do something
     })
 }
 
@@ -1031,6 +1104,8 @@ const fetchSlotNames = () => {
                 return true
             }
             return false
+        }).catch(() => {
+            // do something
         })
 }
 
@@ -1065,6 +1140,8 @@ const removePreset = () => {
                             fetchSlotNamesErrorRetry()
                         }
                     })
+                }).catch(() => {
+                    // do something
                 })
             })
             .catch(() => {})
@@ -1106,6 +1183,8 @@ const savePreset = () => {
                         })
                     }, 500)
                     // });
+                }).catch(() => {
+                    // do something
                 })
             }
         })
@@ -1142,6 +1221,9 @@ const getSlotsHTML = () => {
  */
 const setSlot = (slot: string, el: HTMLElement) => {
     fetch(`http://${GBSControl.serverIP}/slot/set?index=${slot}&${+new Date()}`)
+    .catch(() => {
+        // do something
+    })
 }
 
 /**
@@ -1228,17 +1310,6 @@ const toggleHelp = () => {
 
 /**
  * Description placeholder
- */
-const toggleDeveloperMode = () => {
-    const developerMode = GBSStorage.read('developerMode') || false
-
-    GBSStorage.write('developerMode', !developerMode)
-    // updateDeveloperMode(!developerMode)
-    initDeveloperMode();
-}
-
-/**
- * Description placeholder
  *
  * @param {boolean} help
  */
@@ -1253,18 +1324,19 @@ const updateHelp = (help: boolean) => {
 /**
  * Toggle console visibility (see corresponding button)
  *
- * @param {boolean} developerMode
  */
-const updateConsoleVisibility = (developerMode: boolean) => {
-    // const developerMode = GBSStorage.read("developerMode") as boolean;
-    if (developerMode) {
+const updateConsoleVisibility = () => {
+    // const developerMode = GBSStorage.read('developerMode') || false
+    if (GBSControl.developerMode) {
         const consoleStatus = GBSStorage.read('consoleVisible') as boolean
-        if (consoleStatus !== true) {
+        if (consoleStatus != true) {
             GBSStorage.write('consoleVisible', true)
+            // GBSControl.consoleVisible = true
             GBSControl.ui.toggleConsole.setAttribute('active', '')
             document.body.classList.remove('gbs-output-hide')
         } else {
             GBSStorage.write('consoleVisible', false)
+            // GBSControl.consoleVisible = false
             GBSControl.ui.toggleConsole.removeAttribute('active')
             document.body.classList.add('gbs-output-hide')
         }
@@ -1272,51 +1344,30 @@ const updateConsoleVisibility = (developerMode: boolean) => {
 }
 
 /**
- * Description placeholder
- *
- * @param {boolean} developerMode
+ * Toggle developer mode (see WS heartbeat)
  */
-const updateDeveloperMode = (developerMode: boolean) => {
-    const el = document.querySelector(
-        '[gbs-section="developer"]'
-    ) as HTMLElement
-    if (developerMode) {
-        GBSStorage.write('consoleVisible', true)
+const toggleDeveloperMode = () => {
+    const el = document.querySelector('[gbs-section="developer"]') as HTMLElement
+    const consoleStatus = GBSStorage.read('consoleVisible') as boolean
+    if (GBSControl.developerMode) {
         el.removeAttribute('hidden')
+        if(consoleStatus == true) {
+            document.body.classList.remove('gbs-output-hide')
+        }
         GBSControl.ui.developerSwitch.setAttribute('active', '')
-        document.body.classList.remove('gbs-output-hide')
+        GBSControl.ui.developerSwitch.querySelector('.gbs-icon').innerText = "toggle_on"
+        // if(!GBSControl.wsHeartbeatInterval)
+        //     GBSControl.wsHeartbeatInterval = window.setInterval(webSocketHeartbeat, 900);
     } else {
         el.setAttribute('hidden', '')
-        GBSControl.ui.developerSwitch.removeAttribute('active')
+        GBSStorage.write('consoleVisible', true)
         document.body.classList.add('gbs-output-hide')
+        GBSControl.ui.developerSwitch.removeAttribute('active')
+        GBSControl.ui.developerSwitch.querySelector('.gbs-icon').innerText = "toggle_off"
+        window.clearInterval(GBSControl.wsHeartbeatInterval);
     }
+};
 
-    GBSControl.ui.developerSwitch.querySelector('.gbs-icon').innerText =
-        developerMode ? 'toggle_on' : 'toggle_off'
-}
-
-/**
- * Description placeholder
- *
- * @type {({ lsObject: {}; write(key: string, value: any): void; read(key: string): string | number | boolean; })}
- */
-const GBSStorage = {
-    lsObject: {},
-    write(key: string, value: any) {
-        GBSStorage.lsObject = GBSStorage.lsObject || {}
-        GBSStorage.lsObject[key] = value
-        localStorage.setItem(
-            'GBSControlSlotNames',
-            JSON.stringify(GBSStorage.lsObject)
-        )
-    },
-    read(key: string): string | number | boolean {
-        GBSStorage.lsObject = JSON.parse(
-            localStorage.getItem('GBSControlSlotNames') || '{}'
-        )
-        return GBSStorage.lsObject[key]
-    },
-}
 
 /**
  * Description placeholder
@@ -1388,10 +1439,14 @@ const doRestore = (f: File) => {
                     body: formData,
                 }).then((response) => {
                     // backupInput.removeAttribute("disabled");
+                    // start with 1st tab
+                    resetCurrentPageSection()
                     window.setTimeout(() => {
                         window.location.reload()
-                    }, 2000)
+                    }, 4000)
                     return response
+                }).catch(() => {
+                    // do something
                 })
             }
         )
@@ -1450,10 +1505,14 @@ const initMenuButtons = () => {
     )
     const scroll = document.querySelector('.gbs-scroll')
 
-    menuButtons.forEach((button) =>
+    let currentPage = GBSStorage.read('section') || 'presets'
+    if(!GBSControl.developerMode && currentPage === 'developer')
+        currentPage = 'presets'
+    menuButtons.forEach((button) => {
+        const sectionName = button.getAttribute('gbs-section')
         button.addEventListener('click', () => {
-            const section = button.getAttribute('gbs-section')
-
+            const section = sectionName;
+            GBSStorage.write('section', section)
             sections.forEach((section) => section.setAttribute('hidden', ''))
             document
                 .querySelector(`section[name="${section}"]`)
@@ -1463,7 +1522,10 @@ const initMenuButtons = () => {
             button.setAttribute('active', '')
             scroll.scrollTo(0, 1)
         })
-    )
+        // get back to the last section after reload
+        if(currentPage === sectionName)
+            button.dispatchEvent(new Event("click"))
+    })
 }
 
 /**
@@ -1490,7 +1552,7 @@ const initGBSButtons = () => {
             // custom events applied for some buttons
             button.addEventListener('click', () => {
                 if(message == '1' && messageType == 'user') {
-                    // reset to defaults button
+                    // reset to defaults (factory) command
                     gbsAlert(
                         'L{RESET_BUTTON_JS_ALERT_MESSAGE}',
                         '<div class="gbs-icon">close</div><div>L{JS_NO}</div>',
@@ -1508,6 +1570,11 @@ const initGBSButtons = () => {
                         }
                     ).catch(() => {
                     });
+                } else if(message == 'a' && messageType == 'user') {
+                    // restart device command
+                    window.setTimeout(() => {
+                        window.location.reload()
+                    }, 5000)
                 } else {
                     // all other buttons
                     action(message, button)
@@ -1635,7 +1702,11 @@ const initGeneralListeners = () => {
     GBSControl.ui.wifiConnectButton.addEventListener('click', wifiConnect)
     GBSControl.ui.wifiApButton.addEventListener('click', wifiSetAPMode)
     GBSControl.ui.wifiStaButton.addEventListener('click', wifiScanSSID)
-    GBSControl.ui.developerSwitch.addEventListener('click', toggleDeveloperMode)
+    // GBSControl.ui.developerSwitch.addEventListener('click', () => {
+    //     const developerMode = GBSStorage.read('developerMode') || false
+    //     GBSStorage.write('developerMode', !developerMode)
+    //     updateConsoleVisibility()
+    // })
     GBSControl.ui.removeSlotButton.addEventListener('click', () => {
         removePreset()
     })
@@ -1674,22 +1745,10 @@ const initGeneralListeners = () => {
             gbsPromptPromise.reject()
         }
     })
-}
 
-/**
- * Description placeholder
- */
-const initDeveloperMode = () => {
-    const devMode = GBSStorage.read('developerMode') as boolean
-    if (devMode === undefined) {
-        GBSStorage.write('developerMode', false)
-        updateDeveloperMode(false)
-    } else {
-        updateDeveloperMode(devMode)
-    }
     // toggle console visibility button
     GBSControl.ui.toggleConsole.addEventListener('click', () => {
-        updateConsoleVisibility(devMode)
+        updateConsoleVisibility()
     })
 }
 
@@ -1719,7 +1778,6 @@ const initUI = () => {
     initClearButton()
     initControlMobileKeys()
     initUnloadListener()
-    initDeveloperMode()
     initHelp()
 }
 

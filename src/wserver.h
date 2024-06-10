@@ -3,7 +3,7 @@
 # File: wserver.h                                                                    #
 # File Created: Friday, 19th April 2024 3:11:47 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Friday, 7th June 2024 3:55:49 pm                         #
+# Last Modified: Monday, 10th June 2024 12:27:21 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -48,6 +48,8 @@ const char mimeOctetStream[] PROGMEM = "application/octet-stream";
 const char mimeAppJson[] PROGMEM = "application/json";
 
 void serverInit();
+void serverWebSocketToggleDeveloperMode();
+void serverWebSocketInit();
 void serverHome();
 void serverSC();
 void serverUC();
@@ -79,6 +81,7 @@ void handleSerialCommand();
 void handleUserCommand();
 void initUpdateOTA();
 void fsToFactory();
+void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length);
 #endif              // defined(ESP8266)
 
 #endif                              // _ESPWSERVER_H_

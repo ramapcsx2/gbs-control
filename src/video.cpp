@@ -3,7 +3,7 @@
 # File: video.cpp                                                                   #
 # File Created: Thursday, 2nd May 2024 4:07:57 pm                                   #
 # Author:                                                                           #
-# Last Modified: Friday, 7th June 2024 4:57:34 pm                         #
+# Last Modified: Monday, 10th June 2024 4:04:57 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -457,8 +457,7 @@ void externalClockGenResetClock()
     GBS::PAD_CKIN_ENZ::write(0); // 0 = clock input enable (pin40)
     FrameSync::clearFrequency();
 
-    _DBG(F("clock gen reset: "));
-    _DBGN(rto->freqExtClockGen);
+    _DBGF(PSTR("reset ext. clock gen. to: %ld\n"), rto->freqExtClockGen);
 }
 
 /**
@@ -1935,7 +1934,7 @@ void runAutoGain()
 
     for (uint8_t i = 0; i < loopCeiling; i++) {
         if (i % 20 == 0) {
-            wifiLoop(0);
+            // wifiLoop(0);
             limit_found = 0;
         }
         greenValue = GBS::TEST_BUS_2F::read();
@@ -2586,8 +2585,8 @@ void goLowPowerWithInputDetection()
     GBS::OUT_SYNC_CNTRL::write(0); // no H / V sync out to PAD
     GBS::DAC_RGBS_PWDNZ::write(0); // direct disableDAC()
     // zeroAll();
+    _DBGN(F("(!) reset runtime parameters while going LowPower"));
     setResetParameters(); // includes rto->videoStandardInput = 0
-    _DBGN(F("reset runtime parameters while going LowPower"));
     prepareSyncProcessor();
     delay(100);
     rto->isInLowPowerMode = true;
@@ -4178,7 +4177,7 @@ void runSyncWatcher()
                     rto->noSyncCounter = 0x07fe; // will cause a return
                     break;
                 }
-                wifiLoop(0);
+                // wifiLoop(0);
                 delay(1);
             }
 
@@ -4832,7 +4831,7 @@ void runSyncWatcher()
 
         if (RGBHVNoSyncCounter > limitNoSync) {
             RGBHVNoSyncCounter = 0;
-            _DBGN(F("reset runtime parameters while running syncWatcher"));
+            _DBGN(F("(!) reset runtime parameters while running syncWatcher"));
             setResetParameters();
             prepareSyncProcessor();
             resetSyncProcessor(); // todo: fix MD being stuck in last mode when sync disappears
@@ -5025,7 +5024,7 @@ uint8_t detectAndSwitchToActiveInput()
     unsigned long timeout = millis();
     while (millis() - timeout < 450) {
         delay(10);
-        wifiLoop(0);
+        // wifiLoop(0);
 
         bool stable = getStatus16SpHsStable();
         if (stable) {
@@ -5047,7 +5046,7 @@ uint8_t detectAndSwitchToActiveInput()
                 // 360ms good up to 5_34 SP_V_TIMER_VAL = 0x0b
                 while (!vsyncActive && ((millis() - timeOutStart) < 360)) {
                     vsyncActive = GBS::STATUS_SYNC_PROC_VSACT::read();
-                    wifiLoop(0); // wifi stack
+                    // wifiLoop(0); // wifi stack
                     delay(1);
                 }
 
@@ -5060,7 +5059,7 @@ uint8_t detectAndSwitchToActiveInput()
                     timeOutStart = millis();
                     while (!hsyncActive && millis() - timeOutStart < 400) {
                         hsyncActive = GBS::STATUS_SYNC_PROC_HSACT::read();
-                        wifiLoop(0); // wifi stack
+                        // wifiLoop(0); // wifi stack
                         delay(1);
                     }
 

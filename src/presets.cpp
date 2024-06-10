@@ -3,7 +3,7 @@
 # File: preset.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 6:38:23 pm                                   #
 # Author:                                                                           #
-# Last Modified: Friday, 7th June 2024 4:52:58 pm                         #
+# Last Modified: Monday, 10th June 2024 4:04:57 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -67,7 +67,6 @@ void loadPresetMdSection()
  */
 void setResetParameters()
 {
-    _WSN(F("(!) runtime data reset"));
     // TODO: do we reset resolution here?
     rto->videoStandardInput = 0;
     rto->videoIsFrozen = false;
@@ -94,9 +93,10 @@ void setResetParameters()
     rto->useHdmiSyncFix = 0;
     rto->notRecognizedCounter = 0;
 
-    // DEV
-    rto->invertSync = false;
-    rto->debugView = false;
+    // this may not be reset here
+    // rto->invertSync = false;
+    // rto->debugView = false;
+    // rto->developerMode = false;
 
     adco->r_gain = 0;
     adco->g_gain = 0;
@@ -1075,13 +1075,13 @@ void doPostPresetLoadSteps()
         while ((!getStatus16SpHsStable()) && (millis() - timeout < 2002))
         {
             delay(4);
-            wifiLoop(0);
+            // wifiLoop(0);
             updateSpDynamic(0);
         }
         while ((getVideoMode() == 0) && (millis() - timeout < 1505))
         {
             delay(4);
-            wifiLoop(0);
+            // wifiLoop(0);
             updateSpDynamic(0);
         }
 
@@ -1236,7 +1236,7 @@ void doPostPresetLoadSteps()
     // if (rto->presetID == 0x05 || rto->presetID == 0x15) {
     if (uopt->resolutionID == Output1080p || uopt->resolutionID == Output1080p50)
     {
-        _WS(F("(set your TV aspect ratio to 16:9!)"));
+        _WS(F("(set your TV aspect ratio to 16:9)"));
     }
     if (rto->videoStandardInput == 14)
     {
@@ -1345,8 +1345,8 @@ void applyPresets(uint8_t videoMode)
                 // inputAndSyncDetect() -> goLowPowerWithInputDetection() will
                 // call setResetParameters() again. But if we don't call
                 // setResetParameters() here, the second call will never happen.
+                _DBGN(F("(!) reset runtime parameters while applying preset"));
                 setResetParameters();
-                _DBGN(F("reset runtime parameters while applying preset"));
 
                 // Deselect the output resolution in the web UI. We cannot call
                 // doPostPresetLoadSteps() to select the right resolution, since
@@ -1489,7 +1489,6 @@ void applyPresets(uint8_t videoMode)
         {
             const uint8_t *preset = loadPresetFromLFS(videoMode);
             writeProgramArrayNew(preset, false);
-            _WSF(PSTR("%d preset is now active\n"), preset);
             if (applySavedBypassPreset())
             {
                 _DBGN(F("Bypass preset applied"));
@@ -1499,16 +1498,17 @@ void applyPresets(uint8_t videoMode)
         // } else if (uopt->presetPreference == 4) {
         else if (uopt->resolutionID == Output1024p)
         {
-            if (uopt->matchPresetSource && (videoMode != 8) && (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0))
-            {
-                writeProgramArrayNew(ntsc_240p, false); // pref = x1024 override to x960
-                _WSN(F("ntsc_240p is now active"));
-            }
-            else
-            {
+            // comments are misleading, the functionality is unknown
+            // if (uopt->matchPresetSource && (videoMode != 8) && (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0))
+            // {
+            //     writeProgramArrayNew(ntsc_240p, false); // pref = x1024 override to x960
+            //     _WSN(F("ntsc_240p is now active"));
+            // }
+            // else
+            // {
                 writeProgramArrayNew(ntsc_1280x1024, false);
                 _WSN(F("ntsc_1280x1024 is now active"));
-            }
+            // }
         }
 #endif              // defined(ESP8266)
 
@@ -1532,16 +1532,16 @@ void applyPresets(uint8_t videoMode)
         // if (uopt->presetPreference == 0) {
         if (uopt->resolutionID == Output240p)
         {
-            if (uopt->matchPresetSource)
-            {
-                writeProgramArrayNew(pal_1280x1024, false); // pref = x960 override to x1024
-                _WSN(F("pal_1280x1024 is now active"));
-            }
-            else
-            {
+            // if (uopt->matchPresetSource)
+            // {
+            //     writeProgramArrayNew(pal_1280x1024, false); // pref = x960 override to x1024
+            //     _WSN(F("pal_1280x1024 is now active"));
+            // }
+            // else
+            // {
                 writeProgramArrayNew(pal_240p, false);
                 _WSN(F("pal_240p is now active"));
-            }
+            // }
             // } else if (uopt->presetPreference == 1) {
         }
         else if (uopt->resolutionID == Output576p50)
@@ -1566,7 +1566,6 @@ void applyPresets(uint8_t videoMode)
         {
             const uint8_t *preset = loadPresetFromLFS(videoMode);
             writeProgramArrayNew(preset, false);
-            _WSF(PSTR("%d preset is now active\n"), preset);
             if (applySavedBypassPreset())
             {
                 _DBGN(F("Bypass preset applied"));
@@ -1718,7 +1717,7 @@ const uint8_t *loadPresetFromLFS(byte forVideoMode)
     f = LittleFS.open(buffer, "r");
     if (!f)
     {
-        _WSN(F("no preset file for this slot and source"));
+        _WSN(F("no preset file for this slot and source, using 240p"));
         if (forVideoMode == 2 || forVideoMode == 4)
             return pal_240p;
         else
@@ -1730,7 +1729,7 @@ const uint8_t *loadPresetFromLFS(byte forVideoMode)
         s = f.readStringUntil('}');
         f.close();
     }
-
+// FIXME
     char *tmp;
     uint16_t i = 0;
     tmp = strtok(&s[0], ",");

@@ -364,19 +364,19 @@
                         <div>L{SLOT_SETTINGS_LEGEND}</div>
                     </legend>
                     <table class="gbs-preferences">
-                        <tr>
+                        <!-- <tr>
                             <td>
                                 L{MATCH_PRESETS_SWITCH}
-                                <ul class="gbs-help">
+                                <ul class="gbs-help"> -->
                                     <!-- prettier-ignore -->
-                                    <li>L{MATCH_PRESETS_SWITCH_HELP_1}</li>
+                                    <!-- <li>L{MATCH_PRESETS_SWITCH_HELP_1}</li>
                                 </ul>
                             </td>
                             <td gbs-message="Z" gbs-message-type="action" gbs-click="normal" class="gbs-icon"
                                 gbs-toggle-switch="matchPreset">
                                 toggle_off
                             </td>
-                        </tr>
+                        </tr> -->
                         <tr>
                             <td>
                                 L{FULL_HEIGHT_SWITCH}
@@ -540,7 +540,8 @@
                                     <li>L{DEVELOPER_MODE_SWITCH_HELP_1}</li>
                                 </ul>
                             </td>
-                            <td class="gbs-icon">toggle_off</td>
+                            <td gbs-message="d" gbs-message-type="user" gbs-click="normal"
+                                class="gbs-icon">toggle_off</td>
                         </tr>
                     </table>
                 </fieldset>
@@ -553,7 +554,7 @@
                         <div>L{DEVELOPER_LEGEND}</div>
                     </legend>
                     <div class="gbs-flex gbs-margin__bottom--16">
-                        <button class="gbs-button" gbs-output-toggle>
+                        <button class="gbs-button" gbs-output-toggle active>
                             <div class="gbs-icon">code</div>
                             <div>L{TOGGLE_CONSOLE_BUTTON}</div>
                         </button>

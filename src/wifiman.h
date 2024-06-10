@@ -3,7 +3,7 @@
 # File: wifiman.h                                                                   #
 # File Created: Friday, 19th April 2024 2:25:42 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Tuesday, 28th May 2024 4:42:17 pm                        #
+# Last Modified: Saturday, 8th June 2024 4:13:45 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -38,13 +38,13 @@ extern struct runTimeOptions *rto;
 //  THE OBJECTIVE: Do not rely on build-in autoreconnect routine,
 //                 use the custom one instead.
 
-void updateWebSocketData();
+// void updateWebSocketData();
 void wifiInit();
 void wifiDisable();
 bool wifiStartStaMode(const String & ssid, const String & pass = "");
 bool wifiStartApMode();
 bool wifiStartWPS();
-void wifiLoop(bool instant);
+void wifiLoop();
 const String wifiGetApSSID();
 const String wifiGetApPASS();
 int8_t wifiGetRSSI();

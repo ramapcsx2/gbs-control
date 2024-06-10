@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Friday, 7th June 2024 4:52:58 pm                         #
+# Last Modified: Saturday, 8th June 2024 4:19:54 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -13,7 +13,7 @@
 #include "wifiman.h"
 
 static unsigned long _connectCheckTime = 0;
-static unsigned long _lastTimePing = 0;
+// static unsigned long _lastTimePing = 0;
 
 #ifdef THIS_DEVICE_MASTER
 
@@ -86,82 +86,82 @@ static void wifiEventHandler(System_Event_t *e)
  *          which is in webUI (see: createWebSocket())
  *
  */
-void updateWebSocketData()
-{
-    // assert free heap
-    if (ESP.getFreeHeap() > 14000) {
-        webSocket.disconnect();
-    }
+// void updateWebSocketData()
+// {
+//     // assert free heap
+//     // if (ESP.getFreeHeap() > 14000) {
+//     //     webSocket.disconnect();
+//     // }
 
-    if (rto->webServerEnabled && rto->webServerStarted) {
-        if (webSocket.connectedClients() > 0) {
-            constexpr size_t MESSAGE_LEN = 8;
-            uint8_t toSend[MESSAGE_LEN];
-            memset(toSend, 0, MESSAGE_LEN);
-            // special character # used for message filtering in WebUI
-            toSend[0] = '#';
-            toSend[1] = uopt->slotID + '0';
-            // TODO: resolutionID must be INTEGER too?
-            toSend[2] = (char)uopt->resolutionID;
-            //
-            if (uopt->wantScanlines)
-                toSend[3] |= (1 << 0);
-            if (uopt->wantVdsLineFilter)
-                toSend[3] |= (1 << 1);
-            if (uopt->wantStepResponse)
-                toSend[3] |= (1 << 2);
-            if (uopt->wantPeaking)
-                toSend[3] |= (1 << 3);
-            if (uopt->enableAutoGain)
-                toSend[3] |= (1 << 4);
-            if (uopt->enableFrameTimeLock)
-                toSend[3] |= (1 << 5);
+//     if (rto->webServerEnabled && rto->webServerStarted) {
+//         if (webSocket.connectedClients() > 0) {
+//             constexpr size_t MESSAGE_LEN = 8;
+//             uint8_t toSend[MESSAGE_LEN];
+//             memset(toSend, 0, MESSAGE_LEN);
+//             // special character # used for message filtering in WebUI
+//             toSend[0] = '#';
+//             toSend[1] = uopt->slotID + '0';
+//             // TODO: resolutionID must be INTEGER too?
+//             toSend[2] = (char)uopt->resolutionID;
+//             //
+//             if (uopt->wantScanlines)
+//                 toSend[3] |= (1 << 0);
+//             if (uopt->wantVdsLineFilter)
+//                 toSend[3] |= (1 << 1);
+//             if (uopt->wantStepResponse)
+//                 toSend[3] |= (1 << 2);
+//             if (uopt->wantPeaking)
+//                 toSend[3] |= (1 << 3);
+//             if (uopt->enableAutoGain)
+//                 toSend[3] |= (1 << 4);
+//             if (uopt->enableFrameTimeLock)
+//                 toSend[3] |= (1 << 5);
 
-            //
-            if (uopt->deintMode == 0)      // motion adaptive if == 0
-                toSend[4] |= (1 << 0);
-            if (uopt->deintMode == 1)      // bob if == 1
-                toSend[4] |= (1 << 1);
-            // if (uopt->wantTap6) {
-            //     toSend[4] |= (1 << 1);
-            // }
-            if (uopt->wantFullHeight)
-                toSend[4] |= (1 << 2);
-            if (uopt->matchPresetSource)
-                toSend[4] |= (1 << 3);
-            if (uopt->PalForce60 == 1)
-                toSend[4] |= (1 << 4);
+//             //
+//             if (uopt->deintMode == 0)      // motion adaptive if == 0
+//                 toSend[4] |= (1 << 0);
+//             if (uopt->deintMode == 1)      // bob if == 1
+//                 toSend[4] |= (1 << 1);
+//             // if (uopt->wantTap6) {
+//             //     toSend[4] |= (1 << 1);
+//             // }
+//             if (uopt->wantFullHeight)
+//                 toSend[4] |= (1 << 2);
+//             // if (uopt->matchPresetSource)
+//             //     toSend[4] |= (1 << 3);
+//             if (uopt->PalForce60 == 1)
+//                 toSend[4] |= (1 << 3);
 
-            // system preferences
-            if (uopt->wantOutputComponent)
-                toSend[5] |= (1 << 0);
-            if (uopt->enableCalibrationADC)
-                toSend[5] |= (1 << 1);
-            if (uopt->preferScalingRgbhv)
-                toSend[5] |= (1 << 2);
-            if (uopt->disableExternalClockGenerator)
-                toSend[5] |= (1 << 3);
+//             // system preferences
+//             if (uopt->wantOutputComponent)
+//                 toSend[5] |= (1 << 0);
+//             if (uopt->enableCalibrationADC)
+//                 toSend[5] |= (1 << 1);
+//             if (uopt->preferScalingRgbhv)
+//                 toSend[5] |= (1 << 2);
+//             if (uopt->disableExternalClockGenerator)
+//                 toSend[5] |= (1 << 3);
 
-            // developer panel controls status
-            if(rto->printInfos)
-                toSend[6] |= (1 << 0);
-            if(rto->invertSync)
-                toSend[6] |= (1 << 1);
-            if(rto->osr != 0)
-                toSend[6] |= (1 << 2);
-            if(GBS::ADC_FLTR::read() != 0)
-                toSend[6] |= (1 << 3);
-            if(rto->debugView)
-                toSend[6] |= (1 << 4);
+//             // developer panel controls status
+//             if(rto->printInfos)
+//                 toSend[6] |= (1 << 0);
+//             if(rto->invertSync)
+//                 toSend[6] |= (1 << 1);
+//             if(rto->osr != 0)
+//                 toSend[6] |= (1 << 2);
+//             if(GBS::ADC_FLTR::read() != 0)
+//                 toSend[6] |= (1 << 3);
+//             if(rto->debugView)
+//                 toSend[6] |= (1 << 4);
 
-            // system tab controls
-            if(rto->allowUpdatesOTA)
-                toSend[7] |= (1 << 0);
+//             // system tab controls
+//             if(rto->allowUpdatesOTA)
+//                 toSend[7] |= (1 << 0);
 
-            webSocket.broadcastBIN(toSend, MESSAGE_LEN);
-        }
-    }
-}
+//             webSocket.broadcastBIN(toSend, MESSAGE_LEN);
+//         }
+//     }
+// }
 
 /**
  * @brief
@@ -270,7 +270,7 @@ bool wifiStartWPS() {
  * @brief Put this method inside of main loop
  *
  */
-void wifiLoop(bool instant) {
+void wifiLoop() {
     if(WiFi.status() != WL_CONNECTED
         && _connectCheckTime != 0
             && millis() > (_connectCheckTime + 10000UL)) {
@@ -285,20 +285,19 @@ void wifiLoop(bool instant) {
             _connectCheckTime = 0;
         }
     }
-    if (rto->webServerEnabled && rto->webServerStarted) {
-        MDNS.update();
-        dnsServer.processNextRequest();
-
-        if ((millis() - _lastTimePing) > 953) { // slightly odd value so not everything happens at once
-            webSocket.broadcastPing();
-        }
-        if (((millis() - _lastTimePing) > 973) || instant) {
-            if ((webSocket.connectedClients(false) > 0) || instant) { // true = with compliant ping
-                updateWebSocketData();
-            }
-            _lastTimePing = millis();
-        }
-    }
+    // if (rto->webServerEnabled && rto->webServerStarted) {
+    //     MDNS.update();
+    //     dnsServer.processNextRequest();
+    //     if ((millis() - _lastTimePing) > 953) { // slightly odd value so not everything happens at once
+    //         webSocket.broadcastPing();
+    //     }
+    //     if (((millis() - _lastTimePing) > 973) || instant) {
+    //         if ((webSocket.connectedClients(false) > 0) || instant) { // true = with compliant ping
+    //             updateWebSocketData();
+    //         }
+    //         _lastTimePing = millis();
+    //     }
+    // }
 }
 
 /**

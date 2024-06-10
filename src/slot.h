@@ -25,7 +25,7 @@ typedef struct
     uint8_t deintMode;
     uint8_t wantTap6;
     uint8_t wantFullHeight;
-    uint8_t matchPresetSource;
+    // uint8_t matchPresetSource;
     uint8_t PalForce60;
 } SlotMeta;
 

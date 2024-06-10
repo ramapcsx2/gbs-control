@@ -18,6 +18,13 @@
 #define MENU_WIDTH                      131
 #define MENU_HEIGHT                     19
 #define AUTO_GAIN_INIT                  0x48
+#define SCANLINE_STRENGTH_INIT          0x30
+#define WEBSOCK_HBEAT_INTVAL            1500UL
+#define WEBSOCK_HBEAT_PONG_TOUT         1500UL
+#define WEBSOCK_HBEAT_DISCONN_CNT       5
+#define WEBSOCK_HBEAT_DEV_INTVAL        500UL
+#define WEBSOCK_HBEAT_DEV_PONG_TOUT     1000UL
+#define WEBSOCK_HBEAT_DEV_DISCONN_CNT   3
 #define THIS_DEVICE_MASTER
 #ifdef HAVE_BUTTONS
 #define INPUT_SHIFT                     0
@@ -26,6 +33,9 @@
 #define MENU_SHIFT                      3
 #define BACK_SHIFT                      4
 #endif          // HAVE_BUTTONS
+#if !defined(SERIAL_BUFFER_MAX_LEN)
+#define SERIAL_BUFFER_MAX_LEN           512UL   // use a number aligned with 4
+#endif          // SERIAL_BUFFER_MAX_LEN
 #if !defined(DISPLAY_SDA)
 // SDA = D2 (Lolin), D14 (Wemos D1) // ESP8266 Arduino default map: SDA
 #define DISPLAY_SDA                     D2
@@ -152,7 +162,7 @@ struct userOptions
     uint8_t preferScalingRgbhv;
     uint8_t PalForce60;
     uint8_t disableExternalClockGenerator;
-    uint8_t matchPresetSource;
+    // uint8_t matchPresetSource;
     uint8_t wantStepResponse;
     uint8_t wantFullHeight;
     uint8_t enableCalibrationADC;
@@ -227,6 +237,9 @@ struct runTimeOptions
     // dev
     bool invertSync;
     bool debugView;
+    bool developerMode;
+    bool freezeCapture;
+    bool adcFilter;
 };
 // remember adc options across presets
 struct adcOptions

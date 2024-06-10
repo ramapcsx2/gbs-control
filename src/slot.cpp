@@ -3,7 +3,7 @@
 # File: slot.cpp                                                          #
 # File Created: Friday, 31st May 2024 8:41:15 am                          #
 # Author: Sergey Ko                                                       #
-# Last Modified: Sunday, 2nd June 2024 10:57:25 pm                        #
+# Last Modified: Monday, 10th June 2024 1:59:11 pm                        #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -40,7 +40,7 @@ bool slotLoad(const uint8_t & slotIndex) {
         uopt->deintMode = slotsObject.slot[slotIndex].deintMode;
         uopt->wantTap6 = slotsObject.slot[slotIndex].wantTap6;
         uopt->wantFullHeight = slotsObject.slot[slotIndex].wantFullHeight;
-        uopt->matchPresetSource = slotsObject.slot[slotIndex].matchPresetSource;
+        // uopt->matchPresetSource = slotsObject.slot[slotIndex].matchPresetSource;
         uopt->PalForce60 = slotsObject.slot[slotIndex].PalForce60;
         return true;
     }
@@ -78,7 +78,7 @@ void slotUpdate(SlotMetaArray & slotsObject, const uint8_t & slotIndex, String *
     slotsObject.slot[slotIndex].deintMode = uopt->deintMode;
     slotsObject.slot[slotIndex].wantTap6 = uopt->wantTap6;
     slotsObject.slot[slotIndex].wantFullHeight = uopt->wantFullHeight;
-    slotsObject.slot[slotIndex].matchPresetSource = uopt->matchPresetSource;
+    // slotsObject.slot[slotIndex].matchPresetSource = uopt->matchPresetSource;
     slotsObject.slot[slotIndex].PalForce60 = uopt->PalForce60;
 }
 
@@ -118,7 +118,7 @@ int8_t slotGetData(SlotMetaArray & slotsObject) {
         slotsObject.slot[i].deintMode = 0;
         slotsObject.slot[i].wantTap6 = 0;
         slotsObject.slot[i].wantFullHeight = 0;
-        slotsObject.slot[i].matchPresetSource = 0;
+        // slotsObject.slot[i].matchPresetSource = 0;
         slotsObject.slot[i].PalForce60 = 0;
         strncpy(slotsObject.slot[i].name,
             slot_name.c_str(),
@@ -174,7 +174,7 @@ bool slotFlush() {
     if(!slotSetData(slotObject))
         return false;
 
-    _DBGF(PSTR("slot %d updated\n"), uopt->slotID);
+    _DBGF(PSTR("slotID: %d has been updated\n"), uopt->slotID);
     return true;
 }
 
@@ -195,7 +195,7 @@ bool slotResetFlush(const uint8_t & slotIndex) {
     if(!slotSetData(slotObject))
         return false;
 
-    _DBGF(PSTR("slot %d reset success\n"), slotIndex);
+    _DBGF(PSTR("slotID: %d reset success\n"), slotIndex);
     return true;
 }
 
@@ -220,7 +220,7 @@ void slotResetDefaults(SlotMetaArray & slotsObject, const uint8_t & slotIndex) {
     slotsObject.slot[slotIndex].deintMode = 0;
     slotsObject.slot[slotIndex].wantTap6 = 0;
     slotsObject.slot[slotIndex].wantFullHeight = 0;
-    slotsObject.slot[slotIndex].matchPresetSource = 0;
+    // slotsObject.slot[slotIndex].matchPresetSource = 0;
     slotsObject.slot[slotIndex].PalForce60 = 0;
     strncpy(
         slotsObject.slot[slotIndex].name,
@@ -232,7 +232,7 @@ void slotResetDefaults(SlotMetaArray & slotsObject, const uint8_t & slotIndex) {
     if(slotIndex == uopt->slotID) {
         uopt->resolutionID = Output240p;
         uopt->wantScanlines = 0;
-        uopt->scanlineStrength = 0x30;
+        uopt->scanlineStrength = SCANLINE_STRENGTH_INIT;
         uopt->wantVdsLineFilter = 0;
         uopt->wantStepResponse = 1;
         uopt->wantPeaking = 1;
@@ -242,7 +242,7 @@ void slotResetDefaults(SlotMetaArray & slotsObject, const uint8_t & slotIndex) {
         uopt->deintMode = 0;
         uopt->wantTap6 = 1;
         uopt->wantFullHeight = 1;
-        uopt->matchPresetSource = 1;
+        // uopt->matchPresetSource = 1;
         uopt->PalForce60 = 0;
 
         // uopt->wantOutputComponent = 0;

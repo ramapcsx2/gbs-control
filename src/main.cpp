@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Friday, 7th June 2024 4:52:58 pm                         #
+# Last Modified: Monday, 10th June 2024 4:04:57 pm                        #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -169,6 +169,9 @@ void setup()
     // dev
     rto->invertSync = false;
     rto->debugView = false;
+    rto->developerMode = false;
+    rto->freezeCapture = false;
+    rto->adcFilter = false;
 
     adco->r_gain = 0;
     adco->g_gain = 0;
@@ -183,7 +186,7 @@ void setup()
 
     if (rto->webServerEnabled) {
         wifiInit();
-        webSocket.begin();
+        serverWebSocketInit();
         serverInit();
 
     #ifdef HAVE_PINGER_LIBRARY
@@ -220,7 +223,7 @@ void setup()
     while (millis() - initDelay < 1500) {
         display.drawXbm(2, 2, gbsicon_width, gbsicon_height, gbsicon_bits);
         display.display();
-        wifiLoop(0);
+        // wifiLoop(0);
         delay(1);
     }
     display.clear();
@@ -271,8 +274,8 @@ void setup()
     // ? WHY?
     initDelay = millis();
     while (millis() - initDelay < 1000) {
-        wifiLoop(0);
-        delay(1);
+        // wifiLoop(0);
+        delay(10);
     }
 
     // dummy commands
@@ -302,9 +305,8 @@ void setup()
 
         // restart and dummy
         startWire();
-        delay(1);
+        delay(10);
         GBS::STATUS_00::read();
-        delay(1);
 
         if (!checkBoardPower()) {
             stopWire();
@@ -331,6 +333,7 @@ void setup()
         }
 
         zeroAll();
+        _DBGN(F("(!) reset runtime parameters while setup"));
         setResetParameters();
         prepareSyncProcessor();
 
@@ -344,8 +347,6 @@ void setup()
         }
         // FIXME double reset?
         // setResetParameters();
-
-        // wifiLoop(1);
 
         // startup reliability test routine
         /*rto->videoStandardInput = 1;
@@ -387,11 +388,7 @@ void loop()
     static unsigned long lastTimeInterruptClear = millis();
 
     menuLoop();
-    wifiLoop(0); // WiFi + OTA + WS + MDNS, checks for server enabled + started
-    // Serial takes precedence
-    handleSerialCommand();
-    // handle user commands
-    handleUserCommand();
+    wifiLoop(); // WiFi + OTA + WS + MDNS, checks for server enabled + started
 
     // run FrameTimeLock if enabled
     if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false
@@ -636,8 +633,17 @@ void loop()
     }
 #endif                  // HAVE_PINGER_LIBRARY
 
+    // Serial takes precedence
+    handleSerialCommand();
+    // skip the code below if we don't hava the web server
+    if (!rto->webServerEnabled || !rto->webServerStarted)
+        return;
+    // handle user commands
+    handleUserCommand();
     // web client handler
     server.handleClient();
+    MDNS.update();
+    dnsServer.processNextRequest();
     // websocket event handler
     webSocket.loop();
     // handle ArduinoIDE

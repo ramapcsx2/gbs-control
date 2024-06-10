@@ -16,7 +16,7 @@
     --viewport-height: 100%;
 
     /*GBC
-  --color-black: black;
+    --color-black: black;
     --color-cod-gray-light: #181818;
     --color-cod-gray: #101010;
     --color-mine-shaft-light: #0f380f;
@@ -60,16 +60,14 @@ body {
     height: 100%;
     touch-action: manipulation;
     width: 100%;
+    margin: 0;
+    padding: 0;
 }
 
 body {
     background-color: var(--color-cod-gray);
     font-family: "${webUIFontName}", sans-serif;
-    height: 100%;
-    margin: 0;
     overflow: hidden;
-    padding: 0;
-    width: 100%;
 }
 
 * {

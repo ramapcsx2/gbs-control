@@ -38,19 +38,19 @@
         "ru": "Профили настроек"
     },
     "OM_RESET_RESTORE": {
-        "en": "Reset/Restore",
-        "es": "Resetear/Restaurar",
-        "ru": "Сброс/Восстановление"
+        "en": "Reset / Restore",
+        "es": "Resetear / Restaurar",
+        "ru": "Сброс / Восстановление"
     },
     "OM_RESET_GBS": {
-        "en": "Reset GBS",
-        "es": "Resetear ajustes",
-        "ru": "Сбросить настройки"
+        "en": "Restart device",
+        "es": "Reiniciar dispositivo",
+        "ru": "Перезагрузить"
     },
     "OM_RESET_WIFI": {
         "en": "Reset WiFi settings",
-        "es": "Borrar ajustes WiFi",
-        "ru": "Сброс настройек WiFi"
+        "es": "Borrar ajustes de WiFi",
+        "ru": "Сброс настроек WiFi"
     },
     "OM_RESTORE_FACTORY": {
         "en": "Restore Factory",
