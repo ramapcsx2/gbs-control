@@ -16,6 +16,7 @@ var js = fs.readFileSync('public/src/index.js', 'utf-8')
 //
 const default_ui_lang = 'en';
 const config = require(path.resolve(__dirname + '/../../configure.json'));
+const package = require(path.resolve(__dirname + '/../../package.json'));
 const lang = require(path.resolve(__dirname + '/../../translation.webui.json'));
 String.prototype.format = function() {
     a = this;
@@ -90,6 +91,8 @@ fs.writeFileSync(
         .replace('${styles}', css)
         .replace('${js}', js)
         .replace('${favicon}', `data:image/png;base64,${favicon}`)
+        .replace('${VERSION_FIRMWARE}', config['version'])
+        .replace('${VERSION_UI}', package['version'])
         .replace(
             '${manifest}',
             `data:application/json;base64,${Buffer.from(manifest).toString('base64')}`

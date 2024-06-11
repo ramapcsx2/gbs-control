@@ -201,6 +201,7 @@
 
 
 
+
     "FULL_HEIGHT_SWITCH": {
         "en": "Full Height",
         "es": "Estirar en altura",
@@ -310,8 +311,8 @@
         "zh": ""
     },
     "SYSTEM_PREFERENCES_LEGEND": {
-        "en": "Common parameters",
-        "es": "Configuración común",
+        "en": "System parameters",
+        "es": "Configuración de Sistema",
         "ru": "Общесистемные настройки",
         "zh": ""
     },

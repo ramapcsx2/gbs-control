@@ -301,8 +301,9 @@ ESP8266 version of the factory built GBSC, boots into firmware upload mode by pr
 - [ ] Invert Sync issue
 - [ ] PassThrough doesn't work
 - [ ] preferScalingRgbhv doesn't work (?)
-- [ ] feature request #553
-- [ ] creation/destruction OLEDMenuItem procedure
+- [ ] fix OLEDMenu items list offset
+- [x] feature request [#553]
+- [x] creation/destruction OLEDMenuItem procedure
 
 ## Additional information
 

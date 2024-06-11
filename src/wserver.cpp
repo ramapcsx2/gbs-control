@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Monday, 10th June 2024 4:21:05 pm                        #
+# Last Modified: Tuesday, 11th June 2024 1:38:34 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -2025,7 +2025,7 @@ void handleUserCommand()
 
     switch (userCommand)
     {
-    case '0':
+    case '0':               // force increase frequency to 60Hz for PAL 50Hz
         _WS(F("pal force 60hz "));
         uopt->PalForce60 = !uopt->PalForce60;
         if (uopt->PalForce60 == 1)
@@ -2201,6 +2201,12 @@ void handleUserCommand()
     }
     break;
     case 'i':               // toggle active frametime lock method
+        // enable FTL if disabled
+        if (uopt->enableFrameTimeLock == 0)
+        {
+            _WSN(F("FTL on"));
+            uopt->enableFrameTimeLock = 1;
+        }
         if (!rto->extClockGenDetected)
         {
             FrameSync::reset(uopt->frameTimeLockMethod);

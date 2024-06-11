@@ -1331,13 +1331,11 @@ const updateConsoleVisibility = () => {
         const consoleStatus = GBSStorage.read('consoleVisible') as boolean
         if (consoleStatus != true) {
             GBSStorage.write('consoleVisible', true)
-            // GBSControl.consoleVisible = true
-            GBSControl.ui.toggleConsole.setAttribute('active', '')
+            GBSControl.ui.toggleConsole.removeAttribute('active')
             document.body.classList.remove('gbs-output-hide')
         } else {
             GBSStorage.write('consoleVisible', false)
-            // GBSControl.consoleVisible = false
-            GBSControl.ui.toggleConsole.removeAttribute('active')
+            GBSControl.ui.toggleConsole.setAttribute('active', '')
             document.body.classList.add('gbs-output-hide')
         }
     }
@@ -1356,8 +1354,6 @@ const toggleDeveloperMode = () => {
         }
         GBSControl.ui.developerSwitch.setAttribute('active', '')
         GBSControl.ui.developerSwitch.querySelector('.gbs-icon').innerText = "toggle_on"
-        // if(!GBSControl.wsHeartbeatInterval)
-        //     GBSControl.wsHeartbeatInterval = window.setInterval(webSocketHeartbeat, 900);
     } else {
         el.setAttribute('hidden', '')
         GBSStorage.write('consoleVisible', true)

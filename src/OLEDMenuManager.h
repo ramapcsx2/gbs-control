@@ -106,7 +106,6 @@ private:
         constexpr int16_t max_y = OLED_MENU_HEIGHT - (OM_SCREEN_SAVER_HEIGHT + versionStrHeight);
         uint16_t rx = rand() % max_x;
         uint16_t ry = rand() % max_y;
-        display->drawXbm(rx, ry, IMAGE_ITEM(OM_SCREEN_SAVER));
         // display FW version
         versionX = OM_SCREEN_SAVER_WIDTH - versionStrWidth;
         if(versionX <= 0)
@@ -115,6 +114,7 @@ private:
             versionX /= 2;
             versionX += rx;
         }
+        display->drawXbm(rx, ry, IMAGE_ITEM(OM_SCREEN_SAVER));
         this->display->drawString(versionX, ry + versionStrHeight, versionStr);
         display->display();
     }

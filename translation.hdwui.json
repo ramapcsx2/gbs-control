@@ -35,7 +35,122 @@
     "OM_PRESET": {
         "en": "Slots",
         "es": "Perfiles",
-        "ru": "Профили настроек"
+        "ru": "Профили"
+    },
+    "OM_ACTIVE_SLOT_PARAMETERS": {
+        "en": "Slot parameters",
+        "es": "Parameters de Perfil",
+        "ru": "Настройки Профиля"
+    },
+    "OM_SSET_AUTOGAIN": {
+        "en": "Auto Gain",
+        "es": "Aumento automatico",
+        "ru": "Авто. усиление"
+    },
+    "OM_SSET_SCANLINES": {
+        "en": "Scanlines",
+        "es": "Scanlines",
+        "ru": "Строчность"
+    },
+    "OM_SSET_LINFILTR": {
+        "en": "Line Filter",
+        "es": "Filtro lineal",
+        "ru": "Строчный фильтр"
+    },
+    "OM_SSET_PEAKING": {
+        "en": "Peaking",
+        "es": "Sensibilidad",
+        "ru": "Чувствительность"
+    },
+    "OM_SSET_STPRESP": {
+        "en": "Step response",
+        "es": "Respuesta Escalonada",
+        "ru": "Ступенчатая хар-ка"
+    },
+    "OM_SSET_FULHEIGHT": {
+        "en": "Full height",
+        "es": "Estirar en altura",
+        "ru": "Растягивать по-высоте"
+    },
+    "OM_SSET_F50FREQ60": {
+        "en": "Force frequency 60Hz for PAL",
+        "es": "Forzar frequencia de 60Hz para",
+        "ru": "Повышать частоту до 60Гц для PAL"
+    },
+    "OM_SSET_FTL": {
+        "en": "FrameTime Lock",
+        "es": "Cambiar bloqueo de FrameTime",
+        "ru": "Блокировка FrameTime"
+    },
+    "OM_SSET_FTLMETHOD": {
+        "en": "Switch FrameTime Lock Method",
+        "es": "Cambiar método de bloqueo de FrameTime",
+        "ru": "Переключить метод блокировки FrameTime"
+    },
+    "OM_SSET_DEINT_BOB_MAD": {
+        "en": "Switch Deinterlacing",
+        "es": "Cambiar método de Desentrelazado",
+        "ru": "Переключить Деинтерлейсинг"
+    },
+    "OM_ENABLED": {
+        "en": "Enabled",
+        "es": "Encendido",
+        "ru": "Включено"
+    },
+    "OM_DISABLED": {
+        "en": "Disabled",
+        "es": "Apagado",
+        "ru": "Выключено"
+    },
+    "OM_BOB_ENABLED": {
+        "en": "Bob enabled",
+        "es": "método Bob activado",
+        "ru": "Bob-метод"
+    },
+    "OM_MAD_ENABLED": {
+        "en": "Motion Adaptive enabled",
+        "es": "Motion Adaptive activado",
+        "ru": "Motion Adaptive"
+    },
+    "OM_FTL_METHOD_0": {
+        "en": "vtotal + VSST",
+        "es": "vtotal y VSST",
+        "ru": "vtotal и VSST"
+    },
+    "OM_FTL_METHOD_1": {
+        "en": "vtotal only",
+        "es": "solo vtotal",
+        "ru": "только vtotal"
+    },
+    "OM_SYSTEM_PARAMETERS": {
+        "en": "System parameters",
+        "es": "Configuración de Sistema",
+        "ru": "Общесистемные настройки",
+        "zh": ""
+    },
+    "OM_CPRM_UPSCALE": {
+        "en": "Upscaling for Low resolutions",
+        "es": "Usar Ampliación (Upscaling) para resoluciones bajas",
+        "ru": "Использовать масштабирование (Upsacale)",
+        "zh": ""
+    },
+    "OM_CPRM_FORCECOMPOSITE": {
+        "en": "Force output to RGBHV/Component",
+        "es": "Forzar salida a RGBHV/Componente",
+        "ru": "Изменять выход на RGBHV/Компонентный",
+        "zh": ""
+    },
+    "OM_CPRM_DISEXTCLK": {
+        "en": "External Clock Generator",
+        "es": "Generador de reloj externo",
+        "ru": "Внешний тактовый генератор",
+        "zh": ""
+    },
+    "OM_CPRM_ADCCALIBR": {
+        "en": "ADC calibration",
+        "es": "Calibración del CAD",
+        "ru": "Калибровка АЦП",
+        "zh": ""
     },
     "OM_RESET_RESTORE": {
         "en": "Reset / Restore",
@@ -58,8 +173,8 @@
         "ru": "Восстановить заводские настройки"
     },
     "OM_CURRENT": {
-        "en": "Current Output",
-        "es": "Salida actual",
+        "en": "Output status",
+        "es": "Señal de salida",
         "ru": "Выходной сигнал"
     },
     "OM_WIFI": {

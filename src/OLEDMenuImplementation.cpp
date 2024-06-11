@@ -243,7 +243,7 @@ reset_menu_handler_end:
 }
 
 /**
- * @brief
+ * @brief Display current output status in accordance with active slot+preset
  *
  * @param manager
  * @param nav
@@ -286,7 +286,7 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
         // rto->presetID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
         // uopt->resolutionID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
 
-        display.setFont(URW_Gothic_L_Book_20);
+        // display.setFont(URW_Gothic_L_Book_20);
         display.setTextAlignment(TEXT_ALIGN_LEFT);
 
         // if (rto->presetID == 0x01 || rto->presetID == 0x11) {
@@ -342,6 +342,99 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
 }
 
 /**
+ * @brief Handle user activity in Active Slot and System-wide Paramters menu
+ *
+ * @param manager
+ * @param item
+ * @param isFirstTime
+ * @return true
+ * @return false
+ */
+bool settingsMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool isFirstTime) {
+    if (!isFirstTime) {
+        if (millis() - oledMenuFreezeStartTime >= oledMenuFreezeTimeoutInMS) {
+            manager->unfreeze();
+        }
+        return false;
+    }
+    // prepare display to inform user
+    OLEDDisplay &display = *manager->getDisplay();
+    display.clear();
+    display.setColor(OLEDDISPLAY_COLOR::WHITE);
+    // display.setFont(ArialMT_Plain_10);
+    // display.setTextAlignment(OLEDDISPLAY_TEXT_ALIGNMENT::TEXT_ALIGN_CENTER);
+    // changing settings on the next loop
+    switch(item->tag) {
+        // active slot parameters
+        case MT_SSET_AUTOGAIN:
+            serialCommand = 'T';
+            uopt->enableAutoGain == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            break;
+        case MT_SSET_SCANLINES:
+            userCommand = '7';
+            uopt->wantScanlines == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            break;
+        case MT_SSET_LINFILTR:
+            userCommand = 'm';
+            uopt->wantVdsLineFilter == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            break;
+        case MT_SSET_PEAKING:
+            serialCommand = 'f';
+            uopt->wantPeaking == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            break;
+        case MT_SSET_STPRESP:
+            serialCommand = 'V';
+            uopt->wantStepResponse == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            break;
+        case MT_SSET_FULHEIGHT:
+            userCommand = 'v';
+            uopt->wantFullHeight == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            break;
+        case MT_SSET_F50FREQ60:
+            userCommand = '0';
+            uopt->PalForce60 == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            break;
+        case MT_SSET_FTL:
+            userCommand = '5';
+            uopt->enableFrameTimeLock == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            break;
+        case MT_SSET_FTLMETHOD:
+            userCommand = 'i';
+            uopt->frameTimeLockMethod == 0 ? display.drawXbm(CENTER_IMAGE(OM_FTL_METHOD_0)) : display.drawXbm(CENTER_IMAGE(OM_FTL_METHOD_1));
+            break;
+        case MT_SSET_DEINT_BOB_MAD:
+            userCommand = 'q';
+            uopt->deintMode != 1 ? display.drawXbm(CENTER_IMAGE(OM_BOB_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_MAD_ENABLED));
+            break;
+
+        // common settings
+        case MT_CPRM_UPSCALE:
+            userCommand = 'x';
+            uopt->preferScalingRgbhv != 1 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            break;
+        case MT_CPRM_FORCECOMPOSITE:
+            serialCommand = 'L';
+            uopt->wantOutputComponent != 1 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            break;
+        case MT_CPRM_DISEXTCLK:
+            userCommand = 'X';
+            uopt->disableExternalClockGenerator != 1 ? display.drawXbm(CENTER_IMAGE(OM_DISABLED)) : display.drawXbm(CENTER_IMAGE(OM_ENABLED));
+            break;
+        case MT_CPRM_ADCCALIBR:
+            userCommand = 'w';
+            uopt->enableCalibrationADC != 1 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            break;
+    }
+    display.display();
+
+    oledMenuFreezeStartTime = millis();
+    oledMenuFreezeTimeoutInMS = 2500;
+    manager->freeze();
+
+    return true;
+}
+
+/**
  * @brief
  *
  * @param manager
@@ -349,7 +442,7 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
  * @return true
  * @return false
  */
-bool wifiMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool)
+bool wifiMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool isFirstTime)
 {
     static char ssid[64];
     static char ip[25];
@@ -476,13 +569,34 @@ void initOLEDMenu()
     oledMenu.registerItem(resMenu, MT_DOWNSCALE, IMAGE_ITEM(OM_DOWNSCALE), resolutionMenuHandler);
     oledMenu.registerItem(resMenu, MT_BYPASS, IMAGE_ITEM(OM_PASSTHROUGH), resolutionMenuHandler);
 
-    // Presets
+    // Slots
     oledMenu.registerItem(root, MT_NULL, IMAGE_ITEM(OM_PRESET), presetsCreationMenuHandler);
+
+    // Slot Parameters
+    OLEDMenuItem *activeSlotParameters = oledMenu.registerItem(root, MT_NULL, IMAGE_ITEM(OM_ACTIVE_SLOT_PARAMETERS));
+    oledMenu.registerItem(activeSlotParameters, MT_SSET_AUTOGAIN, IMAGE_ITEM(OM_SSET_AUTOGAIN), settingsMenuHandler);
+    oledMenu.registerItem(activeSlotParameters, MT_SSET_SCANLINES, IMAGE_ITEM(OM_SSET_SCANLINES), settingsMenuHandler);
+    oledMenu.registerItem(activeSlotParameters, MT_SSET_LINFILTR, IMAGE_ITEM(OM_SSET_LINFILTR), settingsMenuHandler);
+    oledMenu.registerItem(activeSlotParameters, MT_SSET_PEAKING, IMAGE_ITEM(OM_SSET_PEAKING), settingsMenuHandler);
+    oledMenu.registerItem(activeSlotParameters, MT_SSET_STPRESP, IMAGE_ITEM(OM_SSET_STPRESP), settingsMenuHandler);
+
+    oledMenu.registerItem(activeSlotParameters, MT_SSET_FULHEIGHT, IMAGE_ITEM(OM_SSET_FULHEIGHT), settingsMenuHandler);
+    oledMenu.registerItem(activeSlotParameters, MT_SSET_F50FREQ60, IMAGE_ITEM(OM_SSET_F50FREQ60), settingsMenuHandler);
+    oledMenu.registerItem(activeSlotParameters, MT_SSET_FTL, IMAGE_ITEM(OM_SSET_FTL), settingsMenuHandler);
+    oledMenu.registerItem(activeSlotParameters, MT_SSET_FTLMETHOD, IMAGE_ITEM(OM_SSET_FTLMETHOD), settingsMenuHandler);
+    oledMenu.registerItem(activeSlotParameters, MT_SSET_DEINT_BOB_MAD, IMAGE_ITEM(OM_SSET_DEINT_BOB_MAD), settingsMenuHandler);
+
+    // System-wide parameters
+    OLEDMenuItem *systemSettings = oledMenu.registerItem(root, MT_NULL, IMAGE_ITEM(OM_SYSTEM_PARAMETERS));
+    oledMenu.registerItem(systemSettings, MT_CPRM_UPSCALE, IMAGE_ITEM(OM_CPRM_UPSCALE), settingsMenuHandler);
+    oledMenu.registerItem(systemSettings, MT_CPRM_FORCECOMPOSITE, IMAGE_ITEM(OM_CPRM_FORCECOMPOSITE), settingsMenuHandler);
+    oledMenu.registerItem(systemSettings, MT_CPRM_DISEXTCLK, IMAGE_ITEM(OM_CPRM_DISEXTCLK), settingsMenuHandler);
+    oledMenu.registerItem(systemSettings, MT_CPRM_ADCCALIBR, IMAGE_ITEM(OM_CPRM_ADCCALIBR), settingsMenuHandler);
 
     // WiFi
     oledMenu.registerItem(root, MT_NULL, IMAGE_ITEM(OM_WIFI), wifiMenuHandler);
 
-    // Current Settings
+    // Current Output status
     oledMenu.registerItem(root, MT_NULL, IMAGE_ITEM(OM_CURRENT), currentSettingHandler);
 
     // Reset (Misc.)

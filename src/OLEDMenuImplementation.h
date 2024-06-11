@@ -34,6 +34,22 @@ enum MenuItemTag: uint16_t {
     MT_RESET_GBS,
     MT_RESTORE_FACTORY,
     MT_RESET_WIFI,
+
+    MT_SSET_AUTOGAIN,
+    MT_SSET_SCANLINES,
+    MT_SSET_LINFILTR,
+    MT_SSET_PEAKING,
+    MT_SSET_STPRESP,
+    MT_SSET_FTL,
+    MT_SSET_FTLMETHOD,
+    MT_SSET_FULHEIGHT,
+    MT_SSET_F50FREQ60,
+    MT_SSET_DEINT_BOB_MAD,
+
+    MT_CPRM_UPSCALE,
+    MT_CPRM_FORCECOMPOSITE,
+    MT_CPRM_DISEXTCLK,
+    MT_CPRM_ADCCALIBR,
 };
 // declarations of resolutionMenuHandler, presetSelectionMenuHandler, presetsCreationMenuHandler, resetMenuHandler, currentSettingHandler, wifiMenuHandler
 bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav nav, bool isFirstTime);
@@ -41,6 +57,7 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
 bool presetsCreationMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav nav, bool isFirstTime);
 bool resetMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav nav, bool isFirstTime);
 bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav nav, bool isFirstTime);
+bool settingsMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool isFirstTime);
 bool wifiMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav nav, bool isFirstTime);
 bool OSDHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav nav, bool isFirstTime);
 void initOLEDMenu();

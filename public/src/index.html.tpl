@@ -36,22 +36,24 @@
                     </text>
                 </g>
             </svg>
-            <button gbs-section="presets" class="gbs-button gbs-button__menu gbs-icon" active>
-                input
-            </button>
-            <button gbs-section="control" class="gbs-button gbs-button__menu gbs-icon">
-                control_camera
-            </button>
-            <button gbs-section="filters" class="gbs-button gbs-button__menu gbs-icon">
-                blur_on
-            </button>
-            <button gbs-section="preferences" class="gbs-button gbs-button__menu gbs-icon">
+            <div class="gbs-menu__button-group">
+                <button gbs-section="presets" class="gbs-button gbs-button__menu gbs-icon" active>
+                    input
+                </button>
+                <button gbs-section="control" class="gbs-button gbs-button__menu gbs-icon">
+                    control_camera
+                </button>
+                <button gbs-section="filters" class="gbs-button gbs-button__menu gbs-icon">
+                    blur_on
+                </button>
+            </div>
+            <button gbs-section="preferences" class="gbs-button gbs-button__menu gbs-icon gbs-button__uwidth">
                 tune
             </button>
-            <button gbs-section="developer" class="gbs-button gbs-button__menu gbs-icon" hidden>
+            <button gbs-section="developer" class="gbs-button gbs-button__menu gbs-icon gbs-button__uwidth" hidden>
                 developer_mode
             </button>
-            <button gbs-section="system" class="gbs-button gbs-button__menu gbs-icon">
+            <button gbs-section="system" class="gbs-button gbs-button__menu gbs-icon gbs-button__uwidth">
                 bolt
             </button>
         </div>
@@ -554,7 +556,7 @@
                         <div>L{DEVELOPER_LEGEND}</div>
                     </legend>
                     <div class="gbs-flex gbs-margin__bottom--16">
-                        <button class="gbs-button" gbs-output-toggle active>
+                        <button class="gbs-button" gbs-output-toggle>
                             <div class="gbs-icon">code</div>
                             <div>L{TOGGLE_CONSOLE_BUTTON}</div>
                         </button>
@@ -841,11 +843,14 @@
                 </fieldset>
             </div>
         </div>
-        <div class="gbs-loader"><img /></div>
+        <div class="gbs-scroll__footer">
+            <div>fw:${VERSION_FIRMWARE} / ui:${VERSION_UI}</div>
+        </div>
     </div>
     <div class="gbs-wifi-warning" id="websocketWarning">
         <div class="gbs-icon blink_me">signal_wifi_off</div>
     </div>
+    <div class="gbs-loader"><img /></div>
     <script>${js}</script>
 </body>
 
