@@ -63,6 +63,7 @@ Development threads:
   - [Slots vs Presets](#slots-vs-presets)
   - [Vocabulary](#vocabulary)
   - [How-to switch GBS-Control to upload mode?](#how-to-switch-gbs-control-to-upload-mode)
+- [TODO:](#todo)
 - [Additional information](#additional-information)
 - [Old documentation](#old-documentation)
 
@@ -293,6 +294,15 @@ The following diagram represents the structure of system and user configurations
 ### How-to switch GBS-Control to upload mode?
 
 ESP8266 version of the factory built GBSC, boots into firmware upload mode by pressing the knob button while the device is off and connecting it to a computer with USB cable.
+
+## TODO:
+
+- [ ] Full height doesn't work
+- [ ] Invert Sync issue
+- [ ] PassThrough doesn't work
+- [ ] preferScalingRgbhv doesn't work (?)
+- [ ] feature request #553
+- [ ] creation/destruction OLEDMenuItem procedure
 
 ## Additional information
 

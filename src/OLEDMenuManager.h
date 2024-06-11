@@ -8,6 +8,7 @@
 #include "OLEDMenuItem.h"
 #include "OLEDMenuTranslations.h"
 #include "options.h"
+#include "wserial.h"
 
 #define IMAGE_ITEM(name) name##_WIDTH, name##_HEIGHT, name
 #define CENTER_IMAGE(name) (OLED_MENU_WIDTH - name##_WIDTH) / 2, (OLED_MENU_HEIGHT - name##_HEIGHT) / 2, name##_WIDTH, name##_HEIGHT, name
@@ -29,9 +30,10 @@ enum class OLEDMenuNav
 class OLEDMenuManager
 {
 private:
-    OLEDDisplay *const display;
-    OLEDMenuItem allItems[OLED_MENU_MAX_ITEMS_NUM];
-    OLEDMenuItem *itemStack[OLED_MENU_MAX_DEPTH];
+    OLEDDisplay * display = nullptr;
+    // OLEDMenuItem allItems[OLED_MENU_MAX_ITEMS_NUM];
+    OLEDMenuItem ** allItems;
+    OLEDMenuItem * itemStack[OLED_MENU_MAX_DEPTH];
     uint8_t itemSP;
     OLEDMenuItem *itemUnderCursor; // null means the status bar is currently selected
     OLEDMenuState state;
@@ -119,13 +121,18 @@ private:
 
 public:
     OLEDMenuManager(SSD1306Wire *display);
+    ~OLEDMenuManager() {
+        delete[] allItems;
+        allItems = NULL;
+    }
     OLEDMenuItem *allocItem();
     OLEDMenuItem *registerItem(OLEDMenuItem *parent, uint16_t tag, uint16_t imageWidth, uint16_t imageHeight, const uint8_t *xbmImage, MenuItemHandler handler = nullptr, OLEDDISPLAY_TEXT_ALIGNMENT alignment = TEXT_ALIGN_CENTER);
     OLEDMenuItem *registerItem(OLEDMenuItem *parent, uint16_t tag, const char *string, MenuItemHandler handler = nullptr, const uint8_t *font = nullptr, OLEDDISPLAY_TEXT_ALIGNMENT alignment = TEXT_ALIGN_CENTER);
+    void init();
     void tick(OLEDMenuNav btn);
     void goBack(bool preserveCursor = true);
     void goMain(bool preserveCursor = true);
-    OLEDMenuItem *const rootItem;
+    OLEDMenuItem * rootItem = nullptr;
 
     void clearSubItems(OLEDMenuItem *item)
     {

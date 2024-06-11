@@ -3,7 +3,7 @@
 # File: menu.cpp                                                          #
 # File Created: Thursday, 2nd May 2024 11:31:34 pm                        #
 # Author:                                                                 #
-# Last Modified: Sunday, 2nd June 2024 5:26:25 pm                         #
+# Last Modified: Monday, 10th June 2024 6:34:38 pm                        #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -824,6 +824,8 @@ void IRAM_ATTR isrRotaryEncoderPushForNewMenu()
  *
  */
 void menuInit() {
+    oledMenu.init();
+
 #if USE_NEW_OLED_MENU
 
     attachInterrupt(digitalPinToInterrupt(PIN_CLK), isrRotaryEncoderRotateForNewMenu, FALLING);

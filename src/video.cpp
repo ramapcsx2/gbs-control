@@ -3,7 +3,7 @@
 # File: video.cpp                                                                   #
 # File Created: Thursday, 2nd May 2024 4:07:57 pm                                   #
 # Author:                                                                           #
-# Last Modified: Monday, 10th June 2024 4:04:57 pm                        #
+# Last Modified: Monday, 10th June 2024 4:55:33 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -1693,7 +1693,7 @@ void setOutModeHdBypass(bool regsInitialized)
     GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
     delay(200);
     optimizePhaseSP();
-    _WSN(F("pass-through on"));
+    _WSN(F("output mode HD bypass"));
 }
 
 /**
@@ -4236,7 +4236,7 @@ void runSyncWatcher()
             }
             if (newVideoModeCounter != 0) {
                 // apply new mode
-                _WSF(PSTR(" %d <stable>\n"), vidModeReadout);
+                _WSF(PSTR(" %d <stable> (%d -> %d)\n"), vidModeReadout, rto->videoStandardInput, detectedVideoMode);
                 // _WS("Old: "); _WS(rto->videoStandardInput);
                 // _WS(" New: "); _WSN(detectedVideoMode);
                 rto->videoIsFrozen = false;

@@ -10,12 +10,26 @@
  *
  * @param display
  */
-OLEDMenuManager::OLEDMenuManager(SSD1306Wire *display)
-    : display(display)
-    , rootItem(registerItem(nullptr, 0, nullptr))
+OLEDMenuManager::OLEDMenuManager(SSD1306Wire * _display)
 {
+    display = _display;
+    // allocate memory for menu items list
+    allItems = new OLEDMenuItem * [OLED_MENU_MAX_ITEMS_NUM];
+    uint8_t i = 0;
+    while(i < OLED_MENU_MAX_ITEMS_NUM) {
+        allItems[i] = nullptr;
+        i++;
+    }
+}
+
+/**
+ * @brief initializer does what constructor can NOT do
+ *
+ */
+void OLEDMenuManager::init() {
+    rootItem = registerItem(nullptr, 0, nullptr);
     pushItem(rootItem);
-    randomSeed(millis()); // does this work?
+    // randomSeed(millis()); // does this work?
 }
 
 /**
@@ -26,21 +40,36 @@ OLEDMenuManager::OLEDMenuManager(SSD1306Wire *display)
 OLEDMenuItem *OLEDMenuManager::allocItem()
 {
     int i = 0;
-    OLEDMenuItem *newItem = nullptr;
+    OLEDMenuItem * newItem = nullptr;
+    auto lambdaAllocItem = [&newItem]() {
+        newItem = new OLEDMenuItem();
+        newItem->used = true;
+    };
     while (i < OLED_MENU_MAX_ITEMS_NUM) {
-        if (!this->allItems[i].used) {
-            // FIXME
-            memset(&this->allItems[i], 0, sizeof(OLEDMenuItem));
-            newItem = &this->allItems[i];
-            newItem->used = true;
+        if(this->allItems[i] == nullptr) {
+            lambdaAllocItem();
             break;
         }
+        else if (!this->allItems[i]->used)
+        {
+            delete this->allItems[i];
+            lambdaAllocItem();
+            break;
+        }
+        // if (!this->allItems[i].used) {
+        //     // FIXME
+        //     memset(&this->allItems[i], 0, sizeof(OLEDMenuItem));
+        //     newItem = &this->allItems[i];
+        //     newItem->used = true;
+        //     break;
+        // }
         i++;
     }
-    if (!newItem) {
-        char msg[40];
-        sprintf(msg, PSTR("Maximum number of items reached: %d"), OLED_MENU_MAX_ITEMS_NUM);
-        panicAndDisable(msg);
+    if (newItem == nullptr) {
+        // char msg[40];
+        _DBGF(PSTR("reached max. menu items: %d"), OLED_MENU_MAX_ITEMS_NUM);
+        // sprintf(msg, PSTR("Maximum number of items reached: %d"), OLED_MENU_MAX_ITEMS_NUM);
+        // panicAndDisable(msg);
     }
     return newItem;
 }
@@ -67,6 +96,8 @@ OLEDMenuItem *OLEDMenuManager::registerItem(
     OLEDDISPLAY_TEXT_ALIGNMENT alignment)
 {
     OLEDMenuItem *newItem = allocItem();
+    if(newItem == nullptr)
+        goto register_image_item_end;
 
     if (alignment == OLEDDISPLAY_TEXT_ALIGNMENT::TEXT_ALIGN_CENTER_BOTH) {
         alignment = OLEDDISPLAY_TEXT_ALIGNMENT::TEXT_ALIGN_CENTER;
@@ -85,6 +116,8 @@ OLEDMenuItem *OLEDMenuManager::registerItem(
             itemUnderCursor = rootItem->subItems[0];
         }
     }
+
+register_image_item_end:
     return newItem;
 }
 
@@ -108,6 +141,9 @@ OLEDMenuItem *OLEDMenuManager::registerItem(
     OLEDDISPLAY_TEXT_ALIGNMENT alignment)
 {
     OLEDMenuItem *newItem = allocItem();
+    if(newItem == nullptr)
+        goto register_text_item_end;
+
     newItem->str = string;
     if (font == nullptr) {
         font = DejaVu_Sans_Mono_12;
@@ -128,6 +164,7 @@ OLEDMenuItem *OLEDMenuManager::registerItem(
             itemUnderCursor = rootItem->subItems[0];
         }
     }
+register_text_item_end:
     return newItem;
 }
 
