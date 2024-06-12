@@ -3,7 +3,7 @@
 void OLEDMenuItem::calculate()
 {
     if(!this->parent){
-        return; // root 
+        return; // root
     }
     if (this->str) {
         size_t strLength = strlen(this->str);
@@ -48,17 +48,19 @@ void OLEDMenuItem::calculate()
 
     // decide which page this item belongs to
     uint16_t lastLineAt = 0;
-    for (int i = 0; i < parent->numSubItem - 1; ++i) {
+    uint8_t i = 0;
+    while (i < parent->numSubItem - 1) {
         // find all items on the last page, see if it fits
         // put it on the next page if not.
         // last item in parent->numSubItem is always "this"
         OLEDMenuItem *item = parent->subItems[i];
+        i++;
         if (item->pageInParent != parent->maxPageIndex) {
             continue;
         }
         lastLineAt += item->imageHeight;
     }
-    lastLineAt += imageHeight; // self
+    lastLineAt += this->imageHeight; // self
 
     if (lastLineAt <= OLED_MENU_USABLE_AREA_HEIGHT) {
         this->pageInParent = parent->maxPageIndex;

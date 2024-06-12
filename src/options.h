@@ -101,7 +101,10 @@
 #define STRING(x)                       _STR(x)
 
 // do not edit these
-#define OLED_MENU_STATUS_BAR_HEIGHT                     (OLED_MENU_HEIGHT / 4) // status bar uses 1/4 of the screen
+#ifndef OLED_MENU_ITEMS_PER_SCREEN
+#define OLED_MENU_ITEMS_PER_SCREEN                      4
+#endif          // OLED_MENU_ITEMS_PER_SCREEN
+#define OLED_MENU_STATUS_BAR_HEIGHT                     (OLED_MENU_HEIGHT / OLED_MENU_ITEMS_PER_SCREEN) // status bar uses 1/4 of the screen
 #define OLED_MENU_USABLE_AREA_HEIGHT                    (OLED_MENU_HEIGHT - OLED_MENU_STATUS_BAR_HEIGHT)
 #define OLED_MENU_SCROLL_LEAD_IN_FRAMES                 (OLED_MENU_SCROLL_LEAD_IN_TIME_IN_MS / OLED_MENU_REFRESH_INTERVAL_IN_MS)
 

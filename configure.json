@@ -7,6 +7,7 @@
         "use_new_oled_menu": 1,
         "reverse_rotary_encoder_for_osd": 0,
         "reverse_rotary_encoder_for_oled_menu": 0,
+        "oled_menu_items_per_screen": 4,
         "oled_menu_max_items_num": 64,
         "oled_menu_max_subitems_num": 16,
         "oled_menu_max_depth": 8,

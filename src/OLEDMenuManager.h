@@ -31,7 +31,6 @@ class OLEDMenuManager
 {
 private:
     OLEDDisplay * display = nullptr;
-    // OLEDMenuItem allItems[OLED_MENU_MAX_ITEMS_NUM];
     OLEDMenuItem ** allItems;
     OLEDMenuItem * itemStack[OLED_MENU_MAX_DEPTH];
     uint8_t itemSP;
@@ -52,22 +51,26 @@ private:
 
     void resetScroll();
     void drawStatusBar(bool negative = false);
-    inline void drawOneItem(OLEDMenuItem *item, uint16_t yOffset, bool negative);
+    void drawOneItem(OLEDMenuItem *item, uint16_t yOffset, bool negative);
     void drawSubItems(OLEDMenuItem *parent);
-    inline void enterItem(OLEDMenuItem *item, OLEDMenuNav btn, bool isFirstTime);
+    void enterItem(OLEDMenuItem *item, OLEDMenuNav btn, bool isFirstTime);
     void nextItem();
     void prevItem();
 
-    void pushItem(OLEDMenuItem *item)
+    bool pushItem(OLEDMenuItem *item)
     {
         if (itemSP == OLED_MENU_MAX_DEPTH - 1)
         {
-            char msg[30];
-            sprintf(msg, PSTR("Maximum depth reached: %d"), OLED_MENU_MAX_DEPTH);
-            panicAndDisable(msg);
+            // char msg[30];
+            // sprintf(msg, PSTR("Maximum depth reached: %d"), OLED_MENU_MAX_DEPTH);
+            // panicAndDisable(msg);
+            _DBGF(PSTR("Maximum depth reached: %d\n"), OLED_MENU_MAX_DEPTH);
+            return false;
         }
         itemStack[itemSP++] = item;
+        return true;
     }
+    // ! explanation wanted
     OLEDMenuItem *popItem(bool preserveCursor = true);
     OLEDMenuItem *peakItem()
     {
@@ -77,18 +80,20 @@ private:
         }
         return itemStack[itemSP - 1];
     }
-    void panicAndDisable(const char *msg)
-    {
-        this->display->clear();
-        this->display->setColor(OLEDDISPLAY_COLOR::WHITE);
-        this->display->fillRect(0, 0, OLED_MENU_WIDTH, OLED_MENU_HEIGHT);
-        this->display->setColor(OLEDDISPLAY_COLOR::BLACK);
-        this->display->setTextAlignment(OLEDDISPLAY_TEXT_ALIGNMENT::TEXT_ALIGN_LEFT);
-        this->display->setFont(ArialMT_Plain_10);
-        this->display->drawString(0, 0, msg);
-        this->display->display();
-        while (1);
-    }
+    // ! this is not informative and disables debug ability
+    //
+    // void panicAndDisable(const char *msg)
+    // {
+    //     this->display->clear();
+    //     this->display->setColor(OLEDDISPLAY_COLOR::WHITE);
+    //     this->display->fillRect(0, 0, OLED_MENU_WIDTH, OLED_MENU_HEIGHT);
+    //     this->display->setColor(OLEDDISPLAY_COLOR::BLACK);
+    //     this->display->setTextAlignment(OLEDDISPLAY_TEXT_ALIGNMENT::TEXT_ALIGN_LEFT);
+    //     this->display->setFont(ArialMT_Plain_10);
+    //     this->display->drawString(0, 0, msg);
+    //     this->display->display();
+    //     while (1);
+    // }
 
     /**
      * @brief Display screen saver

@@ -107,7 +107,7 @@ If your objective is to make changes to the Project, please use VSCode + Platfor
 1. Clone the repository, open it with your VSCode and press Build/Upload. It's never been easier :)
 
 >***Please note:***\
-Platformio IDE enables upload speed limitation on ESP8266. Upload process at any higher upload speed will fail.
+Platformio IDE enables upload speed limitation on ESP8266. Upload process at any higher upload speed may fail.
 
 ### Using Arduino IDE<a id="build-n-upload-arduino"></a>
 
@@ -274,7 +274,7 @@ While managing Slots the following principles must be taken into account:
 
 The following diagram represents the structure of system and user configurations:
 
-![gbs-control user configuration structure](./doc/img/Slot-Preset-prefs.png)
+![gbs-control user configuration structure](./doc/img/slot-preset-prefs.png)
 
 ### Vocabulary
 
@@ -301,7 +301,7 @@ ESP8266 version of the factory built GBSC, boots into firmware upload mode by pr
 - [ ] Invert Sync issue
 - [ ] PassThrough doesn't work
 - [ ] preferScalingRgbhv doesn't work (?)
-- [ ] fix OLEDMenu items list offset
+- [x] fix OLEDMenu items list offset
 - [x] feature request [#553]
 - [x] creation/destruction OLEDMenuItem procedure
 

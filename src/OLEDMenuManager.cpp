@@ -57,7 +57,6 @@ OLEDMenuItem *OLEDMenuManager::allocItem()
             break;
         }
         // if (!this->allItems[i].used) {
-        //     // FIXME
         //     memset(&this->allItems[i], 0, sizeof(OLEDMenuItem));
         //     newItem = &this->allItems[i];
         //     newItem->used = true;
@@ -67,7 +66,7 @@ OLEDMenuItem *OLEDMenuManager::allocItem()
     }
     if (newItem == nullptr) {
         // char msg[40];
-        _DBGF(PSTR("reached max. menu items: %d"), OLED_MENU_MAX_ITEMS_NUM);
+        _DBGF(PSTR("reached max. menu items: %d\n"), OLED_MENU_MAX_ITEMS_NUM);
         // sprintf(msg, PSTR("Maximum number of items reached: %d"), OLED_MENU_MAX_ITEMS_NUM);
         // panicAndDisable(msg);
     }
@@ -96,6 +95,7 @@ OLEDMenuItem *OLEDMenuManager::registerItem(
     OLEDDISPLAY_TEXT_ALIGNMENT alignment)
 {
     OLEDMenuItem *newItem = allocItem();
+    constexpr uint8_t maxMenuItemHeight = OLED_MENU_USABLE_AREA_HEIGHT / (OLED_MENU_ITEMS_PER_SCREEN - 1);
     if(newItem == nullptr)
         goto register_image_item_end;
 
@@ -103,7 +103,10 @@ OLEDMenuItem *OLEDMenuManager::registerItem(
         alignment = OLEDDISPLAY_TEXT_ALIGNMENT::TEXT_ALIGN_CENTER;
     }
     newItem->imageWidth = imageWidth;
-    newItem->imageHeight = imageHeight;
+
+    // fixing the height of image items (at the first row is always a menu control item)
+    newItem->imageHeight = (imageHeight > maxMenuItemHeight) ? maxMenuItemHeight : imageHeight;
+
     newItem->xbmImage = xbmImage;
 
     newItem->tag = tag;
@@ -154,9 +157,13 @@ OLEDMenuItem *OLEDMenuManager::registerItem(
     newItem->alignment = alignment;
     if (parent) {
         if (parent->numSubItem == OLED_MENU_MAX_SUBITEMS_NUM) {
-            char msg[50];
-            sprintf(msg, PSTR("Maximum number of sub items reached: %d"), OLED_MENU_MAX_SUBITEMS_NUM);
-            panicAndDisable(msg);
+            _DBGF(PSTR("Maximum number of sub items reached: %d\n"), OLED_MENU_MAX_SUBITEMS_NUM);
+            delete newItem;
+            newItem = nullptr;
+            goto register_text_item_end;
+            // char msg[50];
+            // sprintf(msg, PSTR("Maximum number of sub items reached: %d"), OLED_MENU_MAX_SUBITEMS_NUM);
+            // panicAndDisable(msg);
         }
         parent->addSubItem(newItem);
         if (parent == rootItem) {
@@ -243,11 +250,12 @@ void OLEDMenuManager::drawOneItem(OLEDMenuItem *item, uint16_t yOffset, bool neg
  */
 void OLEDMenuManager::drawSubItems(OLEDMenuItem *parent)
 {
+    uint8_t i = 0;
     display->clear();
     drawStatusBar(itemUnderCursor == nullptr);
     uint16_t yOffset = OLED_MENU_STATUS_BAR_HEIGHT;
     uint8_t targetPage = itemUnderCursor == nullptr ? 0 : itemUnderCursor->pageInParent;
-    for (int i = 0; i < parent->numSubItem; ++i) {
+    while(i < parent->numSubItem) {
         OLEDMenuItem *subItem = parent->subItems[i];
 #if OLED_MENU_OVER_DRAW
         if (subItem->pageInParent >= targetPage) {
@@ -265,6 +273,7 @@ void OLEDMenuManager::drawSubItems(OLEDMenuItem *parent)
                 break;
             }
         }
+        i++;
     }
     display->display();
 }
@@ -388,7 +397,7 @@ void OLEDMenuManager::enterItem(OLEDMenuItem *item, OLEDMenuNav btn, bool isFirs
 {
     bool willEnter = true;
     if (this->state == OLEDMenuState::IDLE) {
-        pushItem(item);
+        if(!pushItem(item)) return;
         this->state = OLEDMenuState::ITEM_HANDLING;
     }
     if (item->handler) {
@@ -477,7 +486,8 @@ OLEDMenuItem *OLEDMenuManager::popItem(bool preserveCursor)
                 return top;
             }
         }
-        panicAndDisable("invalid item: item cannot be found in its parent's subItems");
+        // panicAndDisable("invalid item: item cannot be found in its parent's subItems");
+        _DBGN(F("invalid item: item cannot be found in its parent's subItems"));
         return nullptr;
     }
     cursor = 0;
