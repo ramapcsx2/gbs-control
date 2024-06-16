@@ -3,7 +3,7 @@
 # File: slot.cpp                                                          #
 # File Created: Friday, 31st May 2024 8:41:15 am                          #
 # Author: Sergey Ko                                                       #
-# Last Modified: Thursday, 13th June 2024 12:12:55 am                     #
+# Last Modified: Sunday, 16th June 2024 1:45:22 am                        #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -29,6 +29,7 @@ bool slotLoad(const uint8_t & slotIndex) {
         slotsBinaryFile.close();
         // update parameters
         uopt->resolutionID = slotsObject.slot[slotIndex].resolutionID;
+        GBS::GBS_PRESET_ID::write((uint8_t)uopt->resolutionID);
         uopt->wantScanlines = (bool)slotsObject.slot[slotIndex].scanlines;
         uopt->scanlineStrength = slotsObject.slot[slotIndex].scanlinesStrength;
         uopt->wantVdsLineFilter = (bool)slotsObject.slot[slotIndex].wantVdsLineFilter;
@@ -228,9 +229,10 @@ void slotResetDefaults(SlotMetaArray & slotsObject, const uint8_t & slotIndex) {
         sizeof(slotsObject.slot[slotIndex].name)
     );
     // if that was current slot, also reset the runtime paramters
-    // TODO: see loadDefaultUserOptions()
+    // TODO: see prefsLoadDefaults()
     if(slotIndex == uopt->slotID) {
         uopt->resolutionID = Output240p;
+        GBS::GBS_PRESET_ID::write((uint8_t)uopt->resolutionID);
         uopt->wantScanlines = false;
         uopt->scanlineStrength = SCANLINE_STRENGTH_INIT;
         uopt->wantVdsLineFilter = false;

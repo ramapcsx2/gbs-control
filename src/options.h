@@ -182,6 +182,8 @@ struct userOptions
 // runTimeOptions holds system variables
 struct runTimeOptions
 {
+    // system state
+    bool systemInitOK;
     // source identification
     bool boardHasPower;
     uint8_t continousStableCounter;

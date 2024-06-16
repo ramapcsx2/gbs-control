@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Saturday, 15th June 2024 8:39:40 pm                      #
+# Last Modified: Sunday, 16th June 2024 2:37:07 am                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -726,7 +726,7 @@ void serverWiFiReset()
 }
 
 /**
- * @brief Prints current system & PLC parameters
+ * @brief Prints current system & video
  *         into WS and Serial output
  *
  */
@@ -2046,7 +2046,7 @@ void handleUserCommand()
         // active slot settings reset
         fsToFactory();
         // common parameters reset
-        loadDefaultUserOptions();
+        prefsLoadDefaults();
         // saveUserPrefs();
         prefsSave();
         _WSN(F("options set to defaults, restarting"));
@@ -2062,11 +2062,12 @@ void handleUserCommand()
             // vga upscale path: let synwatcher handle it
             rto->videoStandardInput = 15;
         } else {
-            // also does loadPresetFromFS()
             applyPresets(rto->videoStandardInput);
+            // if at this point isCustomPreset it true,
+            // then preset is loaded from FS, therefore no need to save it again
+            if(!rto->isCustomPreset)
+                savePresetToFS();
         }
-        if(!rto->isCustomPreset)
-            savePresetToFS();
     }
     break;
     // case '4':
@@ -2171,6 +2172,7 @@ void handleUserCommand()
         uint8_t videoMode = getVideoMode();
         if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
             videoMode = rto->videoStandardInput; // last known good as fallback
+
         // else videoMode stays 0 and we'll apply via some assumptions
         if (userCommand == 'f')
             // uopt->presetPreference = Output960P; // 1280x960
@@ -2204,13 +2206,18 @@ void handleUserCommand()
         }
         else
         {
-            // normal path
-            _DBGF(PSTR("apply preset of videoMode: %d resolutionID: %d\n"), videoMode,  uopt->resolutionID);
             applyPresets(videoMode);
+            // resolution is stored in GBSC registers
+            // doing this after applyPresets to be able to find if resolution has changed
+            GBS::GBS_PRESET_ID::write(uopt->resolutionID);
+            // if at this point isCustomPreset it true, then preset is loaded from FS and
+            // resolution doesn't change, therefore no need to save it again
+            if(!rto->isCustomPreset) {
+                savePresetToFS();
+                slotFlush();
+            }
+            // saveUserPrefs();
         }
-        savePresetToFS();
-        slotFlush();
-        // saveUserPrefs();
     }
     break;
     case 'i':               // toggle active frametime lock method
@@ -2486,16 +2493,17 @@ void handleUserCommand()
         prefsSave();
         break;
     case 'X':                   // enable/disable ext. clock generator
-        _WS(F("ExternalClockGenerator: "));
-        if (uopt->disableExternalClockGenerator == 0)
+        _WS(F("external clock generator: "));
+        if (uopt->disableExternalClockGenerator == false)
         {
-            uopt->disableExternalClockGenerator = 1;
             _WSN(F("off"));
+            uopt->disableExternalClockGenerator = true;
         }
         else
         {
-            uopt->disableExternalClockGenerator = 0;
-            _WSN("on");
+            _WSN(F("on, detecting..."));
+            uopt->disableExternalClockGenerator = false;
+            externalClockGenDetectAndInitialize();
         }
         // saveUserPrefs();
         prefsSave();

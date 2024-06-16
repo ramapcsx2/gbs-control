@@ -240,6 +240,7 @@ const GBSControl = {
         promptContent: null,
         promptInput: null,
         removeSlotButton: null,
+        createSlotButton: null,
     },
     updateTerminalTimer: 0,
     webSocketServerUrl: '',
@@ -511,7 +512,7 @@ const toggleButtonCheck = (
 }
 
 /**
- * Description placeholder
+ * Enable / Disable 'remove slot' button depending on active slot
  *
  * @param {HTMLElement} button this is a slot button HTMLElement
  */
@@ -522,6 +523,23 @@ const removeSlotButtonCheck = (button: Element) => {
             GBSControl.ui.removeSlotButton.removeAttribute('disabled')
         } else {
             GBSControl.ui.removeSlotButton.setAttribute('disabled', '')
+        }
+    }
+}
+
+
+/**
+ * Enable / Disable 'create slot' button depending on active slot
+ *
+ * @param {Element} button
+ */
+const createSlotButtonCheck = (button: Element) => {
+    if (button.hasAttribute('active')) {
+        const currentName = button.getAttribute('gbs-name')
+        if (currentName && currentName.trim() === 'Empty') {
+            GBSControl.ui.createSlotButton.removeAttribute('disabled')
+        } else {
+            GBSControl.ui.createSlotButton.setAttribute('disabled', '')
         }
     }
 }
@@ -635,6 +653,7 @@ const createWebSocket = () => {
             GBSControl.ui.slotButtonList.forEach(toggleButtonActive(slotId))
             // control slot remove button
             removeSlotButtonCheck(activeSlotButton)
+            createSlotButtonCheck(activeSlotButton)
         }
         // curent resolution
         // const resID = GBSControl.buttonMapping[String.fromCharCode(optionByte2)]
@@ -1073,7 +1092,10 @@ const initUIElements = () => {
         promptContent: document.querySelector('[gbs-prompt-content]'),
         promptInput: document.querySelector('[gbs-input="prompt-input"]'),
         removeSlotButton: document.querySelector(
-            '[gbs-element-ref="buttonRemoveCustomPreset"]'
+            '[gbs-element-ref="buttonRemoveSlot"]'
+        ),
+        createSlotButton: document.querySelector(
+            '[gbs-element-ref="buttonCreateSlot"]'
         ),
     }
 }
@@ -1727,6 +1749,9 @@ const initGeneralListeners = () => {
     // })
     GBSControl.ui.removeSlotButton.addEventListener('click', () => {
         removePreset()
+    })
+    GBSControl.ui.createSlotButton.addEventListener('click', () => {
+        savePreset()
     })
 
     GBSControl.ui.alertAck.addEventListener('click', () => {

@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Friday, 14th June 2024 9:00:12 pm                        #
+# Last Modified: Sunday, 16th June 2024 2:04:38 am                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -280,7 +280,7 @@ void wifiLoop() {
             _connectCheckTime = millis();
             WiFi.reconnect();
         } else {
-            _DBGN(F("switched to AP mode"));
+            _DBGN(F("(!) switched to AP mode"));
             wifiStartApMode();
             _connectCheckTime = 0;
         }

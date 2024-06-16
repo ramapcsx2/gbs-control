@@ -93,6 +93,7 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
     }
     // saveUserPrefs();
     savePresetToFS();
+    slotFlush();
     manager->freeze();
     return false;
 }
@@ -136,8 +137,8 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     } else {
         // normal path
         applyPresets(rto->videoStandardInput);
+        savePresetToFS();
     }
-    savePresetToFS();
     // saveUserPrefs();
     manager->freeze();
     oledMenuFreezeTimeoutInMS = 2000;

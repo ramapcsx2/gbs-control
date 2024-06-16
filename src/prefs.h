@@ -3,7 +3,7 @@
 # File: prefs.h                                                           #
 # File Created: Thursday, 13th June 2024 12:16:48 am                      #
 # Author: Sergey Ko                                                       #
-# Last Modified: Thursday, 13th June 2024 12:27:13 am                     #
+# Last Modified: Sunday, 16th June 2024 1:45:22 am                        #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -17,7 +17,7 @@
 #include "options.h"
 #include "wserial.h"
 
-void loadDefaultUserOptions();
+void prefsLoadDefaults();
 bool prefsLoad();
 bool prefsSave();
 

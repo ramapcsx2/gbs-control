@@ -3,7 +3,7 @@
 # File: prefs.cpp                                                         #
 # File Created: Thursday, 13th June 2024 12:16:38 am                      #
 # Author: Sergey Ko                                                       #
-# Last Modified: Thursday, 13th June 2024 12:28:25 am                     #
+# Last Modified: Sunday, 16th June 2024 1:45:22 am                        #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -16,7 +16,7 @@
  * @brief
  *
  */
-void loadDefaultUserOptions()
+void prefsLoadDefaults()
 {
     // uopt->resolutionID = Output240p;
     // uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
@@ -50,7 +50,7 @@ bool prefsLoad() {
     fs::File f = LittleFS.open(FPSTR(preferencesFile), "r");
     if (!f) {
         _WSN(F("no preferences file yet, create new"));
-        loadDefaultUserOptions();
+        prefsLoadDefaults();
         prefsSave();
         return false;
     }

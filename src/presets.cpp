@@ -3,7 +3,7 @@
 # File: preset.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 6:38:23 pm                                   #
 # Author:                                                                           #
-# Last Modified: Saturday, 15th June 2024 8:28:39 pm                      #
+# Last Modified: Sunday, 16th June 2024 2:26:12 am                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -34,7 +34,7 @@ void loadPresetMdSection()
 }
 
 /**
- * @brief reset runtime parameters and some PLC registers
+ * @brief reset runtime parameters and some registers
  *
  */
 void setResetParameters()
@@ -1230,7 +1230,7 @@ void applyPresets(uint8_t videoMode)
     // TODO replace videoMode with VideoStandardInput enum
     if (!rto->boardHasPower)
     {
-        _WSN(F("(!) GBS board not responding!"));
+        _WSN(F("(!) board not responding!"));
         return;
     }
 
@@ -1283,7 +1283,11 @@ void applyPresets(uint8_t videoMode)
     if (videoMode == 0)
     {
         // Unknown
-        _WSF(PSTR("(!) source format not properly recognized, resolutionID: %c\n"), uopt->resolutionID);
+        _WSF(
+            PSTR("(!) source format not properly recognized, videoMode: %d, resolutionID: %c\n"),
+            videoMode,
+            uopt->resolutionID
+        );
         videoMode = 3;                // in case of success: override to 480p60
         GBS::ADC_INPUT_SEL::write(1); // RGB
         delay(10);
@@ -1326,10 +1330,7 @@ void applyPresets(uint8_t videoMode)
                 // it *enables* the output (showing a green screen) even if
                 // previously disabled, and we want to *disable* it.
                 // rto->presetID = Output240p;
-                //
-                // @sk: supressed for now
-                //
-                // uopt->resolutionID = Output240p;
+                uopt->resolutionID = Output240p;
                 return;
             }
         }
@@ -1337,7 +1338,7 @@ void applyPresets(uint8_t videoMode)
 
     if (uopt->PalForce60 == 1)
     {
-        // != custom. custom saved as pal preset has ntsc customization
+        // not equal to custom, saved as pal preset has ntsc customization
         // if (uopt->presetPreference != 2) {
         if (!rto->isCustomPreset) {
             _DBG(F("not a custom preset, "));
@@ -1367,6 +1368,7 @@ void applyPresets(uint8_t videoMode)
     /// resolution. If so, setup bypass and skip the rest of applyPresets().
     auto applySavedBypassPreset = [&videoMode]() -> bool
     {
+        // TODO the following description difers from reality, requires an update
         /*
         Types:
 
@@ -1439,16 +1441,20 @@ void applyPresets(uint8_t videoMode)
 
     // if we're using ESP8266, check if there is saved preset data first
 #if defined(ESP8266)
-    const uint8_t *preset = loadPresetFromFS(videoMode);
-    if(preset != nullptr) {
-        writeProgramArrayNew(preset, false);
-        if (applySavedBypassPreset())
-        {
-            _DBGN(F("Bypass preset applied"));
-            return;
+    // skip loading from FS if we changing resolution
+    if(uopt->resolutionID == (OutputResolution)GBS::GBS_PRESET_ID::read()) {
+        const uint8_t *preset = loadPresetFromFS(videoMode);
+        if(preset != nullptr) {
+            writeProgramArrayNew(preset, false);
+            if (applySavedBypassPreset())
+            {
+                _DBGN(F("Bypass preset applied"));
+                return;
+            }
+            delete preset;
+            goto apply_presets_skip_preset_loading;
         }
-        delete preset;
-    } else
+    }
     // else if (uopt->presetPreference == OutputCustomized) {
     // {
     //
@@ -1589,6 +1595,7 @@ void applyPresets(uint8_t videoMode)
         return;
     }
 
+apply_presets_skip_preset_loading:
     rto->videoStandardInput = videoMode;
     _DBGF(PSTR("video mode set: %d\n"), videoMode);
     if (waitExtra)
@@ -1731,7 +1738,7 @@ load_preset_from_fs_end:
  * @brief Save "preset.slot" data. If preset file exists it will be overriden
  *         Logic:
  *          - create preset file ("preset.current_slot"). Preset name identified by input video signal
- *          - read all registers of PLC and save the data into preset file. In other words the PLC snapshot with
+ *          - read all registers and save the data into preset file. In other words the snapshot with
  *              all the previous changes being saved into preset file and will be autoloaded next time
  *              if the current slot is active and the input video signal matches preset.
  */
@@ -1805,7 +1812,7 @@ void savePresetToFS()
         _WSF(PSTR("preset data saved into: %s\n"), buffer);
 
         // GBS::GBS_PRESET_CUSTOM::write(1); // use one reserved bit to mark this as a custom preset
-        // don't store scanlines
+        // TODO don't store scanlines - WHY?
         if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1)
         {
             disableScanlines();

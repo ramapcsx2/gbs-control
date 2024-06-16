@@ -70,13 +70,13 @@
                     </ul>
                     <div class="gbs-presets" gbs-slot-html></div>
                     <div class="gbs-flex">
-                        <button class="gbs-button gbs-button__control-action" gbs-element-ref="buttonRemoveCustomPreset"
+                        <button class="gbs-button gbs-button__control-action" gbs-element-ref="buttonRemoveSlot"
                             disabled>
                             <div class="gbs-icon">delete</div>
                             <div>L{REMOVE_SLOT}</div>
                         </button>
-                        <button class="gbs-button gbs-button__control-action gbs-button__secondary"
-                            onclick="savePreset()" active>
+                        <button class="gbs-button gbs-button__control-action gbs-button__secondary" gbs-element-ref="buttonCreateSlot"
+                            active>
                             <div class="gbs-icon">fiber_manual_record</div>
                             <div>L{SAVE_PRESET}</div>
                         </button>

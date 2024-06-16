@@ -69,7 +69,6 @@ body {
     background-color: var(--color-cod-gray);
     font-family: "${webUIFontName}", sans-serif;
     overflow: hidden;
-    position: relative;
 }
 
 * {

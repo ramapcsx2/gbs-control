@@ -3,7 +3,7 @@
 # File: menu.cpp                                                          #
 # File Created: Thursday, 2nd May 2024 11:31:34 pm                        #
 # Author:                                                                 #
-# Last Modified: Saturday, 15th June 2024 8:35:48 pm                      #
+# Last Modified: Sunday, 16th June 2024 2:32:56 am                        #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -201,9 +201,9 @@ void settingsMenuOLED()
                 rto->videoStandardInput = 15;
             } else {
                 applyPresets(videoMode);
+                // saveUserPrefs();
+                savePresetToFS();
             }
-            // saveUserPrefs();
-            savePresetToFS();
             oled_selectOption = 1;
             oled_subsetFrame = 1;
         }
@@ -225,9 +225,9 @@ void settingsMenuOLED()
                 rto->videoStandardInput = 15;
             } else {
                 applyPresets(videoMode);
+                // saveUserPrefs();
+                savePresetToFS();
             }
-            // saveUserPrefs();
-            savePresetToFS();
             oled_selectOption = 1;
             oled_subsetFrame = 1;
         }
@@ -249,9 +249,9 @@ void settingsMenuOLED()
                 rto->videoStandardInput = 15;
             } else {
                 applyPresets(videoMode);
+                // saveUserPrefs();
+                savePresetToFS();
             }
-            // saveUserPrefs();
-            savePresetToFS();
             oled_selectOption = 1;
             oled_subsetFrame = 1;
         }
@@ -273,9 +273,9 @@ void settingsMenuOLED()
                 rto->videoStandardInput = 15;
             } else {
                 applyPresets(videoMode);
+                // saveUserPrefs();
+                savePresetToFS();
             }
-            // saveUserPrefs();
-            savePresetToFS();
             oled_selectOption = 1;
             oled_subsetFrame = 1;
         }
@@ -296,9 +296,9 @@ void settingsMenuOLED()
                 rto->videoStandardInput = 15;
             } else {
                 applyPresets(videoMode);
+                // saveUserPrefs();
+                savePresetToFS();
             }
-            // saveUserPrefs();
-            savePresetToFS();
             oled_selectOption = 1;
             oled_subsetFrame = 2;
         }
@@ -320,9 +320,9 @@ void settingsMenuOLED()
                 rto->videoStandardInput = 15;
             } else {
                 applyPresets(videoMode);
+                // saveUserPrefs();
+                savePresetToFS();
             }
-            // saveUserPrefs();
-            savePresetToFS();
             oled_selectOption = 1;
             oled_subsetFrame = 2;
         }
@@ -408,9 +408,9 @@ void settingsMenuOLED()
                 rto->videoStandardInput = 15;
             } else {
                 applyPresets(rto->videoStandardInput);
+                // saveUserPrefs();
+                savePresetToFS();
             }
-            // saveUserPrefs();
-            savePresetToFS();
             delay(50);             // allowing "catchup"
             oled_selectOption = 1; // reset select container
             oled_subsetFrame = 1;  // switch back to prev frame (prev screen)
@@ -435,9 +435,9 @@ void settingsMenuOLED()
                 rto->videoStandardInput = 15;
             } else {
                 applyPresets(rto->videoStandardInput);
+                // saveUserPrefs();
+                savePresetToFS();
             }
-            // saveUserPrefs();
-            savePresetToFS();
             delay(50);
             oled_selectOption = 1;
             oled_subsetFrame = 1;
@@ -462,9 +462,9 @@ void settingsMenuOLED()
                 rto->videoStandardInput = 15;
             } else {
                 applyPresets(rto->videoStandardInput);
+                // saveUserPrefs();
+                savePresetToFS();
             }
-            // saveUserPrefs();
-            savePresetToFS();
             delay(50);
             oled_selectOption = 1;
             oled_subsetFrame = 1;
@@ -489,9 +489,9 @@ void settingsMenuOLED()
                 rto->videoStandardInput = 15;
             } else {
                 applyPresets(rto->videoStandardInput);
+                // saveUserPrefs();
+                savePresetToFS();
             }
-            // saveUserPrefs();
-            savePresetToFS();
             delay(50);
             oled_selectOption = 1;
             oled_subsetFrame = 1;
@@ -516,9 +516,9 @@ void settingsMenuOLED()
                 rto->videoStandardInput = 15;
             } else {
                 applyPresets(rto->videoStandardInput);
+                // saveUserPrefs();
+                savePresetToFS();
             }
-            // saveUserPrefs();
-            savePresetToFS();
             delay(50);
             oled_selectOption = 1;
             oled_subsetFrame = 2;
@@ -543,9 +543,9 @@ void settingsMenuOLED()
                 rto->videoStandardInput = 15;
             } else {
                 applyPresets(rto->videoStandardInput);
+                // saveUserPrefs();
+                savePresetToFS();
             }
-            // saveUserPrefs();
-            savePresetToFS();
             delay(50);
             oled_selectOption = 1;
             oled_subsetFrame = 2;
@@ -570,9 +570,9 @@ void settingsMenuOLED()
                 rto->videoStandardInput = 15;
             } else {
                 applyPresets(rto->videoStandardInput);
+                // saveUserPrefs();
+                savePresetToFS();
             }
-            // saveUserPrefs();
-            savePresetToFS();
             delay(50);
             oled_selectOption = 1;
             oled_subsetFrame = 2;
@@ -627,7 +627,7 @@ void settingsMenuOLED()
                 display.display();
             }
             // webSocket.close();
-            loadDefaultUserOptions();
+            prefsLoadDefaults();
             // saveUserPrefs();
             prefsSave();
             // delay(60);

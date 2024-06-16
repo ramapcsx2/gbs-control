@@ -3,7 +3,7 @@
 # File: video.cpp                                                                   #
 # File Created: Thursday, 2nd May 2024 4:07:57 pm                                   #
 # Author:                                                                           #
-# Last Modified: Saturday, 15th June 2024 8:27:35 pm                      #
+# Last Modified: Sunday, 16th June 2024 1:51:52 am                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -354,7 +354,7 @@ int8_t externalClockGenDetectAndInitialize()
     rto->extClockGenDetected = 0;
 
     if (uopt->disableExternalClockGenerator) {
-        _WSN(F("external clock generator disabled, skipping detection"));
+        _DBGN(F("(!) external clock generator disabled, skipping detection"));
         return 0;
     }
 
@@ -366,7 +366,7 @@ int8_t externalClockGenDetectAndInitialize()
     // 2 = received NACK on transmit of address
     // 0 = success
     retVal = Wire.endTransmission();
-    _DBGF(PSTR("a problem while detect external clock, err: %d\n"), retVal);
+    _DBGF(PSTR("(!) a problem while detect external clock, err: %d\n"), retVal);
     if (retVal != 0) {
         return -1;
     }
@@ -387,6 +387,8 @@ int8_t externalClockGenDetectAndInitialize()
     } else {
         return -1;
     }
+
+    _DBGN(F("ext. clock detected"));
 
     Si.init(25000000L); // many Si5351 boards come with 25MHz crystal; 27000000L for one with 27MHz
     Wire.beginTransmission(SIADDR);
@@ -1209,7 +1211,7 @@ void updateSpDynamic(bool withCurrentVideoModeCheck)
         return;
     }
 
-    _DBGF(PSTR("updateSpDynamic %s video mode check\n"), withCurrentVideoModeCheck ? PSTR("WITH") : PSTR("NO"));
+    // _DBGF(PSTR("updateSpDynamic %s video mode check\n"), withCurrentVideoModeCheck ? PSTR("WITH") : PSTR("NO"));
 
     uint8_t vidModeReadout = getVideoMode();
     if (vidModeReadout == 0) {
@@ -2080,22 +2082,25 @@ void disableMotionAdaptDeinterlace()
 }
 
 /**
- * @brief
+ * @brief Clear tv5725 registers
  *
  */
 void zeroAll()
 {
+    uint8_t y = 0,
+            z = 0,
+            w = 0;
     // turn processing units off first
     writeOneByte(0xF0, 0);
     writeOneByte(0x46, 0x00); // reset controls 1
     writeOneByte(0x47, 0x00); // reset controls 2
 
     // zero out entire register space
-    for (int y = 0; y < 6; y++) {
+    while (y < 6) {
         writeOneByte(0xF0, (uint8_t)y);
-        for (int z = 0; z < 16; z++) {
+        while (z < 16) {
             uint8_t bank[16];
-            for (int w = 0; w < 16; w++) {
+            while(w < 16) {
                 bank[w] = 0;
                 // exceptions
                 // if (y == 5 && z == 0 && w == 2) {
@@ -2107,9 +2112,12 @@ void zeroAll()
                 // if (y == 5 && z == 5 && w == 7) {
                 //  bank[w] = 0xC0; // 5_57
                 //}
+                w++;
             }
             writeBytes(z * 16, bank, 16);
+            z++;
         }
+        y++;
     }
 }
 

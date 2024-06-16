@@ -3,6 +3,7 @@
 
 #include <LittleFS.h>
 #include "options.h"
+#include "tv5725.h"
 #include "wserial.h"
 
 // SLOTS

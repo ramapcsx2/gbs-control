@@ -8,7 +8,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Saturday, 15th June 2024 2:13:02 pm                      #
+# Last Modified: Sunday, 16th June 2024 2:21:46 am                        #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -100,34 +100,13 @@ void setup()
 {
     unsigned long initDelay = millis();
     bool retryExtClockDetect = false;
-    bool powerOrWireIssue = false;
+    // bool powerOrWireIssue = false;
 
     Serial.begin(115200); // Arduino IDE Serial Monitor requires the same 115200 bauds!
     Serial.setTimeout(10);
 
-    pinMode(PIN_CLK, INPUT_PULLUP);
-    pinMode(PIN_DATA, INPUT_PULLUP);
-    pinMode(PIN_SWITCH, INPUT_PULLUP);
-
-    // inits OLED on I2C bus
-    if(!display.init())
-        _DBGN(F("display init failed"));
-    display.flipScreenVertically(); // orientation fix for OLED
-
-    menuInit();
-
-    startWire();
-    // run some dummy commands to init I2C to GBS and cached segments
-    GBS::SP_SOG_MODE::read();
-    writeOneByte(0xF0, 0);
-    writeOneByte(0x00, 0);
-    GBS::STATUS_00::read();
-
-#ifdef HAVE_PINGER_LIBRARY
-    pingLastTime = millis();
-#endif
-
-    loadDefaultUserOptions();
+    rto->systemInitOK = false;
+    prefsLoadDefaults();
     rto->allowUpdatesOTA = false; // ESP over the air updates. default to off, enable via web interface
     rto->enableDebugPings = false;
     rto->autoBestHtotalEnabled = true; // automatically find the best horizontal total pixel value for a given input timing
@@ -151,7 +130,6 @@ void setup()
     rto->useHdmiSyncFix = 0;
     rto->notRecognizedCounter = 0;
 
-    // more run time variables
     rto->inputIsYPbPr = false;
     rto->videoStandardInput = 0;
     rto->outModeHdBypass = false;
@@ -185,38 +163,66 @@ void setup()
     pinMode(LED_BUILTIN, OUTPUT);
     LEDON; // enable the LED, lets users know the board is starting up
 
-#if WEB_SERVER_ENABLE == 1
-        wifiInit();
-        serverWebSocketInit();
-        serverInit();
+    pinMode(PIN_CLK, INPUT_PULLUP);
+    pinMode(PIN_DATA, INPUT_PULLUP);
+    pinMode(PIN_SWITCH, INPUT_PULLUP);
 
-    #ifdef HAVE_PINGER_LIBRARY
-        // pinger library
-        pinger.OnReceive([](const PingerResponse &response) {
-            if (response.ReceivedResponse) {
-                _DBGF(
-                    PSTR("Reply from %s: time=%lums\n"),
-                    response.DestIPAddress.toString().c_str(),
-                    response.ResponseTime);
+    // filesystem (web page, custom presets, etc)
+    if (!LittleFS.begin()) {
+        _DBGN(F("FS mount failed ((1M FS) selected?)"));
+        return;
+    }
 
-                pingLastTime = millis() - 900; // produce a fast stream of pings if connection is good
-            } else {
-                _DBGN(F("Request timed out."));
-            }
+    // inits OLED on I2C bus
+    if(!display.init())
+        _DBGN(F("display init failed"));
+    display.flipScreenVertically(); // orientation fix for OLED
 
-            // Return true to continue the ping sequence.
-            // If current event returns false, the ping sequence is interrupted.
-            return true;
-        });
+    menuInit();
 
-        pinger.OnEnd([](const PingerResponse &response) {
-            // detailed info not necessary
-            return true;
-        });
-    #endif                  // HAVE_PINGER_LIBRARY
-#else
-        wifiDisable();
+    startWire();
+    // run some dummy commands to init I2C to GBS and cached segments
+    GBS::SP_SOG_MODE::read();
+    writeOneByte(0xF0, 0);
+    writeOneByte(0x00, 0);
+    GBS::STATUS_00::read();
+
+#ifdef HAVE_PINGER_LIBRARY
+    pingLastTime = millis();
 #endif
+
+#if WEB_SERVER_ENABLE == 1
+    wifiInit();
+    serverWebSocketInit();
+    serverInit();
+
+#ifdef HAVE_PINGER_LIBRARY
+    // pinger library
+    pinger.OnReceive([](const PingerResponse &response) {
+        if (response.ReceivedResponse) {
+            _DBGF(
+                PSTR("Reply from %s: time=%lums\n"),
+                response.DestIPAddress.toString().c_str(),
+                response.ResponseTime);
+
+            pingLastTime = millis() - 900; // produce a fast stream of pings if connection is good
+        } else {
+            _DBGN(F("Request timed out."));
+        }
+
+        // Return true to continue the ping sequence.
+        // If current event returns false, the ping sequence is interrupted.
+        return true;
+    });
+
+    pinger.OnEnd([](const PingerResponse &response) {
+        // detailed info not necessary
+        return true;
+    });
+#endif          // HAVE_PINGER_LIBRARY
+#else           // WEB_SERVER_ENABLE
+    wifiDisable();
+#endif          // WEB_SERVER_ENABLE
 
     // delay 1 of 2
     // upped from < 500 to < 1500, allows more time for wifi and GBS startup
@@ -233,21 +239,15 @@ void setup()
     GBS::PLLAD_VCORST::write(1);
     GBS::PLLAD_PDZ::write(0); // AD PLL off
 
-    // file system (web page, custom presets, ect)
-    if (!LittleFS.begin()) {
-        _WSN(F("FS mount failed! ((1M FS) selected?)"));
-    } else {
-        // load user preferences file
-        if(prefsLoad()) {
-            // prefs data loaded, load current slot
-            if(!slotLoad(uopt->slotID))
-                slotResetFlush(uopt->slotID);
-        }
-    }
+     // load user preferences file
+    if(!prefsLoad())
+        prefsLoadDefaults();
 
     GBS::PAD_CKIN_ENZ::write(1); // disable to prevent startup spike damage
-    if(externalClockGenDetectAndInitialize() == -1)
+    if(externalClockGenDetectAndInitialize() == -1) {
         retryExtClockDetect = true;
+        _DBGN(F("(!) unable to detect ext. clock, going to try later..."));
+    }
     // library may change i2c clock or pins, so restart
     startWire();
     GBS::STATUS_00::read();
@@ -269,8 +269,12 @@ void setup()
 
     // check board vitals
     if (!checkBoardPower()) {
+        _DBGN(F("(!) board has no power"));
         int i = 0;
         stopWire(); // sets pinmodes SDA, SCL to INPUT
+        // let is stop
+        delay(100);
+        // wait...
         while (i < 40) {
             // I2C SDA probably stuck, attempt recovery (max attempts in tests was around 10)
             startWire();
@@ -287,58 +291,35 @@ void setup()
             i++;
         }
 
-        // restart and dummy
-        startWire();
-        delay(10);
-        GBS::STATUS_00::read();
-
         if (!checkBoardPower()) {
             stopWire();
-            powerOrWireIssue = 1; // fail
-            // rto->boardHasPower = false;
             rto->syncWatcherEnabled = false;
-        } else { // recover success
+            _DBGN(F("(!) timeout, unable to init board connection"));
+        } else {
             rto->syncWatcherEnabled = true;
-            // rto->boardHasPower = true;
-            _DBGN(F("power is recovered"));
+            _DBGN(F("(!) power is recovered"));
         }
     }
 
-    if (powerOrWireIssue == 0) {
+    // if (powerOrWireIssue == 0) {
+    if (rto->boardHasPower) {
         // second init, in cases where i2c got stuck earlier but has recovered
         // *if* ext clock gen is installed and *if* i2c got stuck, then clockgen must be already running
-        if (!rto->extClockGenDetected && retryExtClockDetect) {
+        if (!rto->extClockGenDetected && retryExtClockDetect)
             externalClockGenDetectAndInitialize();
-        }
-        if (rto->extClockGenDetected == 1) {
-            _DBGN(F("ext clockgen detected"));
-        } else {
-            _DBGN(F("no ext clockgen"));
-        }
 
         zeroAll();
-        _DBGN(F("(!) reset runtime parameters while setup"));
         setResetParameters();
         prepareSyncProcessor();
-
-        uint8_t productId = GBS::CHIP_ID_PRODUCT::read();
-        uint8_t revisionId = GBS::CHIP_ID_REVISION::read();
-        _DBGF(PSTR("GBS chip ID: 0x%02X rev: 0x%02X\n"), productId, revisionId);
 
         if (uopt->enableCalibrationADC) {
             // enabled by default
             calibrateAdcOffset();
         }
-        // FIXME double reset?
-        // setResetParameters();
 
-        // startup reliability test routine
-        /*rto->videoStandardInput = 1;
-        writeProgramArrayNew(ntsc_240p, 0);
-        doPostPresetLoadSteps();
-        int i = 100000;
-        while (i-- > 0) loop();
-        ESP.restart();*/
+        // prefs data loaded, load current slot
+        if(!slotLoad(uopt->slotID))
+            slotResetFlush(uopt->slotID);
 
         // rto->syncWatcherEnabled = false; // allows passive operation by disabling syncwatcher here
         // inputAndSyncDetect();
@@ -353,26 +334,60 @@ void setup()
         // }
     } else {
         _WSN(F("Please check board power and cabling or restart!"));
+        return;
     }
 
     LEDOFF; // LED behaviour: only light LED on active sync
 
     // some debug tools leave garbage in the serial rx buffer
     discardSerialRxData();
-    // setup done
-    _DBGF(PSTR("\n\n   GBS-Control v.%s\n\n\n"), STRING(VERSION));
+
+    _DBGF(PSTR("\n\n   GBS-Control v.%s\n\n\nTV id: 0x%02X rev: 0x%02X\n"),
+        STRING(VERSION),
+        GBS::CHIP_ID_PRODUCT::read(),
+        GBS::CHIP_ID_REVISION::read()
+    );
+    // system init is OK
+    rto->systemInitOK = true;
 }
 
 
 void loop()
 {
+    // stay in loop_wrapper if setup has not been completed
+    if(!rto->systemInitOK) return;
+
     static unsigned long lastTimeSyncWatcher = millis();
     // 500 to start right away (after setup it will be 2790ms when we get here)
     static unsigned long lastTimeSourceCheck = 500;
     static unsigned long lastTimeInterruptClear = millis();
 
     menuLoop();
-    wifiLoop(); // WiFi + OTA + WS + MDNS, checks for server enabled + started
+    wifiLoop();
+
+        // Input signal detection
+    if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true && rto->boardHasPower) {
+        if ((millis() - lastTimeSourceCheck) >= 500) {
+            if (checkBoardPower()) {
+                inputAndSyncDetect();
+            } else {
+                // rto->boardHasPower = false;
+                rto->continousStableCounter = 0;
+                rto->syncWatcherEnabled = false;
+            }
+            lastTimeSourceCheck = millis();
+
+            // vary SOG slicer level from 2 to 6
+            uint8_t currentSOG = GBS::ADC_SOGCTRL::read();
+            if (currentSOG >= 3) {
+                rto->currentLevelSOG = currentSOG - 1;
+                GBS::ADC_SOGCTRL::write(rto->currentLevelSOG);
+            } else {
+                rto->currentLevelSOG = 6;
+                GBS::ADC_SOGCTRL::write(rto->currentLevelSOG);
+            }
+        }
+    }
 
     // run FrameTimeLock if enabled
     if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false
@@ -409,7 +424,6 @@ void loop()
 _DBGN(F("11"));
         }
         lastVsyncLock = millis();
-_DBGN(F("1"));
     }
 
     // syncWatcherEnabled is enabled by-default
@@ -486,12 +500,10 @@ _DBGN(F("1"));
             if ((getStatus16SpHsStable() == 1) && (getVideoMode() == rto->videoStandardInput)) {
                 updateCoastPosition(0);
                 if (rto->coastPositionIsSet && videoStandardInputIsPalNtscSd()) {
-                    // todo: verify for other csync formats
+                    // TODO: verify for other csync formats
                     GBS::SP_DIS_SUB_COAST::write(0); // enable 5_3e 5
                     GBS::SP_H_PROTECT::write(0);     // no 5_3e 4
-_DBGN(F("53"));
                 }
-_DBGN(F("52"));
             }
         }
     }
@@ -565,30 +577,6 @@ _DBGN(F("8"));
 _DBGN(F("9"));
     }
 
-    // Input signal detection
-    if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true && rto->boardHasPower) {
-        if ((millis() - lastTimeSourceCheck) >= 500) {
-            if (checkBoardPower()) {
-                inputAndSyncDetect();
-            } else {
-                // rto->boardHasPower = false;
-                rto->continousStableCounter = 0;
-                rto->syncWatcherEnabled = false;
-            }
-            lastTimeSourceCheck = millis();
-
-            // vary SOG slicer level from 2 to 6
-            uint8_t currentSOG = GBS::ADC_SOGCTRL::read();
-            if (currentSOG >= 3) {
-                rto->currentLevelSOG = currentSOG - 1;
-                GBS::ADC_SOGCTRL::write(rto->currentLevelSOG);
-            } else {
-                rto->currentLevelSOG = 6;
-                GBS::ADC_SOGCTRL::write(rto->currentLevelSOG);
-            }
-        }
-    }
-
     // has the GBS board lost power?
     // check at 2 points, in case one doesn't register
     // low values chosen to not do this check on small sync issues
@@ -599,10 +587,9 @@ _DBGN(F("9"));
             rto->continousStableCounter = 0;
             // rto->syncWatcherEnabled = false;
             stopWire(); // sets pinmodes SDA, SCL to INPUT
-_DBGN(F("113"));
+            _DBGN(F("(!) board has lost power"));
         } else {
             rto->noSyncCounter = 63; // avoid checking twice
-_DBGN(F("112"));
         }
     }
 
@@ -613,7 +600,7 @@ _DBGN(F("112"));
         if (digitalRead(SCL) && digitalRead(SDA)) {
             delay(50);
             if (digitalRead(SCL) && digitalRead(SDA)) {
-                _DBGN(F("power good"));
+                _DBGN(F("board power is ok"));
                 delay(350); // i've seen the MTV230 go on briefly on GBS power cycle
                 startWire();
                 {
@@ -628,9 +615,7 @@ _DBGN(F("112"));
                 rto->boardHasPower = true;
                 delay(100);
                 goLowPowerWithInputDetection();
-_DBGN(F("122"));
             }
-_DBGN(F("121"));
         }
     }
 
