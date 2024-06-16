@@ -61,6 +61,12 @@
 
 
 
+    "DOWNSCALE": {
+        "en": "Downscale",
+        "es": "Reducido",
+        "ru": "Сжатый",
+        "zh": ""
+    },
     "PASS_THROUGH": {
         "en": "Passthrough",
         "es": "Sin cambios",

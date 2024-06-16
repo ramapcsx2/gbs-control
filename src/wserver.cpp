@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Tuesday, 11th June 2024 1:38:34 pm                       #
+# Last Modified: Saturday, 15th June 2024 8:39:40 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -64,13 +64,13 @@ void serverInit()
 }
 
 /**
- * @brief If rto->developerMode is true decrease timings on webSocket
+ * @brief If uopt->developerMode is true decrease timings on webSocket
  *
  */
 void serverWebSocketToggleDeveloperMode() {
     webSocket.disableHeartbeat();
     delay(10);
-    if(rto->developerMode) {
+    if(uopt->developerMode) {
         webSocket.enableHeartbeat(
                 WEBSOCK_HBEAT_DEV_INTVAL,
                 WEBSOCK_HBEAT_DEV_PONG_TOUT,
@@ -727,7 +727,7 @@ void serverWiFiReset()
 
 /**
  * @brief Prints current system & PLC parameters
- *         into WS and Serial
+ *         into WS and Serial output
  *
  */
 void printInfo()
@@ -814,7 +814,7 @@ void printInfo()
 void printVideoTimings()
 {
     // if (rto->presetID < 0x20) {
-    if (uopt->resolutionID != PresetHdBypass && uopt->resolutionID != PresetBypassRGBHV)
+    if (utilsNotPassThroughMode())
     {
         // horizontal
         _WSF(
@@ -940,15 +940,14 @@ void handleSerialCommand()
     if (serialCommand == '@')
         return;
 
-    _WSF(commandDescr,
-        "serial",
+    _WSF(
+        commandDescr,
+        PSTR("serial"),
         serialCommand,
         serialCommand,
-        // uopt->presetPreference,
         uopt->slotID,
-        // rto->presetID
-        uopt->resolutionID,
-        uopt->resolutionID);
+        uopt->resolutionID
+    );
 
     // multistage with bad characters?
     if (inputStage > 0)
@@ -1041,7 +1040,7 @@ void handleSerialCommand()
                 GBS::HD_V_OFFSET::write(GBS::HD_V_OFFSET::read() + 0x24);
             }
             // GBS::IF_IN_DREG_BYPS::write(1); // enhances noise from not delaying IF processing properly
-            rto->debugView = true;
+            uopt->debugView = true;
             _WSN(F("on"));
         }
         else
@@ -1071,7 +1070,7 @@ void handleSerialCommand()
             GBS::ADC_UNUSED_60::write(0); // .. and clear
             GBS::ADC_UNUSED_61::write(0);
             GBS::ADC_UNUSED_62::write(0);
-            rto->debugView = false;
+            uopt->debugView = false;
             _WSN(F("off"));
         }
         // serialCommand = '@';
@@ -1125,14 +1124,16 @@ void handleSerialCommand()
             disableMotionAdaptDeinterlace();
         }
         break;
-    case 'k':
-        bypassModeSwitch_RGBHV();
+    case 'k':               // set OutputRGBHVBypass
+        setOutputRGBHVBypassMode();
+        _WSN(F("OutputRGBHVBypass mode is now active"));
+        savePresetToFS();
+        slotFlush();
         break;
-    case 'K':           // set outputBypass
-        setOutModeHdBypass(false);
-        // uopt->presetPreference = OutputBypass;
-        uopt->resolutionID = OutputBypass;
-        _WSN(F("OutputBypass mode is now active"));
+    case 'K':               // set OutputHdBypass
+        setOutputHdBypassMode(false);
+        _WSN(F("OutputHdBypass mode is now active"));
+        savePresetToFS();
         slotFlush();
         // saveUserPrefs();
         break;
@@ -1151,6 +1152,7 @@ void handleSerialCommand()
             GBS::DEC_TEST_ENABLE::write(0);
             _WSN(F("off"));
         }
+        savePresetToFS();
         slotFlush();
         // saveUserPrefs();
         break;
@@ -1240,7 +1242,7 @@ void handleSerialCommand()
         break;
     case '#':
         rto->videoStandardInput = 13;
-        applyPresets(13);
+        applyPresets(rto->videoStandardInput);
         // _WSN(getStatus00IfHsVsStable());
         // globalDelay++;
         // _WSN(globalDelay);
@@ -1315,12 +1317,13 @@ void handleSerialCommand()
     {
     }
     break;
-    case 'm':
+    case 'm':               // toggle syncWatcher
         _WS(F("syncwatcher "));
         if (rto->syncWatcherEnabled == true)
         {
             rto->syncWatcherEnabled = false;
-            if (rto->videoIsFrozen)
+            // if (rto->videoIsFrozen)
+            if (uopt->freezeCapture)
             {
                 unfreezeVideo();
             }
@@ -1373,21 +1376,22 @@ void handleSerialCommand()
             GBS::VDS_PK_Y_H_BYPS::write(1);
             _WSN(F("off"));
         }
+        savePresetToFS();
         slotFlush();
         // saveUserPrefs();
         break;
     case 'F':                   // switch ADC filter button (dev.mode)
         _WS(F("ADC filter "));
-        if (GBS::ADC_FLTR::read() > 0)
+        if (GBS::ADC_FLTR::read() != 0)
         {
             GBS::ADC_FLTR::write(0);
-            rto->adcFilter = false;
+            uopt->adcFilter = false;
             _WSN(F("off"));
         }
         else
         {
             GBS::ADC_FLTR::write(3);
-            rto->adcFilter = true;
+            uopt->adcFilter = true;
             _WSN(F("on"));
         }
         break;
@@ -1406,7 +1410,10 @@ void handleSerialCommand()
         rto->videoStandardInput = 0; // force hard reset
         applyPresets(videoMode);
         // uopt->resolutionID = backup;
-        saveUserPrefs();
+        // saveUserPrefs();
+        savePresetToFS();
+        prefsSave();
+        // savePresetToFS();
     }
     break;
     case 'l':
@@ -1543,7 +1550,7 @@ void handleSerialCommand()
         break;
     case '8': // invert sync button (dev. mode)
         // _WSN("invert sync");
-        rto->invertSync = !rto->invertSync;
+        uopt->invertSync = !uopt->invertSync;
         invertHS();
         invertVS();
         // optimizePhaseSP();
@@ -1948,6 +1955,7 @@ void handleSerialCommand()
             GBS::VDS_UV_STEP_BYPS::write(1);
             _WSN(F("off"));
         }
+        savePresetToFS();
         slotFlush();
         // saveUserPrefs();
     }
@@ -1995,7 +2003,7 @@ void handleSerialCommand()
     // {
     //     // in case we handled a Serial or web server command and there's no more extra commands
     //     // but keep debug view command (resets once called)
-    //     // TODO: we have rto->debugView
+    //     // TODO: we have uopt->debugView
     //     if (serialCommand != 'D')
     //     {
     //        serialCommand = '@';
@@ -2016,12 +2024,12 @@ void handleUserCommand()
 
     _WSF(
         commandDescr,
-        "user",
+        PSTR("user"),
         userCommand,
         userCommand,
         uopt->slotID,
-        uopt->resolutionID,
-        uopt->resolutionID);
+        uopt->resolutionID
+    );
 
     switch (userCommand)
     {
@@ -2034,12 +2042,13 @@ void handleUserCommand()
             _WSN(F("off"));
         slotFlush();
         break;
-    case '1':               // reset to defaults button
+    case '1':               // reset to factory defaults button
         // active slot settings reset
         fsToFactory();
         // common parameters reset
         loadDefaultUserOptions();
-        saveUserPrefs();
+        // saveUserPrefs();
+        prefsSave();
         _WSN(F("options set to defaults, restarting"));
         resetInMSec(2000);
         break;
@@ -2053,9 +2062,11 @@ void handleUserCommand()
             // vga upscale path: let synwatcher handle it
             rto->videoStandardInput = 15;
         } else {
-            // also does loadPresetFromLFS()
+            // also does loadPresetFromFS()
             applyPresets(rto->videoStandardInput);
         }
+        if(!rto->isCustomPreset)
+            savePresetToFS();
     }
     break;
     // case '4':
@@ -2095,6 +2106,7 @@ void handleUserCommand()
             disableScanlines();
             _WSN(F("off"));
         }
+        savePresetToFS();
         slotFlush();
         // saveUserPrefs();
         break;
@@ -2104,7 +2116,7 @@ void handleUserCommand()
         resetInMSec(2000);
         break;
     case 'd':               // toggle developer mode
-        rto->developerMode = !rto->developerMode;
+        uopt->developerMode = !uopt->developerMode;
         serverWebSocketToggleDeveloperMode();
         serialDevModeToggle();
         break;
@@ -2193,9 +2205,10 @@ void handleUserCommand()
         else
         {
             // normal path
-            _DBGF(PSTR("apply preset of videoMode: %d resolution: %d\n"), videoMode,  uopt->resolutionID);
+            _DBGF(PSTR("apply preset of videoMode: %d resolutionID: %d\n"), videoMode,  uopt->resolutionID);
             applyPresets(videoMode);
         }
+        savePresetToFS();
         slotFlush();
         // saveUserPrefs();
     }
@@ -2298,6 +2311,7 @@ void handleUserCommand()
             GBS::VDS_D_RAM_BYPS::write(0);
             _WSN(F("on"));
         }
+        savePresetToFS();
         slotFlush();
         // saveUserPrefs();
         break;
@@ -2395,6 +2409,7 @@ void handleUserCommand()
             // saveUserPrefs();
             _WSN(F("Deinterlacer: Motion Adaptive"));
         }
+        savePresetToFS();
         slotFlush();
         break;
     // case 'r':
@@ -2423,11 +2438,12 @@ void handleUserCommand()
         extractBackup();
         // reset active slot
         uopt->slotID = 0;
-        saveUserPrefs();
+        // saveUserPrefs();
+        prefsSave();
         // reset device to apply new configuration
         resetInMSec(2000);
         break;
-    case 'v':
+    case 'v':           // toggle full Height
     {
         uopt->wantFullHeight = !uopt->wantFullHeight;
         // saveUserPrefs();
@@ -2441,6 +2457,7 @@ void handleUserCommand()
                 applyPresets(vidMode);
             }
         }
+        savePresetToFS();
     }
     break;
     case 'w':                   // ADC calibration
@@ -2450,7 +2467,9 @@ void handleUserCommand()
             _WSN(F("on"));
         else
             _WSN(F("off"));
-        saveUserPrefs();
+        // saveUserPrefs();
+        savePresetToFS();
+        prefsSave();
         break;
     case 'x':                   // do upscaling on low resolutions (preferScalingRgbhv)
         uopt->preferScalingRgbhv = !uopt->preferScalingRgbhv;
@@ -2463,7 +2482,8 @@ void handleUserCommand()
         {
             _WSN(F("off"));
         }
-        saveUserPrefs();
+        // saveUserPrefs();
+        prefsSave();
         break;
     case 'X':                   // enable/disable ext. clock generator
         _WS(F("ExternalClockGenerator: "));
@@ -2477,7 +2497,8 @@ void handleUserCommand()
             uopt->disableExternalClockGenerator = 0;
             _WSN("on");
         }
-        saveUserPrefs();
+        // saveUserPrefs();
+        prefsSave();
         break;
     case 'z':
         // sog slicer level
@@ -2510,16 +2531,14 @@ void handleUserCommand()
         }
         break;
     case 'F':           // freeze pic
-        if (GBS::CAPTURE_ENABLE::read())
+        if (GBS::CAPTURE_ENABLE::read() == 0)
         {
-            rto->freezeCapture = false;
-            GBS::CAPTURE_ENABLE::write(0);
+            unfreezeVideo();
             _WSN(F("capture: disabled"));
         }
         else
         {
-            rto->freezeCapture = true;
-            GBS::CAPTURE_ENABLE::write(1);
+            freezeVideo();
             _WSN(F("capture: enabled"));
         }
         break;
@@ -2537,6 +2556,7 @@ void handleUserCommand()
             GBS::MADPT_Y_MI_OFFSET::write(uopt->scanlineStrength);
             GBS::MADPT_UV_MI_OFFSET::write(uopt->scanlineStrength);
         }
+        savePresetToFS();
         slotFlush();
         // saveUserPrefs();
         _WSF(PSTR("Scanline Brightness: 0x%04X\n"), uopt->scanlineStrength);
@@ -2745,7 +2765,7 @@ void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length)
         case WStype_PONG:
             if (webSocket.connectedClients() > 0) {
                 // debug output
-                if(rto->developerMode) {
+                if(uopt->developerMode) {
                     const char * buff = serialGetBuffer();
                     if(*buff != '\0') {
                         // sending to all clients
@@ -2760,9 +2780,8 @@ void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length)
                 memset(toSend, 0, MESSAGE_LEN);
                 // special character # used for message filtering in WebUI
                 toSend[0] = '#';
-                toSend[1] = uopt->slotID + '0';
-                // TODO: resolutionID must be INTEGER too?
-                toSend[2] = (char)uopt->resolutionID;
+                toSend[1] = uopt->slotID;
+                toSend[2] = (uint8_t)uopt->resolutionID;
                 //
                 if (uopt->wantScanlines)
                     toSend[3] |= (1 << 0);
@@ -2803,19 +2822,19 @@ void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length)
                     toSend[5] |= (1 << 3);
 
                 // developer panel controls status
-                if(rto->developerMode)
+                if(uopt->developerMode)
                     toSend[6] |= (1 << 0);
                 if(rto->printInfos)
                     toSend[6] |= (1 << 1);
-                if(rto->invertSync)
+                if(uopt->invertSync)
                     toSend[6] |= (1 << 2);
                 if(rto->osr != 0)
                     toSend[6] |= (1 << 3);
-                if(rto->adcFilter)
+                if(uopt->adcFilter)
                     toSend[6] |= (1 << 4);
-                if(rto->debugView)
+                if(uopt->debugView)
                     toSend[6] |= (1 << 5);
-                if(rto->freezeCapture)
+                if(uopt->freezeCapture)
                     toSend[6] |= (1 << 6);
 
                 // system tab controls

@@ -4,6 +4,8 @@
 #include "options.h"
 #include "tv5725.h"
 #include "presets.h"
+#include "slot.h"
+#include "prefs.h"
 
 struct OSDMenuConfig
 {

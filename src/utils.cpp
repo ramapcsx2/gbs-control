@@ -3,7 +3,7 @@
 # File: utils.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 5:37:47 pm                                   #
 # Author:                                                                           #
-# Last Modified: Sunday, 2nd June 2024 4:36:33 pm                         #
+# Last Modified: Saturday, 15th June 2024 8:00:46 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -13,6 +13,47 @@
 
 // GBS segment for direct access
 static uint8_t lastSegment = 0xFF;
+
+/**
+ * @brief a simple getter to prevent parameters from spreading in code
+ *
+ * @return true if it is Passthrough / Bypass mode
+ * @return false
+ */
+bool utilsIsPassThroughMode() {
+    return (uopt->resolutionID == OutputHdBypass || uopt->resolutionID == OutputRGBHVBypass);
+}
+
+/**
+ * @brief a simple getter to prevent parameters from spreading in code
+ *
+ * @return true if it is NOT a Passthrough / Bypass mode
+ * @return false
+ */
+bool utilsNotPassThroughMode() {
+    return (uopt->resolutionID != OutputHdBypass && uopt->resolutionID != OutputRGBHVBypass);
+}
+
+/**
+ * @brief a simple getter to prevent parameters from 
+ *          spreading in code (15kHz/Downscale mode)
+ * 
+ * @return true 
+ * @return false 
+ */
+bool utilsIsDownscaleMode() {
+    return (uopt->resolutionID == Output15kHz || uopt->resolutionID == Output15kHz50);
+}
+
+/**
+ * @brief a simple getter to prevent parameters from spreading in code
+ * 
+ * @return true 
+ * @return false 
+ */
+bool utilsNotDownscaleMode() {
+    return (uopt->resolutionID != Output15kHz && uopt->resolutionID != Output15kHz50);
+}
 
 /**
  * @brief
@@ -99,11 +140,8 @@ void setCsVsStop(uint16_t stop)
  */
 void freezeVideo()
 {
-    /*if (rto->videoIsFrozen == false) {
-    GBS::IF_VB_ST::write(GBS::IF_VB_SP::read());
-  }
-  rto->videoIsFrozen = true;*/
-    // _WS("f");
+    // GBS::IF_VB_ST::write(GBS::IF_VB_SP::read());
+    uopt->freezeCapture = true;
     GBS::CAPTURE_ENABLE::write(0);
 }
 
@@ -113,11 +151,8 @@ void freezeVideo()
  */
 void unfreezeVideo()
 {
-    /*if (rto->videoIsFrozen == true) {
-    GBS::IF_VB_ST::write(GBS::IF_VB_SP::read() - 2);
-  }
-  rto->videoIsFrozen = false;*/
-    // _WS("u");
+    // GBS::IF_VB_ST::write(GBS::IF_VB_SP::read() - 2);
+    uopt->freezeCapture = false;
     GBS::CAPTURE_ENABLE::write(1);
 }
 
@@ -560,15 +595,17 @@ bool checkBoardPower()
     GBS::ADC_UNUSED_69::write(0x6a); // 0110 1010
     if (GBS::ADC_UNUSED_69::read() == 0x6a) {
         GBS::ADC_UNUSED_69::write(0);
-        return 1;
+        rto->boardHasPower = true;
+        return true;
     }
 
     GBS::ADC_UNUSED_69::write(0); // attempt to clear
     if (rto->boardHasPower == true) {
         _WSN(F("! power / i2c lost !"));
     }
+    rto->boardHasPower = false;
 
-    return 0;
+    return false;
 
     // stopWire(); // sets pinmodes SDA, SCL to INPUT
     // uint8_t SCL_SDA = 0;
@@ -700,4 +737,37 @@ void calibrateAdcOffset()
     GBS::ADC_BOFCTRL::write(adco->b_off);
 
     // _WSN(millis() - overallTimer);
+}
+
+/**
+ * @brief Set the External Clock Gen Frequency Smooth object
+ *
+ * @param freq
+ */
+void setExternalClockGenFrequencySmooth(uint32_t freq) {
+    uint32_t current = rto->freqExtClockGen;
+
+    rto->freqExtClockGen = freq;
+
+    constexpr uint32_t STEP_SIZE_HZ = 1000;
+
+    if (current > rto->freqExtClockGen) {
+        if ((current - rto->freqExtClockGen) < 750000) {
+            while (current > (rto->freqExtClockGen + STEP_SIZE_HZ)) {
+                current -= STEP_SIZE_HZ;
+                Si.setFreq(0, current);
+                // wifiLoop(0);
+            }
+        }
+    } else if (current < rto->freqExtClockGen) {
+        if ((rto->freqExtClockGen - current) < 750000) {
+            while ((current + STEP_SIZE_HZ) < rto->freqExtClockGen) {
+                current += STEP_SIZE_HZ;
+                Si.setFreq(0, current);
+                // wifiLoop(0);
+            }
+        }
+    }
+
+    Si.setFreq(0, rto->freqExtClockGen);
 }

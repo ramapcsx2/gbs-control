@@ -3,7 +3,7 @@
 # File: wifiman.h                                                                   #
 # File Created: Friday, 19th April 2024 2:25:42 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Saturday, 8th June 2024 4:13:45 pm                       #
+# Last Modified: Thursday, 13th June 2024 4:40:11 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -21,9 +21,7 @@
 #include "options.h"
 #include "wserial.h"
 
-extern struct userOptions *uopt;
 extern DNSServer dnsServer;
-extern struct runTimeOptions *rto;
 
 //  HOWTO: Rely on the previously implemented logic
 //    __________     _____________     __________________  yes  _____________________

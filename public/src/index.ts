@@ -67,7 +67,7 @@ const Structs: StructDescriptors = {
     slots: [
         { name: 'name', type: 'string', size: 25 },
         { name: 'slot', type: 'byte', size: 1 },
-        { name: 'resolutionID', type: 'string', size: 1 },
+        { name: 'resolutionID', type: 'byte', size: 1 },
 
         { name: 'scanlines', type: 'byte', size: 1 },
         { name: 'scanlinesStrength', type: 'byte', size: 1 },
@@ -152,23 +152,23 @@ const StructParser = {
 /* GBSControl Global Object*/
 const GBSControl = {
     buttonMapping: {
-        a: 'button240p',
-        c: 'button960p',
-        d: 'button960p', // 50Hz
-        e: 'button1024p',
-        f: 'button1024p', // 50Hz
-        g: 'button720p',
-        h: 'button720p', // 50Hz
-        i: 'button480p',
-        j: 'button480p', // 50Hz
-        k: 'button1080p',
-        l: 'button1080p', // 50Hz
-        m: 'button15kHz',
-        n: 'button15kHz', // 50Hz
-        p: 'button576p', // 50Hz
-        q: 'buttonSourcePassThrough',
-        s: 'buttonSourcePassThrough', // PresetHdBypass
-        u: 'buttonSourcePassThrough', // PresetBypassRGBHV
+        0: 'button240p',
+        2: 'button960p',
+        3: 'button960p', // 50Hz
+        4: 'button1024p',
+        5: 'button1024p', // 50Hz
+        6: 'button720p',
+        7: 'button720p', // 50Hz
+        8: 'button480p',
+        9: 'button480p', // 50Hz
+        10: 'button1080p',
+        11: 'button1080p', // 50Hz
+        12: 'button15kHz',
+        13: 'button15kHz', // 50Hz
+        15: 'button576p', // 50Hz
+        // q: 'buttonSourcePassThrough',
+        18: 'buttonSourcePassThrough', // OutputHdBypass
+        20: 'buttonSourcePassThrough', // OutputRGBHVBypass
         // 'w': "buttonLoadCustomPreset",
     },
     controlKeysMobileMode: 'move',
@@ -285,6 +285,23 @@ const GBSStorage = {
  */
 const resetCurrentPageSection = () => {
     GBSStorage.write('section', 'presets')
+}
+
+
+/**
+ * Make active/visible the section which is currently in
+ * GBSStorage.read('section')
+ */
+const syncSectionTab = () => {
+    const menuButtons = nodelistToArray<HTMLButtonElement>(
+        document.querySelector('.gbs-menu').querySelectorAll('button')
+    )
+    menuButtons.forEach((button) => {
+        const sectionName = button.getAttribute('gbs-section')
+        // get back to the last section after reload
+        if(GBSStorage.read('section') === sectionName)
+            button.dispatchEvent(new Event("click"))
+    })
 }
 
 /** websocket services */
@@ -609,7 +626,8 @@ const createWebSocket = () => {
         }
 
         // current slot
-        const slotId = `slot-${String.fromCharCode(optionByte1)}`
+        // const slotId = `slot-${String.fromCharCode(optionByte1)}`
+        const slotId = `slot-${optionByte1}`
         const activeSlotButton = document.querySelector(
             `[gbs-element-ref="${slotId}"]`
         )
@@ -619,7 +637,8 @@ const createWebSocket = () => {
             removeSlotButtonCheck(activeSlotButton)
         }
         // curent resolution
-        const resID = GBSControl.buttonMapping[String.fromCharCode(optionByte2)]
+        // const resID = GBSControl.buttonMapping[String.fromCharCode(optionByte2)]
+        const resID = GBSControl.buttonMapping[optionByte2]
         const resEl = document.querySelector(`[gbs-element-ref="${resID}"]`)
         const activePresetButton = resEl
             ? resEl.getAttribute('gbs-element-ref')
@@ -1243,46 +1262,45 @@ const updateSlotNames = () => {
     }
 }
 
+
 /**
  * Must be aligned with options.h -> OutputResolution
  *
  * @param {string} resolutionID
- * @returns {("960p" | "1024p" | "720p" | "480p" | "1080p" | "DOWNSCALE" | "576p" | "BYPASS" | "BYPASS HD" | "BYPASS RGBHV" | "240p" | "NONE")}
+ * @returns {("1280x960" | "1280x1024" | "1280x720" | "720x480" | "1920x1080" | "DOWNSCALE" | "768×576" | "BYPASS (HD)" | "BYPASS (RGBHV)" | "240p" | "NONE")}
  */
-const getSlotPresetName = (resolutionID: string) => {
+const getSlotPresetName = (resolutionID: number) => {
     switch (resolutionID) {
-        case 'c':
-        case 'd':
+        case 2: //'c':
+        case 3: //'d':
             // case 0x011:
-            return '960p'
-        case 'e':
-        case 'f':
+            return '1280x960'
+        case 4: //'e':
+        case 5: //'f':
             // case 0x012:
-            return '1024p'
-        case 'g':
-        case 'h':
+            return '1280x1024'
+        case 6: //'g':
+        case 7: //'h':
             // case 0x013:
-            return '720p'
-        case 'i':
-        case 'j':
+            return '1280x720'
+        case 8: //'i':
+        case 9: //'j':
             // case 0x015:
-            return '480p'
-        case 'k':
-        case 'l':
-            return '1080p'
-        case 'm':
-        case 'n':
+            return '720x480'
+        case 10: //'k':
+        case 11: //'l':
+            return '1920x1080'
+        case 12: //'m':
+        case 13: //'n':
             // case 0x016:
             return 'DOWNSCALE'
-        case 'p':
-            return '576p'
-        case 'q':
-            return 'BYPASS'
-        case 's': // bypass 1
-            return 'BYPASS HD'
-        case 'u': // bypass 2
-            return 'BYPASS RGBHV'
-        case 'a':
+        case 15: //'p':
+            return '768×576'
+        case 18: //'s':
+            return 'BYPASS (HD)'
+        case 20: //'u':
+            return 'BYPASS (RGBHV)'
+        case 0: //'a':
             return '240p'
         default:
             return 'NONE'
@@ -1355,6 +1373,10 @@ const toggleDeveloperMode = () => {
         GBSControl.ui.developerSwitch.setAttribute('active', '')
         GBSControl.ui.developerSwitch.querySelector('.gbs-icon').innerText = "toggle_on"
     } else {
+        if(GBSStorage.read('section') === 'developer') {
+            resetCurrentPageSection()
+            syncSectionTab()
+        }
         el.setAttribute('hidden', '')
         GBSStorage.write('consoleVisible', true)
         document.body.classList.add('gbs-output-hide')

@@ -3,7 +3,7 @@
 # File: video.cpp                                                                   #
 # File Created: Thursday, 2nd May 2024 4:07:57 pm                                   #
 # Author:                                                                           #
-# Last Modified: Monday, 10th June 2024 4:55:33 pm                        #
+# Last Modified: Saturday, 15th June 2024 8:27:35 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -338,13 +338,6 @@ void externalClockGenSyncInOutRate()
 }
 
 /**
- * @brief
- *
- * @return true if init successful
- * @return false something wrong / try later
- */
-
-/**
  * @brief Detect if external clock installed
  *
  * @return int8_t
@@ -458,39 +451,6 @@ void externalClockGenResetClock()
     FrameSync::clearFrequency();
 
     _DBGF(PSTR("reset ext. clock gen. to: %ld\n"), rto->freqExtClockGen);
-}
-
-/**
- * @brief Set the External Clock Gen Frequency Smooth object
- *
- * @param freq
- */
-void setExternalClockGenFrequencySmooth(uint32_t freq) {
-    uint32_t current = rto->freqExtClockGen;
-
-    rto->freqExtClockGen = freq;
-
-    constexpr uint32_t STEP_SIZE_HZ = 1000;
-
-    if (current > rto->freqExtClockGen) {
-        if ((current - rto->freqExtClockGen) < 750000) {
-            while (current > (rto->freqExtClockGen + STEP_SIZE_HZ)) {
-                current -= STEP_SIZE_HZ;
-                Si.setFreq(0, current);
-                // wifiLoop(0);
-            }
-        }
-    } else if (current < rto->freqExtClockGen) {
-        if ((rto->freqExtClockGen - current) < 750000) {
-            while ((current + STEP_SIZE_HZ) < rto->freqExtClockGen) {
-                current += STEP_SIZE_HZ;
-                Si.setFreq(0, current);
-                // wifiLoop(0);
-            }
-        }
-    }
-
-    Si.setFreq(0, rto->freqExtClockGen);
 }
 
 /**
@@ -752,7 +712,8 @@ bool applyBestHTotal(uint16_t bestHTotal)
  */
 bool runAutoBestHTotal()
 {
-    if (!FrameSync::ready() && rto->autoBestHtotalEnabled == true && rto->videoStandardInput > 0 && rto->videoStandardInput < 15) {
+    if (!FrameSync::ready() && rto->autoBestHtotalEnabled == true
+            && rto->videoStandardInput > 0 && rto->videoStandardInput < 15) {
 
         // _DBGN("running");
         // unsigned long startTime = millis();
@@ -970,7 +931,8 @@ void applyRGBPatches()
     GBS::DEC_MATRIX_BYPS::write(0); // 5_1f 2 = 1 for YUV / 0 for RGB << using DEC matrix
     GBS::IF_MATRIX_BYPS::write(1);
 
-    if (GBS::GBS_PRESET_CUSTOM::read() == 0) {
+    // if (GBS::GBS_PRESET_CUSTOM::read() == 0) {
+    if (!rto->isCustomPreset) {
         // colors
         GBS::VDS_Y_GAIN::write(0x80); // 0x80 = 0
         GBS::VDS_UCOS_GAIN::write(0x1c);
@@ -1011,7 +973,8 @@ void setAndUpdateSogLevel(uint8_t level)
     latchPLLAD();
     GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
     GBS::INTERRUPT_CONTROL_00::write(0x00);
-    // _WS(F("sog: ")); _WSN(rto->currentLevelSOG);
+
+    _DBGF(PSTR("update SOG: %d\n"), rto->currentLevelSOG);
 }
 
 /**
@@ -1150,8 +1113,8 @@ void setOverSampleRatio(uint8_t newRatio, bool prepareOnly)
     uint8_t ks = GBS::PLLAD_KS::read();
 
     bool hi_res = rto->videoStandardInput == 8 || rto->videoStandardInput == 4 || rto->videoStandardInput == 3;
-    // bool bypass = rto->presetID == PresetHdBypass;
-    bool bypass = uopt->resolutionID == PresetHdBypass;
+    // bool bypass = rto->presetID == OutputHdBypass;
+    bool bypass = uopt->resolutionID == OutputHdBypass;
 
     switch (newRatio) {
         case 1:
@@ -1245,6 +1208,8 @@ void updateSpDynamic(bool withCurrentVideoModeCheck)
     if (!rto->boardHasPower || rto->sourceDisconnected) {
         return;
     }
+
+    _DBGF(PSTR("updateSpDynamic %s video mode check\n"), withCurrentVideoModeCheck ? PSTR("WITH") : PSTR("NO"));
 
     uint8_t vidModeReadout = getVideoMode();
     if (vidModeReadout == 0) {
@@ -1350,7 +1315,7 @@ void updateSpDynamic(bool withCurrentVideoModeCheck)
                     if (ignoreLength != GBS::SP_H_PULSE_IGNOR::read()) {
                         GBS::SP_H_PULSE_IGNOR::write(ignoreLength);
                         rto->coastPositionIsSet = 0; // mustn't be skipped, needed when input changes dotclock / Hz
-                        _WSF(PSTR("(debug) ign. length: 0x%04X\n"), ignoreLength);
+                        _DBGF(PSTR("ign. length: 0x%04X\n"), ignoreLength);
                     }
                 }
             }
@@ -1396,21 +1361,22 @@ void updateSpDynamic(bool withCurrentVideoModeCheck)
  *          in this mode, sampling clock is free to choose
  * @param regsInitialized
  */
-void setOutModeHdBypass(bool regsInitialized)
+void setOutputHdBypassMode(bool regsInitialized)
 {
     if (!rto->boardHasPower) {
-        _WSN(F("GBS board not responding!"));
+        _WSN(F("(!) GBS board not responding!"));
         return;
     }
 
     rto->autoBestHtotalEnabled = false; // disable while in this mode
     rto->outModeHdBypass = 1;           // skips waiting at end of doPostPresetLoadSteps
+    uopt->resolutionID = OutputHdBypass;
 
     externalClockGenResetClock();
-    updateSpDynamic(0);
+    updateSpDynamic(false);
     loadHdBypassSection(); // this would be ignored otherwise
 
-    // TODO: needs clarification (see: rto->debugView)
+    // TODO: needs clarification (see: uopt->debugView)
     // if (GBS::ADC_UNUSED_62::read() != 0x00) {
         // remember debug view
         // if (uopt->presetPreference != 2) {
@@ -1429,17 +1395,18 @@ void setOutModeHdBypass(bool regsInitialized)
     GBS::PA_ADC_BYPSZ::write(1); // enable phase unit ADC
     GBS::PA_SP_BYPSZ::write(1);  // enable phase unit SP
 
-    GBS::GBS_PRESET_ID::write(PresetHdBypass);
+    GBS::GBS_PRESET_ID::write(OutputHdBypass);
     // If loading from top-level, clear custom preset flag to avoid stale
     // values. If loading after applyPresets() called writeProgramArrayNew(), it
     // has already set the flag to 1.
     if (!regsInitialized) {
-        GBS::GBS_PRESET_CUSTOM::write(0);
+        // GBS::GBS_PRESET_CUSTOM::write(0);
+        rto->isCustomPreset = false;
     }
     doPostPresetLoadSteps(); // todo: remove this, code path for hdbypass is hard to follow
 
     // doPostPresetLoadSteps() sets rto->presetID = GBS_PRESET_ID::read() =
-    // PresetHdBypass, and rto->isCustomPreset = GBS_PRESET_CUSTOM::read().
+    // OutputHdBypass, and rto->isCustomPreset = GBS_PRESET_CUSTOM::read().
 
     resetDebugPort();
 
@@ -1684,7 +1651,7 @@ void setOutModeHdBypass(bool regsInitialized)
         delay(1);
     }
     // currently SP is using generic settings, switch to format specific ones
-    updateSpDynamic(0);
+    updateSpDynamic(false);
     while ((getVideoMode() == 0) && (millis() - timeout < 1502)) {
         delay(1);
     }
@@ -1693,7 +1660,6 @@ void setOutModeHdBypass(bool regsInitialized)
     GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out
     delay(200);
     optimizePhaseSP();
-    _WSN(F("output mode HD bypass"));
 }
 
 /**
@@ -1747,7 +1713,7 @@ void togglePhaseAdjustUnits()
  * @brief
  *
  */
-void bypassModeSwitch_RGBHV()
+void setOutputRGBHVBypassMode()
 {
     if (!rto->boardHasPower) {
         _WSN(F("(!) GBS board not responding!"));
@@ -1769,6 +1735,7 @@ void bypassModeSwitch_RGBHV()
     rto->autoBestHtotalEnabled = false; // not necessary, since VDS is off / bypassed // todo: mode 14 (works anyway)
     rto->clampPositionIsSet = false;
     rto->HPLLState = 0;
+    uopt->resolutionID = OutputRGBHVBypass;
 
     GBS::PLL_CKIS::write(0);           // 0_40 0 //  0: PLL uses OSC clock | 1: PLL uses input clock
     GBS::PLL_DIVBY2Z::write(0);        // 0_40 1 // 1= no divider (full clock, ie 27Mhz) 0 = halved clock
@@ -1897,9 +1864,9 @@ void bypassModeSwitch_RGBHV()
         GBS::DEC_TEST_ENABLE::write(0); // no need for decimation test to be enabled
     }
 
-    // rto->presetID = PresetBypassRGBHV; // bypass flavor 2, used to signal buttons in web ui
-    uopt->resolutionID = PresetBypassRGBHV; // bypass flavor 2, used to signal buttons in web ui
-    GBS::GBS_PRESET_ID::write(PresetBypassRGBHV);
+    // rto->presetID = OutputRGBHVBypass; // bypass flavor 2, used to signal buttons in web ui
+    uopt->resolutionID = OutputRGBHVBypass; // bypass flavor 2, used to signal buttons in web ui
+    GBS::GBS_PRESET_ID::write(OutputRGBHVBypass);
     delay(200);
 }
 
@@ -2335,8 +2302,8 @@ void activeFrameTimeLockInitialSteps()
         return;
     }
     // skip when out mode = bypass
-    // if (rto->presetID != PresetHdBypass && rto->presetID != PresetBypassRGBHV) {
-    if (uopt->resolutionID != PresetHdBypass && uopt->resolutionID != PresetBypassRGBHV) {
+    // if (rto->presetID != OutputHdBypass && rto->presetID != OutputRGBHVBypass) {
+    if (uopt->resolutionID != OutputHdBypass && uopt->resolutionID != OutputRGBHVBypass) {
         _WS(F("Active FrameTime Lock enabled, disable if display unstable or stays blank! Method: "));
         if (uopt->frameTimeLockMethod == 0) {
             _WSN(F("0 (vtotal + VSST)"));
@@ -2377,7 +2344,8 @@ void applyYuvPatches()
     GBS::DEC_MATRIX_BYPS::write(1); // ADC
     GBS::IF_MATRIX_BYPS::write(1);
 
-    if (GBS::GBS_PRESET_CUSTOM::read() == 0) {
+    // if (GBS::GBS_PRESET_CUSTOM::read() == 0) {
+    if (!rto->isCustomPreset) {
         // colors
         GBS::VDS_Y_GAIN::write(0x80);    // 3_25
         GBS::VDS_UCOS_GAIN::write(0x1c); // 3_26
@@ -2409,7 +2377,7 @@ void OutputComponentOrVGA()
 {
 
     // TODO replace with rto->isCustomPreset?
-    bool isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
+    // bool isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
     if (uopt->wantOutputComponent) {
         _WSN(F("Output Format: Component"));
         GBS::VDS_SYNC_LEV::write(0x80); // 0.25Vpp sync (leave more room for Y)
@@ -2421,7 +2389,7 @@ void OutputComponentOrVGA()
         GBS::OUT_SYNC_CNTRL::write(1); // H / V sync out enable
     }
 
-    if (!isCustomPreset) {
+    if (!rto->isCustomPreset) {
         if (rto->inputIsYPbPr == true) {
             applyYuvPatches();
         } else {
@@ -2465,7 +2433,6 @@ void setAdcParametersGainAndOffset()
     GBS::ADC_ROFCTRL::write(0x40);
     GBS::ADC_GOFCTRL::write(0x40);
     GBS::ADC_BOFCTRL::write(0x40);
-
     // Do not call setAdcGain() and overwrite adco->r_gain. This function should
     // only be called during startup, or during doPostPresetLoadSteps(), and if
     // `uopt->enableAutoGain == 1` then doPostPresetLoadSteps() will revert
@@ -2978,7 +2945,7 @@ void moveHS(uint16_t amountToAdd, bool subtracting)
         uint16_t htotal = GBS::HD_HSYNC_RST::read();
 
         if (videoStandardInputIsPalNtscSd()) {
-            htotal -= 8; // account for the way hdbypass is setup in setOutModeHdBypass()
+            htotal -= 8; // account for the way hdbypass is setup in setOutputHdBypassMode()
             htotal *= 2;
         }
 
@@ -3882,7 +3849,9 @@ uint32_t getPllRate()
 }
 
 /**
- * @brief
+ * @brief The main function for detecting video
+ *          signal paramters and its type.
+ *          Called once from main loop
  *
  */
 void runSyncWatcher()
@@ -3893,8 +3862,12 @@ void runSyncWatcher()
 
     static uint8_t newVideoModeCounter = 0;
     static uint16_t activeStableLineCount = 0;
-    static unsigned long lastSyncDrop = millis();
+    // static unsigned long lastSyncDrop = millis();
     static unsigned long lastLineCountMeasure = millis();
+    static unsigned long preemptiveSogWindowStart = millis();
+    static const uint16_t sogWindowLen = 3000; // ms
+    static uint16_t badHsActive = 0;
+    static bool lastAdjustWasInActiveWindow = 0;
 
     uint16_t thisStableLineCount = 0;
     uint8_t detectedVideoMode = getVideoMode();
@@ -3947,11 +3920,6 @@ void runSyncWatcher()
         }
     }
 
-    static unsigned long preemptiveSogWindowStart = millis();
-    static const uint16_t sogWindowLen = 3000; // ms
-    static uint16_t badHsActive = 0;
-    static bool lastAdjustWasInActiveWindow = 0;
-
     if (rto->syncTypeCsync && !rto->inputIsYPbPr && (newVideoModeCounter == 0)) {
         // look for SOG instability
         if (GBS::STATUS_INT_SOG_BAD::read() == 1 || GBS::STATUS_INT_SOG_SW::read() == 1) {
@@ -3993,7 +3961,7 @@ void runSyncWatcher()
                     rto->currentLevelSOG -= 1;
                     setAndUpdateSogLevel(rto->currentLevelSOG);
                     delay(30);
-                    updateSpDynamic(0);
+                    updateSpDynamic(false);
                     badHsActive = 0;
                     lastAdjustWasInActiveWindow = 1;
                 } else if (badHsActive > 40) {
@@ -4009,7 +3977,7 @@ void runSyncWatcher()
                 rto->currentLevelSOG -= 1;
                 setAndUpdateSogLevel(rto->currentLevelSOG);
                 delay(30);
-                updateSpDynamic(0);
+                updateSpDynamic(false);
                 badHsActive = 0;
                 rto->phaseIsSet = 0;
             }
@@ -4037,15 +4005,15 @@ void runSyncWatcher()
             if (rto->noSyncCounter == 2) { // this usually repeats
                 // printInfo(); printInfo(); _WSN();
                 // rto->printInfos = 0;
-                if ((millis() - lastSyncDrop) > 1500) { // minimum space between runs
-                    if (rto->printInfos == false) {
-                        _WS(F("."));
-                    }
-                } else {
-                    if (rto->printInfos == false) {
-                        _WS(F("."));
-                    }
-                }
+                // if ((millis() - lastSyncDrop) > 1500) { // minimum space between runs
+                //     if (rto->printInfos == false) {
+                //         _DBGN(F("."));
+                //     }
+                // } else {
+                //     if (rto->printInfos == false) {
+                //         _DBGN(F("."));
+                //     }
+                // }
 
                 // if sog is lowest, adjust up
                 if (rto->currentLevelSOG <= 1 && videoStandardInputIsPalNtscSd()) {
@@ -4053,7 +4021,7 @@ void runSyncWatcher()
                     setAndUpdateSogLevel(rto->currentLevelSOG);
                     delay(30);
                 }
-                lastSyncDrop = millis(); // restart timer
+                // lastSyncDrop = millis(); // restart timer
             }
         }
 
@@ -4076,8 +4044,7 @@ void runSyncWatcher()
 
         if (rto->noSyncCounter % 27 == 0) {
             // the * check needs to be first (go before auto sog level) to support SD > HDTV detection
-            _WS(F("*"));
-            updateSpDynamic(1);
+            updateSpDynamic(true);
         }
 
         if (rto->noSyncCounter % 32 == 0) {
@@ -4107,11 +4074,12 @@ void runSyncWatcher()
 
         if (rto->noSyncCounter % 150 == 0) {
             if (rto->noSyncCounter == 150 || rto->noSyncCounter % 900 == 0) {
-                _WS(F("\nno signal\n"));
+                _DBGN(F("\nno signal"));
                 // check whether discrete VSync is present. if so, need to go to input detect
                 uint8_t extSyncBackup = GBS::SP_EXT_SYNC_SEL::read();
                 GBS::SP_EXT_SYNC_SEL::write(0);
                 delay(240);
+    // TODO remove line
     _DBGN(F("printInfo from runSyncWatcher"));
                 printInfo();
                 if (GBS::STATUS_SYNC_PROC_VSACT::read() == 1) {
@@ -4128,7 +4096,7 @@ void runSyncWatcher()
             GBS::SP_H_CST_SP::write(0x100); // instead of disabling 5_3e 5 coast
             GBS::SP_CS_CLP_ST::write(32);   // neutral clamp values
             GBS::SP_CS_CLP_SP::write(48);   //
-            updateSpDynamic(1);
+            updateSpDynamic(true);
             nudgeMD(); // can fix MD not noticing a line count update
             delay(80);
 
@@ -4203,12 +4171,13 @@ void runSyncWatcher()
         if (newVideoModeCounter < 255) {
             newVideoModeCounter++;
             rto->continousStableCounter = 0; // usually already 0, but occasionally not
+#if defined(DEBUG_CODE_ENABLED)
             if (newVideoModeCounter > 1) {   // help debug a few commits worth
                 // if (newVideoModeCounter == 2) {
-                //     _WSN();
-                // }
                 _WSF(PSTR("video mode counter: %d\n"), newVideoModeCounter);
+                // }
             }
+#endif
             if (newVideoModeCounter == 3) {
                 freezeVideo();
                 GBS::SP_H_CST_ST::write(0x10);
@@ -4216,7 +4185,7 @@ void runSyncWatcher()
                 rto->coastPositionIsSet = 0;
                 delay(10);
                 if (getVideoMode() == 0) {
-                    updateSpDynamic(1); // check ntsc to 480p and back
+                    updateSpDynamic(true); // check ntsc to 480p and back
                     delay(40);
                 }
             }
@@ -4229,7 +4198,8 @@ void runSyncWatcher()
                 vidModeReadout = getVideoMode();
                 if (vidModeReadout == 13) {
                     newVideoModeCounter = 5;
-                } // treat ps2 quasi rgb as stable
+                }
+                // treat ps2 quasi rgb as stable
                 if (vidModeReadout != detectedVideoMode) {
                     newVideoModeCounter = 0;
                 }
@@ -4239,7 +4209,7 @@ void runSyncWatcher()
                 _WSF(PSTR(" %d <stable> (%d -> %d)\n"), vidModeReadout, rto->videoStandardInput, detectedVideoMode);
                 // _WS("Old: "); _WS(rto->videoStandardInput);
                 // _WS(" New: "); _WSN(detectedVideoMode);
-                rto->videoIsFrozen = false;
+                uopt->freezeCapture = false;
 
                 if (GBS::SP_SOG_MODE::read() == 1) {
                     rto->syncTypeCsync = true;
@@ -4247,16 +4217,16 @@ void runSyncWatcher()
                     rto->syncTypeCsync = false;
                 }
                 // bool wantPassThroughMode = uopt->presetPreference == 10;
-                bool wantPassThroughMode = uopt->resolutionID == OutputBypass;
+                bool wantPassThroughMode = utilsIsPassThroughMode();
 
                 if (((rto->videoStandardInput == 1 || rto->videoStandardInput == 3) && (detectedVideoMode == 2 || detectedVideoMode == 4)) ||
                     rto->videoStandardInput == 0 ||
                     ((rto->videoStandardInput == 2 || rto->videoStandardInput == 4) && (detectedVideoMode == 1 || detectedVideoMode == 3))) {
                     rto->useHdmiSyncFix = 1;
-                    // _WSN(F("hdmi sync fix: yes"));
+                    _WSN(F("hdmi sync fix: yes"));
                 } else {
                     rto->useHdmiSyncFix = 0;
-                    // _WSN(F("hdmi sync fix: no"));
+                    _WSN(F("hdmi sync fix: no"));
                 }
 
                 if (!wantPassThroughMode) {
@@ -4264,7 +4234,7 @@ void runSyncWatcher()
                     applyPresets(detectedVideoMode);
                 } else {
                     rto->videoStandardInput = detectedVideoMode;
-                    setOutModeHdBypass(false);
+                    setOutputHdBypassMode(false);
                 }
                 rto->videoStandardInput = detectedVideoMode;
                 rto->noSyncCounter = 0;
@@ -4307,18 +4277,18 @@ void runSyncWatcher()
         newVideoModeCounter = 0;
 
         if (rto->continousStableCounter == 1 && !doFullRestore) {
-            rto->videoIsFrozen = true; // ensures unfreeze
+            // rto->videoIsFrozen = true; // ensures unfreeze
             unfreezeVideo();
         }
 
         if (rto->continousStableCounter == 2) {
-            updateSpDynamic(0);
+            updateSpDynamic(false);
             if (doFullRestore) {
                 delay(20);
                 optimizeSogLevel();
                 doFullRestore = 0;
             }
-            rto->videoIsFrozen = true; // ensures unfreeze
+            // rto->videoIsFrozen = true; // ensures unfreeze
             unfreezeVideo();           // called 2nd time here to make sure
         }
 
@@ -4354,7 +4324,7 @@ void runSyncWatcher()
 
         if (rto->continousStableCounter % 31 == 0) {
             // new: 8 regular interval checks up until 255
-            updateSpDynamic(0);
+            updateSpDynamic(false);
         }
 
         if (rto->continousStableCounter >= 3) {
@@ -4498,7 +4468,7 @@ void runSyncWatcher()
                     delay(10);
                 }
                 if (moveOn) {
-                    _WSN(F(" RGB/HV upscale mode"));
+                    _WSN(F("RGB/HV upscale mode"));
                     rto->isValidForScalingRGBHV = true;
                     GBS::GBS_OPTION_SCALING_RGBHV::write(1);
                     rto->autoBestHtotalEnabled = 1;
@@ -4524,10 +4494,11 @@ void runSyncWatcher()
                     // todo: this hack is hard to understand when looking at applypreset and mode is suddenly 1,2 or 3
                     // if (uopt->presetPreference == 2) {
                     // if (uopt->resolutionID == OutputCustom) {
-                    if (uopt->resolutionID != Output240p
+                    /* if (uopt->resolutionID != Output240p
                         && uopt->resolutionID != OutputBypass
-                            && uopt->resolutionID != PresetHdBypass
-                                && uopt->resolutionID != PresetBypassRGBHV) {
+                            && uopt->resolutionID != OutputHdBypass
+                                && uopt->resolutionID != OutputRGBHVBypass) */
+                    if(utilsNotPassThroughMode()) {
                         // custom preset defined, try to load (set mode = 14 here early)
                         rto->videoStandardInput = 14;
                     } else {
@@ -4549,7 +4520,7 @@ void runSyncWatcher()
                     }
 
                     // if (uopt->presetPreference == 10) {
-                    if (uopt->resolutionID == OutputBypass) {
+                    if (utilsIsPassThroughMode()) {
                         // uopt->presetPreference = Output960P; // fix presetPreference which can be "bypass"
                         uopt->resolutionID = Output960p; // fix presetPreference which can be "bypass"
                     }
@@ -4573,7 +4544,7 @@ void runSyncWatcher()
                         delay(40);
                     }
 
-                    updateSpDynamic(1);
+                    updateSpDynamic(true);
                     if (rto->syncTypeCsync == false) {
                         GBS::SP_SOG_MODE::write(0);
                         GBS::SP_CLAMP_MANUAL::write(1);
@@ -4659,13 +4630,13 @@ void runSyncWatcher()
                     if (moveOn) {
                         // need to change presets
                         if (rto->videoStandardInput <= 2) {
-                            _WSN(F(" RGB/HV upscale mode base 15kHz"));
+                            _WSN(F("RGB/HV upscale mode base 15kHz"));
                         } else {
-                            _WSN(F(" RGB/HV upscale mode base 31kHz"));
+                            _WSN(F("RGB/HV upscale mode base 31kHz"));
                         }
 
                         // if (uopt->presetPreference == 10) {
-                        if (uopt->resolutionID == OutputBypass) {
+                        if (utilsIsPassThroughMode()) {
                             // uopt->presetPreference = Output960P; // fix presetPreference which can be "bypass"
                             uopt->resolutionID = Output960p; // fix presetPreference which can be "bypass"
                         }
@@ -4689,7 +4660,7 @@ void runSyncWatcher()
                             latchPLLAD();
                         }
 
-                        updateSpDynamic(1);
+                        updateSpDynamic(true);
                         if (rto->syncTypeCsync == false) {
                             GBS::SP_SOG_MODE::write(0);
                             GBS::SP_CLAMP_MANUAL::write(1);
@@ -4765,7 +4736,7 @@ void runSyncWatcher()
                     delay(10);
                 }
                 if (moveOn) {
-                    _WSN(F(" RGB/HV upscale mode disabled"));
+                    _WSN(F("RGB/HV upscale mode disabled"));
                     rto->videoStandardInput = 15;
                     rto->isValidForScalingRGBHV = false;
 
@@ -4824,7 +4795,7 @@ void runSyncWatcher()
             if (rto->continousStableCounter < 255) {
                 rto->continousStableCounter++;
                 if (rto->continousStableCounter == 6) {
-                    updateSpDynamic(1);
+                    updateSpDynamic(true);
                 }
             }
         }
@@ -4976,8 +4947,8 @@ void runSyncWatcher()
         // restore initial conditions and move to input detect
         GBS::DAC_RGBS_PWDNZ::write(0); // 0 = disable DAC
         rto->noSyncCounter = 0;
-        _WSN();
-        yield();
+        // _WSN();
+        // yield();
         goLowPowerWithInputDetection(); // does not further nest, so it can be called here // sets reset parameters
     }
 }
@@ -5024,7 +4995,6 @@ uint8_t detectAndSwitchToActiveInput()
     unsigned long timeout = millis();
     while (millis() - timeout < 450) {
         delay(10);
-        // wifiLoop(0);
 
         bool stable = getStatus16SpHsStable();
         if (stable) {
@@ -5046,7 +5016,6 @@ uint8_t detectAndSwitchToActiveInput()
                 // 360ms good up to 5_34 SP_V_TIMER_VAL = 0x0b
                 while (!vsyncActive && ((millis() - timeOutStart) < 360)) {
                     vsyncActive = GBS::STATUS_SYNC_PROC_VSACT::read();
-                    // wifiLoop(0); // wifi stack
                     delay(1);
                 }
 
@@ -5059,7 +5028,6 @@ uint8_t detectAndSwitchToActiveInput()
                     timeOutStart = millis();
                     while (!hsyncActive && millis() - timeOutStart < 400) {
                         hsyncActive = GBS::STATUS_SYNC_PROC_HSACT::read();
-                        // wifiLoop(0); // wifi stack
                         delay(1);
                     }
 
@@ -5218,15 +5186,22 @@ uint8_t detectAndSwitchToActiveInput()
 
         GBS::ADC_INPUT_SEL::write(!currentInput); // can only be 1 or 0
         delay(200);
-
-        return 0; // don't do the check on the new input here, wait till next run
     }
 
+    // don't do the check on the new input here, wait till next run
     return 0;
 }
 
 /**
- * @brief
+ * @brief This sets the following runtime variables:
+ *              rto->currentLevelSOG
+ *              rto->inputIsYPbPr
+ *              rto->isInLowPowerMode
+ *              rto->sourceDisconnected
+ *              rto->videoStandardInput
+ *              rto->syncTypeCsync
+ *              rto->thisSourceMaxLevelSOG
+ *              rto->medResLineCount (only RGB/Component)
  *
  * @return uint8_t
  */
@@ -5255,7 +5230,7 @@ uint8_t inputAndSyncDetect()
         applyRGBPatches();
         LEDON;
         return 1;
-    } else if (syncFound == 2) {
+    } else if (syncFound == 2) {    // YUV (PAL)
         rto->inputIsYPbPr = 1;
         rto->sourceDisconnected = false;
         rto->isInLowPowerMode = false;

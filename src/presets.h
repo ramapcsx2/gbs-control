@@ -3,7 +3,7 @@
 # File: presets.h                                                                    #
 # File Created: Thursday, 2nd May 2024 6:38:29 pm                                   #
 # Author:                                                                           #
-# Last Modified: Sunday, 5th May 2024 3:48:42 pm                          #
+# Last Modified: Saturday, 15th June 2024 12:59:28 pm                     #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -15,6 +15,7 @@
 
 #include <LittleFS.h>
 #include "options.h"
+#include "prefs.h"
 #include "video.h"
 #include "osd.h"
 #include "ntsc_240p.h"
@@ -35,7 +36,6 @@
 extern char serialCommand;
 extern char userCommand;
 
-void loadDefaultUserOptions();
 void loadPresetMdSection();
 void setResetParameters();
 void doPostPresetLoadSteps();
@@ -44,9 +44,8 @@ void loadPresetDeinterlacerSection();
 
 #if defined(ESP8266)
 
-const uint8_t *loadPresetFromLFS(byte forVideoMode);
+const uint8_t *loadPresetFromFS(byte forVideoMode);
 void savePresetToFS();
-void saveUserPrefs();
 
 #endif                      // defined(ESP8266)
 

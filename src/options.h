@@ -12,6 +12,7 @@
 // #define FRAMESYNC_DEBUG_LED                  // just blink LED (off = adjust phase, on = normal phase)
 // #define HAVE_BUTTONS
 // #define HAVE_PINGER_LIBRARY
+#define DEBUG_CODE_ENABLE                    // include/exclude commented code blocks used only for development
 #define PIN_CLK                         14   // D5 = GPIO14 (input of one direction for encoder)
 #define PIN_DATA                        13   // D7 = GPIO13	(input of one direction for encoder)
 #define PIN_SWITCH                      0    // D3 = GPIO0 pulled HIGH, else boot fail (middle push button for encoder)
@@ -26,6 +27,7 @@
 #define WEBSOCK_HBEAT_DEV_PONG_TOUT     1000UL
 #define WEBSOCK_HBEAT_DEV_DISCONN_CNT   3
 #define THIS_DEVICE_MASTER
+#define WEB_SERVER_ENABLE               1
 #ifdef HAVE_BUTTONS
 #define INPUT_SHIFT                     0
 #define DOWN_SHIFT                      1
@@ -119,25 +121,25 @@
 #define digitalRead(x) ((GPIO_REG_READ(GPIO_IN_ADDRESS) >> x) & 1)
 
 // Output resolution requested by user, *given to* applyPresets().
-enum OutputResolution : char {
+enum OutputResolution : uint8_t {
                                 //  RESOLUTION         | FREQ | U.CMD. | OLD ID  |
-    Output240p          = 'a',  //   320x240 (512/640?)|  ?   |   'j'  |   0     |
-    Output960p          = 'c',  //   SXGA- | 1280x960  | 60Hz |   'f'  |  0x01   |
-    Output960p50        = 'd',  // ? SXGA- | 1280x960  | 50Hz |        |  0x11   |
-    Output1024p         = 'e',  //   SXGA  | 1280x1024 | 60Hz |   'p'  |  0x02   |
-    Output1024p50       = 'f',  // ? SXGA  | 1280x1024 | 50Hz |        |  0x12   |
-    Output720p          = 'g',  //   HD    | 1280×720  | 60Hz |   'g'  |  0x03   |
-    Output720p50        = 'h',  // ? HD    | 1280×720  | 50Hz |        |  0x13   |
-    Output480p          = 'i',  //   SD    | 720×480   | 60Hz |   'h'  |  0x04   |
-    Output480p50        = 'j',  // ? SD    | 720×480   | 50Hz |        |  -      |
-    Output1080p         = 'k',  //   FHD   | 1920×1080 | 60Hz |   's'  |  0x05   |
-    Output1080p50       = 'l',  // ? FHD   | 1920×1080 | 50Hz |        |  0x15   |
-    Output15kHz         = 'm',  //   15kHz scale-down  | 60Hz |   'L'  |  0x06   |
-    Output15kHz50       = 'n',  // ? 15kHz scale-down  | 50Hz |        |  0x16   |
-    Output576p50        = 'p',  //   PAL   | 768×576   | 50Hz |   'k'  |  0x14   |
-    OutputBypass        = 'q',  //   passthrough 0 / bypass 0 |   'K'  |         |
-    PresetHdBypass      = 's',  //   passthrough 1 / bypass 1
-    PresetBypassRGBHV   = 'u',  //   passthrough 2 / bypass 2
+    Output240p          = 0, //'a',  //   320x240 (512/640?)|  ?   |   'j'  |   0     |
+    Output960p          = 2, //'c',  //   SXGA- | 1280x960  | 60Hz |   'f'  |  0x01   |
+    Output960p50        = 3, //'d',  // ? SXGA- | 1280x960  | 50Hz |        |  0x11   |
+    Output1024p         = 4, //'e',  //   SXGA  | 1280x1024 | 60Hz |   'p'  |  0x02   |
+    Output1024p50       = 5, //'f',  // ? SXGA  | 1280x1024 | 50Hz |        |  0x12   |
+    Output720p          = 6, //'g',  //   HD    | 1280×720  | 60Hz |   'g'  |  0x03   |
+    Output720p50        = 7, //'h',  // ? HD    | 1280×720  | 50Hz |        |  0x13   |
+    Output480p          = 8, //'i',  //   SD    | 720×480   | 60Hz |   'h'  |  0x04   |
+    Output480p50        = 9, //'j',  // ? SD    | 720×480   | 50Hz |        |  -      |
+    Output1080p         = 10,//'k',  //   FHD   | 1920×1080 | 60Hz |   's'  |  0x05   |
+    Output1080p50       = 11,//'l',  // ? FHD   | 1920×1080 | 50Hz |        |  0x15   |
+    Output15kHz         = 12,//'m',  //   15kHz scale-down  | 60Hz |   'L'  |  0x06   |
+    Output15kHz50       = 13,//'n',  // ? 15kHz scale-down  | 50Hz |        |  0x16   |
+    Output576p50        = 15,//'p',  //   PAL   | 768×576   | 50Hz |   'k'  |  0x14   |
+    // OutputBypass        = 'q',                              serial comm.
+    OutputHdBypass      = 18,//'s',  //                            |    'K'    |  0x21   |
+    OutputRGBHVBypass   = 20,//'u',  //                            |   'k'     |  0x22   |
     // It suppose to be that the output custom sets automatically in case
     // if user does scale the output video signal. However we operate with
     // registers directly (ex: video->scaleHorizontal()) and there is no connection
@@ -151,78 +153,84 @@ enum OutputResolution : char {
 struct userOptions
 {
     OutputResolution resolutionID;
-    // active slot ID
     uint8_t slotID;
-    uint8_t enableFrameTimeLock;
+    bool enableFrameTimeLock;
     uint8_t frameTimeLockMethod;
-    uint8_t enableAutoGain;
-    uint8_t wantScanlines;
-    uint8_t wantOutputComponent;
+    bool enableAutoGain;
+    bool wantScanlines;
+    bool wantOutputComponent;
     uint8_t deintMode;
-    uint8_t wantVdsLineFilter;
-    uint8_t wantPeaking;
-    uint8_t wantTap6;
-    uint8_t preferScalingRgbhv;
-    uint8_t PalForce60;
-    uint8_t disableExternalClockGenerator;
+    bool wantVdsLineFilter;
+    bool wantPeaking;
+    bool wantTap6;
+    bool preferScalingRgbhv;
+    bool PalForce60;
+    bool disableExternalClockGenerator;
     // uint8_t matchPresetSource;
-    uint8_t wantStepResponse;
-    uint8_t wantFullHeight;
-    uint8_t enableCalibrationADC;
+    bool wantStepResponse;
+    bool wantFullHeight;
+    bool enableCalibrationADC;
     uint8_t scanlineStrength;
+    // dev
+    bool invertSync;
+    bool debugView;
+    bool developerMode;
+    bool freezeCapture;
+    bool adcFilter;
 };
 
 // runTimeOptions holds system variables
 struct runTimeOptions
 {
+    // source identification
+    bool boardHasPower;
+    uint8_t continousStableCounter;
+    bool syncWatcherEnabled;
+    bool inputIsYPbPr;
+    uint8_t currentLevelSOG;
+    bool isInLowPowerMode;
+    bool sourceDisconnected;
+    /**
+     * @brief Video input ID (see: getVideoMode()):
+     *  0 - unknown/none
+     *  1 - NTSC-like                                            <---------¬
+     *  2 - PAL-like                                                <------|----¬
+     *  3 - 480p NTSC (edtv, 60Hz, progressive)                  <---------|    |-- PAL
+     *  4 - 576p PAL (edtv, 50Hz, progressive)                      <------|---⨼
+     *  5 - hdtv 720p                                                  <---|--------¬
+     *  6 - ? (hdtv 1080i // 576p)                                     <---|--------|
+     *  7 - hdtv 1080p                                                 <---|--------|
+     *  8 - normally HD2376_1250P (PAL FHD?), but using this for 24k <-----+-- NTSC |
+     *  9 - ???                                                  <---------|        |-- HD Bypass
+     *  10 - ???                                                           |        |
+     *  11 - ???                                                           |        |
+     *  12 - ???                                                           |        |
+     *  13 - YPbPr input                                               <---|--------⨼
+     *  14 - ? RGB/HV (setOutputRGBHVBypassMode)                 <---------⨼
+     *  15 - RGB/HV (setOutputRGBHVBypassMode)                            <--- RGBHV Bypass
+     */
+    uint8_t videoStandardInput;
+    bool syncTypeCsync;
+    uint8_t thisSourceMaxLevelSOG;
+    uint8_t medResLineCount;
+    //
+    bool isCustomPreset;
     uint32_t freqExtClockGen;
     uint16_t noSyncCounter; // is always at least 1 when checking value in syncwatcher
     uint8_t presetVlineShift;
-    /**
-     * @brief Video input ID (see: getVideoMode()):
-     *  0 - unknown,
-     *  1 - NTSC like,
-     *  2 - PAL like,
-     *  3 - 480p NTSC (edtv 60 progressive)
-     *  4 - 576p PAL (edtv 50 progressive)
-     *  5 - hdtv 720p
-     *  6 - ? (hdtv 1080i // 576p)
-     *  7 - hdtv 1080p
-     *  8 - normally HD2376_1250P (PAL FHD?), but using this for 24k
-     *  9 - ???,
-     *  10 - ???,
-     *  11 - ???,
-     *  12 - ???,
-     *  13 - YPbPr input
-     *  14 - ? RGB/HV (bypassModeSwitch_RGBHV)
-     *  15 - RGB/HV (bypassModeSwitch_RGBHV)
-     */
-    uint8_t videoStandardInput;
     uint8_t phaseSP;
     uint8_t phaseADC;
-    uint8_t currentLevelSOG;
-    uint8_t thisSourceMaxLevelSOG;
     uint8_t syncLockFailIgnore;
     uint8_t applyPresetDoneStage;
-    uint8_t continousStableCounter;
     uint8_t failRetryAttempts;
-    bool isCustomPreset;
     uint8_t HPLLState;
-    uint8_t medResLineCount;
     uint8_t osr;
     uint8_t notRecognizedCounter;
-    bool isInLowPowerMode;
     bool clampPositionIsSet;
     bool coastPositionIsSet;
     bool phaseIsSet;
-    bool inputIsYPbPr;
-    bool syncWatcherEnabled;
     bool outModeHdBypass;
     bool printInfos;
-    bool sourceDisconnected;
-    // true if WiFi, webUI and webSocket is allowed
-    bool webServerEnabled;
-    bool webServerStarted;
     bool allowUpdatesOTA;
     bool enableDebugPings;
     bool autoBestHtotalEnabled;
@@ -231,18 +239,10 @@ struct runTimeOptions
     bool motionAdaptiveDeinterlaceActive;
     bool deinterlaceAutoEnabled;
     bool scanlinesEnabled;
-    bool boardHasPower;
     bool presetIsPalForce60;
-    bool syncTypeCsync;
     bool isValidForScalingRGBHV;
     bool useHdmiSyncFix;
     bool extClockGenDetected;
-    // dev
-    bool invertSync;
-    bool debugView;
-    bool developerMode;
-    bool freezeCapture;
-    bool adcFilter;
 };
 // remember adc options across presets
 struct adcOptions
@@ -265,8 +265,8 @@ struct adcOptions
 /// Video processing mode, loaded into register GBS_PRESET_ID by applyPresets()
 /// and read to rto->presetID by doPostPresetLoadSteps(). Shown on web UI.
 // enum PresetID : uint8_t {
-//     PresetHdBypass = 0x21,
-//     PresetBypassRGBHV = 0x22,
+//     OutputHdBypass = 0x21,
+//     OutputRGBHVBypass = 0x22,
 // };
 
 extern struct runTimeOptions *rto;
@@ -297,7 +297,7 @@ extern struct adcOptions *adco;
 
 const char preferencesFile[] PROGMEM = "/prefs.dat";
 const char systemInfo[] PROGMEM = "h:%4u v:%4u PLL:%01u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d\n";
-const char commandDescr[] PROGMEM = "\n> %s command: %c (0x%02X) slotID: %d, resolutionID: %c (0x%02X)\n\n";
+const char commandDescr[] PROGMEM = "\n> %s command: %c (0x%02X) slotID: %d, resolutionID: %d\n\n";
 
 extern void resetInMSec(unsigned long ms = 0);
 

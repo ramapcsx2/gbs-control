@@ -3,10 +3,6 @@
 
 #include "utils.h"
 
-// FIXME
-extern void setExternalClockGenFrequencySmooth(uint32_t freq);
-// FIXME END
-
 // fast digitalRead()
 #if defined(ESP8266)
 

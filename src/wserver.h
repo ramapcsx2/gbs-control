@@ -3,7 +3,7 @@
 # File: wserver.h                                                                    #
 # File Created: Friday, 19th April 2024 3:11:47 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Monday, 10th June 2024 12:27:21 pm                       #
+# Last Modified: Thursday, 13th June 2024 4:40:11 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -26,7 +26,6 @@
 #include <ArduinoOTA.h>
 #include "options.h"
 #include "presets.h"
-// #include "webui_html.h"
 #include "tv5725.h"
 #include "slot.h"
 #include "wserial.h"
@@ -35,13 +34,10 @@
 extern ESP8266WebServer server;
 extern char serialCommand;
 extern char userCommand;
-extern struct userOptions * uopt;
-extern struct runTimeOptions *rto;
 
 const char indexPage[] PROGMEM = "/__index";
 const char backupFile[] PROGMEM = "/__backup";
 const char notFouldMessage[] PROGMEM = "<p style=\"align:center;\">404 | Page Not Found</p>";
-// const char slotIndexMap[] PROGMEM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
 const char lomemMessage[] PROGMEM = "<div style=\"align:center;font-size:16px;\"><p>Not enough memory to continue (%.2f kb).</p><p>Please, try again in a few moments...</p></div>";
 const char mimeTextHtml[] PROGMEM = "text/html";
 const char mimeOctetStream[] PROGMEM = "application/octet-stream";
@@ -77,11 +73,13 @@ void printVideoTimings();
 void fastGetBestHtotal();
 
 #if defined(ESP8266)
+
 void handleSerialCommand();
 void handleUserCommand();
 void initUpdateOTA();
 void fsToFactory();
 void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length);
+
 #endif              // defined(ESP8266)
 
 #endif                              // _ESPWSERVER_H_

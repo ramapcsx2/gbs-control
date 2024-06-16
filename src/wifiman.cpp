@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Saturday, 8th June 2024 4:19:54 pm                       #
+# Last Modified: Friday, 14th June 2024 9:00:12 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -45,8 +45,7 @@ static void wifiEventHandler(System_Event_t *e)
     }
     else if(e->event == WIFI_EVENT_STAMODE_GOT_IP)
     {
-        _DBG(F("(WiFi): got IP: "));
-        _DBGN(WiFi.localIP().toString());
+        _DBGF(PSTR("(WiFi): got IP: %s\n"), WiFi.localIP().toString());
         if (MDNS.begin(String(gbsc_device_hostname).c_str(), WiFi.localIP())) { // MDNS request for gbscontrol.local
             MDNS.addService("http", "tcp", 80); // Add service to MDNS-SD
             MDNS.announce();
@@ -58,23 +57,23 @@ static void wifiEventHandler(System_Event_t *e)
         if(e->event_info.opmode_changed.new_opmode == WIFI_AP) {
             MDNS.end();
         }
-        _DBGF("(WiFi) mode changed, now: %d\n", WiFi.getMode());
+        _DBGF(PSTR("(WiFi) mode changed, now: %d\n"), WiFi.getMode());
     }
     else if(e->event == WIFI_EVENT_STAMODE_DISCONNECTED)
     {
         _connectCheckTime = millis();
-        _DBGN("disconnected from AP, reconnect...");
+        _DBGN(F("disconnected from AP, reconnect..."));
     }
     else if(e->event == WIFI_EVENT_SOFTAPMODE_STACONNECTED)
     {
         uint8_t * mac = e->event_info.sta_connected.mac;
-        _DBGF("station connected, MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+        _DBGF(PSTR("station connected, MAC: %02X:%02X:%02X:%02X:%02X:%02X\n"),
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     }
     else if(e->event == WIFI_EVENT_SOFTAPMODE_STADISCONNECTED)
     {
         uint8_t * mac = e->event_info.sta_disconnected.mac;
-        _DBGF("station disconnected, MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+        _DBGF(PSTR("station disconnected, MAC: %02X:%02X:%02X:%02X:%02X:%02X\n"),
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     }
 }
@@ -92,8 +91,8 @@ static void wifiEventHandler(System_Event_t *e)
 //     // if (ESP.getFreeHeap() > 14000) {
 //     //     webSocket.disconnect();
 //     // }
-
-//     if (rto->webServerEnabled && rto->webServerStarted) {
+// #if WEB_SERVER_ENABLE == 1
+////     if (rto->webServerStarted) {
 //         if (webSocket.connectedClients() > 0) {
 //             constexpr size_t MESSAGE_LEN = 8;
 //             uint8_t toSend[MESSAGE_LEN];
@@ -145,13 +144,13 @@ static void wifiEventHandler(System_Event_t *e)
 //             // developer panel controls status
 //             if(rto->printInfos)
 //                 toSend[6] |= (1 << 0);
-//             if(rto->invertSync)
+//             if(uopt->invertSync)
 //                 toSend[6] |= (1 << 1);
 //             if(rto->osr != 0)
 //                 toSend[6] |= (1 << 2);
 //             if(GBS::ADC_FLTR::read() != 0)
 //                 toSend[6] |= (1 << 3);
-//             if(rto->debugView)
+//             if(uopt->debugView)
 //                 toSend[6] |= (1 << 4);
 
 //             // system tab controls
@@ -206,7 +205,7 @@ bool wifiStartStaMode(const String & ssid, const String & pass) {
         // using credentials stored in flash
         WiFi.begin();
     }
-    _DBGF("connecting to: %s...\n", ssid.c_str());
+    _DBGF(PSTR("connecting to: %s...\n"), ssid.c_str());
     // no fancy stuffs here :)
     // while(WiFi.status() == WL_DISCONNECTED && cntr != 0) {
     //     delay(500);
@@ -256,7 +255,7 @@ bool wifiStartWPS() {
     if(ret) {
         String newSSID = WiFi.SSID();
         if(newSSID.length() > 0) {
-            _DBGF("WPS connected to SSID: %s\n", newSSID.c_str());
+            _DBGF(PSTR("WPS connected to SSID: %s\n"), newSSID.c_str());
             ret = true;
         } else {
             _DBGN(F("WPS failed. please try again"));
@@ -273,31 +272,19 @@ bool wifiStartWPS() {
 void wifiLoop() {
     if(WiFi.status() != WL_CONNECTED
         && _connectCheckTime != 0
-            && millis() > (_connectCheckTime + 10000UL)) {
+            && millis() > (_connectCheckTime + 5000UL)) {
         // if empty - use last stored credentials
         String s = WiFi.SSID();
         if(s.length() != 0) {
-            // _DBGF("SSID: %s\n", WiFi.SSID().c_str());
+            _DBGF(PSTR("(!) trying to reconnect to SSID: %s\n"), WiFi.SSID().c_str());
             _connectCheckTime = millis();
             WiFi.reconnect();
         } else {
+            _DBGN(F("switched to AP mode"));
             wifiStartApMode();
             _connectCheckTime = 0;
         }
     }
-    // if (rto->webServerEnabled && rto->webServerStarted) {
-    //     MDNS.update();
-    //     dnsServer.processNextRequest();
-    //     if ((millis() - _lastTimePing) > 953) { // slightly odd value so not everything happens at once
-    //         webSocket.broadcastPing();
-    //     }
-    //     if (((millis() - _lastTimePing) > 973) || instant) {
-    //         if ((webSocket.connectedClients(false) > 0) || instant) { // true = with compliant ping
-    //             updateWebSocketData();
-    //         }
-    //         _lastTimePing = millis();
-    //     }
-    // }
 }
 
 /**

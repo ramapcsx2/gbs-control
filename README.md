@@ -243,7 +243,8 @@ For more details visit: https://github.com/JAndrassy/ArduinoOTA/blob/master/READ
 
 ### Slots vs Presets
 
-- Preset - is a collection of predefined runtime values (including output screen resolution, etc).
+- Preset - is a collection of predefined runtime values (including output screen resolution, etc). 
+  - Custom presets - a collection of predefined runtime values stored on GBSC filesystem.
 - Slot - is a collection of Presets.
 - Preferences - a collection of parameters which are used system-wide independently of Slots and Presets. So when Slot changes which causes Preset to change, Preferences will remain the same until user not to switch them manually.
 
@@ -288,8 +289,12 @@ The following diagram represents the structure of system and user configurations
 - Interlacing - a type of video scanning where each frame is made up of 2 images that divide it horizontally by alternating pixel lines (the even and the odd). [[?]](https://en.wikipedia.org/wiki/Interlaced_video)
 - Peaking - it takes the high resolution RGB video signal and increases its signal amplitude (the higher peaking the sharper image with more details).
 - Progressive scanning (a.k.a noninterlaced scanning) - a format of displaying, storing, or transmitting moving images in which all the lines of each frame are drawn in sequence. [[?]](https://en.wikipedia.org/wiki/Progressive_scan)
+- RGBs (Red, Green, Blue and sync) - both the horizontal and vertical sync signals are combined into this one line. [[?]](https://www.retrorgb.com/sync.html)
+- RGBHV (RGB Horizontal sync Vertical sync) - is essentially the same as RGBs, however the horizontal and vertical sync signals are sent down their own individual lines, totaling 5 channels. "VGA" uses RGBHV.
+- RGsB (Sync on green) - the green cable also carries the horizontal and vertical sync signals, totaling only three cables. The only time you’ll run into RGsB in the classic gaming world is with the PlayStation 2 and it’s usually just better to use component video.
 - Scanline - one row in a raster scanning pattern, such as a line of video on a CRT display.
 - Step Response - system response to the step input.
+- YUV - is the color model found in the PAL analogue color TV standard (excluding PAL-N). A color is described as a Y component (luma) and two chroma components U and V (colorspaces that are encoded using YCbCr).
 
 ### How-to switch GBS-Control to upload mode?
 
@@ -297,10 +302,13 @@ ESP8266 version of the factory built GBSC, boots into firmware upload mode by pr
 
 ## TODO:
 
-- [ ] Full height doesn't work
+- [ ] Full height doesn't work (?)
 - [ ] Invert Sync issue
 - [ ] PassThrough doesn't work
 - [ ] preferScalingRgbhv doesn't work (?)
+- [ ] device disconnects from WiFi when displaying Output status on screen
+- [ ] disable ambigous preset paramters inside slots
+  - [ ] startup reuntime parameters loading malfunction
 - [x] fix OLEDMenu items list offset
 - [x] feature request [#553]
 - [x] creation/destruction OLEDMenuItem procedure

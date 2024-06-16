@@ -62,12 +62,14 @@ body {
     width: 100%;
     margin: 0;
     padding: 0;
+    z-index: 0;
 }
 
 body {
     background-color: var(--color-cod-gray);
     font-family: "${webUIFontName}", sans-serif;
     overflow: hidden;
+    position: relative;
 }
 
 * {
@@ -294,7 +296,7 @@ a:hover {
 
 .gbs-button__resolution {
     flex-grow: 1;
-    font-size: 14px;
+    font-size: 13px;
     height: 52px;
     line-height: 14px;
     margin: 1px;
@@ -598,6 +600,7 @@ section[name="alert"] {
     position: absolute;
     right: 0;
     top: 0;
+    z-index:15;
 }
 
 .gbs-modal__message {

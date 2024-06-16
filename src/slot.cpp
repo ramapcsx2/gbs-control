@@ -3,7 +3,7 @@
 # File: slot.cpp                                                          #
 # File Created: Friday, 31st May 2024 8:41:15 am                          #
 # Author: Sergey Ko                                                       #
-# Last Modified: Monday, 10th June 2024 1:59:11 pm                        #
+# Last Modified: Thursday, 13th June 2024 12:12:55 am                     #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -29,19 +29,19 @@ bool slotLoad(const uint8_t & slotIndex) {
         slotsBinaryFile.close();
         // update parameters
         uopt->resolutionID = slotsObject.slot[slotIndex].resolutionID;
-        uopt->wantScanlines = slotsObject.slot[slotIndex].scanlines;
+        uopt->wantScanlines = (bool)slotsObject.slot[slotIndex].scanlines;
         uopt->scanlineStrength = slotsObject.slot[slotIndex].scanlinesStrength;
-        uopt->wantVdsLineFilter = slotsObject.slot[slotIndex].wantVdsLineFilter;
-        uopt->wantStepResponse = slotsObject.slot[slotIndex].wantStepResponse;
-        uopt->wantPeaking = slotsObject.slot[slotIndex].wantPeaking;
-        uopt->enableAutoGain = slotsObject.slot[slotIndex].enableAutoGain;
-        uopt->enableFrameTimeLock = slotsObject.slot[slotIndex].enableFrameTimeLock;
+        uopt->wantVdsLineFilter = (bool)slotsObject.slot[slotIndex].wantVdsLineFilter;
+        uopt->wantStepResponse = (bool)slotsObject.slot[slotIndex].wantStepResponse;
+        uopt->wantPeaking = (bool)slotsObject.slot[slotIndex].wantPeaking;
+        uopt->enableAutoGain = (bool)slotsObject.slot[slotIndex].enableAutoGain;
+        uopt->enableFrameTimeLock = (bool)slotsObject.slot[slotIndex].enableFrameTimeLock;
         uopt->frameTimeLockMethod = slotsObject.slot[slotIndex].frameTimeLockMethod;
         uopt->deintMode = slotsObject.slot[slotIndex].deintMode;
-        uopt->wantTap6 = slotsObject.slot[slotIndex].wantTap6;
-        uopt->wantFullHeight = slotsObject.slot[slotIndex].wantFullHeight;
+        uopt->wantTap6 = (bool)slotsObject.slot[slotIndex].wantTap6;
+        uopt->wantFullHeight = (bool)slotsObject.slot[slotIndex].wantFullHeight;
         // uopt->matchPresetSource = slotsObject.slot[slotIndex].matchPresetSource;
-        uopt->PalForce60 = slotsObject.slot[slotIndex].PalForce60;
+        uopt->PalForce60 = (bool)slotsObject.slot[slotIndex].PalForce60;
         return true;
     }
     return false;
@@ -67,19 +67,19 @@ void slotUpdate(SlotMetaArray & slotsObject, const uint8_t & slotIndex, String *
         }
     }
     slotsObject.slot[slotIndex].resolutionID = uopt->resolutionID;
-    slotsObject.slot[slotIndex].scanlines = uopt->wantScanlines;
+    slotsObject.slot[slotIndex].scanlines = (uopt->wantScanlines ? 1 : 0);
     slotsObject.slot[slotIndex].scanlinesStrength = uopt->scanlineStrength;
-    slotsObject.slot[slotIndex].wantVdsLineFilter = uopt->wantVdsLineFilter;
-    slotsObject.slot[slotIndex].wantStepResponse = uopt->wantStepResponse;
-    slotsObject.slot[slotIndex].wantPeaking = uopt->wantPeaking;
-    slotsObject.slot[slotIndex].enableAutoGain = uopt->enableAutoGain;
-    slotsObject.slot[slotIndex].enableFrameTimeLock = uopt->enableFrameTimeLock;
+    slotsObject.slot[slotIndex].wantVdsLineFilter = (uopt->wantVdsLineFilter ? 1 : 0);
+    slotsObject.slot[slotIndex].wantStepResponse = (uopt->wantStepResponse ? 1 : 0);
+    slotsObject.slot[slotIndex].wantPeaking = (uopt->wantPeaking ? 1 : 0);
+    slotsObject.slot[slotIndex].enableAutoGain = (uopt->enableAutoGain ? 1 : 0);
+    slotsObject.slot[slotIndex].enableFrameTimeLock = (uopt->enableFrameTimeLock ? 1 : 0);
     slotsObject.slot[slotIndex].frameTimeLockMethod = uopt->frameTimeLockMethod;
     slotsObject.slot[slotIndex].deintMode = uopt->deintMode;
-    slotsObject.slot[slotIndex].wantTap6 = uopt->wantTap6;
-    slotsObject.slot[slotIndex].wantFullHeight = uopt->wantFullHeight;
+    slotsObject.slot[slotIndex].wantTap6 = (uopt->wantTap6 ? 1 : 0);
+    slotsObject.slot[slotIndex].wantFullHeight = (uopt->wantFullHeight ? 1 : 0);
     // slotsObject.slot[slotIndex].matchPresetSource = uopt->matchPresetSource;
-    slotsObject.slot[slotIndex].PalForce60 = uopt->PalForce60;
+    slotsObject.slot[slotIndex].PalForce60 = (uopt->PalForce60 ? 1 : 0);
 }
 
 /**
@@ -231,19 +231,19 @@ void slotResetDefaults(SlotMetaArray & slotsObject, const uint8_t & slotIndex) {
     // TODO: see loadDefaultUserOptions()
     if(slotIndex == uopt->slotID) {
         uopt->resolutionID = Output240p;
-        uopt->wantScanlines = 0;
+        uopt->wantScanlines = false;
         uopt->scanlineStrength = SCANLINE_STRENGTH_INIT;
-        uopt->wantVdsLineFilter = 0;
-        uopt->wantStepResponse = 1;
-        uopt->wantPeaking = 1;
-        uopt->enableAutoGain = 0;
-        uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
-        uopt->frameTimeLockMethod = 0; // compatibility with more displays
-        uopt->deintMode = 0;
-        uopt->wantTap6 = 1;
-        uopt->wantFullHeight = 1;
+        uopt->wantVdsLineFilter = false;
+        uopt->wantStepResponse = true;
+        uopt->wantPeaking = true;
+        uopt->enableAutoGain = false;
+        uopt->enableFrameTimeLock = false; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
+        uopt->frameTimeLockMethod = false; // compatibility with more displays
+        uopt->deintMode = false;
+        uopt->wantTap6 = true;
+        uopt->wantFullHeight = true;
         // uopt->matchPresetSource = 1;
-        uopt->PalForce60 = 0;
+        uopt->PalForce60 = false;
 
         // uopt->wantOutputComponent = 0;
         // uopt->preferScalingRgbhv = 1;

@@ -9,15 +9,7 @@
 #include "fonts.h"
 #include "slot.h"
 #include "wserver.h"
-
-extern void applyPresets(uint8_t videoMode);
-extern void setOutModeHdBypass(bool bypass);
-extern void saveUserPrefs();
-extern float getOutputFrameRate();
-extern void loadDefaultUserOptions();
-extern uint8_t getVideoMode();
-extern runTimeOptions *rto;
-extern userOptions *uopt;
+#include "video.h"
 
 enum MenuItemTag: uint16_t {
     // unique identifiers for sub-items
@@ -61,4 +53,5 @@ bool settingsMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuN
 bool wifiMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav nav, bool isFirstTime);
 bool OSDHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav nav, bool isFirstTime);
 void initOLEDMenu();
+
 #endif

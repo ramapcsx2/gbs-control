@@ -3,7 +3,7 @@
 # File: preset.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 6:38:23 pm                                   #
 # Author:                                                                           #
-# Last Modified: Monday, 10th June 2024 4:04:57 pm                        #
+# Last Modified: Saturday, 15th June 2024 8:28:39 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -11,34 +11,6 @@
 */
 
 #include "presets.h"
-
-/**
- * @brief
- *
- */
-void loadDefaultUserOptions()
-{
-    // uopt->resolutionID = Output240p;
-    // uopt->enableFrameTimeLock = 0; // permanently adjust frame timing to avoid glitch vertical bar. does not work on all displays!
-    // uopt->slotID = 0;        //
-    // uopt->frameTimeLockMethod = 0; // compatibility with more displays
-    // uopt->enableAutoGain = 0;
-    // uopt->wantScanlines = 0;
-    // uopt->scanlineStrength = 0x30;           // #18
-    // uopt->deintMode = 0;
-    // uopt->wantVdsLineFilter = 0;
-    // uopt->wantPeaking = 1;
-    // uopt->wantTap6 = 1;
-    // uopt->PalForce60 = 0;
-    // uopt->matchPresetSource = 1;             // #14
-    // uopt->wantStepResponse = 1;              // #15
-    // uopt->wantFullHeight = 1;                // #16
-
-    uopt->wantOutputComponent = 0;
-    uopt->preferScalingRgbhv = 1;
-    uopt->enableCalibrationADC = 1;          // #17
-    uopt->disableExternalClockGenerator = 0; // #19
-}
 
 /**
  * @brief
@@ -69,7 +41,7 @@ void setResetParameters()
 {
     // TODO: do we reset resolution here?
     rto->videoStandardInput = 0;
-    rto->videoIsFrozen = false;
+    // rto->videoIsFrozen = false;
     rto->applyPresetDoneStage = 0;
     rto->presetVlineShift = 0;
     rto->sourceDisconnected = true;
@@ -94,9 +66,9 @@ void setResetParameters()
     rto->notRecognizedCounter = 0;
 
     // this may not be reset here
-    // rto->invertSync = false;
-    // rto->debugView = false;
-    // rto->developerMode = false;
+    // uopt->invertSync = false;
+    // uopt->debugView = false;
+    // uopt->developerMode = false;
 
     adco->r_gain = 0;
     adco->g_gain = 0;
@@ -181,6 +153,7 @@ void setResetParameters()
     rto->coastPositionIsSet = 0;
     rto->phaseIsSet = 0;
     rto->continousStableCounter = 0;
+
     serialCommand = '@';
     userCommand = '@';
 }
@@ -192,20 +165,21 @@ void setResetParameters()
 void doPostPresetLoadSteps()
 {
     // unsigned long postLoadTimer = millis();
-    delay(10);
+    // delay(10);
     // adco->r_gain gets applied if uopt->enableAutoGain is set.
     if (uopt->enableAutoGain)
     {
         // if (uopt->presetPreference == OutputCustomized) {
-        // if (uopt->resolutionID == OutputCustom) {
-        // Loaded custom preset, we want to keep newly loaded gain. Save
-        // gain written by loadPresetFromLFS -> writeProgramArrayNew.
-        adco->r_gain = GBS::ADC_RGCTRL::read();
-        adco->g_gain = GBS::ADC_GGCTRL::read();
-        adco->b_gain = GBS::ADC_BGCTRL::read();
-        // } else {
-        // Loaded fixed preset. Keep adco->r_gain from before overwriting
-        // registers.
+        if (rto->isCustomPreset) {
+            // Loaded custom preset, we want to keep newly loaded gain. Save
+            // gain written by loadPresetFromFS -> writeProgramArrayNew.
+            adco->r_gain = GBS::ADC_RGCTRL::read();
+            adco->g_gain = GBS::ADC_GGCTRL::read();
+            adco->b_gain = GBS::ADC_BGCTRL::read();
+        }
+        // else {
+        // Loaded fixed preset. Keep adco->r_gain from before
+        // overwriting registers
         // }
     }
 
@@ -223,15 +197,7 @@ void doPostPresetLoadSteps()
         }
     }
     // set output resolution
-    // @sk: override resolution via user preset
-    if (/* uopt->resolutionID == Output240p
-        ||  */uopt->resolutionID == OutputBypass
-            || uopt->resolutionID == PresetHdBypass
-                || uopt->resolutionID == PresetBypassRGBHV)
-    {
-        uopt->resolutionID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
-    }
-    rto->isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
+    // rto->isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
 
     GBS::ADC_UNUSED_64::write(0);
     GBS::ADC_UNUSED_65::write(0); // clear temp storage
@@ -239,13 +205,15 @@ void doPostPresetLoadSteps()
     GBS::ADC_UNUSED_67::write(0); // clear temp storage
     GBS::PAD_CKIN_ENZ::write(0);  // 0 = clock input enable (pin40)
 
+    // if preset is not loaded from FS
     if (!rto->isCustomPreset)
     {
         prepareSyncProcessor(); // todo: handle modes 14 and 15 better, now that they support scaling
     }
+
     if (rto->videoStandardInput == 14)
     {
-        // copy of code in bypassModeSwitch_RGBHV
+        // copy of code in setOutputRGBHVBypassMode
         if (rto->syncTypeCsync == false)
         {
             GBS::SP_SOG_SRC_SEL::write(0);  // 5_20 0 | 0: from ADC 1: from hs // use ADC and turn it off = no SOG
@@ -289,8 +257,8 @@ void doPostPresetLoadSteps()
     GBS::SP_COAST_INV_REG::write(0); // just in case
     if (!rto->outModeHdBypass && GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
     {
-        // setOutModeHdBypass has it's own and needs to update later
-        updateSpDynamic(0); // remember: rto->videoStandardInput for RGB(C/HV) in scaling is 1, 2 or 3 here
+        // setOutputHdBypassMode has it's own and needs to update later
+        updateSpDynamic(false); // remember: rto->videoStandardInput for RGB(C/HV) in scaling is 1, 2 or 3 here
     }
 
     GBS::SP_NO_CLAMP_REG::write(1); // (keep) clamp disabled, to be enabled when position determined
@@ -353,14 +321,15 @@ void doPostPresetLoadSteps()
     rto->motionAdaptiveDeinterlaceActive = false;
     rto->scanlinesEnabled = false;
     rto->failRetryAttempts = 0;
-    rto->videoIsFrozen = true;       // ensures unfreeze
+    // rto->videoIsFrozen = true;       // ensures unfreeze
     rto->sourceDisconnected = false; // this must be true if we reached here (no syncwatcher operation)
     rto->boardHasPower = true;       // same
 
     // if (rto->presetID == 0x06 || rto->presetID == 0x16) {
-    if (uopt->resolutionID == Output15kHz || uopt->resolutionID == Output15kHz50)
+    if (utilsIsDownscaleMode())
     {
-        rto->isCustomPreset = 0; // override so it applies section 2 deinterlacer settings
+        // override so it applies section 2 deinterlacer settings
+        rto->isCustomPreset = false;
     }
 
     if (!rto->isCustomPreset)
@@ -418,6 +387,7 @@ void doPostPresetLoadSteps()
         {
             if (rto->videoStandardInput == 1 || rto->videoStandardInput == 3)
             {
+                // TODO Why is commented?
                 // if (rto->presetID == 0x5)
                 //{ // out 1080p 60
                 //   GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 1);
@@ -683,10 +653,10 @@ void doPostPresetLoadSteps()
     }
 
     // if (rto->presetID == 0x06 || rto->presetID == 0x16) {
-    if (uopt->resolutionID == Output15kHz || uopt->resolutionID == Output15kHz50)
-    {
-        rto->isCustomPreset = GBS::GBS_PRESET_CUSTOM::read(); // override back
-    }
+    // if (uopt->resolutionID == Output15kHz || uopt->resolutionID == Output15kHz50)
+    // {
+    //     rto->isCustomPreset = GBS::GBS_PRESET_CUSTOM::read(); // override back
+    // }
 
     resetDebugPort();
 
@@ -1061,7 +1031,7 @@ void doPostPresetLoadSteps()
         GBS::INTERRUPT_CONTROL_00::write(0x00);
         unfreezeVideo(); // eventhough not used atm
         // DAC and Sync out will be enabled later
-        return; // to setOutModeHdBypass();
+        return; // to setOutputHdBypassMode();
     }
 
     if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 1)
@@ -1076,13 +1046,13 @@ void doPostPresetLoadSteps()
         {
             delay(4);
             // wifiLoop(0);
-            updateSpDynamic(0);
+            updateSpDynamic(false);
         }
         while ((getVideoMode() == 0) && (millis() - timeout < 1505))
         {
             delay(4);
             // wifiLoop(0);
-            updateSpDynamic(0);
+            updateSpDynamic(false);
         }
 
         timeout = millis() - timeout;
@@ -1110,7 +1080,7 @@ void doPostPresetLoadSteps()
         }
     }
 
-    updateSpDynamic(0);
+    updateSpDynamic(false);
 
     if (!rto->syncWatcherEnabled)
     {
@@ -1139,7 +1109,7 @@ void doPostPresetLoadSteps()
     // also need to check for mode 15
     // also make sure to turn off autoBestHtotal
     // if (uopt->presetPreference == 10 && rto->videoStandardInput != 15) {
-    if (uopt->resolutionID == OutputBypass && rto->videoStandardInput != 15)
+    if (utilsIsPassThroughMode() && rto->videoStandardInput != 15)
     {
         rto->autoBestHtotalEnabled = 0;
         if (rto->applyPresetDoneStage == 11)
@@ -1181,21 +1151,22 @@ void doPostPresetLoadSteps()
     else if (uopt->resolutionID == Output576p50)
         _WS(F("720x576"));
     // else
-    else if (uopt->resolutionID == OutputBypass)
+    else if (utilsIsPassThroughMode())
         _WS(F("bypass"));
     else if (uopt->resolutionID == Output240p)
         _WS(F("240p"));
     else
         _WS(F("UNKNOWN"));
 
-    if (rto->outModeHdBypass)
+    // if (rto->outModeHdBypass)
+    if (utilsIsPassThroughMode())
     {
         _WS(F(" (bypass)"));
     }
-    else if (rto->isCustomPreset)
-    {
-        _WS(F(" (custom)"));
-    }
+    // else if (rto->isCustomPreset)
+    // {
+    //     _WS(F(" (custom)"));
+    // }
 
     _WS(F(" for "));
     if (rto->videoStandardInput == 1)
@@ -1219,40 +1190,43 @@ void doPostPresetLoadSteps()
     else if (rto->videoStandardInput == 14)
     {
         if (rto->syncTypeCsync)
-            _WS(F("scaling RGB (CSync)"));
+            _WSN(F("scaling RGB (CSync)"));
         else
-            _WS(F("scaling RGB (HV Sync)"));
+            _WSN(F("scaling RGB (HV Sync)"));
     }
     else if (rto->videoStandardInput == 15)
     {
         if (rto->syncTypeCsync)
-            _WS(F("RGB Bypass (CSync)"));
+            _WSN(F("RGB Bypass (CSync)"));
         else
-            _WS(F("RGB Bypass (HV Sync)"));
+            _WSN(F("RGB Bypass (HV Sync)"));
     }
     else if (rto->videoStandardInput == 0)
-        _WS(F("!should not go here!")); // TODO ???
+        _WSN(F("!should not go here!")); // TODO ???
 
     // if (rto->presetID == 0x05 || rto->presetID == 0x15) {
     if (uopt->resolutionID == Output1080p || uopt->resolutionID == Output1080p50)
     {
-        _WS(F("(set your TV aspect ratio to 16:9)"));
+        _WSN(F("(set your TV aspect ratio to 16:9)"));
     }
     if (rto->videoStandardInput == 14)
     {
-        _WS(F("\nNote: scaling RGB is still in development"));
+        _WSN(F("\nNote: scaling RGB is still in development"));
     }
     // presetPreference = OutputCustomized may fail to load (missing) preset file and arrive here with defaults
-    _WSN();
 }
 
 /**
- * @brief
+ * @brief This func. does preparations for  preset to be loaded by doPostPresetLoadSteps,
+ *        in case of a OutputBypass it is searching FS for matching preset
+ *        and does its loading if it has been found...
  *
  * @param videoMode
  */
 void applyPresets(uint8_t videoMode)
 {
+    bool waitExtra = 0;
+
     // TODO replace videoMode with VideoStandardInput enum
     if (!rto->boardHasPower)
     {
@@ -1278,7 +1252,6 @@ void applyPresets(uint8_t videoMode)
         }
     }
 
-    bool waitExtra = 0;
     if (rto->outModeHdBypass || rto->videoStandardInput == 15 || rto->videoStandardInput == 0)
     {
         waitExtra = 1;
@@ -1293,49 +1266,49 @@ void applyPresets(uint8_t videoMode)
     rto->outModeHdBypass = 0;    // the default at this stage
 
     // in case it is set; will get set appropriately later in doPostPresetLoadSteps()
-    GBS::GBS_PRESET_CUSTOM::write(0);
-    rto->isCustomPreset = false;
+    // GBS::GBS_PRESET_CUSTOM::write(0);
+    // rto->isCustomPreset = false;
 
     // carry over debug view if possible
-    if (GBS::ADC_UNUSED_62::read() != 0x00)
-    {
+    // if (GBS::ADC_UNUSED_62::read() != 0x00)
+    // {
         // only if the preset to load isn't custom
         // (else the command will instantly disable debug view)
         // if (rto->presetID != OutputCustom) {
         // if (uopt->resolutionID != OutputCustom) {
         // serialCommand = 'D'; // debug view
         // }
-    }
+    // }
 
     if (videoMode == 0)
     {
         // Unknown
-        _WSF(PSTR("(!) source format not properly recognized, resolution: %c\n"), uopt->resolutionID);
+        _WSF(PSTR("(!) source format not properly recognized, resolutionID: %c\n"), uopt->resolutionID);
         videoMode = 3;                // in case of success: override to 480p60
         GBS::ADC_INPUT_SEL::write(1); // RGB
-        delay(100);
+        delay(10);
         if (GBS::STATUS_SYNC_PROC_HSACT::read() == 1)
         {
-            rto->inputIsYPbPr = 0;
-            rto->syncWatcherEnabled = 1;
+            rto->inputIsYPbPr = false;
+            rto->syncWatcherEnabled = true;
             if (GBS::STATUS_SYNC_PROC_VSACT::read() == 0)
             {
-                rto->syncTypeCsync = 1;
+                rto->syncTypeCsync = true;
             }
             else
             {
-                rto->syncTypeCsync = 0;
+                rto->syncTypeCsync = false;
             }
         }
         else
         {
             GBS::ADC_INPUT_SEL::write(0); // YPbPr
-            delay(100);
+            delay(10);
             if (GBS::STATUS_SYNC_PROC_HSACT::read() == 1)
             {
-                rto->inputIsYPbPr = 1;
-                rto->syncTypeCsync = 1;
-                rto->syncWatcherEnabled = 1;
+                rto->inputIsYPbPr = true;
+                rto->syncTypeCsync = true;
+                rto->syncWatcherEnabled = true;
             }
             else
             {
@@ -1364,24 +1337,29 @@ void applyPresets(uint8_t videoMode)
 
     if (uopt->PalForce60 == 1)
     {
-        // if (uopt->presetPreference != 2) { // != custom. custom saved as pal preset has ntsc customization
-        // if (uopt->resolutionID != OutputCustom) { // != custom. custom saved as pal preset has ntsc customization
-        if (videoMode == 2 || videoMode == 4)
-        {
-            _DBGN(F("video mode #2 or #4, set PAL@50 to 60Hz"));
-            rto->presetIsPalForce60 = 1;
+        // != custom. custom saved as pal preset has ntsc customization
+        // if (uopt->presetPreference != 2) {
+        if (!rto->isCustomPreset) {
+            _DBG(F("not a custom preset, "));
+            if (videoMode == 2 || videoMode == 4)
+            {
+                _DBGF(
+                    PSTR("video mode %d, set PAL@50 to 60Hz\n"),
+                    videoMode
+                );
+                rto->presetIsPalForce60 = 1;
+            }
+            if (videoMode == 2)
+            {
+                _DBGN(F("video mode #2, switched to #1"));
+                videoMode = 1;
+            }
+            if (videoMode == 4)
+            {
+                _DBGN(F("video mode #4, switched to #3"));
+                videoMode = 3;
+            }
         }
-        if (videoMode == 2)
-        {
-            _DBGN(F("video mode #2, switched to #1"));
-            videoMode = 1;
-        }
-        if (videoMode == 4)
-        {
-            _DBGN(F("video mode #4, switched to #3"));
-            videoMode = 3;
-        }
-        // }
     }
 
     /// If uopt->presetPreference == OutputCustomized and we load a custom
@@ -1414,24 +1392,24 @@ void applyPresets(uint8_t videoMode)
 
         applyPresets():
         - If uopt->presetPreference == OutputCustomized (yes):
-            - loadPresetFromLFS()
+            - loadPresetFromFS()
                 - All custom presets are saved with GBS_PRESET_CUSTOM = 1.
             - writeProgramArrayNew()
                 - GBS_PRESET_ID = output resolution ID
                 - GBS_PRESET_CUSTOM = 1
             - applySavedBypassPreset():
-            - If GBS_PRESET_ID == PresetHdBypass (yes):
+            - If GBS_PRESET_ID == OutputHdBypass (yes):
                 - rto->videoStandardInput = videoMode; (not sure why)
-                - setOutModeHdBypass(regsInitialized=true)
+                - setOutputHdBypassMode(regsInitialized=true)
                     - rto->outModeHdBypass = 1;
                     - loadHdBypassSection()
                         - Overwrites S1_30..5F.
-                    - GBS::GBS_PRESET_ID::write(PresetHdBypass);
+                    - GBS::GBS_PRESET_ID::write(OutputHdBypass);
                     - if (!regsInitialized) (false)
                         - ~~GBS::GBS_PRESET_CUSTOM::write(0);~~ (skipped)
                     - doPostPresetLoadSteps()
                         - rto->presetID = GBS::GBS_PRESET_ID::read();
-                            - PresetHdBypass
+                            - OutputHdBypass
                         - rto->isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
                             - true
                         - Branches based on rto->presetID
@@ -1440,27 +1418,78 @@ void applyPresets(uint8_t videoMode)
                     - rto->outModeHdBypass = 1; (again?!)
         */
 
-        uint8_t rawPresetId = GBS::GBS_PRESET_ID::read();
-        if (rawPresetId == PresetHdBypass)
+        // uint8_t rawPresetId = GBS::GBS_PRESET_ID::read();
+        // if (rawPresetId == OutputHdBypass)
+        if (uopt->resolutionID == OutputHdBypass)
         {
             // Required for switching from 240p to 480p to work.
             rto->videoStandardInput = videoMode;
-
             // Setup video mode passthrough.
-            setOutModeHdBypass(true);
+            setOutputHdBypassMode(true);
             _DBGN(F("OutputHDBypass mode active"));
             return true;
         }
-        if (rawPresetId == PresetBypassRGBHV)
+        // if (rawPresetId == OutputRGBHVBypass)
+        if (uopt->resolutionID == OutputRGBHVBypass)
         {
-            // TODO implement bypassModeSwitch_RGBHV (I don't have RGBHV inputs to verify)
+            // TODO implement setOutputRGBHVBypassMode (I don't have RGBHV inputs to verify)
         }
         return false;
     };
 
+    // if we're using ESP8266, check if there is saved preset data first
+#if defined(ESP8266)
+    const uint8_t *preset = loadPresetFromFS(videoMode);
+    if(preset != nullptr) {
+        writeProgramArrayNew(preset, false);
+        if (applySavedBypassPreset())
+        {
+            _DBGN(F("Bypass preset applied"));
+            return;
+        }
+        delete preset;
+    } else
+    // else if (uopt->presetPreference == OutputCustomized) {
+    // {
+    //
+    // } else if (uopt->presetPreference == 4) {
+    // else if (uopt->resolutionID == Output1024p)
+    // {
+    //     writeProgramArrayNew(pal_1280x1024, false);
+    //     _WSN(F("pal_1280x1024 is now active"));
+    // }
+#endif       // defined(ESP8266)
+
     if (videoMode == 1 || videoMode == 3 || videoMode == 8 || videoMode == 9 || videoMode == 14)
     {
-        // NTSC input
+        // if (uopt->presetPreference == OutputCustomized) {
+        // {
+            // const uint8_t *preset = loadPresetFromFS(videoMode);
+            // writeProgramArrayNew(preset, false);
+            // if (applySavedBypassPreset())
+            // {
+            //     _DBGN(F("Bypass preset applied"));
+            //     return;
+            // }
+        // }
+        // } else if (uopt->presetPreference == 4) {
+        // else if (uopt->resolutionID == Output1024p)
+        // {
+            // comments are misleading, the functionality is unknown
+            // if (uopt->matchPresetSource && (videoMode != 8) && (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0))
+            // {
+            //     writeProgramArrayNew(ntsc_240p, false); // pref = x1024 override to x960
+            //     _WSN(F("ntsc_240p is now active"));
+            // }
+            // else
+            // {
+                // writeProgramArrayNew(ntsc_1280x1024, false);
+                // _WSN(F("ntsc_1280x1024 is now active"));
+            // }
+        // }
+        // !
+        // ! NTSC input
+        // !
         // if (uopt->presetPreference == 0) {
         if (uopt->resolutionID == Output240p)
         {
@@ -1478,41 +1507,7 @@ void applyPresets(uint8_t videoMode)
         {
             writeProgramArrayNew(ntsc_1280x720, false);
             _WSN(F("ntsc_1280x720 is now active"));
-        }
-
-#if defined(ESP8266)
-        // else if (uopt->presetPreference == OutputCustomized) {
-        else if (uopt->resolutionID != Output240p
-            && uopt->resolutionID != OutputBypass
-                && uopt->resolutionID != PresetHdBypass
-                    && uopt->resolutionID != PresetBypassRGBHV)
-        {
-            const uint8_t *preset = loadPresetFromLFS(videoMode);
-            writeProgramArrayNew(preset, false);
-            if (applySavedBypassPreset())
-            {
-                _DBGN(F("Bypass preset applied"));
-                return;
-            }
-        }
-        // } else if (uopt->presetPreference == 4) {
-        else if (uopt->resolutionID == Output1024p)
-        {
-            // comments are misleading, the functionality is unknown
-            // if (uopt->matchPresetSource && (videoMode != 8) && (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0))
-            // {
-            //     writeProgramArrayNew(ntsc_240p, false); // pref = x1024 override to x960
-            //     _WSN(F("ntsc_240p is now active"));
-            // }
-            // else
-            // {
-                writeProgramArrayNew(ntsc_1280x1024, false);
-                _WSN(F("ntsc_1280x1024 is now active"));
-            // }
-        }
-#endif              // defined(ESP8266)
-
-        // else if (uopt->presetPreference == 5) {
+        }   // else if (uopt->presetPreference == 5) {
         else if (uopt->resolutionID == Output1080p)
         {
             writeProgramArrayNew(ntsc_1920x1080, false);
@@ -1527,8 +1522,9 @@ void applyPresets(uint8_t videoMode)
     }
     else if (videoMode == 2 || videoMode == 4)
     {
-
-        // PAL input
+        // !
+        // ! PAL input
+        // !
         // if (uopt->presetPreference == 0) {
         if (uopt->resolutionID == Output240p)
         {
@@ -1555,31 +1551,6 @@ void applyPresets(uint8_t videoMode)
             writeProgramArrayNew(pal_1280x720, false);
             _WSN(F("pal_1280x720 is now active"));
         }
-
-#if defined(ESP8266)
-        // else if (uopt->presetPreference == OutputCustomized) {
-        // else if (uopt->resolutionID == OutputCustom)
-        else if (uopt->resolutionID != Output240p
-            && uopt->resolutionID != OutputBypass
-                && uopt->resolutionID != PresetHdBypass
-                    && uopt->resolutionID != PresetBypassRGBHV)
-        {
-            const uint8_t *preset = loadPresetFromLFS(videoMode);
-            writeProgramArrayNew(preset, false);
-            if (applySavedBypassPreset())
-            {
-                _DBGN(F("Bypass preset applied"));
-                return;
-            }
-        }
-        // } else if (uopt->presetPreference == 4) {
-        else if (uopt->resolutionID == Output1024p)
-        {
-            writeProgramArrayNew(pal_1280x1024, false);
-            _WSN(F("pal_1280x1024 is now active"));
-        }
-#endif      // defined(ESP8266)
-
         // else if (uopt->presetPreference == 5) {
         else if (uopt->resolutionID == Output1080p)
         {
@@ -1597,7 +1568,9 @@ void applyPresets(uint8_t videoMode)
     {
         // use bypass mode for these HD sources
         rto->videoStandardInput = videoMode;
-        setOutModeHdBypass(false);
+        _WSN(F("HD Bypass is now active"));
+        setOutputHdBypassMode(false);
+        // don't go through doPostPresetLoadSteps
         return;
     }
     else if (videoMode == 15)
@@ -1607,11 +1580,11 @@ void applyPresets(uint8_t videoMode)
         {
             _WS(F("(CSync) "));
         }
-        // if (uopt->preferScalingRgbhv) {
-        //   _WS(F("(prefer scaling mode)");
-        // }
+        if (uopt->preferScalingRgbhv) {
+            _WS(F("(prefer scaling mode"));
+        }
         _WSN();
-        bypassModeSwitch_RGBHV();
+        setOutputRGBHVBypassMode();
         // don't go through doPostPresetLoadSteps
         return;
     }
@@ -1647,33 +1620,42 @@ void loadPresetDeinterlacerSection()
 
 /**
  * @brief Load preset preferences from "preset.slot" file
+ *      into an array that must be deleted afterwards,
+ *       if file not found, returns nullptr
  *
  * @param forVideoMode
  * @return const uint8_t*
  */
-const uint8_t *loadPresetFromLFS(byte forVideoMode)
+const uint8_t *loadPresetFromFS(byte forVideoMode)
 {
-    static uint8_t preset[432];
+    // static uint8_t preset[432];
+    static uint8_t * preset = nullptr;
     String s = "";
     uint8_t slot = 0;
     char buffer[32] = "";
     fs::File f;
+    char *tmp;
+    uint16_t i = 0;
+    // let's assume there is no preset file yet or it is unavailable
+    // we may change this assumption below the code
+    rto->isCustomPreset = false;
 
     f = LittleFS.open(FPSTR(preferencesFile), "r");
     if (f)
     {
         slot = static_cast<uint8_t>(f.read());
         f.close();
-        _WSF(PSTR("current slot: %d\n"), slot);
     }
     else
     {
         // file not found, we don't know what preset to load
-        _WSN(F("please select a slot first!")); // say "slot" here to make people save usersettings
-        if (forVideoMode == 2 || forVideoMode == 4)
-            return pal_240p;
-        else
-            return ntsc_240p;
+        // _WSN(F("please select a slot first!")); // say "slot" here to make people save usersettings
+        // if (forVideoMode == 2 || forVideoMode == 4)
+        //     return pal_240p;
+        // else
+        //     return ntsc_240p;
+        _WSF(PSTR("unable to open: %s\n"), FPSTR(preferencesFile));
+        goto load_preset_from_fs_end;
     }
 
     if (forVideoMode == 1)
@@ -1717,29 +1699,31 @@ const uint8_t *loadPresetFromLFS(byte forVideoMode)
     f = LittleFS.open(buffer, "r");
     if (!f)
     {
-        _WSN(F("no preset file for this slot and source, using 240p"));
-        if (forVideoMode == 2 || forVideoMode == 4)
-            return pal_240p;
-        else
-            return ntsc_240p;
+        _WSF(PSTR("no preset file for: %s\n"), buffer);
+        // if (forVideoMode == 2 || forVideoMode == 4)
+        //     return pal_240p;
+        // else
+        //     return ntsc_240p;
+        goto load_preset_from_fs_end;
     }
     else
     {
-        _WSF(PSTR("reading preset data from: %s\n"), f.name());
+        _WSF(PSTR("found preset data: %s\n"), f.name());
         s = f.readStringUntil('}');
         f.close();
     }
-// FIXME
-    char *tmp;
-    uint16_t i = 0;
+
     tmp = strtok(&s[0], ",");
+    preset = new uint8_t[432];
     while (tmp)
     {
         preset[i++] = (uint8_t)atoi(tmp);
         tmp = strtok(NULL, ",");
-        yield(); // wifi stack
+        // yield(); // wifi stack
     }
+    rto->isCustomPreset = true;
 
+load_preset_from_fs_end:
     return preset;
 }
 
@@ -1820,7 +1804,7 @@ void savePresetToFS()
     {
         _WSF(PSTR("preset data saved into: %s\n"), buffer);
 
-        GBS::GBS_PRESET_CUSTOM::write(1); // use one reserved bit to mark this as a custom preset
+        // GBS::GBS_PRESET_CUSTOM::write(1); // use one reserved bit to mark this as a custom preset
         // don't store scanlines
         if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1)
         {
@@ -1897,33 +1881,6 @@ void savePresetToFS()
         f.println("};");
         f.close();
     }
-}
-
-/**
- * @brief Save/Update user preferences into preferencesFile
- *
- */
-void saveUserPrefs()
-{
-    savePresetToFS();
-
-    fs::File f = LittleFS.open(FPSTR(preferencesFile), "w");
-    if (!f)
-    {
-        _WSF(PSTR("open %s file failed\n"), FPSTR(preferencesFile));
-        return;
-    }
-    // !###############################
-    // ! prefs.dat file structure
-    // !###############################
-    f.write(uopt->slotID);
-    f.write(uopt->wantOutputComponent);
-    f.write(uopt->preferScalingRgbhv);
-    f.write(uopt->enableCalibrationADC);
-    f.write(uopt->disableExternalClockGenerator);
-
-    f.close();
-    _WSF(PSTR("%s update success\n"), FPSTR(preferencesFile));
 }
 
 #endif // defined(ESP8266)

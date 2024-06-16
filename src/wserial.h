@@ -3,7 +3,7 @@
 # File: wserial.h                                                                    #
 # File Created: Friday, 19th April 2024 4:13:41 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Monday, 10th June 2024 12:14:34 pm                       #
+# Last Modified: Thursday, 13th June 2024 4:35:52 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -14,13 +14,11 @@
 #define _WSERIAL_H_
 
 #include <WebSocketsServer.h>
-#include <options.h>
+#include "options.h"
 
 extern char serialCommand;
 extern char userCommand;
 extern WebSocketsServer webSocket;
-extern runTimeOptions *rto;
-extern userOptions *uopt;
 
 // TODO: useless ?
 /* #define LOMEM_SP                        ((ESP.getFreeHeap() > 10000))
@@ -108,6 +106,8 @@ do {                                                                        \
 
 #endif                              // ESP8266
 
+#if defined(DEBUG_CODE_ENABLE)
+
 // logging via Serial
 #define _DBGF(D, ...)                                                        \
 do {                                                                        \
@@ -121,5 +121,13 @@ do {                                                                        \
 do {                                                                        \
     Serial.print(D);                                                       \
 } while(0)
+
+#else               // DEBUG_CODE_ENABLE
+
+#define _DBGF(D, ...)    (void)0
+#define _DBGN(D)         (void)0
+#define _DBGS(D)         (void)0
+
+#endif              // DEBUG_CODE_ENABLE
 
 #endif                              // _WSERIAL_H_

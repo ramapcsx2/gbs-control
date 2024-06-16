@@ -13,5 +13,35 @@
     },
     "editor.tabSize": 4,
     "editor.insertSpaces": true,
-    "editor.renderWhitespace": "all"
+    "editor.renderWhitespace": "all",
+    "psi-header.templates": [
+        {
+            "language": "*",
+            "template": [
+                "#########################################################################",
+                " File: <<filename>>",
+                " File Created: <<filecreated('dddd, Do MMMM YYYY h:mm:ss a')>>",
+                " Author: <<author>>",
+                " Last Modified: <<dateformat('dddd, Do MMMM YYYY h:mm:ss a')>>",
+                " Modified By: <<author>>",
+                " License: <<license>>",
+                "#########################################################################",
+                " CHANGELOG:",
+                "#########################################################################"
+            ],
+            "changeLogCaption": " CHANGELOG:",
+            "changeLogHeaderLineCount": 3,
+            "changeLogEntryTemplate": [
+                " <<dateformat('YYYY-MM-DD')>>\t<<initials>>\t"
+            ]
+        }
+    ],
+    "psi-header.changes-tracking": {
+        "isActive": true,
+        "modAuthor": "Modified By:",
+        "modDate": "Last Modified:",
+        "modDateFormat": "date",
+        "exclude": ["json"],
+        "autoHeader": "off"
+    },
 }

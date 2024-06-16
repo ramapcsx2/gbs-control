@@ -3,7 +3,7 @@
 # File: video.h                                                                     #
 # File Created: Thursday, 2nd May 2024 4:08:03 pm                                   #
 # Author:                                                                           #
-# Last Modified: Sunday, 2nd June 2024 12:35:31 am                        #
+# Last Modified: Thursday, 13th June 2024 4:55:53 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -17,7 +17,6 @@
 #include "wserial.h"
 #include "framesync.h"
 
-// FIXME
 extern unsigned long lastVsyncLock;
 extern void doPostPresetLoadSteps();
 extern void printInfo();
@@ -26,7 +25,6 @@ extern void loadPresetDeinterlacerSection();
 extern void setResetParameters();
 extern void printVideoTimings();
 extern void applyPresets(uint8_t result);
-// FIXME
 
 void resetInterruptSogSwitchBit();
 void resetInterruptSogBadBit();
@@ -39,7 +37,6 @@ float getOutputFrameRate();
 void externalClockGenSyncInOutRate();
 int8_t externalClockGenDetectAndInitialize();
 void externalClockGenResetClock();
-void setExternalClockGenFrequencySmooth(uint32_t freq);
 bool applyBestHTotal(uint16_t bestHTotal);
 bool runAutoBestHTotal();
 bool snapToIntegralFrameRate(void);
@@ -49,11 +46,11 @@ void setAndUpdateSogLevel(uint8_t level);
 bool optimizePhaseSP();
 void setOverSampleRatio(uint8_t newRatio, bool prepareOnly);
 void updateSpDynamic(bool withCurrentVideoModeCheck);
-void setOutModeHdBypass(bool regsInitialized);
+void setOutputHdBypassMode(bool regsInitialized);
 void setAdcGain(uint8_t gain);
 void resetSyncProcessor();
 void togglePhaseAdjustUnits();
-void bypassModeSwitch_RGBHV();
+void setOutputRGBHVBypassMode();
 void runAutoGain();
 void enableScanlines();
 void disableScanlines();

@@ -3,7 +3,7 @@
 # File: utils.h                                                                    #
 # File Created: Thursday, 2nd May 2024 5:38:14 pm                                   #
 # Author:                                                                           #
-# Last Modified: Sunday, 2nd June 2024 4:21:11 pm                         #
+# Last Modified: Saturday, 15th June 2024 8:00:46 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -22,6 +22,11 @@
 
 extern Si5351mcu Si;
 
+
+bool utilsIsPassThroughMode();
+bool utilsNotPassThroughMode();
+bool utilsIsDownscaleMode();
+bool utilsNotDownscaleMode();
 void latchPLLAD();
 void resetPLLAD();
 void resetPLL();
@@ -52,6 +57,7 @@ void stopWire();
 void startWire();
 bool checkBoardPower();
 void calibrateAdcOffset();
+void setExternalClockGenFrequencySmooth(uint32_t freq);
 
 
 #endif                                      // _UTILS_H_

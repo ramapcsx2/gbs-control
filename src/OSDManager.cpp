@@ -28,7 +28,8 @@ bool osdAutoGain(OSDMenuConfig &config)
     config.barLength = 2;
     if (config.onChange) {
         uopt->enableAutoGain = config.inc ? 1 : 0;
-        saveUserPrefs();
+        slotFlush();
+        // saveUserPrefs();
     }
     if (uopt->enableAutoGain == 1) {
         config.barActiveLength = 2;
@@ -53,7 +54,8 @@ bool osdScanlines(OSDMenuConfig &config)
             uopt->wantScanlines = 1;
         }
         GBS::MADPT_Y_MI_OFFSET::write(uopt->scanlineStrength);
-        saveUserPrefs();
+        // saveUserPrefs();
+        slotFlush();
     }
     config.barLength = 128;
     if (uopt->scanlineStrength == 0) {
@@ -69,7 +71,8 @@ bool osdLineFilter(OSDMenuConfig &config)
     if (config.onChange) {
         uopt->wantVdsLineFilter = config.inc ? 1 : 0;
         GBS::VDS_D_RAM_BYPS::write(!uopt->wantVdsLineFilter);
-        saveUserPrefs();
+        // saveUserPrefs();
+        slotFlush();
     }
     if (uopt->wantVdsLineFilter == 1) {
         config.barActiveLength = 2;
@@ -150,12 +153,13 @@ bool osdContrast(OSDMenuConfig &config)
     const uint8_t STEP = 8;
     int16_t cur = GBS::ADC_RGCTRL::read();
     if (config.onChange) {
-        if (uopt->enableAutoGain == 1) {
+        if (uopt->enableAutoGain) {
+            uopt->enableAutoGain = false;
+            // saveUserPrefs();
+            slotFlush();
+        }/*  else {
             uopt->enableAutoGain = 0;
-            saveUserPrefs();
-        } else {
-            uopt->enableAutoGain = 0;
-        }
+        } */
         if (config.inc) {
             cur = MAX(0, cur - STEP);
         } else {

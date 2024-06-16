@@ -3,7 +3,7 @@
 # File: menu.cpp                                                          #
 # File Created: Thursday, 2nd May 2024 11:31:34 pm                        #
 # Author:                                                                 #
-# Last Modified: Monday, 10th June 2024 6:34:38 pm                        #
+# Last Modified: Saturday, 15th June 2024 8:35:48 pm                      #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -202,7 +202,8 @@ void settingsMenuOLED()
             } else {
                 applyPresets(videoMode);
             }
-            saveUserPrefs();
+            // saveUserPrefs();
+            savePresetToFS();
             oled_selectOption = 1;
             oled_subsetFrame = 1;
         }
@@ -225,7 +226,8 @@ void settingsMenuOLED()
             } else {
                 applyPresets(videoMode);
             }
-            saveUserPrefs();
+            // saveUserPrefs();
+            savePresetToFS();
             oled_selectOption = 1;
             oled_subsetFrame = 1;
         }
@@ -248,7 +250,8 @@ void settingsMenuOLED()
             } else {
                 applyPresets(videoMode);
             }
-            saveUserPrefs();
+            // saveUserPrefs();
+            savePresetToFS();
             oled_selectOption = 1;
             oled_subsetFrame = 1;
         }
@@ -271,7 +274,8 @@ void settingsMenuOLED()
             } else {
                 applyPresets(videoMode);
             }
-            saveUserPrefs();
+            // saveUserPrefs();
+            savePresetToFS();
             oled_selectOption = 1;
             oled_subsetFrame = 1;
         }
@@ -293,7 +297,8 @@ void settingsMenuOLED()
             } else {
                 applyPresets(videoMode);
             }
-            saveUserPrefs();
+            // saveUserPrefs();
+            savePresetToFS();
             oled_selectOption = 1;
             oled_subsetFrame = 2;
         }
@@ -316,7 +321,8 @@ void settingsMenuOLED()
             } else {
                 applyPresets(videoMode);
             }
-            saveUserPrefs();
+            // saveUserPrefs();
+            savePresetToFS();
             oled_selectOption = 1;
             oled_subsetFrame = 2;
         }
@@ -329,9 +335,8 @@ void settingsMenuOLED()
                 display.drawString(0, 30, "Loaded!");
                 display.display();
             }
-            setOutModeHdBypass(false);
+            setOutputHdBypassMode(false);
             // uopt->presetPreference = OutputBypass;
-            uopt->resolutionID = OutputBypass;
             // if (uopt->presetPreference == 10 && rto->videoStandardInput != 15) {
             if (rto->videoStandardInput != 15) {
                 rto->autoBestHtotalEnabled = 0;
@@ -343,7 +348,8 @@ void settingsMenuOLED()
             } else {
                 rto->applyPresetDoneStage = 1;
             }
-            saveUserPrefs();
+            // saveUserPrefs();
+            savePresetToFS();
             oled_selectOption = 1;
             oled_subsetFrame = 2;
         }
@@ -387,7 +393,7 @@ void settingsMenuOLED()
             // uopt->slotID = 'A';
             // uopt->presetPreference = OutputCustomized;
             uopt->resolutionID = OutputCustom;
-            saveUserPrefs();
+            // saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
                 display.setFont(Open_Sans_Regular_20);                            // first array element selected
@@ -403,7 +409,8 @@ void settingsMenuOLED()
             } else {
                 applyPresets(rto->videoStandardInput);
             }
-            saveUserPrefs();
+            // saveUserPrefs();
+            savePresetToFS();
             delay(50);             // allowing "catchup"
             oled_selectOption = 1; // reset select container
             oled_subsetFrame = 1;  // switch back to prev frame (prev screen)
@@ -413,7 +420,7 @@ void settingsMenuOLED()
             // uopt->slotID = 'B';
             // uopt->presetPreference = OutputCustomized;
             uopt->resolutionID = OutputCustom;
-            saveUserPrefs();
+            // saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
                 display.setFont(Open_Sans_Regular_20);
@@ -429,7 +436,8 @@ void settingsMenuOLED()
             } else {
                 applyPresets(rto->videoStandardInput);
             }
-            saveUserPrefs();
+            // saveUserPrefs();
+            savePresetToFS();
             delay(50);
             oled_selectOption = 1;
             oled_subsetFrame = 1;
@@ -439,7 +447,7 @@ void settingsMenuOLED()
             // uopt->slotID = 'C';
             // uopt->presetPreference = OutputCustomized;
             uopt->resolutionID = OutputCustom;
-            saveUserPrefs();
+            // saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
                 display.setFont(Open_Sans_Regular_20);
@@ -455,7 +463,8 @@ void settingsMenuOLED()
             } else {
                 applyPresets(rto->videoStandardInput);
             }
-            saveUserPrefs();
+            // saveUserPrefs();
+            savePresetToFS();
             delay(50);
             oled_selectOption = 1;
             oled_subsetFrame = 1;
@@ -465,7 +474,7 @@ void settingsMenuOLED()
             // uopt->slotID = 'D';
             // uopt->presetPreference = OutputCustomized;
             uopt->resolutionID = OutputCustom;
-            saveUserPrefs();
+            // saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
                 display.setFont(Open_Sans_Regular_20);
@@ -481,7 +490,8 @@ void settingsMenuOLED()
             } else {
                 applyPresets(rto->videoStandardInput);
             }
-            saveUserPrefs();
+            // saveUserPrefs();
+            savePresetToFS();
             delay(50);
             oled_selectOption = 1;
             oled_subsetFrame = 1;
@@ -491,7 +501,7 @@ void settingsMenuOLED()
             // uopt->slotID = 'E';
             // uopt->presetPreference = OutputCustomized;
             uopt->resolutionID = OutputCustom;
-            saveUserPrefs();
+            // saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
                 display.setFont(Open_Sans_Regular_20);
@@ -507,7 +517,8 @@ void settingsMenuOLED()
             } else {
                 applyPresets(rto->videoStandardInput);
             }
-            saveUserPrefs();
+            // saveUserPrefs();
+            savePresetToFS();
             delay(50);
             oled_selectOption = 1;
             oled_subsetFrame = 2;
@@ -517,7 +528,7 @@ void settingsMenuOLED()
             // uopt->slotID = 'F';
             // uopt->presetPreference = OutputCustomized;
             uopt->resolutionID = OutputCustom;
-            saveUserPrefs();
+            // saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
                 display.setFont(Open_Sans_Regular_20);
@@ -533,7 +544,8 @@ void settingsMenuOLED()
             } else {
                 applyPresets(rto->videoStandardInput);
             }
-            saveUserPrefs();
+            // saveUserPrefs();
+            savePresetToFS();
             delay(50);
             oled_selectOption = 1;
             oled_subsetFrame = 2;
@@ -543,7 +555,7 @@ void settingsMenuOLED()
             // uopt->slotID = 'G';
             // uopt->presetPreference = OutputCustomized;
             uopt->resolutionID = OutputCustom;
-            saveUserPrefs();
+            // saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
                 display.setFont(Open_Sans_Regular_20);
@@ -559,7 +571,8 @@ void settingsMenuOLED()
             } else {
                 applyPresets(rto->videoStandardInput);
             }
-            saveUserPrefs();
+            // saveUserPrefs();
+            savePresetToFS();
             delay(50);
             oled_selectOption = 1;
             oled_subsetFrame = 2;
@@ -615,10 +628,11 @@ void settingsMenuOLED()
             }
             // webSocket.close();
             loadDefaultUserOptions();
-            saveUserPrefs();
+            // saveUserPrefs();
+            prefsSave();
             // delay(60);
             // ESP.reset();
-            resetInMSec(1000);
+            resetInMSec(2000);
             // oled_selectOption = 1;
             // oled_subsetFrame = 1;
         }
@@ -670,7 +684,7 @@ void settingsMenuOLED()
         // } else if (rto->presetID == 0x14) {
         } else if (uopt->resolutionID == Output576p50) {
             display.drawString(0, 0, "768x576");
-        } else if (uopt->resolutionID == OutputBypass) { // OutputBypass
+        } else if (utilsIsPassThroughMode()) {
             display.drawString(0, 0, "bypass");
         } else {
             display.drawString(0, 0, "240p");

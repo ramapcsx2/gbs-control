@@ -56,7 +56,8 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
             preset = Output15kHz;
             break;
         case MT_BYPASS:
-            preset = OutputBypass;
+            // FIXME do detection which mode is actually to apply
+            preset = OutputHdBypass;
             break;
         case MT_240p:
         default:
@@ -76,7 +77,7 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
             applyPresets(videoMode);
         }
     } else {
-        setOutModeHdBypass(false);
+        setOutputHdBypassMode(false);
         // uopt->presetPreference = preset;
         // rto->presetID = preset;
         if (rto->videoStandardInput != 15) {
@@ -90,7 +91,8 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
             rto->applyPresetDoneStage = 1;
         }
     }
-    saveUserPrefs();
+    // saveUserPrefs();
+    savePresetToFS();
     manager->freeze();
     return false;
 }
@@ -135,7 +137,8 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
         // normal path
         applyPresets(rto->videoStandardInput);
     }
-    saveUserPrefs();
+    savePresetToFS();
+    // saveUserPrefs();
     manager->freeze();
     oledMenuFreezeTimeoutInMS = 2000;
     oledMenuFreezeStartTime = millis();
@@ -310,7 +313,7 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
         // } else if (rto->presetID == 0x14) {
         } else if (uopt->resolutionID == Output576p50) {
             display.drawString(0, 0, "768x576");
-        } else if (uopt->resolutionID == OutputBypass) { // OutputBypass
+        } else if (utilsIsPassThroughMode()) {
             display.drawString(0, 0, "bypass");
         } else {
             display.drawString(0, 0, "240p");
@@ -435,6 +438,21 @@ bool settingsMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuN
 }
 
 /**
+ * @brief This simple functionality allows to trigger WiFi reconnect
+ *        from WiFi info -> Status: Disconnected
+ *
+ * @param manager
+ * @param item
+ * @param isFirstTime
+ * @return true
+ * @return false
+ */
+bool handleWiFiDisconnectedStatus(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, bool isFirstTime) {
+    WiFi.reconnect();
+    return true;
+}
+
+/**
  * @brief
  *
  * @param manager
@@ -461,7 +479,7 @@ bool wifiMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuNav, 
             manager->registerItem(item, 0, domain);
         } else {
             // shouldn't happen?
-            manager->registerItem(item, 0, IMAGE_ITEM(TEXT_WIFI_DISCONNECTED));
+            manager->registerItem(item, 0, IMAGE_ITEM(TEXT_WIFI_DISCONNECTED),  handleWiFiDisconnectedStatus);
         }
     } else if (wifiMode == WIFI_AP) {
         manager->registerItem(item, 0, IMAGE_ITEM(TEXT_WIFI_CONNECT_TO));
@@ -560,7 +578,7 @@ void initOLEDMenu()
 
     // Resolutions
     OLEDMenuItem *resMenu = oledMenu.registerItem(root, MT_NULL, IMAGE_ITEM(OM_RESOLUTION));
-    const char *resolutions[7] = {"1080p", "1024p", "960p", "720p", "576p", "480p", "240p" };
+    const char *resolutions[7] = {"1920x1080", "1280x1024", "1280x960", "1280x720", "768x576", "720x480", "240p" };
     uint8_t tags[7] =            {MT1920x1080, MT1280x1024, MT_1280x960, MT1280x720, MT_768x576, MT_720x480, MT_240p};
     for (uint8_t i = 0; i < (sizeof(resolutions)/sizeof(*resolutions)); ++i) {
         oledMenu.registerItem(resMenu, tags[i], resolutions[i], resolutionMenuHandler);

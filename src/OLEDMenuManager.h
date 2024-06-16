@@ -104,13 +104,13 @@ private:
         display->clear();
         display->setColor(OLEDDISPLAY_COLOR::WHITE);
         int16_t versionX = 0;
-        const uint8_t versionStrHeight = 10;
         const String versionStr = String(F("v.")) + String(STRING(VERSION));
-        uint16_t versionStrWidth = this->display->getStringWidth(versionStr);
+        const uint16_t versionStrWidth = this->display->getStringWidth(versionStr.c_str(), versionStr.length());
+        const uint8_t versionStrHeight = 10;
         constexpr int16_t max_x = OLED_MENU_WIDTH - OM_SCREEN_SAVER_WIDTH;
         constexpr int16_t max_y = OLED_MENU_HEIGHT - (OM_SCREEN_SAVER_HEIGHT + versionStrHeight);
-        uint16_t rx = rand() % max_x;
-        uint16_t ry = rand() % max_y;
+        const uint16_t rx = rand() % max_x;
+        const uint16_t ry = rand() % max_y;
         // display FW version
         versionX = OM_SCREEN_SAVER_WIDTH - versionStrWidth;
         if(versionX <= 0)

@@ -99,27 +99,27 @@
                         <div class="gbs-flex gbs-margin__bottom--8">
                             <button class="gbs-button gbs-button__resolution" gbs-message="s" gbs-message-type="user"
                                 gbs-click="normal" gbs-element-ref="button1080p" gbs-role="preset">
-                                1080p
+                                1920 x 1080
                             </button>
                             <button class="gbs-button gbs-button__resolution" gbs-message="p" gbs-message-type="user"
                                 gbs-click="normal" gbs-element-ref="button1024p" gbs-role="preset">
-                                1024p
+                                1280 x 1024
                             </button>
                             <button class="gbs-button gbs-button__resolution" gbs-message="f" gbs-message-type="user"
                                 gbs-click="normal" gbs-element-ref="button960p" gbs-role="preset">
-                                960p
+                                1280 x 960
                             </button>
                             <button class="gbs-button gbs-button__resolution" gbs-message="g" gbs-message-type="user"
                                 gbs-click="normal" gbs-element-ref="button720p" gbs-role="preset">
-                                720p
+                                1280 x 720
                             </button>
                             <button class="gbs-button gbs-button__resolution" gbs-message="k" gbs-message-type="user"
                                 gbs-click="normal" gbs-element-ref="button576p" gbs-role="preset">
-                                576p
+                                768 x 576
                             </button>
                             <button class="gbs-button gbs-button__resolution" gbs-message="h" gbs-message-type="user"
                                 gbs-click="normal" gbs-element-ref="button480p" gbs-role="preset">
-                                480p
+                                720 x 480
                             </button>
                             <button class="gbs-button gbs-button__resolution" gbs-message="j" gbs-message-type="user"
                                 gbs-click="normal" gbs-element-ref="button240p" gbs-role="preset">
@@ -131,7 +131,7 @@
                                 class="gbs-button gbs-button__resolution gbs-button__resolution--center gbs-button__secondary"
                                 gbs-element-ref="button15kHz" gbs-role="preset">
                                 <div class="gbs-icon">tv</div>
-                                <div>15KHz</div>
+                                <div>15KHz/L{DOWNSCALE}</div>
                             </button>
                             <button gbs-message="K" gbs-message-type="action" gbs-click="normal"
                                 class="gbs-button gbs-button__resolution gbs-button__resolution--center gbs-button__secondary"
