@@ -3,7 +3,7 @@
 # File: video.h                                                                     #
 # File Created: Thursday, 2nd May 2024 4:08:03 pm                                   #
 # Author:                                                                           #
-# Last Modified: Thursday, 13th June 2024 4:55:53 pm                      #
+# Last Modified: Monday, 17th June 2024 12:00:54 am                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -45,7 +45,7 @@ void setAndLatchPhaseSP();
 void setAndUpdateSogLevel(uint8_t level);
 bool optimizePhaseSP();
 void setOverSampleRatio(uint8_t newRatio, bool prepareOnly);
-void updateSpDynamic(bool withCurrentVideoModeCheck);
+void updateStopPositionDynamic(bool withCurrentVideoModeCheck);
 void setOutputHdBypassMode(bool regsInitialized);
 void setAdcGain(uint8_t gain);
 void resetSyncProcessor();

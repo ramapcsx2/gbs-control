@@ -3,7 +3,7 @@
 # File: framesync.cpp                                                     #
 # File Created: Sunday, 5th May 2024 12:52:08 pm                          #
 # Author:                                                                 #
-# Last Modified: Tuesday, 4th June 2024 6:12:08 pm                        #
+# Last Modified: Tuesday, 18th June 2024 12:16:32 am                      #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -303,11 +303,12 @@ bool FrameSyncManager::runFrequency()
         return true;
     }
 
-    if (rto->outModeHdBypass)
+    // if (rto->outModeHdBypass)
+    if (uopt->resolutionID == OutputHdBypass)
     {
-        #ifdef FRAMESYNC_DEBUG
-        _DBGN(F("Skipping FrameSyncManager::runFrequency(), rto->outModeHdBypass"));
-        #endif
+        // #ifdef FRAMESYNC_DEBUG
+        // _DBGN(F("Skipping FrameSyncManager::runFrequency(), rto->outModeHdBypass"));
+        // #endif
         return true;
     }
     if (GBS::PLL648_CONTROL_01::read() != 0x75)

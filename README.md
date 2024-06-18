@@ -309,6 +309,7 @@ ESP8266 version of the factory built GBSC, boots into firmware upload mode by pr
 - [ ] device disconnects from WiFi when displaying Output status on screen
 - [ ] disable ambigous preset paramters inside slots
   - [ ] startup reuntime parameters loading malfunction
+- [ ] De-interlacer noise reduction ctl.
 - [x] fix OLEDMenu items list offset
 - [x] feature request [#553]
 - [x] creation/destruction OLEDMenuItem procedure

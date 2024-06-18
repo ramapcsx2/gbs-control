@@ -765,5 +765,17 @@
         "es": "GBS-Control está reiniciando...",
         "ru": "GBS-Control перезагружается...",
         "zh": ""
+    },
+    "PAGE_RELOAD_IN": {
+        "en": "reload in:",
+        "es": "reinicio en:",
+        "ru": "перезагрузка через:",
+        "zh": ""
+    },
+    "SECONDS_SHORT": {
+        "en": "sec",
+        "es": "sec",
+        "ru": "сек",
+        "zh": ""
     }
 }

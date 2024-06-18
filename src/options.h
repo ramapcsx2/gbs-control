@@ -193,12 +193,13 @@ struct runTimeOptions
     bool isInLowPowerMode;
     bool sourceDisconnected;
     /**
-     * @brief Video input ID (see: getVideoMode()):
+     * @brief This variable is used to store an active videoID (of the last detection).
+     *        Video input ID (see: getVideoMode()):
      *  0 - unknown/none
      *  1 - NTSC-like                                            <---------¬
-     *  2 - PAL-like                                                <------|----¬
-     *  3 - 480p NTSC (edtv, 60Hz, progressive)                  <---------|    |-- PAL
-     *  4 - 576p PAL (edtv, 50Hz, progressive)                      <------|---⨼
+     *  2 - PAL-like                                                <------|-----¬
+     *  3 - 480p NTSC (edtv, 60Hz, progressive)                  <---------|     |-- PAL
+     *  4 - 576p PAL (edtv, 50Hz, progressive)                      <------|----⨼
      *  5 - hdtv 720p                                                  <---|--------¬
      *  6 - ? (hdtv 1080i // 576p)                                     <---|--------|
      *  7 - hdtv 1080p                                                 <---|--------|
@@ -217,6 +218,7 @@ struct runTimeOptions
     uint8_t medResLineCount;
     //
     bool isCustomPreset;
+    uint8_t presetDisplayClock;
     uint32_t freqExtClockGen;
     uint16_t noSyncCounter; // is always at least 1 when checking value in syncwatcher
     uint8_t presetVlineShift;
@@ -231,7 +233,7 @@ struct runTimeOptions
     bool clampPositionIsSet;
     bool coastPositionIsSet;
     bool phaseIsSet;
-    bool outModeHdBypass;
+    // bool outModeHdBypass;
     bool printInfos;
     bool allowUpdatesOTA;
     bool enableDebugPings;
@@ -240,7 +242,7 @@ struct runTimeOptions
     bool forceRetime;
     bool motionAdaptiveDeinterlaceActive;
     bool deinterlaceAutoEnabled;
-    bool scanlinesEnabled;
+    // bool scanlinesEnabled;
     bool presetIsPalForce60;
     bool isValidForScalingRGBHV;
     bool useHdmiSyncFix;

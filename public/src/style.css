@@ -81,6 +81,10 @@ body {
     user-select: none;
 }
 
+.gbs-text-center {
+    text-align: center;
+}
+
 /** main container */
 .gbs-container {
     background-color: var(--color-mine-shaft);

@@ -1592,7 +1592,7 @@ const initGBSButtons = () => {
             // custom events applied for some buttons
             button.addEventListener('click', () => {
                 if(message == '1' && messageType == 'user') {
-                    // reset to defaults (factory) command
+                    // reset to defaults (factory) button
                     gbsAlert(
                         'L{RESET_BUTTON_JS_ALERT_MESSAGE}',
                         '<div class="gbs-icon">close</div><div>L{JS_NO}</div>',
@@ -1611,10 +1611,20 @@ const initGBSButtons = () => {
                     ).catch(() => {
                     });
                 } else if(message == 'a' && messageType == 'user') {
-                    // restart device command
-                    window.setTimeout(() => {
-                        window.location.reload()
-                    }, 5000)
+                    // RESTART button
+                    button.setAttribute('disabled', '')
+                    action(message, button)
+                    // restart device and reload page after countdown
+                    let countdown = 10;
+                    const buttonMessage = (val: string) => {
+                        button.innerHTML = `<div class="gbs-text-center">L{PAGE_RELOAD_IN}</div><div class="gbs-text-center">${val} L{SECONDS_SHORT}</div>`
+                    }
+                    window.setInterval(() => {
+                        buttonMessage(countdown.toString())
+                        countdown--;
+                        if(countdown == 0)
+                            window.location.reload()
+                    }, 1000)
                 } else {
                     // all other buttons
                     action(message, button)

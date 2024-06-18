@@ -3,7 +3,7 @@
 # File: preset.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 6:38:23 pm                                   #
 # Author:                                                                           #
-# Last Modified: Sunday, 16th June 2024 2:26:12 am                        #
+# Last Modified: Tuesday, 18th June 2024 12:42:27 am                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -41,11 +41,12 @@ void setResetParameters()
 {
     // TODO: do we reset resolution here?
     rto->videoStandardInput = 0;
+    rto->presetDisplayClock = 0;
     // rto->videoIsFrozen = false;
     rto->applyPresetDoneStage = 0;
     rto->presetVlineShift = 0;
     rto->sourceDisconnected = true;
-    rto->outModeHdBypass = 0;
+    // rto->outModeHdBypass = 0;
     rto->clampPositionIsSet = 0;
     rto->coastPositionIsSet = 0;
     rto->phaseIsSet = 0;
@@ -57,7 +58,7 @@ void setResetParameters()
     rto->failRetryAttempts = 0;
     rto->HPLLState = 0;
     rto->motionAdaptiveDeinterlaceActive = false;
-    rto->scanlinesEnabled = false;
+    // rto->scanlinesEnabled = false;
     rto->syncTypeCsync = false;
     rto->isValidForScalingRGBHV = false;
     rto->medResLineCount = 0x33; // 51*8=408
@@ -79,10 +80,10 @@ void setResetParameters()
     GBS::ADC_UNUSED_65::write(0);
     GBS::ADC_UNUSED_66::write(0);
     GBS::ADC_UNUSED_67::write(0);
-    GBS::GBS_PRESET_CUSTOM::write(0);
+    // GBS::GBS_PRESET_CUSTOM::write(0);
     GBS::GBS_PRESET_ID::write(0);
-    GBS::GBS_OPTION_SCALING_RGBHV::write(0);
-    GBS::GBS_OPTION_PALFORCED60_ENABLED::write(0);
+    // GBS::GBS_OPTION_SCALING_RGBHV::write(0);
+    // GBS::GBS_OPTION_PALFORCED60_ENABLED::write(0);
 
     // set minimum IF parameters
     GBS::IF_VS_SEL::write(1);
@@ -255,10 +256,12 @@ void doPostPresetLoadSteps()
 
     GBS::SP_H_PROTECT::write(0);
     GBS::SP_COAST_INV_REG::write(0); // just in case
-    if (!rto->outModeHdBypass && GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
+    // if (!rto->outModeHdBypass && GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
+    // if (!rto->outModeHdBypass && !uopt->preferScalingRgbhv)
+    if (uopt->resolutionID != OutputHdBypass && !uopt->preferScalingRgbhv)
     {
         // setOutputHdBypassMode has it's own and needs to update later
-        updateSpDynamic(false); // remember: rto->videoStandardInput for RGB(C/HV) in scaling is 1, 2 or 3 here
+        updateStopPositionDynamic(false); // remember: rto->videoStandardInput for RGB(C/HV) in scaling is 1, 2 or 3 here
     }
 
     GBS::SP_NO_CLAMP_REG::write(1); // (keep) clamp disabled, to be enabled when position determined
@@ -280,7 +283,8 @@ void doPostPresetLoadSteps()
         applyRGBPatches();
     }
 
-    if (rto->outModeHdBypass)
+    // if (rto->outModeHdBypass)
+    if (uopt->resolutionID == OutputHdBypass)
     {
         GBS::OUT_SYNC_SEL::write(1); // 0_4f 1=sync from HDBypass, 2=sync from SP
         rto->autoBestHtotalEnabled = false;
@@ -319,7 +323,7 @@ void doPostPresetLoadSteps()
     rto->continousStableCounter = 0;
     rto->noSyncCounter = 0;
     rto->motionAdaptiveDeinterlaceActive = false;
-    rto->scanlinesEnabled = false;
+    // rto->scanlinesEnabled = false;
     rto->failRetryAttempts = 0;
     // rto->videoIsFrozen = true;       // ensures unfreeze
     rto->sourceDisconnected = false; // this must be true if we reached here (no syncwatcher operation)
@@ -700,11 +704,14 @@ void doPostPresetLoadSteps()
         }
 
         // always start with internal clock active first
-        if (GBS::PLL648_CONTROL_01::read() == 0x75 && GBS::GBS_PRESET_DISPLAY_CLOCK::read() != 0)
+        // if (GBS::PLL648_CONTROL_01::read() == 0x75 && GBS::GBS_PRESET_DISPLAY_CLOCK::read() != 0)
+        if (GBS::PLL648_CONTROL_01::read() == 0x75 && rto->presetDisplayClock != 0)
         {
-            GBS::PLL648_CONTROL_01::write(GBS::GBS_PRESET_DISPLAY_CLOCK::read());
+            // GBS::PLL648_CONTROL_01::write(GBS::GBS_PRESET_DISPLAY_CLOCK::read());
+            GBS::PLL648_CONTROL_01::write(rto->presetDisplayClock);
         }
-        else if (GBS::GBS_PRESET_DISPLAY_CLOCK::read() == 0)
+        // else if (GBS::GBS_PRESET_DISPLAY_CLOCK::read() == 0)
+        else if (rto->presetDisplayClock == 0)
         {
             _WSN(F("no stored display clock to use!"));
         }
@@ -712,7 +719,8 @@ void doPostPresetLoadSteps()
 
     if (rto->presetIsPalForce60)
     {
-        if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() != 1)
+        // if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() != 1)
+        if (!uopt->PalForce60)
         {
             _WSN(F("pal forced 60hz: apply vshift"));
             uint16_t vshift = 56; // default shift
@@ -726,7 +734,9 @@ void doPostPresetLoadSteps()
                 GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + vshift);
             }
             GBS::IF_VB_ST::write(GBS::IF_VB_SP::read() - 2);
-            GBS::GBS_OPTION_PALFORCED60_ENABLED::write(1);
+            // TODO enabling uopt->PalForce60 ?
+            uopt->PalForce60 = true;
+            // GBS::GBS_OPTION_PALFORCED60_ENABLED::write(1);
         }
     }
 
@@ -842,8 +852,10 @@ void doPostPresetLoadSteps()
     GBS::VDS_SYNC_EN::write(0);
     GBS::VDS_FLOCK_EN::write(0);
 
-    if (!rto->outModeHdBypass && rto->autoBestHtotalEnabled &&
-        GBS::GBS_OPTION_SCALING_RGBHV::read() == 0 && !avoidAutoBest &&
+    // if (!rto->outModeHdBypass && rto->autoBestHtotalEnabled &&
+    if (uopt->resolutionID != OutputHdBypass && rto->autoBestHtotalEnabled &&
+        // GBS::GBS_OPTION_SCALING_RGBHV::read() == 0 && !avoidAutoBest &&
+        !uopt->preferScalingRgbhv && !avoidAutoBest &&
         (rto->videoStandardInput >= 1 && rto->videoStandardInput <= 4))
     {
         // autobesthtotal
@@ -921,7 +933,8 @@ void doPostPresetLoadSteps()
     // late adjustments that require some delay time first
     if (!rto->isCustomPreset)
     {
-        if (videoStandardInputIsPalNtscSd() && !rto->outModeHdBypass)
+        // if (videoStandardInputIsPalNtscSd() && !rto->outModeHdBypass)
+        if (videoStandardInputIsPalNtscSd() && uopt->resolutionID != OutputHdBypass)
         {
             // SNES has less total lines and a slight offset (only relevant in 60Hz)
             if (GBS::VPERIOD_IF::read() == 523)
@@ -979,7 +992,8 @@ void doPostPresetLoadSteps()
         // 4_12 should be set by preset
     }
 
-    if (!rto->outModeHdBypass)
+    // if (!rto->outModeHdBypass)
+    if (uopt->resolutionID != OutputHdBypass)
     {
         ResetSDRAM();
     }
@@ -1024,7 +1038,8 @@ void doPostPresetLoadSteps()
     rto->coastPositionIsSet = false; // re-arm these
     rto->clampPositionIsSet = false;
 
-    if (rto->outModeHdBypass)
+    // if (rto->outModeHdBypass)
+    if (uopt->resolutionID == OutputHdBypass)
     {
         GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
         GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
@@ -1034,25 +1049,25 @@ void doPostPresetLoadSteps()
         return; // to setOutputHdBypassMode();
     }
 
-    if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 1)
+    // if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 1)
+    if (uopt->preferScalingRgbhv)
     {
         rto->videoStandardInput = 14;
-    }
-
-    if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
+    } else
+    // if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
     {
         unsigned long timeout = millis();
         while ((!getStatus16SpHsStable()) && (millis() - timeout < 2002))
         {
             delay(4);
             // wifiLoop(0);
-            updateSpDynamic(false);
+            updateStopPositionDynamic(false);
         }
         while ((getVideoMode() == 0) && (millis() - timeout < 1505))
         {
             delay(4);
             // wifiLoop(0);
-            updateSpDynamic(false);
+            updateStopPositionDynamic(false);
         }
 
         timeout = millis() - timeout;
@@ -1080,7 +1095,7 @@ void doPostPresetLoadSteps()
         }
     }
 
-    updateSpDynamic(false);
+    updateStopPositionDynamic(false);
 
     if (!rto->syncWatcherEnabled)
     {
@@ -1252,7 +1267,8 @@ void applyPresets(uint8_t videoMode)
         }
     }
 
-    if (rto->outModeHdBypass || rto->videoStandardInput == 15 || rto->videoStandardInput == 0)
+    // if (rto->outModeHdBypass || rto->videoStandardInput == 15 || rto->videoStandardInput == 0)
+    if (uopt->resolutionID == OutputHdBypass || rto->videoStandardInput == 15 || rto->videoStandardInput == 0)
     {
         waitExtra = 1;
         if (videoMode <= 4 || videoMode == 14 || videoMode == 8 || videoMode == 9)
@@ -1263,7 +1279,7 @@ void applyPresets(uint8_t videoMode)
         }
     }
     rto->presetIsPalForce60 = 0; // the default
-    rto->outModeHdBypass = 0;    // the default at this stage
+    // rto->outModeHdBypass = 0;    // the default at this stage
 
     // in case it is set; will get set appropriately later in doPostPresetLoadSteps()
     // GBS::GBS_PRESET_CUSTOM::write(0);
@@ -1813,10 +1829,11 @@ void savePresetToFS()
 
         // GBS::GBS_PRESET_CUSTOM::write(1); // use one reserved bit to mark this as a custom preset
         // TODO don't store scanlines - WHY?
-        if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1)
-        {
-            disableScanlines();
-        }
+        // if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1)
+        // if (uopt->wantScanlines)
+        // {
+        //     disableScanlines();
+        // }
 
         if (!rto->extClockGenDetected)
         {

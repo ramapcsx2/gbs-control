@@ -3,7 +3,7 @@
 # File: video.cpp                                                                   #
 # File Created: Thursday, 2nd May 2024 4:07:57 pm                                   #
 # Author:                                                                           #
-# Last Modified: Sunday, 16th June 2024 1:51:52 am                        #
+# Last Modified: Tuesday, 18th June 2024 1:29:05 am                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -122,7 +122,8 @@ void prepareSyncProcessor()
     writeOneByte(0x53, 0x00); // 0x05 rgbhv: 6
     writeOneByte(0x54, 0x00); // 0xc0
 
-    if (rto->videoStandardInput != 15 && (GBS::GBS_OPTION_SCALING_RGBHV::read() != 1)) {
+    // if (rto->videoStandardInput != 15 && (GBS::GBS_OPTION_SCALING_RGBHV::read() != 1)) {
+    if (rto->videoStandardInput != 15 && !uopt->preferScalingRgbhv) {
         GBS::SP_CLAMP_MANUAL::write(0); // 0 = automatic on/off possible
         GBS::SP_CLP_SRC_SEL::write(0);  // clamp source 1: pixel clock, 0: 27mhz // was 1 but the pixel clock isn't available at first
         GBS::SP_NO_CLAMP_REG::write(1); // 5_57_0 unlock clamp
@@ -303,7 +304,8 @@ void externalClockGenSyncInOutRate()
     if (GBS::PAD_CKIN_ENZ::read() != 0) {
         return;
     }
-    if (rto->outModeHdBypass) {
+    // if (rto->outModeHdBypass) {
+    if (uopt->resolutionID == OutputHdBypass) {
         return;
     }
     if (GBS::PLL648_CONTROL_01::read() != 0x75) {
@@ -408,6 +410,7 @@ int8_t externalClockGenDetectAndInitialize()
 void externalClockGenResetClock()
 {
     if (!rto->extClockGenDetected) {
+        _DBGN(F(" no ext.clock detected"));
         return;
     }
     _DBGN("externalClockGenResetClock()");
@@ -432,7 +435,8 @@ void externalClockGenResetClock()
         rto->freqExtClockGen = 81000000; // clock unused
     else if (activeDisplayClock == 0)
         rto->freqExtClockGen = 81000000; // no preset loaded
-    else if (!rto->outModeHdBypass) {
+    // else if (!rto->outModeHdBypass) {
+    else if (uopt->resolutionID != OutputHdBypass) {
         _DBGF(PSTR("preset display clock: 0x%02X\n"), activeDisplayClock);
     }
 
@@ -464,7 +468,8 @@ void externalClockGenResetClock()
  */
 bool applyBestHTotal(uint16_t bestHTotal)
 {
-    if (rto->outModeHdBypass) {
+    // if (rto->outModeHdBypass) {
+    if (uopt->resolutionID == OutputHdBypass) {
         return true; // false? doesn't matter atm
     }
 
@@ -496,7 +501,8 @@ bool applyBestHTotal(uint16_t bestHTotal)
         return true; // nothing to do
     }
 
-    if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() == 1) {
+    // if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() == 1) {
+    if (uopt->PalForce60) {
         // source is 50Hz, preset has to stay at 60Hz: return
         return true;
     }
@@ -671,11 +677,14 @@ bool applyBestHTotal(uint16_t bestHTotal)
 
     bool print = 1;
     if (uopt->enableFrameTimeLock) {
-        if ((GBS::GBS_RUNTIME_FTL_ADJUSTED::read() == 1) && !rto->forceRetime) {
+        // TODO logic!
+        // if ((GBS::GBS_RUNTIME_FTL_ADJUSTED::read() == 1) && !rto->forceRetime) {
+        if (!rto->forceRetime) {
             // FTL enabled and regular update, so don't print
             print = 0;
         }
-        GBS::GBS_RUNTIME_FTL_ADJUSTED::write(0);
+        uopt->enableFrameTimeLock = false;
+        // GBS::GBS_RUNTIME_FTL_ADJUSTED::write(0);
     }
 
     rto->forceRetime = false;
@@ -961,7 +970,7 @@ void setAndLatchPhaseSP()
 }
 
 /**
- * @brief Set the And Update Sog Level object
+ * @brief Set the And Update Sync On Green (SOG) Level object
  *          Sync detect resolution: 5bits; comparator voltage range 10mv~320mv.-> 10mV
  *          per step; if cables and source are to standard (level 6 = 60mV)
  * @param level
@@ -1205,18 +1214,20 @@ void setOverSampleRatio(uint8_t newRatio, bool prepareOnly)
  *
  * @param withCurrentVideoModeCheck
  */
-void updateSpDynamic(bool withCurrentVideoModeCheck)
+void updateStopPositionDynamic(bool withCurrentVideoModeCheck)
 {
     if (!rto->boardHasPower || rto->sourceDisconnected) {
         return;
     }
 
-    // _DBGF(PSTR("updateSpDynamic %s video mode check\n"), withCurrentVideoModeCheck ? PSTR("WITH") : PSTR("NO"));
+    // _DBGF(PSTR("updateStopPositionDynamic %s video mode check\n"), withCurrentVideoModeCheck ? PSTR("WITH") : PSTR("NO"));
 
     uint8_t vidModeReadout = getVideoMode();
-    if (vidModeReadout == 0) {
-        vidModeReadout = getVideoMode();
-    }
+    // ambigous, best is to check logic sequence or
+    // delays if an issue occures while reading
+    // if (vidModeReadout == 0) {
+    //     vidModeReadout = getVideoMode();
+    // }
 
     if (rto->videoStandardInput == 0 && vidModeReadout == 0) {
         if (GBS::SP_DLT_REG::read() > 0x30)
@@ -1366,16 +1377,16 @@ void updateSpDynamic(bool withCurrentVideoModeCheck)
 void setOutputHdBypassMode(bool regsInitialized)
 {
     if (!rto->boardHasPower) {
-        _WSN(F("(!) GBS board not responding!"));
+        _WSN(F("(!) board not responding"));
         return;
     }
 
     rto->autoBestHtotalEnabled = false; // disable while in this mode
-    rto->outModeHdBypass = 1;           // skips waiting at end of doPostPresetLoadSteps
+    // rto->outModeHdBypass = 1;           // skips waiting at end of doPostPresetLoadSteps
     uopt->resolutionID = OutputHdBypass;
 
     externalClockGenResetClock();
-    updateSpDynamic(false);
+    updateStopPositionDynamic(false);
     loadHdBypassSection(); // this would be ignored otherwise
 
     // TODO: needs clarification (see: uopt->debugView)
@@ -1643,7 +1654,7 @@ void setOutputHdBypassMode(bool regsInitialized)
     rto->phaseADC = 24;                         // fix value // works best with yuv input in tests
     setAndUpdateSogLevel(rto->currentLevelSOG); // also re-latch everything
 
-    rto->outModeHdBypass = 1;
+    // rto->outModeHdBypass = 1;
 
     unsigned long timeout = millis();
     while ((!getStatus16SpHsStable()) && (millis() - timeout < 2002)) {
@@ -1653,7 +1664,7 @@ void setOutputHdBypassMode(bool regsInitialized)
         delay(1);
     }
     // currently SP is using generic settings, switch to format specific ones
-    updateSpDynamic(false);
+    updateStopPositionDynamic(false);
     while ((getVideoMode() == 0) && (millis() - timeout < 1502)) {
         delay(1);
     }
@@ -1718,7 +1729,7 @@ void togglePhaseAdjustUnits()
 void setOutputRGBHVBypassMode()
 {
     if (!rto->boardHasPower) {
-        _WSN(F("(!) GBS board not responding!"));
+        _WSN(F("(!) board not responding!"));
         return;
     }
 
@@ -1943,43 +1954,45 @@ void runAutoGain()
  */
 void enableScanlines()
 {
-    if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 0) {
-        // _WSN(F("enableScanlines())"));
+    // if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 0) {
+    // _WSN(F("enableScanlines())"));
 
-        // GBS::RFF_ADR_ADD_2::write(0);
-        // GBS::RFF_REQ_SEL::write(1);
-        // GBS::RFF_MASTER_FLAG::write(0x3f);
-        // GBS::RFF_WFF_OFFSET::write(0); // scanline fix
-        // GBS::RFF_FETCH_NUM::write(0);
-        // GBS::RFF_ENABLE::write(1); //GBS::WFF_ENABLE::write(1);
-        // delay(10);
-        // GBS::RFF_ENABLE::write(0); //GBS::WFF_ENABLE::write(0);
+    // GBS::RFF_ADR_ADD_2::write(0);
+    // GBS::RFF_REQ_SEL::write(1);
+    // GBS::RFF_MASTER_FLAG::write(0x3f);
+    // GBS::RFF_WFF_OFFSET::write(0); // scanline fix
+    // GBS::RFF_FETCH_NUM::write(0);
+    // GBS::RFF_ENABLE::write(1); //GBS::WFF_ENABLE::write(1);
+    // delay(10);
+    // GBS::RFF_ENABLE::write(0); //GBS::WFF_ENABLE::write(0);
 
-        // following lines set up UV deinterlacer (on top of normal Y)
-        GBS::MADPT_UVDLY_PD_SP::write(0);                       // 2_39 0..3
-        GBS::MADPT_UVDLY_PD_ST::write(0);                       // 2_39 4..7
-        GBS::MADPT_EN_UV_DEINT::write(1);                       // 2_3a 0
-        GBS::MADPT_UV_MI_DET_BYPS::write(1);                    // 2_3a 7 enables 2_3b adjust
-        GBS::MADPT_UV_MI_OFFSET::write(uopt->scanlineStrength); // 2_3b offset (mixing factor here)
-        GBS::MADPT_MO_ADP_UV_EN::write(1);                      // 2_16 5 (try to do this some other way?)
+    // following lines set up UV deinterlacer (on top of normal Y)
+    GBS::MADPT_UVDLY_PD_SP::write(0);                       // 2_39 0..3
+    GBS::MADPT_UVDLY_PD_ST::write(0);                       // 2_39 4..7
+    GBS::MADPT_EN_UV_DEINT::write(1);                       // 2_3a 0
+    GBS::MADPT_UV_MI_DET_BYPS::write(1);                    // 2_3a 7 enables 2_3b adjust
+    GBS::MADPT_UV_MI_OFFSET::write(uopt->scanlineStrength); // 2_3b offset (mixing factor here)
+    GBS::MADPT_MO_ADP_UV_EN::write(1);                      // 2_16 5 (try to do this some other way?)
 
-        GBS::DIAG_BOB_PLDY_RAM_BYPS::write(0); // 2_00 7 enabled, looks better
-        GBS::MADPT_PD_RAM_BYPS::write(0);      // 2_24 2
-        GBS::RFF_YUV_DEINTERLACE::write(1);    // scanline fix 2
-        GBS::MADPT_Y_MI_DET_BYPS::write(1);    // make sure, so that mixing works
-        // GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 0x30); // more luma gain
-        // GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 4);
-        GBS::VDS_WLEV_GAIN::write(0x08);                       // 3_58
-        GBS::VDS_W_LEV_BYPS::write(0);                         // brightness
-        GBS::MADPT_VIIR_COEF::write(0x08);                     // 2_27 VIIR filter strength
-        GBS::MADPT_Y_MI_OFFSET::write(uopt->scanlineStrength); // 2_0b offset (mixing factor here)
-        GBS::MADPT_VIIR_BYPS::write(0);                        // 2_26 6 VIIR line fifo // 1 = off
-        GBS::RFF_LINE_FLIP::write(1);                          // clears potential garbage in rff buffer
+    GBS::DIAG_BOB_PLDY_RAM_BYPS::write(0); // 2_00 7 enabled, looks better
+    GBS::MADPT_PD_RAM_BYPS::write(0);      // 2_24 2
+    GBS::RFF_YUV_DEINTERLACE::write(1);    // scanline fix 2
+    GBS::MADPT_Y_MI_DET_BYPS::write(1);    // make sure, so that mixing works
+    // GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 0x30); // more luma gain
+    // GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 4);
+    GBS::VDS_WLEV_GAIN::write(0x08);                       // 3_58
+    GBS::VDS_W_LEV_BYPS::write(0);                         // brightness
+    GBS::MADPT_VIIR_COEF::write(0x08);                     // 2_27 VIIR filter strength
+    GBS::MADPT_Y_MI_OFFSET::write(uopt->scanlineStrength); // 2_0b offset (mixing factor here)
+    GBS::MADPT_VIIR_BYPS::write(0);                        // 2_26 6 VIIR line fifo // 1 = off
+    GBS::RFF_LINE_FLIP::write(1);                          // clears potential garbage in rff buffer
 
-        GBS::MAPDT_VT_SEL_PRGV::write(0);
-        GBS::GBS_OPTION_SCANLINES_ENABLED::write(1);
-    }
-    rto->scanlinesEnabled = 1;
+    GBS::MAPDT_VT_SEL_PRGV::write(0);
+    // GBS::GBS_OPTION_SCANLINES_ENABLED::write(1);
+    uopt->wantScanlines = true;
+
+    // }
+    // rto->scanlinesEnabled = 1;
 }
 
 /**
@@ -1988,30 +2001,31 @@ void enableScanlines()
  */
 void disableScanlines()
 {
-    if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) {
-        // _WSN(F("disableScanlines())"));
-        GBS::MAPDT_VT_SEL_PRGV::write(1);
+    // if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) {
 
-        // following lines set up UV deinterlacer (on top of normal Y)
-        GBS::MADPT_UVDLY_PD_SP::write(4);    // 2_39 0..3
-        GBS::MADPT_UVDLY_PD_ST::write(4);    // 2_39 4..77
-        GBS::MADPT_EN_UV_DEINT::write(0);    // 2_3a 0
-        GBS::MADPT_UV_MI_DET_BYPS::write(0); // 2_3a 7 enables 2_3b adjust
-        GBS::MADPT_UV_MI_OFFSET::write(4);   // 2_3b
-        GBS::MADPT_MO_ADP_UV_EN::write(0);   // 2_16 5
+    GBS::MAPDT_VT_SEL_PRGV::write(1);
 
-        GBS::DIAG_BOB_PLDY_RAM_BYPS::write(1); // 2_00 7
-        GBS::VDS_W_LEV_BYPS::write(1);         // brightness
-        // GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 0x30);
-        // GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() - 4);
-        GBS::MADPT_Y_MI_OFFSET::write(0xff); // 2_0b offset 0xff disables mixing
-        GBS::MADPT_VIIR_BYPS::write(1);      // 2_26 6 disable VIIR
-        GBS::MADPT_PD_RAM_BYPS::write(1);
-        GBS::RFF_LINE_FLIP::write(0); // back to default
+    // following lines set up UV deinterlacer (on top of normal Y)
+    GBS::MADPT_UVDLY_PD_SP::write(4);    // 2_39 0..3
+    GBS::MADPT_UVDLY_PD_ST::write(4);    // 2_39 4..77
+    GBS::MADPT_EN_UV_DEINT::write(0);    // 2_3a 0
+    GBS::MADPT_UV_MI_DET_BYPS::write(0); // 2_3a 7 enables 2_3b adjust
+    GBS::MADPT_UV_MI_OFFSET::write(4);   // 2_3b
+    GBS::MADPT_MO_ADP_UV_EN::write(0);   // 2_16 5
 
-        GBS::GBS_OPTION_SCANLINES_ENABLED::write(0);
-    }
-    rto->scanlinesEnabled = 0;
+    GBS::DIAG_BOB_PLDY_RAM_BYPS::write(1); // 2_00 7
+    GBS::VDS_W_LEV_BYPS::write(1);         // brightness
+    // GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() - 0x30);
+    // GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() - 4);
+    GBS::MADPT_Y_MI_OFFSET::write(0xff); // 2_0b offset 0xff disables mixing
+    GBS::MADPT_VIIR_BYPS::write(1);      // 2_26 6 disable VIIR
+    GBS::MADPT_PD_RAM_BYPS::write(1);
+    GBS::RFF_LINE_FLIP::write(0); // back to default
+
+    // GBS::GBS_OPTION_SCANLINES_ENABLED::write(0);
+    uopt->wantScanlines = false;
+    // }
+    // rto->scanlinesEnabled = 0;
 }
 
 /**
@@ -2146,7 +2160,7 @@ void writeProgramArrayNew(const uint8_t *programArray, bool skipMDSection)
         rto->videoStandardInput = 0;
     }
 
-    rto->outModeHdBypass = 0; // the default at this stage
+    // rto->outModeHdBypass = 0; // the default at this stage
     if (GBS::ADC_INPUT_SEL::read() == 0) {
         // if (rto->inputIsYPbPr == 0) _WSN(F("rto->inputIsYPbPr was 0, fixing to 1");
         rto->inputIsYPbPr = 1; // new: update the var here, allow manual preset loads
@@ -2293,7 +2307,7 @@ void writeProgramArrayNew(const uint8_t *programArray, bool skipMDSection)
 
     // scaling RGBHV mode
     if (uopt->preferScalingRgbhv && rto->isValidForScalingRGBHV) {
-        GBS::GBS_OPTION_SCALING_RGBHV::write(1);
+        // GBS::GBS_OPTION_SCALING_RGBHV::write(1);
         rto->videoStandardInput = 3;
     }
 }
@@ -2947,7 +2961,8 @@ void scaleHorizontal(uint16_t amountToScale, bool subtracting)
  */
 void moveHS(uint16_t amountToAdd, bool subtracting)
 {
-    if (rto->outModeHdBypass) {
+    // if (rto->outModeHdBypass) {
+    if (uopt->resolutionID == OutputHdBypass) {
         uint16_t SP_CS_HS_ST = GBS::SP_CS_HS_ST::read();
         uint16_t SP_CS_HS_SP = GBS::SP_CS_HS_SP::read();
         uint16_t htotal = GBS::HD_HSYNC_RST::read();
@@ -3204,7 +3219,8 @@ void shiftVerticalUpIF()
     uint8_t offset = rto->videoStandardInput == 2 ? 4 : 1;
     uint16_t sourceLines = GBS::VPERIOD_IF::read() - offset;
     // add an override for sourceLines, in case where the IF data is not available
-    if ((GBS::GBS_OPTION_SCALING_RGBHV::read() == 1) && rto->videoStandardInput == 14) {
+    // if ((GBS::GBS_OPTION_SCALING_RGBHV::read() == 1) && rto->videoStandardInput == 14) {
+    if (uopt->preferScalingRgbhv && rto->videoStandardInput == 14) {
         sourceLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
     }
     int16_t stop = GBS::IF_VB_SP::read();
@@ -3230,7 +3246,8 @@ void shiftVerticalDownIF()
     uint8_t offset = rto->videoStandardInput == 2 ? 4 : 1;
     uint16_t sourceLines = GBS::VPERIOD_IF::read() - offset;
     // add an override for sourceLines, in case where the IF data is not available
-    if ((GBS::GBS_OPTION_SCALING_RGBHV::read() == 1) && rto->videoStandardInput == 14) {
+    // if ((GBS::GBS_OPTION_SCALING_RGBHV::read() == 1) && rto->videoStandardInput == 14) {
+    if (uopt->preferScalingRgbhv && rto->videoStandardInput == 14) {
         sourceLines = GBS::STATUS_SYNC_PROC_VTOTAL::read();
     }
 
@@ -3255,7 +3272,8 @@ void shiftVerticalDownIF()
  */
 void setHSyncStartPosition(uint16_t value)
 {
-    if (rto->outModeHdBypass) {
+    // if (rto->outModeHdBypass) {
+    if (uopt->resolutionID == OutputHdBypass) {
         // GBS::HD_HS_ST::write(value);
         GBS::SP_CS_HS_ST::write(value);
     } else {
@@ -3270,7 +3288,8 @@ void setHSyncStartPosition(uint16_t value)
  */
 void setHSyncStopPosition(uint16_t value)
 {
-    if (rto->outModeHdBypass) {
+    // if (rto->outModeHdBypass) {
+    if (uopt->resolutionID == OutputHdBypass) {
         // GBS::HD_HS_SP::write(value);
         GBS::SP_CS_HS_SP::write(value);
     } else {
@@ -3747,7 +3766,8 @@ void updateClampPosition()
 
         // new: HDBypass rewrite to sync to falling HS edge: move clamp position forward
         // RGB can stay the same for now (clamp will start on sync pulse, a benefit in RGB
-        if (rto->outModeHdBypass) {
+        // if (rto->outModeHdBypass) {
+        if (uopt->resolutionID == OutputHdBypass) {
             if (videoStandardInputIsPalNtscSd()) {
                 start += 0x60;
                 stop += 0x60;
@@ -3881,7 +3901,8 @@ void runSyncWatcher()
     uint8_t detectedVideoMode = getVideoMode();
     bool status16SpHsStable = getStatus16SpHsStable();
 
-    if (rto->outModeHdBypass && status16SpHsStable) {
+    // if (rto->outModeHdBypass && status16SpHsStable) {
+    if (uopt->resolutionID == OutputHdBypass && status16SpHsStable) {
         if (videoStandardInputIsPalNtscSd()) {
             if (millis() - lastLineCountMeasure > 765) {
                 thisStableLineCount = GBS::STATUS_SYNC_PROC_VTOTAL::read();
@@ -3969,7 +3990,7 @@ void runSyncWatcher()
                     rto->currentLevelSOG -= 1;
                     setAndUpdateSogLevel(rto->currentLevelSOG);
                     delay(30);
-                    updateSpDynamic(false);
+                    updateStopPositionDynamic(false);
                     badHsActive = 0;
                     lastAdjustWasInActiveWindow = 1;
                 } else if (badHsActive > 40) {
@@ -3985,7 +4006,7 @@ void runSyncWatcher()
                 rto->currentLevelSOG -= 1;
                 setAndUpdateSogLevel(rto->currentLevelSOG);
                 delay(30);
-                updateSpDynamic(false);
+                updateStopPositionDynamic(false);
                 badHsActive = 0;
                 rto->phaseIsSet = 0;
             }
@@ -4038,7 +4059,7 @@ void runSyncWatcher()
             GBS::SP_H_CST_SP::write(0x100);
             // GBS::SP_H_PROTECT::write(1);  // at noSyncCounter = 32 will alternate on / off
             if (videoStandardInputIsPalNtscSd()) {
-                // this can early detect mode changes (before updateSpDynamic resets all)
+                // this can early detect mode changes (before updateStopPositionDynamic resets all)
                 GBS::SP_PRE_COAST::write(9);
                 GBS::SP_POST_COAST::write(9);
                 // new: test SD<>EDTV changes
@@ -4052,7 +4073,7 @@ void runSyncWatcher()
 
         if (rto->noSyncCounter % 27 == 0) {
             // the * check needs to be first (go before auto sog level) to support SD > HDTV detection
-            updateSpDynamic(true);
+            updateStopPositionDynamic(true);
         }
 
         if (rto->noSyncCounter % 32 == 0) {
@@ -4104,7 +4125,7 @@ void runSyncWatcher()
             GBS::SP_H_CST_SP::write(0x100); // instead of disabling 5_3e 5 coast
             GBS::SP_CS_CLP_ST::write(32);   // neutral clamp values
             GBS::SP_CS_CLP_SP::write(48);   //
-            updateSpDynamic(true);
+            updateStopPositionDynamic(true);
             nudgeMD(); // can fix MD not noticing a line count update
             delay(80);
 
@@ -4193,7 +4214,7 @@ void runSyncWatcher()
                 rto->coastPositionIsSet = 0;
                 delay(10);
                 if (getVideoMode() == 0) {
-                    updateSpDynamic(true); // check ntsc to 480p and back
+                    updateStopPositionDynamic(true); // check ntsc to 480p and back
                     delay(40);
                 }
             }
@@ -4290,7 +4311,7 @@ void runSyncWatcher()
         }
 
         if (rto->continousStableCounter == 2) {
-            updateSpDynamic(false);
+            updateStopPositionDynamic(false);
             if (doFullRestore) {
                 delay(20);
                 optimizeSogLevel();
@@ -4332,12 +4353,13 @@ void runSyncWatcher()
 
         if (rto->continousStableCounter % 31 == 0) {
             // new: 8 regular interval checks up until 255
-            updateSpDynamic(false);
+            updateStopPositionDynamic(false);
         }
 
         if (rto->continousStableCounter >= 3) {
             if ((rto->videoStandardInput == 1 || rto->videoStandardInput == 2) &&
-                !rto->outModeHdBypass && rto->noSyncCounter == 0) {
+                uopt->resolutionID != OutputHdBypass && rto->noSyncCounter == 0) {
+                // !rto->outModeHdBypass && rto->noSyncCounter == 0) {
                 // deinterlacer and scanline code
                 static uint8_t timingAdjustDelay = 0;
                 static uint8_t oddEvenWhenArmed = 0;
@@ -4368,7 +4390,8 @@ void runSyncWatcher()
                         if (filteredLineCountMotionAdaptiveOn >= 2) // at least >= 2
                         {
                             if (uopt->deintMode == 0 && !rto->motionAdaptiveDeinterlaceActive) {
-                                if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
+                                // if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1) { // don't rely on rto->scanlinesEnabled
+                                if (uopt->wantScanlines) { // don't rely on rto->scanlinesEnabled
                                     disableScanlines();
                                 }
                                 enableMotionAdaptDeinterlace();
@@ -4409,12 +4432,15 @@ void runSyncWatcher()
                         if (rto->motionAdaptiveDeinterlaceActive) {
                             disableMotionAdaptDeinterlace();
                             FrameSync::reset(uopt->frameTimeLockMethod);
-                            GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);
+                            // TODO logic!
+                            uopt->enableFrameTimeLock = true;
+                            // GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);
                             lastVsyncLock = millis();
                         }
-                        if (uopt->wantScanlines && !rto->scanlinesEnabled) {
+                        if (uopt->wantScanlines) {  // && !rto->scanlinesEnabled) {
                             enableScanlines();
-                        } else if (!uopt->wantScanlines && rto->scanlinesEnabled) {
+                        // } else if (!uopt->wantScanlines && rto->scanlinesEnabled) {
+                        } else {
                             disableScanlines();
                         }
                     }
@@ -4430,7 +4456,9 @@ void runSyncWatcher()
                             if (timingAdjustDelay == 0) {
                                 if (uopt->enableFrameTimeLock) {
                                     FrameSync::reset(uopt->frameTimeLockMethod);
-                                    GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);
+                                    // TODO logic!
+                                    uopt->enableFrameTimeLock = true;
+                                    // GBS::GBS_RUNTIME_FTL_ADJUSTED::write(1);
                                     delay(10);
                                     lastVsyncLock = millis();
                                 }
@@ -4444,13 +4472,15 @@ void runSyncWatcher()
                 }
 
                 // scanlines
-                if (uopt->wantScanlines) {
-                    if (!rto->scanlinesEnabled && !rto->motionAdaptiveDeinterlaceActive && !preventScanlines) {
+                // if (uopt->wantScanlines) {
+                    // if (!rto->scanlinesEnabled && !rto->motionAdaptiveDeinterlaceActive && !preventScanlines) {
+                    if (!rto->motionAdaptiveDeinterlaceActive && !preventScanlines) {
                         enableScanlines();
-                    } else if (!uopt->wantScanlines && rto->scanlinesEnabled) {
+                    // } else if (!uopt->wantScanlines && rto->scanlinesEnabled) {
+                    } else {
                         disableScanlines();
                     }
-                }
+                // }
             }
         }
     }
@@ -4478,7 +4508,7 @@ void runSyncWatcher()
                 if (moveOn) {
                     _WSN(F("RGB/HV upscale mode"));
                     rto->isValidForScalingRGBHV = true;
-                    GBS::GBS_OPTION_SCALING_RGBHV::write(1);
+                    // GBS::GBS_OPTION_SCALING_RGBHV::write(1);
                     rto->autoBestHtotalEnabled = 1;
 
                     if (rto->syncTypeCsync == false) {
@@ -4536,7 +4566,9 @@ void runSyncWatcher()
                     activePresetLineCount = sourceLines;
                     applyPresets(rto->videoStandardInput);
 
-                    GBS::GBS_OPTION_SCALING_RGBHV::write(1);
+                    // TODO enabling Upscaling here?
+                    uopt->preferScalingRgbhv = true;
+                    // GBS::GBS_OPTION_SCALING_RGBHV::write(1);
                     GBS::IF_INI_ST::write(16);   // fixes pal(at least) interlace
                     GBS::SP_SOG_P_ATO::write(1); // 5_20 1 auto SOG polarity (now "hpw" should never be close to "ht")
 
@@ -4552,7 +4584,7 @@ void runSyncWatcher()
                         delay(40);
                     }
 
-                    updateSpDynamic(true);
+                    updateStopPositionDynamic(true);
                     if (rto->syncTypeCsync == false) {
                         GBS::SP_SOG_MODE::write(0);
                         GBS::SP_CLAMP_MANUAL::write(1);
@@ -4567,10 +4599,13 @@ void runSyncWatcher()
 
                     if (rto->extClockGenDetected) {
                         // switch to ext clock
-                        if (!rto->outModeHdBypass) {
-                            if (GBS::PLL648_CONTROL_01::read() != 0x35 && GBS::PLL648_CONTROL_01::read() != 0x75) {
+                        // if (!rto->outModeHdBypass) {
+                        if (uopt->resolutionID != OutputHdBypass) {
+                            uint8_t pll648_value = GBS::PLL648_CONTROL_01::read();
+                            if (pll648_value != 0x35 && pll648_value != 0x75) {
                                 // first store original in an option byte in 1_2D
-                                GBS::GBS_PRESET_DISPLAY_CLOCK::write(GBS::PLL648_CONTROL_01::read());
+                                // GBS::GBS_PRESET_DISPLAY_CLOCK::write(GBS::PLL648_CONTROL_01::read());
+                                rto->presetDisplayClock = pll648_value;
                                 // enable and switch input
                                 Si.enable(0);
                                 delayMicroseconds(800);
@@ -4652,7 +4687,9 @@ void runSyncWatcher()
                         activePresetLineCount = sourceLines;
                         applyPresets(rto->videoStandardInput);
 
-                        GBS::GBS_OPTION_SCALING_RGBHV::write(1);
+                        // TODO enabling Upscale here?
+                        uopt->preferScalingRgbhv = true;
+                        // GBS::GBS_OPTION_SCALING_RGBHV::write(1);
                         GBS::IF_INI_ST::write(16);   // fixes pal(at least) interlace
                         GBS::SP_SOG_P_ATO::write(1); // 5_20 1 auto SOG polarity
 
@@ -4668,7 +4705,7 @@ void runSyncWatcher()
                             latchPLLAD();
                         }
 
-                        updateSpDynamic(true);
+                        updateStopPositionDynamic(true);
                         if (rto->syncTypeCsync == false) {
                             GBS::SP_SOG_MODE::write(0);
                             GBS::SP_CLAMP_MANUAL::write(1);
@@ -4683,10 +4720,13 @@ void runSyncWatcher()
 
                         if (rto->extClockGenDetected) {
                             // switch to ext clock
-                            if (!rto->outModeHdBypass) {
-                                if (GBS::PLL648_CONTROL_01::read() != 0x35 && GBS::PLL648_CONTROL_01::read() != 0x75) {
+                            // if (!rto->outModeHdBypass) {
+                            if (uopt->resolutionID != OutputHdBypass) {
+                                uint8_t pll648_value = GBS::PLL648_CONTROL_01::read();
+                                if (pll648_value != 0x35 && pll648_value != 0x75) {
                                     // first store original in an option byte in 1_2D
-                                    GBS::GBS_PRESET_DISPLAY_CLOCK::write(GBS::PLL648_CONTROL_01::read());
+                                    // GBS::GBS_PRESET_DISPLAY_CLOCK::write(GBS::PLL648_CONTROL_01::read());
+                                    rto->presetDisplayClock = pll648_value;
                                     // enable and switch input
                                     Si.enable(0);
                                     delayMicroseconds(800);
@@ -4773,7 +4813,7 @@ void runSyncWatcher()
                 // STATUS_INT_SOG_BAD = 0x0f bit 0, interrupt reg
                 resetModeDetect();
                 stable = 0;
-                _WS(F("`"));
+                _WS(F("."));
                 delay(10);
                 resetInterruptSogBadBit();
             } else {
@@ -4795,7 +4835,7 @@ void runSyncWatcher()
             RGBHVNoSyncCounter++;
             rto->continousStableCounter = 0;
             if (RGBHVNoSyncCounter % 20 == 0) {
-                _WS(F("`"));
+                _WS(F("."));
             }
         } else {
             RGBHVNoSyncCounter = 0;
@@ -4803,7 +4843,7 @@ void runSyncWatcher()
             if (rto->continousStableCounter < 255) {
                 rto->continousStableCounter++;
                 if (rto->continousStableCounter == 6) {
-                    updateSpDynamic(true);
+                    updateStopPositionDynamic(true);
                 }
             }
         }
@@ -4934,15 +4974,17 @@ void runSyncWatcher()
 
             if (rto->videoStandardInput == 14) {
                 // scanlines
-                if (uopt->wantScanlines) {
-                    if (!rto->scanlinesEnabled && !rto->motionAdaptiveDeinterlaceActive) {
+                // if (uopt->wantScanlines) {
+                    // if (!rto->scanlinesEnabled && !rto->motionAdaptiveDeinterlaceActive) {
+                    if (!rto->motionAdaptiveDeinterlaceActive) {
                         if (GBS::IF_LD_RAM_BYPS::read() == 0) { // line doubler on?
                             enableScanlines();
                         }
-                    } else if (!uopt->wantScanlines && rto->scanlinesEnabled) {
+                    // } else if (!uopt->wantScanlines && rto->scanlinesEnabled) {
+                    } else {
                         disableScanlines();
                     }
-                }
+                // }
             }
 
             rto->clampPositionIsSet = false; // RGBHV should regularly check clamp position

@@ -3,7 +3,7 @@
 # File: utils.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 5:37:47 pm                                   #
 # Author:                                                                           #
-# Last Modified: Saturday, 15th June 2024 8:00:46 pm                      #
+# Last Modified: Tuesday, 18th June 2024 12:16:32 am                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -171,7 +171,8 @@ void resetDigital()
     // GBS::RESET_CONTROL_0x47::write(0x00);
     GBS::RESET_CONTROL_0x47::write(0x17); // new, keep 0,1,2,4 on (DEC,MODE,SYNC,INT) //MODE okay?
 
-    if (rto->outModeHdBypass) { // if currently in bypass
+    // if (rto->outModeHdBypass) { // if currently in bypass
+    if (uopt->resolutionID == OutputHdBypass) { // if currently in bypass
         GBS::RESET_CONTROL_0x46::write(0x00);
         GBS::RESET_CONTROL_0x47::write(0x1F);
         return; // 0x46 stays all 0
@@ -205,7 +206,7 @@ void resetDebugPort()
 }
 
 /**
- * @brief Returns videoMode ID, retrieved from GBS object
+ * @brief Returns videoMode ID, idntified by TV chip
  *
  * @return uint8_t
  */

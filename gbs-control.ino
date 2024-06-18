@@ -8,7 +8,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Sunday, 16th June 2024 2:21:46 am                        #
+# Last Modified: Tuesday, 18th June 2024 12:42:27 am                      #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -120,7 +120,7 @@ void setup()
     rto->HPLLState = 0;
     rto->motionAdaptiveDeinterlaceActive = false;
     rto->deinterlaceAutoEnabled = true;
-    rto->scanlinesEnabled = false;
+    // rto->scanlinesEnabled = false;
     rto->boardHasPower = true;
     rto->presetIsPalForce60 = false;
     rto->syncTypeCsync = false;
@@ -132,7 +132,7 @@ void setup()
 
     rto->inputIsYPbPr = false;
     rto->videoStandardInput = 0;
-    rto->outModeHdBypass = false;
+    // rto->outModeHdBypass = false;
     // rto->videoIsFrozen = false;
     rto->printInfos = false;
     rto->sourceDisconnected = true;
@@ -365,30 +365,6 @@ void loop()
     menuLoop();
     wifiLoop();
 
-        // Input signal detection
-    if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true && rto->boardHasPower) {
-        if ((millis() - lastTimeSourceCheck) >= 500) {
-            if (checkBoardPower()) {
-                inputAndSyncDetect();
-            } else {
-                // rto->boardHasPower = false;
-                rto->continousStableCounter = 0;
-                rto->syncWatcherEnabled = false;
-            }
-            lastTimeSourceCheck = millis();
-
-            // vary SOG slicer level from 2 to 6
-            uint8_t currentSOG = GBS::ADC_SOGCTRL::read();
-            if (currentSOG >= 3) {
-                rto->currentLevelSOG = currentSOG - 1;
-                GBS::ADC_SOGCTRL::write(rto->currentLevelSOG);
-            } else {
-                rto->currentLevelSOG = 6;
-                GBS::ADC_SOGCTRL::write(rto->currentLevelSOG);
-            }
-        }
-    }
-
     // run FrameTimeLock if enabled
     if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false
         && rto->autoBestHtotalEnabled && rto->syncWatcherEnabled
@@ -435,7 +411,7 @@ _DBGN(F("11"));
         }
     }
 
-    // information mode
+    // TODO heavy load for serial and WS. to reimplement
     if (rto->printInfos == true) {
         printInfo();
     }
@@ -538,10 +514,13 @@ _DBGN(F("73"));
 
             if (rto->extClockGenDetected && rto->videoStandardInput != 14) {
                 // switch to ext clock
-                if (!rto->outModeHdBypass) {
-                    if (GBS::PLL648_CONTROL_01::read() != 0x35 && GBS::PLL648_CONTROL_01::read() != 0x75) {
+                // if (!rto->outModeHdBypass) {
+                if (uopt->resolutionID != OutputHdBypass) {
+                    uint8_t pll648_value = GBS::PLL648_CONTROL_01::read();
+                    if (pll648_value != 0x35 && pll648_value != 0x75) {
                         // first store original in an option byte in 1_2D
-                        GBS::GBS_PRESET_DISPLAY_CLOCK::write(GBS::PLL648_CONTROL_01::read());
+                        // GBS::GBS_PRESET_DISPLAY_CLOCK::write(pll648_value);
+                        rto->presetDisplayClock = pll648_value;
                         // enable and switch input
                         Si.enable(0);
                         delayMicroseconds(800);
@@ -575,6 +554,30 @@ _DBGN(F("8"));
         rto->applyPresetDoneStage = 11; // set first, so we don't loop applying presets
         setOutputHdBypassMode(false);
 _DBGN(F("9"));
+    }
+
+    // Input signal detection
+    if (rto->syncWatcherEnabled == true && rto->sourceDisconnected == true && rto->boardHasPower) {
+        if ((millis() - lastTimeSourceCheck) >= 500) {
+            if (checkBoardPower()) {
+                inputAndSyncDetect();
+            } else {
+                // rto->boardHasPower = false;
+                rto->continousStableCounter = 0;
+                rto->syncWatcherEnabled = false;
+            }
+            lastTimeSourceCheck = millis();
+
+            // vary SOG slicer level from 2 to 6
+            uint8_t currentSOG = GBS::ADC_SOGCTRL::read();
+            if (currentSOG >= 3) {
+                rto->currentLevelSOG = currentSOG - 1;
+                GBS::ADC_SOGCTRL::write(rto->currentLevelSOG);
+            } else {
+                rto->currentLevelSOG = 6;
+                GBS::ADC_SOGCTRL::write(rto->currentLevelSOG);
+            }
+        }
     }
 
     // has the GBS board lost power?

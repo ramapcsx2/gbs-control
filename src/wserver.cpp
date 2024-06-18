@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Sunday, 16th June 2024 2:37:07 am                        #
+# Last Modified: Tuesday, 18th June 2024 12:25:32 am                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -969,11 +969,12 @@ void handleSerialCommand()
         break;
     case 'd':
     {
-        // don't store scanlines
-        if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1)
-        {
-            disableScanlines();
-        }
+        // TODO don't store scanlines - WHY?
+        // if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1)
+        // if (uopt->wantScanlines)
+        // {
+        //     disableScanlines();
+        // }
         // pal forced 60hz: no need to revert here. let the voffset function handle it
 
         if (uopt->enableFrameTimeLock && FrameSync::getSyncLastCorrection() != 0)
@@ -1113,8 +1114,10 @@ void handleSerialCommand()
     case 'p':
         if (!rto->motionAdaptiveDeinterlaceActive)
         {
-            if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1)
-            { // don't rely on rto->scanlinesEnabled
+            // TODO why disabling scanlines?
+            // if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1)
+            if (uopt->wantScanlines)
+            {
                 disableScanlines();
             }
             enableMotionAdaptDeinterlace();
@@ -1166,7 +1169,8 @@ void handleSerialCommand()
         break;
     case '.':               // resync HTotal
     {
-        if (!rto->outModeHdBypass)
+        // if (!rto->outModeHdBypass)
+        if (uopt->resolutionID != OutputHdBypass)
         {
             // bestHtotal recalc
             rto->autoBestHtotalEnabled = true;
@@ -1264,7 +1268,7 @@ void handleSerialCommand()
         updateCoastPosition(0);
     }
     break;
-    case 'N':
+    case 'N':               // toggle scanlines
     {
         // if (GBS::RFF_ENABLE::read()) {
         //   disableMotionAdaptDeinterlace();
@@ -1275,15 +1279,19 @@ void handleSerialCommand()
 
         // GBS::RFF_ENABLE::write(!GBS::RFF_ENABLE::read());
 
-        if (rto->scanlinesEnabled)
+        // if (rto->scanlinesEnabled)
+        _DBG(F("scanlines: "));
+        if (uopt->wantScanlines)
         {
-            rto->scanlinesEnabled = false;
+            // rto->scanlinesEnabled = false;
             disableScanlines();
+            _DBGN(F("off"));
         }
         else
         {
-            rto->scanlinesEnabled = true;
+            // rto->scanlinesEnabled = true;
             enableScanlines();
+            _DBGN(F("on"));
         }
     }
     break;
@@ -1492,7 +1500,8 @@ void handleSerialCommand()
     }
     break;
     case '6':
-        if (videoStandardInputIsPalNtscSd() && !rto->outModeHdBypass)
+        // if (videoStandardInputIsPalNtscSd() && !rto->outModeHdBypass)
+        if (videoStandardInputIsPalNtscSd() && uopt->resolutionID != OutputHdBypass)
         {
             if (GBS::IF_HBIN_SP::read() >= 10)
             {                                                        // IF_HBIN_SP: min 2
@@ -1508,7 +1517,8 @@ void handleSerialCommand()
                 _WSN(F("limit"));
             }
         }
-        else if (!rto->outModeHdBypass)
+        // else if (!rto->outModeHdBypass)
+        else if (uopt->resolutionID != OutputHdBypass)
         {
             if (GBS::IF_HB_SP2::read() >= 4)
                 GBS::IF_HB_SP2::write(GBS::IF_HB_SP2::read() - 4); // 1_1a
@@ -1523,7 +1533,8 @@ void handleSerialCommand()
         }
         break;
     case '7':
-        if (videoStandardInputIsPalNtscSd() && !rto->outModeHdBypass)
+        // if (videoStandardInputIsPalNtscSd() && !rto->outModeHdBypass)
+        if (videoStandardInputIsPalNtscSd() && uopt->resolutionID != OutputHdBypass)
         {
             if (GBS::IF_HBIN_SP::read() < 0x150)
             {                                                        // (arbitrary) max limit
@@ -1534,7 +1545,8 @@ void handleSerialCommand()
                 _WSN(F("limit"));
             }
         }
-        else if (!rto->outModeHdBypass)
+        // else if (!rto->outModeHdBypass)
+        else if (uopt->resolutionID != OutputHdBypass)
         {
             if (GBS::IF_HB_SP2::read() < (GBS::IF_HSYNC_RST::read() - 0x30))
                 GBS::IF_HB_SP2::write(GBS::IF_HB_SP2::read() + 4); // 1_1a
@@ -1819,7 +1831,8 @@ void handleSerialCommand()
             if (what.equals("ht"))
             {
                 // set_htotal(value);
-                if (!rto->outModeHdBypass)
+                // if (!rto->outModeHdBypass)
+                if (uopt->resolutionID != OutputHdBypass)
                 {
                     rto->forceRetime = 1;
                     applyBestHTotal(value);
@@ -2404,7 +2417,9 @@ void handleUserCommand()
             // switch to bob mode
             uopt->deintMode = 1;
             disableMotionAdaptDeinterlace();
-            if (GBS::GBS_OPTION_SCANLINES_ENABLED::read())
+            // TODO why disable scanlines?
+            // if (GBS::GBS_OPTION_SCANLINES_ENABLED::read())
+            if (uopt->wantScanlines)
             {
                 disableScanlines();
             }
@@ -2559,7 +2574,8 @@ void handleUserCommand()
         {
             uopt->scanlineStrength = 0x50;
         }
-        if (rto->scanlinesEnabled)
+        // if (rto->scanlinesEnabled)
+        if (uopt->wantScanlines)
         {
             GBS::MADPT_Y_MI_OFFSET::write(uopt->scanlineStrength);
             GBS::MADPT_UV_MI_OFFSET::write(uopt->scanlineStrength);
@@ -2567,7 +2583,7 @@ void handleUserCommand()
         savePresetToFS();
         slotFlush();
         // saveUserPrefs();
-        _WSF(PSTR("Scanline Brightness: 0x%04X\n"), uopt->scanlineStrength);
+        _WSF(PSTR("scanline strength set: 0x%04X\n"), uopt->scanlineStrength);
         break;
     case 'Z':           // brightness++
         GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 1);
