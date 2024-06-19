@@ -3,7 +3,7 @@
 # File: wserial.cpp                                                       #
 # File Created: Friday, 19th April 2024 4:13:35 pm                        #
 # Author: Sergey Ko                                                       #
-# Last Modified: Wednesday, 12th June 2024 12:40:45 am                    #
+# Last Modified: Tuesday, 18th June 2024 1:29:36 pm                       #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -19,7 +19,7 @@ static char * serialBuffer = nullptr;
  *        If developer mode disabled serialBuffer will be destroyed.
  */
 void serialDevModeToggle() {
-    if(uopt->developerMode) {
+    if(uopt.developerMode) {
         if(serialBuffer == nullptr) {
             serialBuffer = (char *)malloc(SERIAL_BUFFER_MAX_LEN);
             serialBufferClean();
@@ -70,7 +70,7 @@ void serialBufferClean() {
  * @param size
  */
 void SerialMirror::pushToBuffer(void * data, size_t size) {
-    if(!uopt->developerMode)
+    if(!uopt.developerMode)
         return;
     uint16_t i = 0;
     const char * d = reinterpret_cast<char *>(data);

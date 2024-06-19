@@ -150,48 +150,48 @@ enum OutputResolution : uint8_t {
 };
 
 // userOptions holds user preferences / customizations
-struct userOptions
+typedef struct
 {
-    OutputResolution resolutionID;
-    uint8_t slotID;
-    bool enableFrameTimeLock;
-    uint8_t frameTimeLockMethod;
-    bool enableAutoGain;
-    bool wantScanlines;
-    bool wantOutputComponent;
-    uint8_t deintMode;
-    bool wantVdsLineFilter;
-    bool wantPeaking;
-    bool wantTap6;
-    bool preferScalingRgbhv;
-    bool PalForce60;
-    bool disableExternalClockGenerator;
+    OutputResolution resolutionID = OutputHdBypass;
+    uint8_t slotID = 0;
+    bool enableFrameTimeLock = false;
+    uint8_t frameTimeLockMethod = 0;
+    bool enableAutoGain = false;
+    bool wantScanlines = false;
+    bool wantOutputComponent = false;
+    uint8_t deintMode = 1;
+    bool wantVdsLineFilter = false;
+    bool wantPeaking = false;
+    bool wantTap6 = false;
+    bool preferScalingRgbhv = true;
+    bool PalForce60 = false;
+    bool disableExternalClockGenerator = false;
     // uint8_t matchPresetSource;
-    bool wantStepResponse;
-    bool wantFullHeight;
-    bool enableCalibrationADC;
-    uint8_t scanlineStrength;
+    bool wantStepResponse = true;
+    bool wantFullHeight = true;
+    bool enableCalibrationADC = true;
+    uint8_t scanlineStrength = SCANLINE_STRENGTH_INIT;
     // dev
-    bool invertSync;
-    bool debugView;
-    bool developerMode;
-    bool freezeCapture;
-    bool adcFilter;
-};
+    bool invertSync = false;
+    bool debugView = false;
+    bool developerMode = false;
+    bool freezeCapture = false;
+    bool adcFilter = true;
+} userOptions;
 
 // runTimeOptions holds system variables
-struct runTimeOptions
+typedef struct
 {
     // system state
-    bool systemInitOK;
+    bool systemInitOK = false;
     // source identification
-    bool boardHasPower;
-    uint8_t continousStableCounter;
-    bool syncWatcherEnabled;
-    bool inputIsYPbPr;
-    uint8_t currentLevelSOG;
-    bool isInLowPowerMode;
-    bool sourceDisconnected;
+    bool boardHasPower = true;          // ambigous, it is enough to checkBoardPower at all times
+    uint8_t continousStableCounter = 0;
+    bool syncWatcherEnabled = true;
+    bool inputIsYPbPr = false;
+    uint8_t currentLevelSOG = 5;
+    bool isInLowPowerMode = false;
+    bool sourceDisconnected = true;
     /**
      * @brief This variable is used to store an active videoID (of the last detection).
      *        Video input ID (see: getVideoMode()):
@@ -212,70 +212,76 @@ struct runTimeOptions
      *  14 - ? RGB/HV (setOutputRGBHVBypassMode)                 <---------⨼
      *  15 - RGB/HV (setOutputRGBHVBypassMode)                            <--- RGBHV Bypass
      */
-    uint8_t videoStandardInput;
-    bool syncTypeCsync;
+    uint8_t videoStandardInput = 0;
+    bool syncTypeCsync = false;
     uint8_t thisSourceMaxLevelSOG;
-    uint8_t medResLineCount;
+    uint8_t medResLineCount = 0x33; // 51*8=408;
     //
-    bool isCustomPreset;
-    uint8_t presetDisplayClock;
-    uint32_t freqExtClockGen;
-    uint16_t noSyncCounter; // is always at least 1 when checking value in syncwatcher
-    uint8_t presetVlineShift;
-    uint8_t phaseSP;
-    uint8_t phaseADC;
-    uint8_t syncLockFailIgnore;
-    uint8_t applyPresetDoneStage;
-    uint8_t failRetryAttempts;
-    uint8_t HPLLState;
-    uint8_t osr;
-    uint8_t notRecognizedCounter;
-    bool clampPositionIsSet;
-    bool coastPositionIsSet;
-    bool phaseIsSet;
+    bool isCustomPreset = false;
+    uint8_t presetDisplayClock = 0;
+    uint32_t freqExtClockGen = 0;
+    uint16_t noSyncCounter = 0; // is always at least 1 when checking value in syncwatcher
+    uint8_t presetVlineShift = 0;
+    uint8_t phaseSP = 16;
+    uint8_t phaseADC = 16;
+    uint8_t syncLockFailIgnore = 16;
+    uint8_t applyPresetDoneStage = 0;
+    uint8_t failRetryAttempts = 0;
+    uint8_t HPLLState = 0;
+    uint8_t osr = 0;
+    uint8_t notRecognizedCounter = 0;
+    bool clampPositionIsSet = false;
+    bool coastPositionIsSet = false;
+    bool phaseIsSet = false;
     // bool outModeHdBypass;
-    bool printInfos;
-    bool allowUpdatesOTA;
-    bool enableDebugPings;
-    bool autoBestHtotalEnabled;
-    bool videoIsFrozen;
-    bool forceRetime;
-    bool motionAdaptiveDeinterlaceActive;
-    bool deinterlaceAutoEnabled;
+    bool printInfos = false;
+    bool allowUpdatesOTA = false;
+#ifdef HAVE_PINGER_LIBRARY
+    bool enableDebugPings = false;
+#endif
+    bool autoBestHtotalEnabled = true;
+    // bool videoIsFrozen = false;
+    bool forceRetime = false;
+    bool motionAdaptiveDeinterlaceActive = false;
+    bool deinterlaceAutoEnabled = true;
     // bool scanlinesEnabled;
-    bool presetIsPalForce60;
-    bool isValidForScalingRGBHV;
-    bool useHdmiSyncFix;
-    bool extClockGenDetected;
-};
+    bool presetIsPalForce60 = false;
+    bool isValidForScalingRGBHV = false;
+    bool useHdmiSyncFix = false;
+    bool extClockGenDetected = false;
+} runTimeOptions;
+
 // remember adc options across presets
-struct adcOptions
+typedef struct
 {
-    // If `uopt->enableAutoGain == 1` and we're not before/during
-    // doPostPresetLoadSteps(), `adco->r_gain` must match `GBS::ADC_RGCTRL`.
+    // If `uopt.enableAutoGain == 1` and we're not before/during
+    // doPostPresetLoadSteps(), `adco.r_gain` must match `GBS::ADC_RGCTRL`.
     //
-    // When we either set `uopt->enableAutoGain = 1` or call
+    // When we either set `uopt.enableAutoGain = 1` or call
     // `GBS::ADC_RGCTRL::write()`, we must either call
-    // `GBS::ADC_RGCTRL::write(adco->r_gain)`, or set `adco->r_gain =
+    // `GBS::ADC_RGCTRL::write(adco.r_gain)`, or set `adco.r_gain =
     // GBS::ADC_RGCTRL::read()`.
-    uint8_t r_gain;
-    uint8_t g_gain;
-    uint8_t b_gain;
-    uint8_t r_off;
-    uint8_t g_off;
-    uint8_t b_off;
-};
+    uint8_t r_gain = 0;
+    uint8_t g_gain = 0;
+    uint8_t b_gain = 0;
+    uint8_t r_off = 0;
+    uint8_t g_off = 0;
+    uint8_t b_off = 0;
+} adcOptions;
 
 /// Video processing mode, loaded into register GBS_PRESET_ID by applyPresets()
-/// and read to rto->presetID by doPostPresetLoadSteps(). Shown on web UI.
+/// and read to rto.presetID by doPostPresetLoadSteps(). Shown on web UI.
 // enum PresetID : uint8_t {
 //     OutputHdBypass = 0x21,
 //     OutputRGBHVBypass = 0x22,
 // };
 
-extern struct runTimeOptions *rto;
-extern struct userOptions *uopt;
-extern struct adcOptions *adco;
+// extern struct runTimeOptions *rto;
+extern runTimeOptions rto;
+// extern struct userOptions *uopt;
+extern userOptions uopt;
+// extern struct adcOptions *adco;
+extern adcOptions adco;
 
 // const char preset_ntsc[] PROGMEM = "/preset_ntsc.";
 // const char preset_pal[] PROGMEM = "/preset_pal.";

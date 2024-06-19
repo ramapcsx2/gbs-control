@@ -3,7 +3,7 @@
 # File: utils.h                                                                    #
 # File Created: Thursday, 2nd May 2024 5:38:14 pm                                   #
 # Author:                                                                           #
-# Last Modified: Saturday, 15th June 2024 8:00:46 pm                      #
+# Last Modified: Tuesday, 18th June 2024 2:46:52 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -21,7 +21,6 @@
 #include "presetHdBypassSection.h"
 
 extern Si5351mcu Si;
-
 
 bool utilsIsPassThroughMode();
 bool utilsNotPassThroughMode();
@@ -56,6 +55,8 @@ void dumpRegisters(byte segment);
 void stopWire();
 void startWire();
 bool checkBoardPower();
+void resetAllOffline();
+void resetAllOnline();
 void calibrateAdcOffset();
 void setExternalClockGenFrequencySmooth(uint32_t freq);
 

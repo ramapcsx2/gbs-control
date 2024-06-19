@@ -3,7 +3,7 @@
 # File: wserver.h                                                                    #
 # File Created: Friday, 19th April 2024 3:11:47 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Thursday, 13th June 2024 4:40:11 pm                      #
+# Last Modified: Wednesday, 19th June 2024 12:44:38 pm                    #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -34,6 +34,12 @@
 extern ESP8266WebServer server;
 extern char serialCommand;
 extern char userCommand;
+
+// see: serialCommand = 'D'
+typedef struct {
+    uint8_t VDS_Y_OFST = 0;
+    uint8_t HD_Y_OFFSET = 0;
+} debugRegister;
 
 const char indexPage[] PROGMEM = "/__index";
 const char backupFile[] PROGMEM = "/__backup";

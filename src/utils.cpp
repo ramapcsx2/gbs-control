@@ -3,7 +3,7 @@
 # File: utils.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 5:37:47 pm                                   #
 # Author:                                                                           #
-# Last Modified: Tuesday, 18th June 2024 12:16:32 am                      #
+# Last Modified: Wednesday, 19th June 2024 11:36:06 am                    #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -21,7 +21,7 @@ static uint8_t lastSegment = 0xFF;
  * @return false
  */
 bool utilsIsPassThroughMode() {
-    return (uopt->resolutionID == OutputHdBypass || uopt->resolutionID == OutputRGBHVBypass);
+    return (uopt.resolutionID == OutputHdBypass || uopt.resolutionID == OutputRGBHVBypass);
 }
 
 /**
@@ -31,28 +31,28 @@ bool utilsIsPassThroughMode() {
  * @return false
  */
 bool utilsNotPassThroughMode() {
-    return (uopt->resolutionID != OutputHdBypass && uopt->resolutionID != OutputRGBHVBypass);
+    return (uopt.resolutionID != OutputHdBypass && uopt.resolutionID != OutputRGBHVBypass);
 }
 
 /**
- * @brief a simple getter to prevent parameters from 
+ * @brief a simple getter to prevent parameters from
  *          spreading in code (15kHz/Downscale mode)
- * 
- * @return true 
- * @return false 
+ *
+ * @return true
+ * @return false
  */
 bool utilsIsDownscaleMode() {
-    return (uopt->resolutionID == Output15kHz || uopt->resolutionID == Output15kHz50);
+    return (uopt.resolutionID == Output15kHz || uopt.resolutionID == Output15kHz50);
 }
 
 /**
  * @brief a simple getter to prevent parameters from spreading in code
- * 
- * @return true 
- * @return false 
+ *
+ * @return true
+ * @return false
  */
 bool utilsNotDownscaleMode() {
-    return (uopt->resolutionID != Output15kHz && uopt->resolutionID != Output15kHz50);
+    return (uopt.resolutionID != Output15kHz && uopt.resolutionID != Output15kHz50);
 }
 
 /**
@@ -78,8 +78,8 @@ void resetPLLAD()
     GBS::PLLAD_VCORST::write(0);
     delay(1);
     latchPLLAD();
-    rto->clampPositionIsSet = 0; // test, but should be good
-    rto->continousStableCounter = 1;
+    rto.clampPositionIsSet = 0; // test, but should be good
+    rto.continousStableCounter = 1;
 }
 
 /**
@@ -92,8 +92,8 @@ void resetPLL()
     delay(1);
     GBS::PLL_VCORST::write(0);
     delay(1);
-    rto->clampPositionIsSet = 0; // test, but should be good
-    rto->continousStableCounter = 1;
+    rto.clampPositionIsSet = 0; // test, but should be good
+    rto.continousStableCounter = 1;
 }
 
 /**
@@ -141,7 +141,7 @@ void setCsVsStop(uint16_t stop)
 void freezeVideo()
 {
     // GBS::IF_VB_ST::write(GBS::IF_VB_SP::read());
-    uopt->freezeCapture = true;
+    uopt.freezeCapture = true;
     GBS::CAPTURE_ENABLE::write(0);
 }
 
@@ -152,7 +152,7 @@ void freezeVideo()
 void unfreezeVideo()
 {
     // GBS::IF_VB_ST::write(GBS::IF_VB_SP::read() - 2);
-    uopt->freezeCapture = false;
+    uopt.freezeCapture = false;
     GBS::CAPTURE_ENABLE::write(1);
 }
 
@@ -171,8 +171,8 @@ void resetDigital()
     // GBS::RESET_CONTROL_0x47::write(0x00);
     GBS::RESET_CONTROL_0x47::write(0x17); // new, keep 0,1,2,4 on (DEC,MODE,SYNC,INT) //MODE okay?
 
-    // if (rto->outModeHdBypass) { // if currently in bypass
-    if (uopt->resolutionID == OutputHdBypass) { // if currently in bypass
+    // if (rto.outModeHdBypass) { // if currently in bypass
+    if (uopt.resolutionID == OutputHdBypass) { // if currently in bypass
         GBS::RESET_CONTROL_0x46::write(0x00);
         GBS::RESET_CONTROL_0x47::write(0x1F);
         return; // 0x46 stays all 0
@@ -214,10 +214,10 @@ uint8_t getVideoMode()
 {
     uint8_t detectedMode = 0;
 
-    if (rto->videoStandardInput >= 14) { // check RGBHV first // not mode 13 here, else mode 13 can't reliably exit
+    if (rto.videoStandardInput >= 14) { // check RGBHV first // not mode 13 here, else mode 13 can't reliably exit
         detectedMode = GBS::STATUS_16::read();
         if ((detectedMode & 0x0a) > 0) {    // bit 1 or 3 active?
-            return rto->videoStandardInput; // still RGBHV bypass, 14 or 15
+            return rto.videoStandardInput; // still RGBHV bypass, 14 or 15
         } else {
             return 0;
         }
@@ -243,7 +243,7 @@ uint8_t getVideoMode()
             return 5;
         } // hdtv 720p
 
-        if (rto->videoStandardInput == 4) {
+        if (rto.videoStandardInput == 4) {
             detectedMode = GBS::STATUS_04::read();
             if ((detectedMode & 0xFF) == 0x80) {
                 return 4; // still edtv 50 progressive
@@ -276,7 +276,7 @@ uint8_t getVideoMode()
         if (GBS::STATUS_00::read() == 0x07) {            // the 3 stat0 stable indicators on, none of the SD indicators on
             if ((GBS::STATUS_03::read() & 0x02) == 0x02) // Graphic mode bit on (any of VGA/SVGA/XGA/SXGA at all detected Hz)
             {
-                if (rto->inputIsYPbPr)
+                if (rto.inputIsYPbPr)
                     return 13;
                 else
                     return 15; // switch to RGBS/HV handling
@@ -327,27 +327,27 @@ uint8_t getVideoMode()
                 if (GBS::STATUS_SYNC_PROC_VTOTAL::read() < (lineCount - 1) ||
                     GBS::STATUS_SYNC_PROC_VTOTAL::read() > (lineCount + 1)) {
                     lineCount = 0;
-                    rto->notRecognizedCounter = 0;
+                    rto.notRecognizedCounter = 0;
                     break;
                 }
                 detectedMode = GBS::STATUS_00::read();
                 if ((detectedMode & 0x2F) != 0x07) {
                     lineCount = 0;
-                    rto->notRecognizedCounter = 0;
+                    rto.notRecognizedCounter = 0;
                     break;
                 }
             }
-            if (lineCount != 0 && rto->notRecognizedCounter < 255) {
-                rto->notRecognizedCounter++;
+            if (lineCount != 0 && rto.notRecognizedCounter < 255) {
+                rto.notRecognizedCounter++;
             }
         } else {
-            rto->notRecognizedCounter = 0;
+            rto.notRecognizedCounter = 0;
         }
     } else {
-        rto->notRecognizedCounter = 0;
+        rto.notRecognizedCounter = 0;
     }
     // ???
-    if (rto->notRecognizedCounter == 255) {
+    if (rto.notRecognizedCounter == 255) {
         return 9;
     }
 
@@ -361,7 +361,7 @@ uint8_t getVideoMode()
 void setAndLatchPhaseADC()
 {
     GBS::PA_ADC_LAT::write(0);
-    GBS::PA_ADC_S::write(rto->phaseADC);
+    GBS::PA_ADC_S::write(rto.phaseADC);
     GBS::PA_ADC_LAT::write(1);
 }
 
@@ -586,27 +586,54 @@ void startWire()
 }
 
 /**
- * @brief
+ * @brief Check if TV chip is acting as expeced when all systems are powered-on
+ *        (this function sets rto.boardHasPower status variable)
  *
  * @return true
  * @return false
  */
 bool checkBoardPower()
 {
-    GBS::ADC_UNUSED_69::write(0x6a); // 0110 1010
-    if (GBS::ADC_UNUSED_69::read() == 0x6a) {
-        GBS::ADC_UNUSED_69::write(0);
-        rto->boardHasPower = true;
-        return true;
+    // assume everything works fine, then read specific registers and decide
+    rto.boardHasPower = true;
+    // check DAC
+    if(!rto.isInLowPowerMode && GBS::DAC_RGBS_PWDNZ::read() == 0) {
+        _DBGN(F("(!) DAC is in power down mode"));
+        goto board_power_bad;
     }
 
-    GBS::ADC_UNUSED_69::write(0); // attempt to clear
-    if (rto->boardHasPower == true) {
-        _WSN(F("! power / i2c lost !"));
+    // check ADC
+    if(GBS::ADC_POWDZ::read() == 0) {
+        _DBGN(F("(!) ADC is in power down mode"));
+        goto board_power_bad;
     }
-    rto->boardHasPower = false;
 
+    // check PLL power
+    if(GBS::PLLAD_PDZ::read() == 0) {
+        _DBGN(F("(!) PLL is in power down mode"));
+        goto board_power_bad;
+    }
+
+    return true;
+
+board_power_bad:
+    rto.boardHasPower = false;
     return false;
+
+    // GBS::ADC_UNUSED_69::write(0x6a); // 0110 1010
+    // if (GBS::ADC_UNUSED_69::read() == 0x6a) {
+    //     GBS::ADC_UNUSED_69::write(0);
+    //     rto.boardHasPower = true;
+    //     return true;
+    // }
+
+    // GBS::ADC_UNUSED_69::write(0); // attempt to clear
+    // if (rto.boardHasPower == true) {
+    //     _WSN(F("! power / i2c lost !"));
+    // }
+    // rto.boardHasPower = false;
+
+    // return false;
 
     // stopWire(); // sets pinmodes SDA, SCL to INPUT
     // uint8_t SCL_SDA = 0;
@@ -617,7 +644,7 @@ bool checkBoardPower()
 
     // if (SCL_SDA != 6)
     //{
-    //   if (rto->boardHasPower == true) {
+    //   if (rto.boardHasPower == true) {
     //     _WSN("! power / i2c lost !");
     //   }
     //   // I2C stays off and pins are INPUT
@@ -626,6 +653,57 @@ bool checkBoardPower()
 
     // startWire();
     // return 1;
+}
+
+/**
+ * @brief Ref.13.2.2 Software reset: "In 5725, there are also some software reset register bits,
+ *        these software reset only could reset state machine and internal
+ *        timing, but could not reset register bits’ value. And host interface’s
+ *        state machine is only reset by external reset..."
+ *
+ */
+void resetAllOffline() {
+    GBS::PLL_VCORST::write(1);
+
+    GBS::ADC_POWDZ::write(0);
+    GBS::PLLAD_PDZ::write(0);
+    GBS::DAC_RGBS_PWDNZ::write(0);
+    GBS::SFTRST_SYNC_RSTZ::write(0);
+    GBS::SFTRST_DEC_RSTZ::write(0);
+    GBS::SFTRST_IF_RSTZ::write(0);
+    GBS::SFTRST_DEINT_RSTZ::write(0);
+    GBS::SFTRST_MEM_FF_RSTZ::write(0);
+    GBS::SFTRST_MEM_RSTZ::write(0);
+    GBS::SFTRST_FIFO_RSTZ::write(0);
+    GBS::SFTRST_OSD_RSTZ::write(0);
+    GBS::SFTRST_VDS_RSTZ::write(0);
+    GBS::SFTRST_MODE_RSTZ::write(0);
+    GBS::SFTRST_HDBYPS_RSTZ::write(0);
+    GBS::SFTRST_INT_RSTZ::write(0);
+}
+
+/**
+ * @brief All systems online
+ *
+ */
+void resetAllOnline() {
+    GBS::PLLAD_VCORST::write(1);
+
+    GBS::ADC_POWDZ::write(1);
+    GBS::PLLAD_PDZ::write(1);
+    GBS::DAC_RGBS_PWDNZ::write(1);
+    GBS::SFTRST_SYNC_RSTZ::write(1);
+    GBS::SFTRST_DEC_RSTZ::write(1);
+    GBS::SFTRST_IF_RSTZ::write(1);
+    GBS::SFTRST_DEINT_RSTZ::write(1);
+    GBS::SFTRST_MEM_FF_RSTZ::write(1);
+    GBS::SFTRST_MEM_RSTZ::write(1);
+    GBS::SFTRST_FIFO_RSTZ::write(1);
+    GBS::SFTRST_OSD_RSTZ::write(1);
+    GBS::SFTRST_VDS_RSTZ::write(1);
+    GBS::SFTRST_MODE_RSTZ::write(1);
+    GBS::SFTRST_HDBYPS_RSTZ::write(1);
+    GBS::SFTRST_INT_RSTZ::write(1);
 }
 
 /**
@@ -711,31 +789,31 @@ void calibrateAdcOffset()
         }
         if (i == 0) {
             // G done, prep R
-            adco->g_off = GBS::ADC_GOFCTRL::read();
+            adco.g_off = GBS::ADC_GOFCTRL::read();
             GBS::ADC_GOFCTRL::write(0x7F);
             GBS::ADC_ROFCTRL::write(0x3D);
             GBS::DEC_TEST_SEL::write(2); // 5_1f = 0x2c
         }
         if (i == 1) {
-            adco->r_off = GBS::ADC_ROFCTRL::read();
+            adco.r_off = GBS::ADC_ROFCTRL::read();
             GBS::ADC_ROFCTRL::write(0x7F);
             GBS::ADC_BOFCTRL::write(0x3D);
             GBS::DEC_TEST_SEL::write(3); // 5_1f = 0x3c
         }
         if (i == 2) {
-            adco->b_off = GBS::ADC_BOFCTRL::read();
+            adco.b_off = GBS::ADC_BOFCTRL::read();
         }
         _WSN();
     }
 
     if (readout >= 0x52) {
         // there was a problem; revert
-        adco->r_off = adco->g_off = adco->b_off = 0x40;
+        adco.r_off = adco.g_off = adco.b_off = 0x40;
     }
 
-    GBS::ADC_GOFCTRL::write(adco->g_off);
-    GBS::ADC_ROFCTRL::write(adco->r_off);
-    GBS::ADC_BOFCTRL::write(adco->b_off);
+    GBS::ADC_GOFCTRL::write(adco.g_off);
+    GBS::ADC_ROFCTRL::write(adco.r_off);
+    GBS::ADC_BOFCTRL::write(adco.b_off);
 
     // _WSN(millis() - overallTimer);
 }
@@ -746,23 +824,23 @@ void calibrateAdcOffset()
  * @param freq
  */
 void setExternalClockGenFrequencySmooth(uint32_t freq) {
-    uint32_t current = rto->freqExtClockGen;
+    uint32_t current = rto.freqExtClockGen;
 
-    rto->freqExtClockGen = freq;
+    rto.freqExtClockGen = freq;
 
     constexpr uint32_t STEP_SIZE_HZ = 1000;
 
-    if (current > rto->freqExtClockGen) {
-        if ((current - rto->freqExtClockGen) < 750000) {
-            while (current > (rto->freqExtClockGen + STEP_SIZE_HZ)) {
+    if (current > rto.freqExtClockGen) {
+        if ((current - rto.freqExtClockGen) < 750000) {
+            while (current > (rto.freqExtClockGen + STEP_SIZE_HZ)) {
                 current -= STEP_SIZE_HZ;
                 Si.setFreq(0, current);
                 // wifiLoop(0);
             }
         }
-    } else if (current < rto->freqExtClockGen) {
-        if ((rto->freqExtClockGen - current) < 750000) {
-            while ((current + STEP_SIZE_HZ) < rto->freqExtClockGen) {
+    } else if (current < rto.freqExtClockGen) {
+        if ((rto.freqExtClockGen - current) < 750000) {
+            while ((current + STEP_SIZE_HZ) < rto.freqExtClockGen) {
                 current += STEP_SIZE_HZ;
                 Si.setFreq(0, current);
                 // wifiLoop(0);
@@ -770,5 +848,5 @@ void setExternalClockGenFrequencySmooth(uint32_t freq) {
         }
     }
 
-    Si.setFreq(0, rto->freqExtClockGen);
+    Si.setFreq(0, rto.freqExtClockGen);
 }

@@ -3,7 +3,7 @@
 # File: preset.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 6:38:23 pm                                   #
 # Author:                                                                           #
-# Last Modified: Tuesday, 18th June 2024 12:42:27 am                      #
+# Last Modified: Wednesday, 19th June 2024 12:43:23 pm                    #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -39,51 +39,50 @@ void loadPresetMdSection()
  */
 void setResetParameters()
 {
-    // TODO: do we reset resolution here?
-    rto->videoStandardInput = 0;
-    rto->presetDisplayClock = 0;
-    // rto->videoIsFrozen = false;
-    rto->applyPresetDoneStage = 0;
-    rto->presetVlineShift = 0;
-    rto->sourceDisconnected = true;
-    // rto->outModeHdBypass = 0;
-    rto->clampPositionIsSet = 0;
-    rto->coastPositionIsSet = 0;
-    rto->phaseIsSet = 0;
-    rto->continousStableCounter = 0;
-    rto->noSyncCounter = 0;
-    rto->isInLowPowerMode = false;
-    rto->currentLevelSOG = 5;
-    rto->thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
-    rto->failRetryAttempts = 0;
-    rto->HPLLState = 0;
-    rto->motionAdaptiveDeinterlaceActive = false;
-    // rto->scanlinesEnabled = false;
-    rto->syncTypeCsync = false;
-    rto->isValidForScalingRGBHV = false;
-    rto->medResLineCount = 0x33; // 51*8=408
-    rto->osr = 0;
-    rto->useHdmiSyncFix = 0;
-    rto->notRecognizedCounter = 0;
+    rto.videoStandardInput = 0;
+    rto.presetDisplayClock = 0;
+    // rto.videoIsFrozen = false;
+    rto.applyPresetDoneStage = 0;
+    rto.presetVlineShift = 0;
+    rto.sourceDisconnected = true;
+    // rto.outModeHdBypass = 0;
+    rto.clampPositionIsSet = 0;
+    rto.coastPositionIsSet = 0;
+    rto.phaseIsSet = 0;
+    rto.continousStableCounter = 0;
+    rto.noSyncCounter = 0;
+    rto.isInLowPowerMode = false;
+    rto.currentLevelSOG = 5;
+    rto.thisSourceMaxLevelSOG = 31; // 31 = auto sog has not (yet) run
+    rto.failRetryAttempts = 0;
+    rto.HPLLState = 0;
+    rto.motionAdaptiveDeinterlaceActive = false;
+    // rto.scanlinesEnabled = false;
+    rto.syncTypeCsync = false;
+    rto.isValidForScalingRGBHV = false;
+    rto.medResLineCount = 0x33; // 51*8=408
+    rto.osr = 0;
+    rto.useHdmiSyncFix = 0;
+    rto.notRecognizedCounter = 0;
 
     // this may not be reset here
-    // uopt->invertSync = false;
-    // uopt->debugView = false;
-    // uopt->developerMode = false;
+    // uopt.invertSync = false;
+    // uopt.debugView = false;
+    // uopt.developerMode = false;
 
-    adco->r_gain = 0;
-    adco->g_gain = 0;
-    adco->b_gain = 0;
+    adco.r_gain = 0;
+    adco.g_gain = 0;
+    adco.b_gain = 0;
 
     // clear temp storage
-    GBS::ADC_UNUSED_64::write(0);
-    GBS::ADC_UNUSED_65::write(0);
-    GBS::ADC_UNUSED_66::write(0);
-    GBS::ADC_UNUSED_67::write(0);
+    // GBS::ADC_UNUSED_64::write(0);
+    // GBS::ADC_UNUSED_65::write(0);
+    // GBS::ADC_UNUSED_66::write(0);
+    // GBS::ADC_UNUSED_67::write(0);
     // GBS::GBS_PRESET_CUSTOM::write(0);
-    GBS::GBS_PRESET_ID::write(0);
     // GBS::GBS_OPTION_SCALING_RGBHV::write(0);
     // GBS::GBS_OPTION_PALFORCED60_ENABLED::write(0);
+    GBS::GBS_PRESET_ID::write(0);
 
     // set minimum IF parameters
     GBS::IF_VS_SEL::write(1);
@@ -105,7 +104,7 @@ void setResetParameters()
     GBS::SP_SOG_MODE::write(1);
     GBS::ADC_INPUT_SEL::write(1); // 1 = RGBS / RGBHV adc data input
     GBS::ADC_POWDZ::write(1);     // ADC on
-    setAndUpdateSogLevel(rto->currentLevelSOG);
+    setAndUpdateSogLevel(rto.currentLevelSOG);
     GBS::RESET_CONTROL_0x46::write(0x00); // all units off
     GBS::RESET_CONTROL_0x47::write(0x00);
     GBS::GPIO_CONTROL_00::write(0x67);     // most GPIO pins regular GPIO
@@ -150,10 +149,10 @@ void setResetParameters()
     GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
     GBS::INTERRUPT_CONTROL_00::write(0x00);
     GBS::PAD_SYNC_OUT_ENZ::write(0); // sync output enabled, will be low (HC125 fix)
-    rto->clampPositionIsSet = 0;     // some functions override these, so make sure
-    rto->coastPositionIsSet = 0;
-    rto->phaseIsSet = 0;
-    rto->continousStableCounter = 0;
+    rto.clampPositionIsSet = 0;     // some functions override these, so make sure
+    rto.coastPositionIsSet = 0;
+    rto.phaseIsSet = 0;
+    rto.continousStableCounter = 0;
 
     serialCommand = '@';
     userCommand = '@';
@@ -167,19 +166,19 @@ void doPostPresetLoadSteps()
 {
     // unsigned long postLoadTimer = millis();
     // delay(10);
-    // adco->r_gain gets applied if uopt->enableAutoGain is set.
-    if (uopt->enableAutoGain)
+    // adco.r_gain gets applied if uopt.enableAutoGain is set.
+    if (uopt.enableAutoGain)
     {
-        // if (uopt->presetPreference == OutputCustomized) {
-        if (rto->isCustomPreset) {
+        // if (uopt.presetPreference == OutputCustomized) {
+        if (rto.isCustomPreset) {
             // Loaded custom preset, we want to keep newly loaded gain. Save
             // gain written by loadPresetFromFS -> writeProgramArrayNew.
-            adco->r_gain = GBS::ADC_RGCTRL::read();
-            adco->g_gain = GBS::ADC_GGCTRL::read();
-            adco->b_gain = GBS::ADC_BGCTRL::read();
+            adco.r_gain = GBS::ADC_RGCTRL::read();
+            adco.g_gain = GBS::ADC_GGCTRL::read();
+            adco.b_gain = GBS::ADC_BGCTRL::read();
         }
         // else {
-        // Loaded fixed preset. Keep adco->r_gain from before
+        // Loaded fixed preset. Keep adco.r_gain from before
         // overwriting registers
         // }
     }
@@ -188,34 +187,34 @@ void doPostPresetLoadSteps()
     // GBS::DAC_RGBS_PWDNZ::write(0);    // no DAC
     // GBS::SFTRST_MEM_FF_RSTZ::write(0);  // mem fifos keep in reset
 
-    if (rto->videoStandardInput == 0)
+    if (rto.videoStandardInput == 0)
     {
         uint8_t videoMode = getVideoMode();
-        _WSF(PSTR("post preset: rto->videoStandardInput 0 > %d\n"), videoMode);
+        _WSF(PSTR("post preset: rto.videoStandardInput 0 > %d\n"), videoMode);
         if (videoMode > 0)
         {
-            rto->videoStandardInput = videoMode;
+            rto.videoStandardInput = videoMode;
         }
     }
     // set output resolution
-    // rto->isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
-
-    GBS::ADC_UNUSED_64::write(0);
-    GBS::ADC_UNUSED_65::write(0); // clear temp storage
-    GBS::ADC_UNUSED_66::write(0);
-    GBS::ADC_UNUSED_67::write(0); // clear temp storage
-    GBS::PAD_CKIN_ENZ::write(0);  // 0 = clock input enable (pin40)
+    // rto.isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
+    // not existent and not used
+    // GBS::ADC_UNUSED_64::write(0);
+    // GBS::ADC_UNUSED_65::write(0); // clear temp storage
+    // GBS::ADC_UNUSED_66::write(0);
+    // GBS::ADC_UNUSED_67::write(0); // clear temp storage
+    // GBS::PAD_CKIN_ENZ::write(0);  // 0 = clock input enable (pin40)
 
     // if preset is not loaded from FS
-    if (!rto->isCustomPreset)
+    if (!rto.isCustomPreset)
     {
         prepareSyncProcessor(); // todo: handle modes 14 and 15 better, now that they support scaling
     }
 
-    if (rto->videoStandardInput == 14)
+    if (rto.videoStandardInput == 14)
     {
         // copy of code in setOutputRGBHVBypassMode
-        if (rto->syncTypeCsync == false)
+        if (rto.syncTypeCsync == false)
         {
             GBS::SP_SOG_SRC_SEL::write(0);  // 5_20 0 | 0: from ADC 1: from hs // use ADC and turn it off = no SOG
             GBS::ADC_SOGEN::write(1);       // 5_02 0 ADC SOG // having it 0 drags down the SOG (hsync) input; = 1: need to supress SOG decoding
@@ -230,8 +229,8 @@ void doPostPresetLoadSteps()
             GBS::SP_VS_POL_ATO::write(1);       // 5_55 6
             GBS::SP_HS_LOOP_SEL::write(1);      // 5_57_6 | 0 enables retiming on SP | 1 to bypass input to HDBYPASS
             GBS::SP_H_PROTECT::write(0);        // 5_3e 4 disable for H/V
-            rto->phaseADC = 16;
-            rto->phaseSP = 8;
+            rto.phaseADC = 16;
+            rto.phaseSP = 8;
         }
         else
         {
@@ -248,20 +247,20 @@ void doPostPresetLoadSteps()
             GBS::SP_SYNC_BYPS::write(0);   // use regular sync for decimator (and sync out) path
             GBS::SP_HS_LOOP_SEL::write(1); // 5_57_6 | 0 enables retiming on SP | 1 to bypass input to HDBYPASS
             GBS::SP_H_PROTECT::write(1);   // 5_3e 4 enable for SOG
-            rto->currentLevelSOG = 24;
-            rto->phaseADC = 16;
-            rto->phaseSP = 8;
+            rto.currentLevelSOG = 24;
+            rto.phaseADC = 16;
+            rto.phaseSP = 8;
         }
     }
 
     GBS::SP_H_PROTECT::write(0);
     GBS::SP_COAST_INV_REG::write(0); // just in case
-    // if (!rto->outModeHdBypass && GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
-    // if (!rto->outModeHdBypass && !uopt->preferScalingRgbhv)
-    if (uopt->resolutionID != OutputHdBypass && !uopt->preferScalingRgbhv)
+    // if (!rto.outModeHdBypass && GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
+    // if (!rto.outModeHdBypass && !uopt.preferScalingRgbhv)
+    if (uopt.resolutionID != OutputHdBypass && !uopt.preferScalingRgbhv)
     {
         // setOutputHdBypassMode has it's own and needs to update later
-        updateStopPositionDynamic(false); // remember: rto->videoStandardInput for RGB(C/HV) in scaling is 1, 2 or 3 here
+        updateStopPositionDynamic(false); // remember: rto.videoStandardInput for RGB(C/HV) in scaling is 1, 2 or 3 here
     }
 
     GBS::SP_NO_CLAMP_REG::write(1); // (keep) clamp disabled, to be enabled when position determined
@@ -272,9 +271,11 @@ void doPostPresetLoadSteps()
     GBS::ADC_AUTO_OFST_DELAY::write(0); // sample delay 0 (1 to 4 pipes)
     GBS::ADC_AUTO_OFST_STEP::write(0);  // 0 = abs diff, then 1 to 3 steps
     GBS::ADC_AUTO_OFST_TEST::write(1);
-    GBS::ADC_AUTO_OFST_RANGE_REG::write(0x00); // 5_0f U/V ranges = 0 (full range, 1 to 15)
+    // U/V ranges to 0
+    GBS::ADC_AUTO_OFST_U_RANGE::write(0);
+    GBS::ADC_AUTO_OFST_V_RANGE::write(0);
 
-    if (rto->inputIsYPbPr == true)
+    if (rto.inputIsYPbPr == true)
     {
         applyYuvPatches();
     }
@@ -283,63 +284,63 @@ void doPostPresetLoadSteps()
         applyRGBPatches();
     }
 
-    // if (rto->outModeHdBypass)
-    if (uopt->resolutionID == OutputHdBypass)
+    // if (rto.outModeHdBypass)
+    if (uopt.resolutionID == OutputHdBypass)
     {
         GBS::OUT_SYNC_SEL::write(1); // 0_4f 1=sync from HDBypass, 2=sync from SP
-        rto->autoBestHtotalEnabled = false;
+        rto.autoBestHtotalEnabled = false;
     }
     else
     {
-        rto->autoBestHtotalEnabled = true;
+        rto.autoBestHtotalEnabled = true;
     }
 
-    rto->phaseADC = GBS::PA_ADC_S::read(); // we can't know which is right, get from preset
-    rto->phaseSP = 8;                      // get phase into global variables early: before latching
+    rto.phaseADC = GBS::PA_ADC_S::read(); // we can't know which is right, get from preset
+    rto.phaseSP = 8;                      // get phase into global variables early: before latching
 
-    if (rto->inputIsYPbPr)
+    if (rto.inputIsYPbPr)
     {
-        rto->thisSourceMaxLevelSOG = rto->currentLevelSOG = 14;
+        rto.thisSourceMaxLevelSOG = rto.currentLevelSOG = 14;
     }
     else
     {
-        rto->thisSourceMaxLevelSOG = rto->currentLevelSOG = 13; // similar to yuv, allow variations
+        rto.thisSourceMaxLevelSOG = rto.currentLevelSOG = 13; // similar to yuv, allow variations
     }
 
-    setAndUpdateSogLevel(rto->currentLevelSOG);
+    setAndUpdateSogLevel(rto.currentLevelSOG);
 
-    if (!rto->isCustomPreset)
+    if (!rto.isCustomPreset)
     {
         // Writes ADC_RGCTRL. If auto gain is enabled, ADC_RGCTRL will be
-        // overwritten further down at `uopt->enableAutoGain == 1`.
+        // overwritten further down at `uopt.enableAutoGain == 1`.
         setAdcParametersGainAndOffset();
     }
 
     GBS::GPIO_CONTROL_00::write(0x67); // most GPIO pins regular GPIO
     GBS::GPIO_CONTROL_01::write(0x00); // all GPIO outputs disabled
-    rto->clampPositionIsSet = 0;
-    rto->coastPositionIsSet = 0;
-    rto->phaseIsSet = 0;
-    rto->continousStableCounter = 0;
-    rto->noSyncCounter = 0;
-    rto->motionAdaptiveDeinterlaceActive = false;
-    // rto->scanlinesEnabled = false;
-    rto->failRetryAttempts = 0;
-    // rto->videoIsFrozen = true;       // ensures unfreeze
-    rto->sourceDisconnected = false; // this must be true if we reached here (no syncwatcher operation)
-    rto->boardHasPower = true;       // same
+    rto.clampPositionIsSet = 0;
+    rto.coastPositionIsSet = 0;
+    rto.phaseIsSet = 0;
+    rto.continousStableCounter = 0;
+    rto.noSyncCounter = 0;
+    rto.motionAdaptiveDeinterlaceActive = false;
+    // rto.scanlinesEnabled = false;
+    rto.failRetryAttempts = 0;
+    // rto.videoIsFrozen = true;       // ensures unfreeze
+    rto.sourceDisconnected = false; // this must be true if we reached here (no syncwatcher operation)
+    rto.boardHasPower = true;       // same
 
-    // if (rto->presetID == 0x06 || rto->presetID == 0x16) {
+    // if (rto.presetID == 0x06 || rto.presetID == 0x16) {
     if (utilsIsDownscaleMode())
     {
         // override so it applies section 2 deinterlacer settings
-        rto->isCustomPreset = false;
+        rto.isCustomPreset = false;
     }
 
-    if (!rto->isCustomPreset)
+    if (!rto.isCustomPreset)
     {
-        if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 ||
-            rto->videoStandardInput == 8 || rto->videoStandardInput == 9)
+        if (rto.videoStandardInput == 3 || rto.videoStandardInput == 4 ||
+            rto.videoStandardInput == 8 || rto.videoStandardInput == 9)
         {
             GBS::IF_LD_RAM_BYPS::write(1); // 1_0c 0 no LD, do this before setIfHblankParameters
         }
@@ -363,8 +364,8 @@ void doPostPresetLoadSteps()
 
         GBS::VDS_PK_LB_CORE::write(0); // 3_44 0-3 // 1 for anti source jailbars
         GBS::VDS_PK_LH_CORE::write(0); // 3_46 0-3 // 1 for anti source jailbars
-        // if (rto->presetID == 0x05 || rto->presetID == 0x15) {
-        if (uopt->resolutionID == Output1080p || uopt->resolutionID == Output1080p50)
+        // if (rto.presetID == 0x05 || rto.presetID == 0x15) {
+        if (uopt.resolutionID == Output1080p || uopt.resolutionID == Output1080p50)
         {
             GBS::VDS_PK_LB_GAIN::write(0x16); // 3_45 // peaking HF
             GBS::VDS_PK_LH_GAIN::write(0x0A); // 3_47
@@ -387,12 +388,12 @@ void doPostPresetLoadSteps()
         setOverSampleRatio(2, true); // prepare only = true
 
         // full height option
-        if (uopt->wantFullHeight)
+        if (uopt.wantFullHeight)
         {
-            if (rto->videoStandardInput == 1 || rto->videoStandardInput == 3)
+            if (rto.videoStandardInput == 1 || rto.videoStandardInput == 3)
             {
                 // TODO Why is commented?
-                // if (rto->presetID == 0x5)
+                // if (rto.presetID == 0x5)
                 //{ // out 1080p 60
                 //   GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read() - 1);
                 //   GBS::VDS_DIS_VB_SP::write(42);
@@ -403,10 +404,10 @@ void doPostPresetLoadSteps()
                 //   _WSN(F("full height"));
                 // }
             }
-            else if (rto->videoStandardInput == 2 || rto->videoStandardInput == 4)
+            else if (rto.videoStandardInput == 2 || rto.videoStandardInput == 4)
             {
-                // if (rto->presetID == 0x15) { // out 1080p 50
-                if (uopt->resolutionID == Output1080p50)
+                // if (rto.presetID == 0x15) { // out 1080p 50
+                if (uopt.resolutionID == Output1080p50)
                 { // out 1080p 50
                     GBS::VDS_VSCALE::write(455);
                     GBS::VDS_DIS_VB_ST::write(GBS::VDS_VSYNC_RST::read()); // full = 1125 of 1125
@@ -418,7 +419,7 @@ void doPostPresetLoadSteps()
             }
         }
 
-        if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2)
+        if (rto.videoStandardInput == 1 || rto.videoStandardInput == 2)
         {
             // GBS::PLLAD_ICP::write(5);         // 5 rather than 6 to work well with CVBS sync as well as CSync
 
@@ -426,7 +427,7 @@ void doPostPresetLoadSteps()
             GBS::PLLAD_KS::write(2);     // 5_16
             setOverSampleRatio(4, true); // prepare only = true
             GBS::IF_SEL_WEN::write(0);   // 1_02 0; 0 for SD, 1 for EDTV
-            if (rto->inputIsYPbPr)
+            if (rto.inputIsYPbPr)
             {                                    // todo: check other videoStandardInput in component vs rgb
                 GBS::IF_HS_TAP11_BYPS::write(0); // 1_02 4 Tap11 LPF bypass in YUV444to422
                 GBS::IF_HS_Y_PDELAY::write(2);   // 1_02 5+6 delays
@@ -435,8 +436,8 @@ void doPostPresetLoadSteps()
             }
 
             // downscale preset: source is SD
-            // if (rto->presetID == 0x06 || rto->presetID == 0x16) {
-            if (uopt->resolutionID == Output15kHz || uopt->resolutionID == Output15kHz50)
+            // if (rto.presetID == 0x06 || rto.presetID == 0x16) {
+            if (uopt.resolutionID == Output15kHz || uopt.resolutionID == Output15kHz50)
             {
                 setCsVsStart(2);                        // or 3, 0
                 setCsVsStop(0);                         // fixes field position
@@ -451,14 +452,14 @@ void doPostPresetLoadSteps()
                 GBS::MADPT_PD_RAM_BYPS::write(0);       // 2_24 2 one line fifo for line phase adjust
                 GBS::MADPT_VSCALE_DEC_FACTOR::write(1); // 2_31 0..1
                 GBS::MADPT_SEL_PHASE_INI::write(0);     // 2_31 2 disable for SD (check 240p content)
-                if (rto->videoStandardInput == 1)
+                if (rto.videoStandardInput == 1)
                 {
                     GBS::IF_HB_ST2::write(0x490); // 1_18
                     GBS::IF_HB_SP2::write(0x80);  // 1_1a
                     GBS::IF_HB_SP::write(0x4A);   // 1_12 deinterlace offset, green bar
                     GBS::IF_HBIN_SP::write(0xD0); // 1_26
                 }
-                else if (rto->videoStandardInput == 2)
+                else if (rto.videoStandardInput == 2)
                 {
                     GBS::IF_HB_SP2::write(0x74);  // 1_1a
                     GBS::IF_HB_SP::write(0x50);   // 1_12 deinterlace offset, green bar
@@ -466,8 +467,8 @@ void doPostPresetLoadSteps()
                 }
             }
         }
-        if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 ||
-            rto->videoStandardInput == 8 || rto->videoStandardInput == 9)
+        if (rto.videoStandardInput == 3 || rto.videoStandardInput == 4 ||
+            rto.videoStandardInput == 8 || rto.videoStandardInput == 9)
         {
             // EDTV p-scan, need to either double adc data rate and halve vds scaling
             // or disable line doubler (better) (50 / 60Hz shared)
@@ -475,8 +476,8 @@ void doPostPresetLoadSteps()
             GBS::ADC_FLTR::write(3); // 5_03 4/5
             GBS::PLLAD_KS::write(1); // 5_16
 
-            // if (rto->presetID != 0x06 && rto->presetID != 0x16) {
-            if (uopt->resolutionID != Output15kHz && uopt->resolutionID != Output15kHz50)
+            // if (rto.presetID != 0x06 && rto.presetID != 0x16) {
+            if (uopt.resolutionID != Output15kHz && uopt.resolutionID != Output15kHz50)
             {
                 setCsVsStart(14);        // pal // hm
                 setCsVsStop(11);         // probably setting these for modes 8,9
@@ -493,7 +494,7 @@ void doPostPresetLoadSteps()
             GBS::VDS_V_DELAY::write(1);            // 3_24 2 // new 24.07.2019 : 1, also set 2_17 to 1
             GBS::MADPT_Y_DELAY_UV_DELAY::write(1); // 2_17 : 1
             GBS::VDS_Y_DELAY::write(3);            // 3_24 4/5 delays (ps2 test saying 3 for 1_02 goes with 3 here)
-            if (rto->videoStandardInput == 9)
+            if (rto.videoStandardInput == 9)
             {
                 if (GBS::STATUS_SYNC_PROC_VTOTAL::read() > 650)
                 {
@@ -507,8 +508,8 @@ void doPostPresetLoadSteps()
             }
 
             // downscale preset: source is EDTV
-            // if (rto->presetID == 0x06 || rto->presetID == 0x16) {
-            if (uopt->resolutionID == Output15kHz || uopt->resolutionID == Output15kHz50)
+            // if (rto.presetID == 0x06 || rto.presetID == 0x16) {
+            if (uopt.resolutionID == Output15kHz || uopt.resolutionID == Output15kHz50)
             {
                 GBS::MADPT_Y_VSCALE_BYPS::write(0);     // 2_02 6
                 GBS::MADPT_UV_VSCALE_BYPS::write(0);    // 2_02 7
@@ -518,86 +519,86 @@ void doPostPresetLoadSteps()
                 GBS::MADPT_SEL_PHASE_INI::write(0);     // 2_31 2 disable
             }
         }
-        // if (rto->videoStandardInput == 3 && rto->presetID != 0x06) { // ED YUV 60
-        if (rto->videoStandardInput == 3 && uopt->resolutionID != Output15kHz50)
+        // if (rto.videoStandardInput == 3 && rto.presetID != 0x06) { // ED YUV 60
+        if (rto.videoStandardInput == 3 && uopt.resolutionID != Output15kHz50)
         {                                 // ED YUV 60
             setCsVsStart(16);             // ntsc
             setCsVsStop(13);              //
             GBS::IF_HB_ST::write(30);     // 1_10; magic number
             GBS::IF_HBIN_ST::write(0x20); // 1_24
             GBS::IF_HBIN_SP::write(0x60); // 1_26
-            // if (rto->presetID == 0x5) {                              // out 1080p
-            if (uopt->resolutionID == Output1080p)
+            // if (rto.presetID == 0x5) {                              // out 1080p
+            if (uopt.resolutionID == Output1080p)
             {                                 // out 1080p
                 GBS::IF_HB_SP2::write(0xB0);  // 1_1a
                 GBS::IF_HB_ST2::write(0x4BC); // 1_18
-                // } else if (rto->presetID == 0x3) {                       // out 720p
+                // } else if (rto.presetID == 0x3) {                       // out 720p
             }
-            else if (uopt->resolutionID == Output720p)
+            else if (uopt.resolutionID == Output720p)
             {                                 // out 720p
                 GBS::VDS_VSCALE::write(683);  // same as base preset
                 GBS::IF_HB_ST2::write(0x478); // 1_18
                 GBS::IF_HB_SP2::write(0x84);  // 1_1a
-                // } else if (rto->presetID == 0x2) {                       // out x1024
+                // } else if (rto.presetID == 0x2) {                       // out x1024
             }
-            else if (uopt->resolutionID == Output1024p)
+            else if (uopt.resolutionID == Output1024p)
             {                                 // out x1024
                 GBS::IF_HB_SP2::write(0x84);  // 1_1a
                 GBS::IF_HB_ST2::write(0x478); // 1_18
-                // } else if (rto->presetID == 0x1) {                       // out x960
+                // } else if (rto.presetID == 0x1) {                       // out x960
             }
-            else if (uopt->resolutionID == Output960p)
+            else if (uopt.resolutionID == Output960p)
             {                                 // out x960
                 GBS::IF_HB_SP2::write(0x84);  // 1_1a
                 GBS::IF_HB_ST2::write(0x478); // 1_18
-                // } else if (rto->presetID == 0x3) {                       // out x480
+                // } else if (rto.presetID == 0x3) {                       // out x480
             }
-            else if (uopt->resolutionID == Output720p)
+            else if (uopt.resolutionID == Output720p)
             {                                 // out x480
                 GBS::IF_HB_ST2::write(0x478); // 1_18
                 GBS::IF_HB_SP2::write(0x90);  // 1_1a
             }
-            // } else if (rto->videoStandardInput == 4 && rto->presetID != 0x16) { // ED YUV 50
+            // } else if (rto.videoStandardInput == 4 && rto.presetID != 0x16) { // ED YUV 50
         }
-        else if (rto->videoStandardInput == 4 && uopt->resolutionID != Output15kHz50)
+        else if (rto.videoStandardInput == 4 && uopt.resolutionID != Output15kHz50)
         {                                 // ED YUV 50
             GBS::IF_HBIN_SP::write(0x40); // 1_26 was 0x80 test: ps2 videomodetester 576p mode
             GBS::IF_HBIN_ST::write(0x20); // 1_24, odd but need to set this here (blue bar)
             GBS::IF_HB_ST::write(0x30);   // 1_10
-            // if (rto->presetID == 0x15) {                                    // out 1080p
-            if (uopt->resolutionID == Output1080p50)
+            // if (rto.presetID == 0x15) {                                    // out 1080p
+            if (uopt.resolutionID == Output1080p50)
             {                                 // out 1080p
                 GBS::IF_HB_ST2::write(0x4C0); // 1_18
                 GBS::IF_HB_SP2::write(0xC8);  // 1_1a
             }
-            // } else if (rto->presetID == 0x13) {                             // out 720p
-            else if (uopt->resolutionID == Output720p50)
+            // } else if (rto.presetID == 0x13) {                             // out 720p
+            else if (uopt.resolutionID == Output720p50)
             {                                 // out 720p
                 GBS::IF_HB_ST2::write(0x478); // 1_18
                 GBS::IF_HB_SP2::write(0x88);  // 1_1a
             }
-            // } else if (rto->presetID == 0x12) {                             // out x1024
-            else if (uopt->resolutionID == Output1024p50)
+            // } else if (rto.presetID == 0x12) {                             // out x1024
+            else if (uopt.resolutionID == Output1024p50)
             { // out x1024
                 // VDS_VB_SP -= 12 used to shift pic up, but seems not necessary anymore
                 // GBS::VDS_VB_SP::write(GBS::VDS_VB_SP::read() - 12);
                 GBS::IF_HB_ST2::write(0x454); // 1_18
                 GBS::IF_HB_SP2::write(0x88);  // 1_1a
             }
-            // } else if (rto->presetID == 0x11) { // out x960
-            else if (uopt->resolutionID == Output960p50)
+            // } else if (rto.presetID == 0x11) { // out x960
+            else if (uopt.resolutionID == Output960p50)
             {                                 // out x960
                 GBS::IF_HB_ST2::write(0x454); // 1_18
                 GBS::IF_HB_SP2::write(0x88);  // 1_1a
             }
-            // } else if (rto->presetID == 0x14) { // out x576
-            else if (uopt->resolutionID == Output576p50)
+            // } else if (rto.presetID == 0x14) { // out x576
+            else if (uopt.resolutionID == Output576p50)
             {                                 // out x576
                 GBS::IF_HB_ST2::write(0x478); // 1_18
                 GBS::IF_HB_SP2::write(0x90);  // 1_1a
             }
         }
-        else if (rto->videoStandardInput == 5)
+        else if (rto.videoStandardInput == 5)
         {                                   // 720p
             GBS::ADC_FLTR::write(1);        // 5_03
             GBS::IF_PRGRSV_CNTRL::write(1); // progressive
@@ -605,7 +606,7 @@ void doPostPresetLoadSteps()
             GBS::INPUT_FORMATTER_02::write(0x74);
             GBS::VDS_Y_DELAY::write(3);
         }
-        else if (rto->videoStandardInput == 6 || rto->videoStandardInput == 7)
+        else if (rto.videoStandardInput == 6 || rto.videoStandardInput == 7)
         {                            // 1080i/p
             GBS::ADC_FLTR::write(1); // 5_03
             GBS::PLLAD_KS::write(0); // 5_16
@@ -614,7 +615,7 @@ void doPostPresetLoadSteps()
             GBS::INPUT_FORMATTER_02::write(0x74);
             GBS::VDS_Y_DELAY::write(3);
         }
-        else if (rto->videoStandardInput == 8)
+        else if (rto.videoStandardInput == 8)
         { // 25khz
             // todo: this mode for HV sync
             uint32_t pllRate = 0;
@@ -637,35 +638,35 @@ void doPostPresetLoadSteps()
             // GBS::IF_HB_ST2::write(0x60);  // 1_18
             // GBS::IF_HB_SP2::write(0x88);  // 1_1a
             GBS::IF_HBIN_SP::write(0x60); // 1_26 works for all output presets
-            if (uopt->resolutionID == Output960p)
+            if (uopt.resolutionID == Output960p)
             { // out x960
                 GBS::VDS_VSCALE::write(410);
             }
-            else if (uopt->resolutionID == Output1024p)
+            else if (uopt.resolutionID == Output1024p)
             { // out x1024
                 GBS::VDS_VSCALE::write(402);
             }
-            else if (uopt->resolutionID == Output720p)
+            else if (uopt.resolutionID == Output720p)
             { // out 720p
                 GBS::VDS_VSCALE::write(546);
             }
-            else if (uopt->resolutionID == Output1080p)
+            else if (uopt.resolutionID == Output1080p)
             { // out 1080p
                 GBS::VDS_VSCALE::write(400);
             }
         }
     }
 
-    // if (rto->presetID == 0x06 || rto->presetID == 0x16) {
-    // if (uopt->resolutionID == Output15kHz || uopt->resolutionID == Output15kHz50)
+    // if (rto.presetID == 0x06 || rto.presetID == 0x16) {
+    // if (uopt.resolutionID == Output15kHz || uopt.resolutionID == Output15kHz50)
     // {
-    //     rto->isCustomPreset = GBS::GBS_PRESET_CUSTOM::read(); // override back
+    //     rto.isCustomPreset = GBS::GBS_PRESET_CUSTOM::read(); // override back
     // }
 
     resetDebugPort();
 
     bool avoidAutoBest = 0;
-    if (rto->syncTypeCsync)
+    if (rto.syncTypeCsync)
     {
         if (GBS::TEST_BUS_2F::read() == 0)
         {
@@ -681,10 +682,10 @@ void doPostPresetLoadSteps()
 
     latchPLLAD(); // besthtotal reliable with this (EDTV modes, possibly others)
 
-    if (rto->isCustomPreset)
+    if (rto.isCustomPreset)
     {
         // patch in segments not covered in custom preset files (currently seg 2)
-        if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4 || rto->videoStandardInput == 8)
+        if (rto.videoStandardInput == 3 || rto.videoStandardInput == 4 || rto.videoStandardInput == 8)
         {
             GBS::MADPT_Y_DELAY_UV_DELAY::write(1); // 2_17 : 1
         }
@@ -692,40 +693,40 @@ void doPostPresetLoadSteps()
         // get OSR
         if (GBS::DEC1_BYPS::read() && GBS::DEC2_BYPS::read())
         {
-            rto->osr = 1;
+            rto.osr = 1;
         }
         else if (GBS::DEC1_BYPS::read() && !GBS::DEC2_BYPS::read())
         {
-            rto->osr = 2;
+            rto.osr = 2;
         }
         else
         {
-            rto->osr = 4;
+            rto.osr = 4;
         }
 
         // always start with internal clock active first
         // if (GBS::PLL648_CONTROL_01::read() == 0x75 && GBS::GBS_PRESET_DISPLAY_CLOCK::read() != 0)
-        if (GBS::PLL648_CONTROL_01::read() == 0x75 && rto->presetDisplayClock != 0)
+        if (GBS::PLL648_CONTROL_01::read() == 0x75 && rto.presetDisplayClock != 0)
         {
             // GBS::PLL648_CONTROL_01::write(GBS::GBS_PRESET_DISPLAY_CLOCK::read());
-            GBS::PLL648_CONTROL_01::write(rto->presetDisplayClock);
+            GBS::PLL648_CONTROL_01::write(rto.presetDisplayClock);
         }
         // else if (GBS::GBS_PRESET_DISPLAY_CLOCK::read() == 0)
-        else if (rto->presetDisplayClock == 0)
+        else if (rto.presetDisplayClock == 0)
         {
             _WSN(F("no stored display clock to use!"));
         }
     }
 
-    if (rto->presetIsPalForce60)
+    if (rto.presetIsPalForce60)
     {
         // if (GBS::GBS_OPTION_PALFORCED60_ENABLED::read() != 1)
-        if (!uopt->PalForce60)
+        if (!uopt.PalForce60)
         {
             _WSN(F("pal forced 60hz: apply vshift"));
             uint16_t vshift = 56; // default shift
-            // if (rto->presetID == 0x5) {
-            if (uopt->resolutionID == Output1080p)
+            // if (rto.presetID == 0x5) {
+            if (uopt.resolutionID == Output1080p)
             {
                 GBS::IF_VB_SP::write(4);
             } // out 1080p
@@ -734,8 +735,8 @@ void doPostPresetLoadSteps()
                 GBS::IF_VB_SP::write(GBS::IF_VB_SP::read() + vshift);
             }
             GBS::IF_VB_ST::write(GBS::IF_VB_SP::read() - 2);
-            // TODO enabling uopt->PalForce60 ?
-            uopt->PalForce60 = true;
+            // TODO enabling uopt.PalForce60 ?
+            uopt.PalForce60 = true;
             // GBS::GBS_OPTION_PALFORCED60_ENABLED::write(1);
         }
     }
@@ -747,9 +748,9 @@ void doPostPresetLoadSteps()
     GBS::ADC_TA_05_CTRL::write(0x02); // 5_05
 
     // auto ADC gain
-    if (uopt->enableAutoGain == 1)
+    if (uopt.enableAutoGain == 1)
     {
-        if (adco->r_gain == 0)
+        if (adco.r_gain == 0)
         {
             // SerialM.printf("ADC gain: reset %x := %x\n", GBS::ADC_RGCTRL::read(), AUTO_GAIN_INIT);
             setAdcGain(AUTO_GAIN_INIT);
@@ -757,10 +758,10 @@ void doPostPresetLoadSteps()
         }
         else
         {
-            // SerialM.printf("ADC gain: transferred %x := %x\n", GBS::ADC_RGCTRL::read(), adco->r_gain);
-            GBS::ADC_RGCTRL::write(adco->r_gain);
-            GBS::ADC_GGCTRL::write(adco->g_gain);
-            GBS::ADC_BGCTRL::write(adco->b_gain);
+            // SerialM.printf("ADC gain: transferred %x := %x\n", GBS::ADC_RGCTRL::read(), adco.r_gain);
+            GBS::ADC_RGCTRL::write(adco.r_gain);
+            GBS::ADC_GGCTRL::write(adco.g_gain);
+            GBS::ADC_BGCTRL::write(adco.b_gain);
             GBS::DEC_TEST_ENABLE::write(1);
         }
     }
@@ -770,11 +771,11 @@ void doPostPresetLoadSteps()
     }
 
     // ADC offset if measured
-    if (adco->r_off != 0 && adco->g_off != 0 && adco->b_off != 0)
+    if (adco.r_off != 0 && adco.g_off != 0 && adco.b_off != 0)
     {
-        GBS::ADC_ROFCTRL::write(adco->r_off);
-        GBS::ADC_GOFCTRL::write(adco->g_off);
-        GBS::ADC_BOFCTRL::write(adco->b_off);
+        GBS::ADC_ROFCTRL::write(adco.r_off);
+        GBS::ADC_GOFCTRL::write(adco.g_off);
+        GBS::ADC_BOFCTRL::write(adco.b_off);
     }
 
     _WSF(
@@ -794,7 +795,7 @@ void doPostPresetLoadSteps()
     // 5_06 + 5_08 will be the target center value, 5_07 sets general offset
     // s3s3as00 s3s3bs00 s3s3cs00
 
-    if (uopt->wantVdsLineFilter)
+    if (uopt.wantVdsLineFilter)
     {
         GBS::VDS_D_RAM_BYPS::write(0);
     }
@@ -803,7 +804,7 @@ void doPostPresetLoadSteps()
         GBS::VDS_D_RAM_BYPS::write(1);
     }
 
-    if (uopt->wantPeaking)
+    if (uopt.wantPeaking)
     {
         GBS::VDS_PK_Y_H_BYPS::write(0);
     }
@@ -814,7 +815,7 @@ void doPostPresetLoadSteps()
 
     // unused now
     GBS::VDS_TAP6_BYPS::write(0);
-    /*if (uopt->wantTap6) { GBS::VDS_TAP6_BYPS::write(0); }
+    /*if (uopt.wantTap6) { GBS::VDS_TAP6_BYPS::write(0); }
   else {
     GBS::VDS_TAP6_BYPS::write(1);
     if (!isCustomPreset) {
@@ -822,11 +823,11 @@ void doPostPresetLoadSteps()
     }
   }*/
 
-    if (uopt->wantStepResponse)
+    if (uopt.wantStepResponse)
     {
         // step response requested, but exclude 1080p presets
-        // if (rto->presetID != 0x05 && rto->presetID != 0x15) {
-        if (uopt->resolutionID != Output1080p && uopt->resolutionID != Output1080p50)
+        // if (rto.presetID != 0x05 && rto.presetID != 0x15) {
+        if (uopt.resolutionID != Output1080p && uopt.resolutionID != Output1080p50)
         {
             GBS::VDS_UV_STEP_BYPS::write(0);
         }
@@ -846,17 +847,17 @@ void doPostPresetLoadSteps()
     // unfreezeVideo();
     Menu::init();
     FrameSync::cleanup();
-    rto->syncLockFailIgnore = 16;
+    rto.syncLockFailIgnore = 16;
 
-    // undo eventual rto->useHdmiSyncFix (not using this method atm)
+    // undo eventual rto.useHdmiSyncFix (not using this method atm)
     GBS::VDS_SYNC_EN::write(0);
     GBS::VDS_FLOCK_EN::write(0);
 
-    // if (!rto->outModeHdBypass && rto->autoBestHtotalEnabled &&
-    if (uopt->resolutionID != OutputHdBypass && rto->autoBestHtotalEnabled &&
+    // if (!rto.outModeHdBypass && rto.autoBestHtotalEnabled &&
+    if (uopt.resolutionID != OutputHdBypass && rto.autoBestHtotalEnabled &&
         // GBS::GBS_OPTION_SCALING_RGBHV::read() == 0 && !avoidAutoBest &&
-        !uopt->preferScalingRgbhv && !avoidAutoBest &&
-        (rto->videoStandardInput >= 1 && rto->videoStandardInput <= 4))
+        !uopt.preferScalingRgbhv && !avoidAutoBest &&
+        (rto.videoStandardInput >= 1 && rto.videoStandardInput <= 4))
     {
         // autobesthtotal
         updateCoastPosition(0);
@@ -865,7 +866,7 @@ void doPostPresetLoadSteps()
         resetInterruptSogBadBit();
         delay(10);
         // works reliably now on my test HDMI dongle
-        if (rto->useHdmiSyncFix && !uopt->wantOutputComponent)
+        if (rto.useHdmiSyncFix && !uopt.wantOutputComponent)
         {
             GBS::PAD_SYNC_OUT_ENZ::write(0); // sync out
         }
@@ -882,17 +883,17 @@ void doPostPresetLoadSteps()
             else if (getStatus16SpHsStable() && getStatus16SpHsStable())
             {
                 delay(1); // wifi
-                if (getVideoMode() == rto->videoStandardInput)
+                if (getVideoMode() == rto.videoStandardInput)
                 {
                     bool ok = 0;
                     float sfr = getSourceFieldRate(0);
                     // _WSN(sfr, 3);
-                    if (rto->videoStandardInput == 1 || rto->videoStandardInput == 3)
+                    if (rto.videoStandardInput == 1 || rto.videoStandardInput == 3)
                     {
                         if (sfr > 58.6f && sfr < 61.4f)
                             ok = 1;
                     }
-                    else if (rto->videoStandardInput == 2 || rto->videoStandardInput == 4)
+                    else if (rto.videoStandardInput == 2 || rto.videoStandardInput == 4)
                     {
                         if (sfr > 49.1f && sfr < 51.1f)
                             ok = 1;
@@ -913,7 +914,7 @@ void doPostPresetLoadSteps()
         // scaling rgbhv, HD modes, no autobesthtotal
         delay(10);
         // works reliably now on my test HDMI dongle
-        if (rto->useHdmiSyncFix && !uopt->wantOutputComponent)
+        if (rto.useHdmiSyncFix && !uopt.wantOutputComponent)
         {
             GBS::PAD_SYNC_OUT_ENZ::write(0); // sync out
         }
@@ -925,16 +926,16 @@ void doPostPresetLoadSteps()
     // _WS(F("pp time: ")); _WSN(millis() - postLoadTimer);
 
     // make sure
-    if (rto->useHdmiSyncFix && !uopt->wantOutputComponent)
+    if (rto.useHdmiSyncFix && !uopt.wantOutputComponent)
     {
         GBS::PAD_SYNC_OUT_ENZ::write(0); // sync out
     }
 
     // late adjustments that require some delay time first
-    if (!rto->isCustomPreset)
+    if (!rto.isCustomPreset)
     {
-        // if (videoStandardInputIsPalNtscSd() && !rto->outModeHdBypass)
-        if (videoStandardInputIsPalNtscSd() && uopt->resolutionID != OutputHdBypass)
+        // if (videoStandardInputIsPalNtscSd() && !rto.outModeHdBypass)
+        if (videoStandardInputIsPalNtscSd() && uopt.resolutionID != OutputHdBypass)
         {
             // SNES has less total lines and a slight offset (only relevant in 60Hz)
             if (GBS::VPERIOD_IF::read() == 523)
@@ -964,7 +965,7 @@ void doPostPresetLoadSteps()
     resetPLLAD();             // also turns on pllad
     GBS::PLLAD_LEN::write(1); // 5_11 1
 
-    if (!rto->isCustomPreset)
+    if (!rto.isCustomPreset)
     {
         GBS::VDS_IN_DREG_BYPS::write(0); // 3_40 2 // 0 = input data triggered on falling clock edge, 1 = bypass
         GBS::PLLAD_R::write(3);
@@ -984,7 +985,7 @@ void doPostPresetLoadSteps()
         GBS::PB_REQ_SEL::write(3);       // PlayBack 11 High request Low request
                                          // 4_2C, 4_2D should be set by preset
         GBS::RFF_WFF_OFFSET::write(0x0); // scanline fix
-        if (rto->videoStandardInput == 3 || rto->videoStandardInput == 4)
+        if (rto.videoStandardInput == 3 || rto.videoStandardInput == 4)
         {
             // this also handles mode 14 csync rgbhv
             GBS::PB_CAP_OFFSET::write(GBS::PB_FETCH_NUM::read() + 4); // 4_37 to 4_39 (green bar)
@@ -992,16 +993,16 @@ void doPostPresetLoadSteps()
         // 4_12 should be set by preset
     }
 
-    // if (!rto->outModeHdBypass)
-    if (uopt->resolutionID != OutputHdBypass)
+    // if (!rto.outModeHdBypass)
+    if (uopt.resolutionID != OutputHdBypass)
     {
         ResetSDRAM();
     }
 
-    setAndUpdateSogLevel(rto->currentLevelSOG); // use this to cycle SP / ADPLL latches
+    setAndUpdateSogLevel(rto.currentLevelSOG); // use this to cycle SP / ADPLL latches
 
-    // if (rto->presetID != 0x06 && rto->presetID != 0x16) {
-    if (uopt->resolutionID != Output15kHz && uopt->resolutionID != Output15kHz50)
+    // if (rto.presetID != 0x06 && rto.presetID != 0x16) {
+    if (uopt.resolutionID != Output15kHz && uopt.resolutionID != Output15kHz50)
     {
         // IF_VS_SEL = 1 for SD/HD SP mode in HD mode (5_3e 1)
         GBS::IF_VS_SEL::write(0); // 0 = "VCR" IF sync, requires VS_FLIP to be on, more stable?
@@ -1012,7 +1013,7 @@ void doPostPresetLoadSteps()
     GBS::SP_CS_CLP_ST::write(32);
     GBS::SP_CS_CLP_SP::write(48); // same as reset parameters
 
-    if (!uopt->wantOutputComponent)
+    if (!uopt.wantOutputComponent)
     {
         GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out if needed
     }
@@ -1021,25 +1022,25 @@ void doPostPresetLoadSteps()
     GBS::DAC_RGBS_S0ENZ::write(0); //
     GBS::DAC_RGBS_S1EN::write(1);  // these 2 also help
 
-    rto->useHdmiSyncFix = 0; // reset flag
+    rto.useHdmiSyncFix = 0; // reset flag
 
     GBS::SP_H_PROTECT::write(0);
-    if (rto->videoStandardInput >= 5)
+    if (rto.videoStandardInput >= 5)
     {
         GBS::SP_DIS_SUB_COAST::write(1); // might not disable it at all soon
     }
 
-    if (rto->syncTypeCsync)
+    if (rto.syncTypeCsync)
     {
         GBS::SP_EXT_SYNC_SEL::write(1); // 5_20 3 disconnect HV input
                                         // stays disconnected until reset condition
     }
 
-    rto->coastPositionIsSet = false; // re-arm these
-    rto->clampPositionIsSet = false;
+    rto.coastPositionIsSet = false; // re-arm these
+    rto.clampPositionIsSet = false;
 
-    // if (rto->outModeHdBypass)
-    if (uopt->resolutionID == OutputHdBypass)
+    // if (rto.outModeHdBypass)
+    if (uopt.resolutionID == OutputHdBypass)
     {
         GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
         GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
@@ -1050,9 +1051,9 @@ void doPostPresetLoadSteps()
     }
 
     // if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 1)
-    if (uopt->preferScalingRgbhv)
+    if (uopt.preferScalingRgbhv)
     {
-        rto->videoStandardInput = 14;
+        rto.videoStandardInput = 14;
     } else
     // if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
     {
@@ -1077,7 +1078,7 @@ void doPostPresetLoadSteps()
         }
         if (timeout >= 1500)
         {
-            if (rto->currentLevelSOG >= 7)
+            if (rto.currentLevelSOG >= 7)
             {
                 optimizeSogLevel();
                 delay(300);
@@ -1087,7 +1088,7 @@ void doPostPresetLoadSteps()
 
     // early attempt
     updateClampPosition();
-    if (rto->clampPositionIsSet)
+    if (rto.clampPositionIsSet)
     {
         if (GBS::SP_NO_CLAMP_REG::read() == 1)
         {
@@ -1097,7 +1098,7 @@ void doPostPresetLoadSteps()
 
     updateStopPositionDynamic(false);
 
-    if (!rto->syncWatcherEnabled)
+    if (!rto.syncWatcherEnabled)
     {
         GBS::SP_NO_CLAMP_REG::write(0);
     }
@@ -1108,7 +1109,7 @@ void doPostPresetLoadSteps()
     //  advancePhase();
     //}
 
-    setAndUpdateSogLevel(rto->currentLevelSOG); // use this to cycle SP / ADPLL latches
+    setAndUpdateSogLevel(rto.currentLevelSOG); // use this to cycle SP / ADPLL latches
     // optimizePhaseSP();  // do this later in run loop
 
     GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
@@ -1123,108 +1124,108 @@ void doPostPresetLoadSteps()
     // are introduced to break out of it.
     // also need to check for mode 15
     // also make sure to turn off autoBestHtotal
-    // if (uopt->presetPreference == 10 && rto->videoStandardInput != 15) {
-    if (utilsIsPassThroughMode() && rto->videoStandardInput != 15)
+    // if (uopt.presetPreference == 10 && rto.videoStandardInput != 15) {
+    if (utilsIsPassThroughMode() && rto.videoStandardInput != 15)
     {
-        rto->autoBestHtotalEnabled = 0;
-        if (rto->applyPresetDoneStage == 11)
+        rto.autoBestHtotalEnabled = 0;
+        if (rto.applyPresetDoneStage == 11)
         {
             // we were here before, stop the loop
-            rto->applyPresetDoneStage = 1;
+            rto.applyPresetDoneStage = 1;
         }
         else
         {
-            rto->applyPresetDoneStage = 10;
+            rto.applyPresetDoneStage = 10;
         }
     }
     else
     {
         // normal modes
-        rto->applyPresetDoneStage = 1;
+        rto.applyPresetDoneStage = 1;
     }
 
     unfreezeVideo();
 
-    if (uopt->enableFrameTimeLock)
+    if (uopt.enableFrameTimeLock)
     {
         activeFrameTimeLockInitialSteps();
     }
 
     _WS(F("\npreset applied: "));
-    if (uopt->resolutionID == Output960p || uopt->resolutionID == Output960p50)
+    if (uopt.resolutionID == Output960p || uopt.resolutionID == Output960p50)
         _WS(F("1280x960"));
-    else if (uopt->resolutionID == Output1024p || uopt->resolutionID == Output1024p50)
+    else if (uopt.resolutionID == Output1024p || uopt.resolutionID == Output1024p50)
         _WS(F("1280x1024"));
-    else if (uopt->resolutionID == Output720p || uopt->resolutionID == Output720p50)
+    else if (uopt.resolutionID == Output720p || uopt.resolutionID == Output720p50)
         _WS(F("1280x720"));
-    else if (uopt->resolutionID == Output1080p || uopt->resolutionID == Output1080p50)
+    else if (uopt.resolutionID == Output1080p || uopt.resolutionID == Output1080p50)
         _WS(F("1920x1080"));
-    else if (uopt->resolutionID == Output15kHz || uopt->resolutionID == Output15kHz50)
+    else if (uopt.resolutionID == Output15kHz || uopt.resolutionID == Output15kHz50)
         _WS(F("downscale"));
-    else if (uopt->resolutionID == Output480p)
+    else if (uopt.resolutionID == Output480p)
         _WS(F("720x480"));
-    else if (uopt->resolutionID == Output576p50)
+    else if (uopt.resolutionID == Output576p50)
         _WS(F("720x576"));
     // else
     else if (utilsIsPassThroughMode())
         _WS(F("bypass"));
-    else if (uopt->resolutionID == Output240p)
+    else if (uopt.resolutionID == Output240p)
         _WS(F("240p"));
     else
         _WS(F("UNKNOWN"));
 
-    // if (rto->outModeHdBypass)
+    // if (rto.outModeHdBypass)
     if (utilsIsPassThroughMode())
     {
         _WS(F(" (bypass)"));
     }
-    // else if (rto->isCustomPreset)
+    // else if (rto.isCustomPreset)
     // {
     //     _WS(F(" (custom)"));
     // }
 
     _WS(F(" for "));
-    if (rto->videoStandardInput == 1)
+    if (rto.videoStandardInput == 1)
         _WS(F("NTSC 60Hz "));
-    else if (rto->videoStandardInput == 2)
+    else if (rto.videoStandardInput == 2)
         _WS(F("PAL 50Hz "));
-    else if (rto->videoStandardInput == 3)
+    else if (rto.videoStandardInput == 3)
         _WS(F("EDTV 60Hz"));
-    else if (rto->videoStandardInput == 4)
+    else if (rto.videoStandardInput == 4)
         _WS(F("EDTV 50Hz"));
-    else if (rto->videoStandardInput == 5)
+    else if (rto.videoStandardInput == 5)
         _WS(F("720p 60Hz HDTV "));
-    else if (rto->videoStandardInput == 6)
+    else if (rto.videoStandardInput == 6)
         _WS(F("1080i 60Hz HDTV "));
-    else if (rto->videoStandardInput == 7)
+    else if (rto.videoStandardInput == 7)
         _WS(F("1080p 60Hz HDTV "));
-    else if (rto->videoStandardInput == 8)
+    else if (rto.videoStandardInput == 8)
         _WS(F("Medium Res "));
-    else if (rto->videoStandardInput == 13)
+    else if (rto.videoStandardInput == 13)
         _WS(F("VGA/SVGA/XGA/SXGA"));
-    else if (rto->videoStandardInput == 14)
+    else if (rto.videoStandardInput == 14)
     {
-        if (rto->syncTypeCsync)
+        if (rto.syncTypeCsync)
             _WSN(F("scaling RGB (CSync)"));
         else
             _WSN(F("scaling RGB (HV Sync)"));
     }
-    else if (rto->videoStandardInput == 15)
+    else if (rto.videoStandardInput == 15)
     {
-        if (rto->syncTypeCsync)
+        if (rto.syncTypeCsync)
             _WSN(F("RGB Bypass (CSync)"));
         else
             _WSN(F("RGB Bypass (HV Sync)"));
     }
-    else if (rto->videoStandardInput == 0)
+    else if (rto.videoStandardInput == 0)
         _WSN(F("!should not go here!")); // TODO ???
 
-    // if (rto->presetID == 0x05 || rto->presetID == 0x15) {
-    if (uopt->resolutionID == Output1080p || uopt->resolutionID == Output1080p50)
+    // if (rto.presetID == 0x05 || rto.presetID == 0x15) {
+    if (uopt.resolutionID == Output1080p || uopt.resolutionID == Output1080p50)
     {
         _WSN(F("(set your TV aspect ratio to 16:9)"));
     }
-    if (rto->videoStandardInput == 14)
+    if (rto.videoStandardInput == 14)
     {
         _WSN(F("\nNote: scaling RGB is still in development"));
     }
@@ -1243,7 +1244,7 @@ void applyPresets(uint8_t videoMode)
     bool waitExtra = 0;
 
     // TODO replace videoMode with VideoStandardInput enum
-    if (!rto->boardHasPower)
+    if (!rto.boardHasPower)
     {
         _WSN(F("(!) board not responding!"));
         return;
@@ -1255,20 +1256,20 @@ void applyPresets(uint8_t videoMode)
     {
         if (GBS::STATUS_SYNC_PROC_HSACT::read() == 1)
         {
-            rto->inputIsYPbPr = 0;
+            rto.inputIsYPbPr = 0;
             if (GBS::STATUS_SYNC_PROC_VSACT::read() == 0)
             {
-                rto->syncTypeCsync = 1;
+                rto.syncTypeCsync = 1;
             }
             else
             {
-                rto->syncTypeCsync = 0;
+                rto.syncTypeCsync = 0;
             }
         }
     }
 
-    // if (rto->outModeHdBypass || rto->videoStandardInput == 15 || rto->videoStandardInput == 0)
-    if (uopt->resolutionID == OutputHdBypass || rto->videoStandardInput == 15 || rto->videoStandardInput == 0)
+    // if (rto.outModeHdBypass || rto.videoStandardInput == 15 || rto.videoStandardInput == 0)
+    if (uopt.resolutionID == OutputHdBypass || rto.videoStandardInput == 15 || rto.videoStandardInput == 0)
     {
         waitExtra = 1;
         if (videoMode <= 4 || videoMode == 14 || videoMode == 8 || videoMode == 9)
@@ -1278,20 +1279,20 @@ void applyPresets(uint8_t videoMode)
             GBS::SFTRST_DEC_RSTZ::write(1);
         }
     }
-    rto->presetIsPalForce60 = 0; // the default
-    // rto->outModeHdBypass = 0;    // the default at this stage
+    rto.presetIsPalForce60 = 0; // the default
+    // rto.outModeHdBypass = 0;    // the default at this stage
 
     // in case it is set; will get set appropriately later in doPostPresetLoadSteps()
     // GBS::GBS_PRESET_CUSTOM::write(0);
-    // rto->isCustomPreset = false;
+    // rto.isCustomPreset = false;
 
     // carry over debug view if possible
     // if (GBS::ADC_UNUSED_62::read() != 0x00)
     // {
         // only if the preset to load isn't custom
         // (else the command will instantly disable debug view)
-        // if (rto->presetID != OutputCustom) {
-        // if (uopt->resolutionID != OutputCustom) {
+        // if (rto.presetID != OutputCustom) {
+        // if (uopt.resolutionID != OutputCustom) {
         // serialCommand = 'D'; // debug view
         // }
     // }
@@ -1302,22 +1303,22 @@ void applyPresets(uint8_t videoMode)
         _WSF(
             PSTR("(!) source format not properly recognized, videoMode: %d, resolutionID: %c\n"),
             videoMode,
-            uopt->resolutionID
+            uopt.resolutionID
         );
         videoMode = 3;                // in case of success: override to 480p60
         GBS::ADC_INPUT_SEL::write(1); // RGB
         delay(10);
         if (GBS::STATUS_SYNC_PROC_HSACT::read() == 1)
         {
-            rto->inputIsYPbPr = false;
-            rto->syncWatcherEnabled = true;
+            rto.inputIsYPbPr = false;
+            rto.syncWatcherEnabled = true;
             if (GBS::STATUS_SYNC_PROC_VSACT::read() == 0)
             {
-                rto->syncTypeCsync = true;
+                rto.syncTypeCsync = true;
             }
             else
             {
-                rto->syncTypeCsync = false;
+                rto.syncTypeCsync = false;
             }
         }
         else
@@ -1326,9 +1327,9 @@ void applyPresets(uint8_t videoMode)
             delay(10);
             if (GBS::STATUS_SYNC_PROC_HSACT::read() == 1)
             {
-                rto->inputIsYPbPr = true;
-                rto->syncTypeCsync = true;
-                rto->syncWatcherEnabled = true;
+                rto.inputIsYPbPr = true;
+                rto.syncTypeCsync = true;
+                rto.syncWatcherEnabled = true;
             }
             else
             {
@@ -1345,18 +1346,18 @@ void applyPresets(uint8_t videoMode)
                 // doPostPresetLoadSteps() to select the right resolution, since
                 // it *enables* the output (showing a green screen) even if
                 // previously disabled, and we want to *disable* it.
-                // rto->presetID = Output240p;
-                uopt->resolutionID = Output240p;
+                // rto.presetID = Output240p;
+                uopt.resolutionID = Output240p;
                 return;
             }
         }
     }
 
-    if (uopt->PalForce60 == 1)
+    if (uopt.PalForce60 == 1)
     {
         // not equal to custom, saved as pal preset has ntsc customization
-        // if (uopt->presetPreference != 2) {
-        if (!rto->isCustomPreset) {
+        // if (uopt.presetPreference != 2) {
+        if (!rto.isCustomPreset) {
             _DBG(F("not a custom preset, "));
             if (videoMode == 2 || videoMode == 4)
             {
@@ -1364,7 +1365,7 @@ void applyPresets(uint8_t videoMode)
                     PSTR("video mode %d, set PAL@50 to 60Hz\n"),
                     videoMode
                 );
-                rto->presetIsPalForce60 = 1;
+                rto.presetIsPalForce60 = 1;
             }
             if (videoMode == 2)
             {
@@ -1379,7 +1380,7 @@ void applyPresets(uint8_t videoMode)
         }
     }
 
-    /// If uopt->presetPreference == OutputCustomized and we load a custom
+    /// If uopt.presetPreference == OutputCustomized and we load a custom
     /// preset, check if it's intended to bypass scaling at the current input
     /// resolution. If so, setup bypass and skip the rest of applyPresets().
     auto applySavedBypassPreset = [&videoMode]() -> bool
@@ -1394,22 +1395,22 @@ void applyPresets(uint8_t videoMode)
             - GBS_PRESET_ID @ S1_2B[0:6]
             - GBS_PRESET_CUSTOM @ S1_2B[7]
         - uopt is source of truth, rto is derived cached state???
-        - uopt->presetPreference
+        - uopt.presetPreference
             - Read by applyPresets() to pick an output resolution.
-        - rto->presetID
+        - rto.presetID
             - Written by applyPresets() -> doPostPresetLoadSteps().
             - = register GBS_PRESET_ID.
-        - rto->isCustomPreset
+        - rto.isCustomPreset
             - Written by applyPresets() -> doPostPresetLoadSteps().
             - = register GBS_PRESET_CUSTOM.
-        - rto->isCustomPreset and rto->presetID control which button is
+        - rto.isCustomPreset and rto.presetID control which button is
             highlighted in the web UI (updateWebSocketData() ->
             GBSControl.buttonMapping).
 
         Control flow:
 
         applyPresets():
-        - If uopt->presetPreference == OutputCustomized (yes):
+        - If uopt.presetPreference == OutputCustomized (yes):
             - loadPresetFromFS()
                 - All custom presets are saved with GBS_PRESET_CUSTOM = 1.
             - writeProgramArrayNew()
@@ -1417,38 +1418,38 @@ void applyPresets(uint8_t videoMode)
                 - GBS_PRESET_CUSTOM = 1
             - applySavedBypassPreset():
             - If GBS_PRESET_ID == OutputHdBypass (yes):
-                - rto->videoStandardInput = videoMode; (not sure why)
+                - rto.videoStandardInput = videoMode; (not sure why)
                 - setOutputHdBypassMode(regsInitialized=true)
-                    - rto->outModeHdBypass = 1;
+                    - rto.outModeHdBypass = 1;
                     - loadHdBypassSection()
                         - Overwrites S1_30..5F.
                     - GBS::GBS_PRESET_ID::write(OutputHdBypass);
                     - if (!regsInitialized) (false)
                         - ~~GBS::GBS_PRESET_CUSTOM::write(0);~~ (skipped)
                     - doPostPresetLoadSteps()
-                        - rto->presetID = GBS::GBS_PRESET_ID::read();
+                        - rto.presetID = GBS::GBS_PRESET_ID::read();
                             - OutputHdBypass
-                        - rto->isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
+                        - rto.isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
                             - true
-                        - Branches based on rto->presetID
-                        - if (rto->outModeHdBypass) (yes) return.
+                        - Branches based on rto.presetID
+                        - if (rto.outModeHdBypass) (yes) return.
                     - ...
-                    - rto->outModeHdBypass = 1; (again?!)
+                    - rto.outModeHdBypass = 1; (again?!)
         */
 
         // uint8_t rawPresetId = GBS::GBS_PRESET_ID::read();
         // if (rawPresetId == OutputHdBypass)
-        if (uopt->resolutionID == OutputHdBypass)
+        if (uopt.resolutionID == OutputHdBypass)
         {
             // Required for switching from 240p to 480p to work.
-            rto->videoStandardInput = videoMode;
+            rto.videoStandardInput = videoMode;
             // Setup video mode passthrough.
             setOutputHdBypassMode(true);
             _DBGN(F("OutputHDBypass mode active"));
             return true;
         }
         // if (rawPresetId == OutputRGBHVBypass)
-        if (uopt->resolutionID == OutputRGBHVBypass)
+        if (uopt.resolutionID == OutputRGBHVBypass)
         {
             // TODO implement setOutputRGBHVBypassMode (I don't have RGBHV inputs to verify)
         }
@@ -1458,7 +1459,7 @@ void applyPresets(uint8_t videoMode)
     // if we're using ESP8266, check if there is saved preset data first
 #if defined(ESP8266)
     // skip loading from FS if we changing resolution
-    if(uopt->resolutionID == (OutputResolution)GBS::GBS_PRESET_ID::read()) {
+    if(uopt.resolutionID == (OutputResolution)GBS::GBS_PRESET_ID::read()) {
         const uint8_t *preset = loadPresetFromFS(videoMode);
         if(preset != nullptr) {
             writeProgramArrayNew(preset, false);
@@ -1471,11 +1472,11 @@ void applyPresets(uint8_t videoMode)
             goto apply_presets_skip_preset_loading;
         }
     }
-    // else if (uopt->presetPreference == OutputCustomized) {
+    // else if (uopt.presetPreference == OutputCustomized) {
     // {
     //
-    // } else if (uopt->presetPreference == 4) {
-    // else if (uopt->resolutionID == Output1024p)
+    // } else if (uopt.presetPreference == 4) {
+    // else if (uopt.resolutionID == Output1024p)
     // {
     //     writeProgramArrayNew(pal_1280x1024, false);
     //     _WSN(F("pal_1280x1024 is now active"));
@@ -1484,7 +1485,7 @@ void applyPresets(uint8_t videoMode)
 
     if (videoMode == 1 || videoMode == 3 || videoMode == 8 || videoMode == 9 || videoMode == 14)
     {
-        // if (uopt->presetPreference == OutputCustomized) {
+        // if (uopt.presetPreference == OutputCustomized) {
         // {
             // const uint8_t *preset = loadPresetFromFS(videoMode);
             // writeProgramArrayNew(preset, false);
@@ -1494,11 +1495,11 @@ void applyPresets(uint8_t videoMode)
             //     return;
             // }
         // }
-        // } else if (uopt->presetPreference == 4) {
-        // else if (uopt->resolutionID == Output1024p)
+        // } else if (uopt.presetPreference == 4) {
+        // else if (uopt.resolutionID == Output1024p)
         // {
             // comments are misleading, the functionality is unknown
-            // if (uopt->matchPresetSource && (videoMode != 8) && (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0))
+            // if (uopt.matchPresetSource && (videoMode != 8) && (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0))
             // {
             //     writeProgramArrayNew(ntsc_240p, false); // pref = x1024 override to x960
             //     _WSN(F("ntsc_240p is now active"));
@@ -1512,31 +1513,31 @@ void applyPresets(uint8_t videoMode)
         // !
         // ! NTSC input
         // !
-        // if (uopt->presetPreference == 0) {
-        if (uopt->resolutionID == Output240p)
+        // if (uopt.presetPreference == 0) {
+        if (uopt.resolutionID == Output240p)
         {
             writeProgramArrayNew(ntsc_240p, false);
             _WSN(F("ntsc_240p is now active"));
-            // } else if (uopt->presetPreference == 1) {
+            // } else if (uopt.presetPreference == 1) {
         }
-        else if (uopt->resolutionID == Output480p)
+        else if (uopt.resolutionID == Output480p)
         {
             writeProgramArrayNew(ntsc_720x480, false);
             _WSN(F("ntsc_720x480 is now active"));
-            // } else if (uopt->presetPreference == 3) {
+            // } else if (uopt.presetPreference == 3) {
         }
-        else if (uopt->resolutionID == Output720p)
+        else if (uopt.resolutionID == Output720p)
         {
             writeProgramArrayNew(ntsc_1280x720, false);
             _WSN(F("ntsc_1280x720 is now active"));
-        }   // else if (uopt->presetPreference == 5) {
-        else if (uopt->resolutionID == Output1080p)
+        }   // else if (uopt.presetPreference == 5) {
+        else if (uopt.resolutionID == Output1080p)
         {
             writeProgramArrayNew(ntsc_1920x1080, false);
             _WSN(F("ntsc_1920x1080 is now active"));
-            // } else if (uopt->presetPreference == 6) {
+            // } else if (uopt.presetPreference == 6) {
         }
-        else if (uopt->resolutionID == Output15kHz)
+        else if (uopt.resolutionID == Output15kHz)
         {
             writeProgramArrayNew(ntsc_downscale, false);
             _WSN(F("ntsc_downscale is now active"));
@@ -1547,10 +1548,10 @@ void applyPresets(uint8_t videoMode)
         // !
         // ! PAL input
         // !
-        // if (uopt->presetPreference == 0) {
-        if (uopt->resolutionID == Output240p)
+        // if (uopt.presetPreference == 0) {
+        if (uopt.resolutionID == Output240p)
         {
-            // if (uopt->matchPresetSource)
+            // if (uopt.matchPresetSource)
             // {
             //     writeProgramArrayNew(pal_1280x1024, false); // pref = x960 override to x1024
             //     _WSN(F("pal_1280x1024 is now active"));
@@ -1560,27 +1561,27 @@ void applyPresets(uint8_t videoMode)
                 writeProgramArrayNew(pal_240p, false);
                 _WSN(F("pal_240p is now active"));
             // }
-            // } else if (uopt->presetPreference == 1) {
+            // } else if (uopt.presetPreference == 1) {
         }
-        else if (uopt->resolutionID == Output576p50)
+        else if (uopt.resolutionID == Output576p50)
         {
             writeProgramArrayNew(pal_768x576, false);       // 4:3 square pixel
             _WSN(F("pal_768x576 is now active"));
-            // } else if (uopt->presetPreference == 3) {
+            // } else if (uopt.presetPreference == 3) {
         }
-        else if (uopt->resolutionID == Output720p)
+        else if (uopt.resolutionID == Output720p)
         {
             writeProgramArrayNew(pal_1280x720, false);
             _WSN(F("pal_1280x720 is now active"));
         }
-        // else if (uopt->presetPreference == 5) {
-        else if (uopt->resolutionID == Output1080p)
+        // else if (uopt.presetPreference == 5) {
+        else if (uopt.resolutionID == Output1080p)
         {
             writeProgramArrayNew(pal_1920x1080, false);
             _WSN(F("pal_1920x1080 is now active"));
-            // } else if (uopt->presetPreference == 6) {
+            // } else if (uopt.presetPreference == 6) {
         }
-        else if (uopt->resolutionID == Output15kHz)
+        else if (uopt.resolutionID == Output15kHz)
         {
             writeProgramArrayNew(pal_downscale, false);
             _WSN(F("pal_downscale is now active"));
@@ -1589,7 +1590,7 @@ void applyPresets(uint8_t videoMode)
     else if (videoMode == 5 || videoMode == 6 || videoMode == 7 || videoMode == 13)
     {
         // use bypass mode for these HD sources
-        rto->videoStandardInput = videoMode;
+        rto.videoStandardInput = videoMode;
         _WSN(F("HD Bypass is now active"));
         setOutputHdBypassMode(false);
         // don't go through doPostPresetLoadSteps
@@ -1598,11 +1599,11 @@ void applyPresets(uint8_t videoMode)
     else if (videoMode == 15)
     {
         _WS(F("RGB/HV "));
-        if (rto->syncTypeCsync)
+        if (rto.syncTypeCsync)
         {
             _WS(F("(CSync) "));
         }
-        if (uopt->preferScalingRgbhv) {
+        if (uopt.preferScalingRgbhv) {
             _WS(F("(prefer scaling mode"));
         }
         _WSN();
@@ -1612,7 +1613,7 @@ void applyPresets(uint8_t videoMode)
     }
 
 apply_presets_skip_preset_loading:
-    rto->videoStandardInput = videoMode;
+    rto.videoStandardInput = videoMode;
     _DBGF(PSTR("video mode set: %d\n"), videoMode);
     if (waitExtra)
     {
@@ -1661,7 +1662,7 @@ const uint8_t *loadPresetFromFS(byte forVideoMode)
     uint16_t i = 0;
     // let's assume there is no preset file yet or it is unavailable
     // we may change this assumption below the code
-    rto->isCustomPreset = false;
+    rto.isCustomPreset = false;
 
     f = LittleFS.open(FPSTR(preferencesFile), "r");
     if (f)
@@ -1744,7 +1745,7 @@ const uint8_t *loadPresetFromFS(byte forVideoMode)
         tmp = strtok(NULL, ",");
         // yield(); // wifi stack
     }
-    rto->isCustomPreset = true;
+    rto.isCustomPreset = true;
 
 load_preset_from_fs_end:
     return preset;
@@ -1780,41 +1781,41 @@ void savePresetToFS()
     //     return;
     // }
 
-    if (rto->videoStandardInput == 1)
+    if (rto.videoStandardInput == 1)
     {
-        sprintf(buffer, PSTR("/preset_ntsc.%d"), uopt->slotID);
+        sprintf(buffer, PSTR("/preset_ntsc.%d"), uopt.slotID);
     }
-    else if (rto->videoStandardInput == 2)
+    else if (rto.videoStandardInput == 2)
     {
-        sprintf(buffer, PSTR("/preset_pal.%d"), uopt->slotID);
+        sprintf(buffer, PSTR("/preset_pal.%d"), uopt.slotID);
     }
-    else if (rto->videoStandardInput == 3)
+    else if (rto.videoStandardInput == 3)
     {
-        sprintf(buffer, PSTR("/preset_ntsc_480p.%d"), uopt->slotID);
+        sprintf(buffer, PSTR("/preset_ntsc_480p.%d"), uopt.slotID);
     }
-    else if (rto->videoStandardInput == 4)
+    else if (rto.videoStandardInput == 4)
     {
-        sprintf(buffer, PSTR("/preset_pal_576p.%d"), uopt->slotID);
+        sprintf(buffer, PSTR("/preset_pal_576p.%d"), uopt.slotID);
     }
-    else if (rto->videoStandardInput == 5)
+    else if (rto.videoStandardInput == 5)
     {
-        sprintf(buffer, PSTR("/preset_ntsc_720p.%d"), uopt->slotID);
+        sprintf(buffer, PSTR("/preset_ntsc_720p.%d"), uopt.slotID);
     }
-    else if (rto->videoStandardInput == 6)
+    else if (rto.videoStandardInput == 6)
     {
-        sprintf(buffer, PSTR("/preset_ntsc_1080p.%d"), uopt->slotID);
+        sprintf(buffer, PSTR("/preset_ntsc_1080p.%d"), uopt.slotID);
     }
-    else if (rto->videoStandardInput == 8)
+    else if (rto.videoStandardInput == 8)
     {
-        sprintf(buffer, PSTR("/preset_medium_res.%d"), uopt->slotID);
+        sprintf(buffer, PSTR("/preset_medium_res.%d"), uopt.slotID);
     }
-    else if (rto->videoStandardInput == 14)
+    else if (rto.videoStandardInput == 14)
     {
-        sprintf(buffer, PSTR("/preset_vga_upscale.%d"), uopt->slotID);
+        sprintf(buffer, PSTR("/preset_vga_upscale.%d"), uopt.slotID);
     }
-    else if (rto->videoStandardInput == 0)
+    else if (rto.videoStandardInput == 0)
     {
-        sprintf(buffer, PSTR("/preset_unknown.%d"), uopt->slotID);
+        sprintf(buffer, PSTR("/preset_unknown.%d"), uopt.slotID);
     }
 
     // open preset file
@@ -1830,16 +1831,16 @@ void savePresetToFS()
         // GBS::GBS_PRESET_CUSTOM::write(1); // use one reserved bit to mark this as a custom preset
         // TODO don't store scanlines - WHY?
         // if (GBS::GBS_OPTION_SCANLINES_ENABLED::read() == 1)
-        // if (uopt->wantScanlines)
+        // if (uopt.wantScanlines)
         // {
         //     disableScanlines();
         // }
 
-        if (!rto->extClockGenDetected)
+        if (!rto.extClockGenDetected)
         {
-            if (uopt->enableFrameTimeLock && FrameSync::getSyncLastCorrection() != 0)
+            if (uopt.enableFrameTimeLock && FrameSync::getSyncLastCorrection() != 0)
             {
-                FrameSync::reset(uopt->frameTimeLockMethod);
+                FrameSync::reset(uopt.frameTimeLockMethod);
             }
         }
 

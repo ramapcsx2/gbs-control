@@ -192,7 +192,7 @@ public:
         typedef UReg<0x00, 0x43, 0, 2> PLL_R;                               // Skew control for testing
         typedef UReg<0x00, 0x43, 2, 2> PLL_S;                               // Skew control for testing
         typedef UReg<0x00, 0x43, 4, 1> PLL_LEN;                             // Lock Enable
-        typedef UReg<0x00, 0x43, 5, 1> PLL_VCORST;                          // VCO control voltage reset bit (When =1, reset VCO control voltage)
+        typedef UReg<0x00, 0x43, 5, 1> PLL_VCORST;                          // VCO control voltage reset bit (When = 1, reset VCO control voltage)
     typedef UReg<0x00, 0x44, 0, 1> DAC_RGBS_PWDNZ;                      // DAC enable (When = 0, DAC (R,G,B,S) in power down mode When = 1, DAC (R,G,B,S) is enable)
     typedef UReg<0x00, 0x44, 1, 1> DAC_RGBS_RPD;                        // RPD, RDAC power down control (When = 0, RDAC work normally; When = 1, RDAC is in power down mode)
     typedef UReg<0x00, 0x44, 2, 1> DAC_RGBS_R0ENZ;                      // R0ENZ, DAC min output bypass (When = 0, RDAC output Min voltage; When = 1, RDAC output follow input R data)
@@ -209,7 +209,7 @@ public:
     // S0_45_5:1    -   reserverd
     typedef UReg<0x00, 0x45, 6, 2> CKT_FF_CNTRL;                        // CKT used to control FIFO
     typedef UReg<0x00, 0x46, 0, 8> RESET_CONTROL_0x46;                  // CONTROL 00
-        typedef UReg<0x00, 0x46, 0, 1> SFTRST_IF_RSTZ;                      // Input formatter reset control (When = 0, input formatter is in reset status When = 1, input formatter work normally)
+        typedef UReg<0x00, 0x46, 0, 1> SFTRST_IF_RSTZ;                      // Input formatter reset control (When = 0, input formatter is in reset status; When = 1, input formatter work normally)
         typedef UReg<0x00, 0x46, 1, 1> SFTRST_DEINT_RSTZ;                   // Deint_madpt3 reset control (When = 0, deint_madpt3 is in reset status; When = 1, deint_madpt3 work normally)
         typedef UReg<0x00, 0x46, 2, 1> SFTRST_MEM_FF_RSTZ;                  // Mem_ff (wff/rff/playback/capture) reset control (When = 0, mem_ff is in reset status; When = 1, mem_ff work normally)
         typedef UReg<0x00, 0x46, 3, 1> SFTRST_MEM_RSTZ;                     // Mem controller reset control (When = 0, mem controller is in reset status; When = 1, mem controller work normally)
@@ -690,427 +690,710 @@ public:
     //
     // Video Processor Registers (all registers R/W)
     //
-    typedef UReg<0x03, 0x00, 0, 1> VDS_SYNC_EN;
-    typedef UReg<0x03, 0x00, 1, 1> VDS_FIELDAB_EN;
-    typedef UReg<0x03, 0x00, 2, 1> VDS_DFIELD_EN;
-    typedef UReg<0x03, 0x00, 3, 1> VDS_FIELD_FLIP;
-    typedef UReg<0x03, 0x00, 4, 1> VDS_HSCALE_BYPS;
-    typedef UReg<0x03, 0x00, 5, 1> VDS_VSCALE_BYPS;
-    typedef UReg<0x03, 0x00, 6, 1> VDS_HALF_EN;
-    typedef UReg<0x03, 0x00, 7, 1> VDS_SRESET;
-    typedef UReg<0x03, 0x01, 0, 12> VDS_HSYNC_RST;
-    typedef UReg<0x03, 0x02, 4, 11> VDS_VSYNC_RST;
-    typedef UReg<0x03, 0x04, 0, 12> VDS_HB_ST;
-    typedef UReg<0x03, 0x05, 4, 12> VDS_HB_SP;
-    typedef UReg<0x03, 0x07, 0, 11> VDS_VB_ST;
-    typedef UReg<0x03, 0x08, 4, 11> VDS_VB_SP;
-    typedef UReg<0x03, 0x0A, 0, 12> VDS_HS_ST;
-    typedef UReg<0x03, 0x0B, 4, 12> VDS_HS_SP;
-    typedef UReg<0x03, 0x0D, 0, 11> VDS_VS_ST;
-    typedef UReg<0x03, 0x0E, 4, 11> VDS_VS_SP;
-    typedef UReg<0x03, 0x10, 0, 12> VDS_DIS_HB_ST;
-    typedef UReg<0x03, 0x11, 4, 12> VDS_DIS_HB_SP;
-    typedef UReg<0x03, 0x13, 0, 11> VDS_DIS_VB_ST;
-    typedef UReg<0x03, 0x14, 4, 11> VDS_DIS_VB_SP;
-    typedef UReg<0x03, 0x16, 0, 10> VDS_HSCALE;
-    typedef UReg<0x03, 0x17, 4, 10> VDS_VSCALE;
-    typedef UReg<0x03, 0x19, 0, 10> VDS_FRAME_RST;
-    typedef UReg<0x03, 0x1A, 4, 1> VDS_FLOCK_EN;
-    typedef UReg<0x03, 0x1A, 5, 1> VDS_FREERUN_FID;
-    typedef UReg<0x03, 0x1A, 6, 1> VDS_FID_AA_DLY;
-    typedef UReg<0x03, 0x1A, 7, 1> VDS_FID_RST;
+    typedef UReg<0x03, 0x00, 0, 1> VDS_SYNC_EN;                         // External sync enable, active high - This bit enable sync lock mode (see: DEVELOPER_NOTES.md -> S3_00)
+    typedef UReg<0x03, 0x00, 1, 1> VDS_FIELDAB_EN;                      // ABAB double field mode enable (In field double mode, when this bit is 1, VDS works in ABAB mode, otherwise it works in AABB mode.)
+    typedef UReg<0x03, 0x00, 2, 1> VDS_DFIELD_EN;                       // Double field mode enable active high (This bit enable field double mode, ex, frame rate from 50Hz to 100Hz, or from 60Hz to 120Hz. When this bit is 1, the output timing is interlaced)
+    typedef UReg<0x03, 0x00, 3, 1> VDS_FIELD_FLIP;                      // Flip field control (This bit is field flip control bit, it only used in interlace mode. When it is 1, it inverts the output field)
+    typedef UReg<0x03, 0x00, 4, 1> VDS_HSCALE_BYPS;                     // Horizontal scale up bypass control, active high (When this bit is 1, data will bypass horizontal scale up process)
+    typedef UReg<0x03, 0x00, 5, 1> VDS_VSCALE_BYPS;                     // Vertical scale up bypass control, active high (When this bit is 1, data will bypass vertical scale up process)
+    typedef UReg<0x03, 0x00, 6, 1> VDS_HALF_EN;                         // Horizontal scale up bypass control, active high
+    typedef UReg<0x03, 0x00, 7, 1> VDS_SRESET;                          // Horizontal scale up bypass control, active high (When this bit is 1, it reset the VDS_PROC internal module ds_video_enhance)
+    typedef UReg<0x03, 0x01, 0, 12> VDS_HSYNC_RST;                      // Internal Horizontal period control bit[7:0], Half of total pixels in field double mode.
+                                                                        // This field contains horizontal total value minus 1.
+                                                                        // EX: Horizontal pixels is A, then HSYNC_RST[9:0] = A-1, in field double mode, HSYNC_RST[9:0] = (A/2 –1))
+    typedef UReg<0x03, 0x02, 4, 11> VDS_VSYNC_RST;                      // Internal Vertical period control bit (This field contains vertical total value minus 1)
+    // 02_7:1   -   reserved
+    typedef UReg<0x03, 0x04, 0, 12> VDS_HB_ST;                          // Horizontal blanking start position control bit (This field is used to program horizontal blanking start position, this blanking is used to get data from memory)
+    typedef UReg<0x03, 0x05, 4, 12> VDS_HB_SP;                          // Horizontal blanking stop position control bit (This field is used to program horizontal blanking stop position, this blanking is used to get data from memory)
+    typedef UReg<0x03, 0x07, 0, 11> VDS_VB_ST;                          // Vertical blanking start position control bit (This field is used to program vertical blanking start position)
+    // 08_3:1   -   reserved
+    typedef UReg<0x03, 0x08, 4, 11> VDS_VB_SP;                          // Vertical blanking stop position control bit (This field is used to program vertical blanking stop position)
+    // 09_7:1   -   reserved
+    typedef UReg<0x03, 0x0A, 0, 12> VDS_HS_ST;                          // Horizontal sync start position control bit (This field is used to program horizontal sync start position)
+    typedef UReg<0x03, 0x0B, 4, 12> VDS_HS_SP;                          // Horizontal sync stop position control bit (This field is used to program horizontal sync stop position)
+    typedef UReg<0x03, 0x0D, 0, 11> VDS_VS_ST;                          // Vertical sync start position control bit (This field is used to program vertical sync start position)
+    // 0E_3:1   -   reserved
+    typedef UReg<0x03, 0x0E, 4, 11> VDS_VS_SP;                          // Vertical sync stop position control bit (This field is used to program vertical sync stop position)
+    typedef UReg<0x03, 0x10, 0, 12> VDS_DIS_HB_ST;                      // Final display horizontal blanking start position control bit (This field contains final display horizontal blanking start position control, this blanking is used to clean the output data in blanking)
+    typedef UReg<0x03, 0x11, 4, 12> VDS_DIS_HB_SP;                      // Final display horizontal blanking stop position control bit (This field contains final display horizontal blanking stop position control, this blanking is used to clean the output data in blanking)
+    typedef UReg<0x03, 0x13, 0, 11> VDS_DIS_VB_ST;                      // Final display vertical blanking start position control bit (This field contains final display vertical blanking start position control, this blanking is used to clean the output data in blanking)
+    // 14_3:1   -   reserved
+    typedef UReg<0x03, 0x14, 4, 11> VDS_DIS_VB_SP;                      // Final display vertical blanking stop position control bit (This field contains final display vertical blanking stop position control, this blanking is used to clean the output data in blanking)
+    typedef UReg<0x03, 0x16, 0, 10> VDS_HSCALE;                         // Horizontal scaling coefficient bit.
+                                                                        // This field indicates the ratio of scaling up.
+                                                                        // HSCALE = 1024 * (resolution of input) / (resolution of output)
+                                                                        // EX: 720 * 480 -> 800 * 480, HSCALE = 1024 * 720 / 800
+    // 17_2:2   -   reserved
+    typedef UReg<0x03, 0x17, 4, 10> VDS_VSCALE;                         // Vertical scaling up coefficient bit.
+                                                                        // This field indicates the ratio of vertical scaling up.
+                                                                        // VSCALE = 1024 * (resolution of input / resolution of output)
+                                                                        // EX: 720*480 -> 720*576, VSCALE = 1024 * 480 /576
+    // 18_6:2   -   reserved
+    typedef UReg<0x03, 0x19, 0, 10> VDS_FRAME_RST;                      // Frame reset period control bit
+                                                                        // This field indicates how many frames VSD_PROC locked at each time, it based on the input vertical sync.
+                                                                        // EX: FRAME_RST=4, this means VDS_PROC will lock every 5 frames,
+                                                                        // (This frame number is counts at every input vertical sync, the frame number of VDS_PROC output maybe different)
+    // 1A_2:2   -   reserved
+    typedef UReg<0x03, 0x1A, 4, 1> VDS_FLOCK_EN;                        // Frame lock enable, active high
+                                                                        // This bit enables the frame lock mode, when this bit is 1, VDS_PROC output
+                                                                        // timing will lock with its input timing (from INPUT_FORMATTER) at every 2 or more frames.
+    typedef UReg<0x03, 0x1A, 5, 1> VDS_FREERUN_FID;                     // Enable internal free run field index generation, active high
+                                                                        // When this bit is 1, the output field index is internal free run field,
+                                                                        // otherwise the output field index is based on input field index.
+    typedef UReg<0x03, 0x1A, 6, 1> VDS_FID_AA_DLY;                      // Enable internal free run AABB field delay 1 frame, active high (When this bit is 1, the internal free run AABB field will delay 1 frame)
+    typedef UReg<0x03, 0x1A, 7, 1> VDS_FID_RST;                         // Enable internal free run field index reset, active high (When this bit is 1, internal free run field index will reset at every frame number is 0)
 
-    typedef UReg<0x03, 0x1B, 0, 32> VDS_FR_SELECT;
-    typedef UReg<0x03, 0x1F, 0, 4> VDS_FRAME_NO;
-    typedef UReg<0x03, 0x1F, 4, 1> VDS_DIF_FR_SEL_EN;
-    typedef UReg<0x03, 0x1F, 5, 1> VDS_EN_FR_NUM_RST;
-    typedef UReg<0x03, 0x20, 0, 11> VDS_VSYN_SIZE1;
-    typedef UReg<0x03, 0x22, 0, 11> VDS_VSYN_SIZE2;
-    typedef UReg<0x03, 0x24, 0, 8> VDS_3_24;                            // convenience
-        typedef UReg<0x03, 0x24, 0, 1> VDS_UV_FLIP;
-        typedef UReg<0x03, 0x24, 1, 1> VDS_U_DELAY;
-        typedef UReg<0x03, 0x24, 2, 1> VDS_V_DELAY;
-        typedef UReg<0x03, 0x24, 3, 1> VDS_TAP6_BYPS;
-        typedef UReg<0x03, 0x24, 4, 2> VDS_Y_DELAY;
-        typedef UReg<0x03, 0x24, 6, 2> VDS_WEN_DELAY;
-    typedef UReg<0x03, 0x25, 0, 10> VDS_D_SP;
-    typedef UReg<0x03, 0x26, 6, 1> VDS_D_RAM_BYPS;
-    typedef UReg<0x03, 0x26, 7, 1> VDS_BLEV_AUTO_EN;
-    typedef UReg<0x03, 0x27, 0, 4> VDS_USER_MIN;
-    typedef UReg<0x03, 0x27, 4, 4> VDS_USER_MAX;
-    typedef UReg<0x03, 0x28, 0, 8> VDS_BLEV_LEVEL;
-    typedef UReg<0x03, 0x29, 0, 8> VDS_BLEV_GAIN;
-    typedef UReg<0x03, 0x2A, 0, 1> VDS_BLEV_BYPS;
-    typedef UReg<0x03, 0x2A, 4, 2> VDS_STEP_DLY_CNTRL;
-    typedef UReg<0x03, 0x2A, 6, 2> VDS_0X2A_RESERVED_2BITS;
-    typedef UReg<0x03, 0x2B, 0, 4> VDS_STEP_GAIN;
-    typedef UReg<0x03, 0x2B, 4, 3> VDS_STEP_CLIP;
-    typedef UReg<0x03, 0x2B, 7, 1> VDS_UV_STEP_BYPS;
+    typedef UReg<0x03, 0x1B, 0, 32> VDS_FR_SELECT;                      // Frame size select control bit (FR_SELECT[2n+1:2n] is for frame n selection. 0 select VSYNC_RST; 1 select VSYNC_SIZE1; 2 select VSYNC_SIZE2)
+    typedef UReg<0x03, 0x1F, 0, 4> VDS_FRAME_NO;                        // Programmable repeat frame number control bit (This field defines the repeated frame number, EX: if frame_no = 2, then the frame will repeat every 3 frame) see: DEVELOPER_NOTES.md -> S3_1F
+    typedef UReg<0x03, 0x1F, 4, 1> VDS_DIF_FR_SEL_EN;                   // Enable the different frame size, active high (When this bit is 1, VDS_PROC can generate a sequence of different frame size)
+    typedef UReg<0x03, 0x1F, 5, 1> VDS_EN_FR_NUM_RST;                   // Enable frame number reset, active high (When this bit is 1, frame number will be reset to 1 when frame lock is occur)
+    // 1F_6:2   -   reserved
+    typedef UReg<0x03, 0x20, 0, 11> VDS_VSYN_SIZE1;                     // Programmable vertical total size 1 control bit
+                                                                        // This field contains the vertical total line number minus 1. It can be the same
+                                                                        // as vsync_rst and vsync_size2, it also can different with them, and it
+                                                                        // can be used to define different frame size.
+    // 20_3:5   -   reserved
+    typedef UReg<0x03, 0x22, 0, 11> VDS_VSYN_SIZE2;                     // Programmable vertical total size 2 control bit
+                                                                        // This field contains the vertical total line number minus 1.
+                                                                        // It can be the same as vsync_rst and vsync_size1, it also can different
+                                                                        // with them, and it can be used to define different frame size.
+    // 23_3:5   -   reserved
+    typedef UReg<0x03, 0x24, 0, 8> VDS_3_24;                            // VDS_PROC 36
+        typedef UReg<0x03, 0x24, 0, 1> VDS_UV_FLIP;                         // 422 to 444 conversion UV flip control (This bit is used to flip UV, when this bit is 1, UV position will be flipped)
+        typedef UReg<0x03, 0x24, 1, 1> VDS_U_DELAY;                         // UV 422 to 444 conversion U delay (When this bit is 1, U will delay 1 clock, otherwise, no delay for internal pipe)
+        typedef UReg<0x03, 0x24, 2, 1> VDS_V_DELAY;                         // UV 422 to 444 conversion V delay (When this bit is 1, V will delay 1 clock, otherwise, no delay for internal pipe)
+        typedef UReg<0x03, 0x24, 3, 1> VDS_TAP6_BYPS;                       // Tap6 filter in 422 to 444 conversion bypass control, active high (This bit is the UV interpolation filter enable control; when this bit is 1, UV bypass the filter)
+        typedef UReg<0x03, 0x24, 4, 2> VDS_Y_DELAY;                         // Y compensation delay control bit [1:0] in 422 to 444 conversion (To compensation the pipe of UV, program this field can delay Y from 1 to 4 clocks) (see: DEVELOPER_NOTES.md -> S3_24_4)
+        typedef UReg<0x03, 0x24, 6, 2> VDS_WEN_DELAY;                       // Compensation delay control bit [1:0] for horizontal write enable (This two-bit register defines the compensation delay of horizontal scale up write enable and phase)  (see: DEVELOPER_NOTES.md -> S3_24_6)
+    typedef UReg<0x03, 0x25, 0, 10> VDS_D_SP;                           // Line buffer write reset position control bit (This field contains the write reset position of the line buffer, this position is also the write start position of the buffer)
+    // 26_2:4   -   reserved
+    typedef UReg<0x03, 0x26, 6, 1> VDS_D_RAM_BYPS;                      // Line buffer one line delay data bypass, active high (When this bit is 1, data will bypass the line buffer)
+    typedef UReg<0x03, 0x26, 7, 1> VDS_BLEV_AUTO_EN;                    // Y minimum and maximum level auto detection enable, active high
+                                                                        // This bit is the Y min and max auto detection enable bit for black/white level expansion,
+                                                                        // when this bit is 1, the min and max value of Y in every frame will be detected,
+                                                                        // otherwise, the min and max value are defined by register
+    typedef UReg<0x03, 0x27, 0, 4> VDS_USER_MIN;                        // Programmable minimum value control bit (This field is the user defined min value for black level expansion, the actual min value in use is 2*blev_det_min+1)
+    typedef UReg<0x03, 0x27, 4, 4> VDS_USER_MAX;                        // Programmable maximum value control bit (This field is the user defined max value for black level expansion, the actual min value in use is 16*blev_det_max+15)
+    typedef UReg<0x03, 0x28, 0, 8> VDS_BLEV_LEVEL;                      // Black level expansion level control bit (This field defines the black level expansion threshold level value, data larger than this level will have no black level expansion process)
+    typedef UReg<0x03, 0x29, 0, 8> VDS_BLEV_GAIN;                       // Black level expansion gain control bit (This field contains the gain control of black level expansion, its range is (0~16)*16)
+    typedef UReg<0x03, 0x2A, 0, 1> VDS_BLEV_BYPS;                       // Black level expansion bypass control, active high (This bit is the bypass control bit of black level expansion, when it is 1, data will bypass black level expansion process)
+    // 2A_1:3   -   reserved
+    typedef UReg<0x03, 0x2A, 4, 2> VDS_STEP_DLY_CNTRL;                  // UV step response data select control bit (see: DEVELOPER_NOTES.md -> S3_2A)
+    // 2A_6:2   -   reserved
+    // typedef UReg<0x03, 0x2A, 6, 2> VDS_0X2A_RESERVED_2BITS;
+    typedef UReg<0x03, 0x2B, 0, 4> VDS_STEP_GAIN;                       // UV Step response gain control bit (This field register can adjust the UV edge improvement, the larger value of this register, the sharper edge will appear, the range of this gain is (0~4)*4)
+    typedef UReg<0x03, 0x2B, 4, 3> VDS_STEP_CLIP;                       // UV step response clip control bit (This filed contains the clip control value of UV step response)
+    typedef UReg<0x03, 0x2B, 7, 1> VDS_UV_STEP_BYPS;                    // UV step response bypass control, active high (When this bit is 1, UV data will don’t do step response)
 
-    typedef UReg<0x03, 0x2C, 0, 8> VDS_SK_U_CENTER;
-    typedef UReg<0x03, 0x2D, 0, 8> VDS_SK_V_CENTER;
-    typedef UReg<0x03, 0x2E, 0, 8> VDS_SK_Y_LOW_TH;
-    typedef UReg<0x03, 0x2F, 0, 8> VDS_SK_Y_HIGH_TH;
-    typedef UReg<0x03, 0x30, 0, 8> VDS_SK_RANGE;
-    typedef UReg<0x03, 0x31, 0, 4> VDS_SK_GAIN;
-    typedef UReg<0x03, 0x31, 4, 1> VDS_SK_Y_EN;
-    typedef UReg<0x03, 0x31, 5, 1> VDS_SK_BYPS;
+    typedef UReg<0x03, 0x2C, 0, 8> VDS_SK_U_CENTER;                     // Skin color correction U center position control bit (This field contains the skin color center position U value, the value is 2’s)
+    typedef UReg<0x03, 0x2D, 0, 8> VDS_SK_V_CENTER;                     // Skin color correction V center position control bit (This field contains the skin color center position U value, the value is 2’s)
+    typedef UReg<0x03, 0x2E, 0, 8> VDS_SK_Y_LOW_TH;                     // Skin color correction Y low threshold control bit (Y low threshold value for skin color correction, if y less than this threshold, no skin color correction done)
+    typedef UReg<0x03, 0x2F, 0, 8> VDS_SK_Y_HIGH_TH;                    // Skin color correction Y high threshold control bit (Y high threshold value for skin color correction, if y larger than this threshold, no skin color correction done)
+    typedef UReg<0x03, 0x30, 0, 8> VDS_SK_RANGE;                        // Skin color correction range control bit (The skin color correction will done just when the value abs(u-u_center)+abs(v- v_enter) less than this programmable range)
+    typedef UReg<0x03, 0x31, 0, 4> VDS_SK_GAIN;                         // Skin color correction gain control bit (This register defines the degree of the skin color correction, the higher the value, the more skin color correction done. Its range is (0~1)*16)
+    typedef UReg<0x03, 0x31, 4, 1> VDS_SK_Y_EN;                         // Skin color Y detect enable, active high (When this bit is 1, take the Y value as the condition of skin color correction, just when the Y value larger than y_low_th and less the y_high_th, the correction can be done)
+    typedef UReg<0x03, 0x31, 5, 1> VDS_SK_BYPS;                         // Skin color correction bypass control, active high (When this bit is 1, the skin color correction will be bypassed)
+    // 31_6:2   -   reserved
+    typedef UReg<0x03, 0x32, 0, 2> VDS_SVM_BPF_CNTRL;                   // SVM data generation select control (see: DEVELOPER_NOTES.md -> S3_32)
+    typedef UReg<0x03, 0x32, 2, 1> VDS_SVM_POL_FLIP;                    // SVM polarity flip control bit (When this bit is 1, the SVM signal’s polarity will be flipped, otherwise, SVM remains the original phase)
+    typedef UReg<0x03, 0x32, 3, 1> VDS_SVM_2ND_BYPS;                    // 2nd order SVM signal generation bypass, active high (When this bit is 1, SVM signal is 1st order, otherwise, it is 2nd order derivative signal)
+    typedef UReg<0x03, 0x32, 4, 3> VDS_SVM_VCLK_DELAY;                  // To match YUV pipe, SVM data delay by VCLK control bit (This field define the SVM compensation delay from 1 to 8 VCLKs)
+    typedef UReg<0x03, 0x32, 7, 1> VDS_SVM_SIGMOID_BYPS;                // SVM bypass the sigmoid function, active high (When this bit is 1, SVM signal bypass a sigmoid function. This function can make the SVM signal sharper)
+    typedef UReg<0x03, 0x33, 0, 8> VDS_SVM_GAIN;                        // SVM gain control bit (This field contains the gain value of SVM data., its range is (0~16)*16)
+    typedef UReg<0x03, 0x34, 0, 8> VDS_SVM_OFFSET;                      // SVM offset control bit (This field contains the offset value of SVM data, its range is 0~255)
 
-    typedef UReg<0x03, 0x32, 0, 2> VDS_SVM_BPF_CNTRL;
-    typedef UReg<0x03, 0x32, 2, 1> VDS_SVM_POL_FLIP;
-    typedef UReg<0x03, 0x32, 3, 1> VDS_SVM_2ND_BYPS;
-    typedef UReg<0x03, 0x32, 4, 3> VDS_SVM_VCLK_DELAY;
-    typedef UReg<0x03, 0x32, 7, 1> VDS_SVM_SIGMOID_BYPS;
-    typedef UReg<0x03, 0x33, 0, 8> VDS_SVM_GAIN;
-    typedef UReg<0x03, 0x34, 0, 8> VDS_SVM_OFFSET;
+    typedef UReg<0x03, 0x35, 0, 8> VDS_Y_GAIN;                          // Y dynamic range expansion gain control bit (This field contains the Y gain value in dynamic range expansion process, its range is (0 ~ 2)*128)
+    typedef UReg<0x03, 0x36, 0, 8> VDS_UCOS_GAIN;                       // U dynamic range expansion cos gain control bit (This field contains the U gain value in dynamic range expansion process, its range is (-4 ~ 4)*32)
+    typedef UReg<0x03, 0x37, 0, 8> VDS_VCOS_GAIN;                       // V dynamic range expansion gain control bit (This field contains the V gain value in dynamic range expansion process, its range is (-4 ~ 4)*32)
+    typedef UReg<0x03, 0x38, 0, 8> VDS_USIN_GAIN;                       // U dynamic range expansion sin gain control bit (This field contains the U sin gain value in dynamic range expansion process, its range is (-4 ~ 4)*32)
+    typedef UReg<0x03, 0x39, 0, 8> VDS_VSIN_GAIN;                       // V dynamic range expansion sin gain control bit (This field contains the V sin gain value in dynamic range expansion process, its range is (-4 ~ 4)*32)
+    typedef UReg<0x03, 0x3A, 0, 8> VDS_Y_OFST;                          // Y dynamic range expansion offset control bit (This field contains the Y offset value in dynamic range expansion process, its range is –128 ~ 127)
+    typedef UReg<0x03, 0x3B, 0, 8> VDS_U_OFST;                          // U dynamic range expansion offset control bit (This field contains the U offset value in dynamic range expansion process, its range is –128 ~ 127)
+    typedef UReg<0x03, 0x3C, 0, 8> VDS_V_OFST;                          // V dynamic range expansion offset control bit (This field contains the V offset value in dynamic range expansion process., its range is –128 ~ 127)
 
-    typedef UReg<0x03, 0x35, 0, 8> VDS_Y_GAIN;
-    typedef UReg<0x03, 0x36, 0, 8> VDS_UCOS_GAIN;
-    typedef UReg<0x03, 0x37, 0, 8> VDS_VCOS_GAIN;
-    typedef UReg<0x03, 0x38, 0, 8> VDS_USIN_GAIN;
-    typedef UReg<0x03, 0x39, 0, 8> VDS_VSIN_GAIN;
-    typedef UReg<0x03, 0x3A, 0, 8> VDS_Y_OFST;
-    typedef UReg<0x03, 0x3B, 0, 8> VDS_U_OFST;
-    typedef UReg<0x03, 0x3C, 0, 8> VDS_V_OFST;
+    typedef UReg<0x03, 0x3D, 0, 9> VDS_SYNC_LEV;                        // Sync level bit
+                                                                        // This field contains the composite sync level value, this value will add on Y,
+                                                                        // outside the composite sync interval. If the Y out is 1V, sync is 0.3V,
+                                                                        // then this value is (0.3/1)*1024=307, and the output sync’s max voltage is 0.5V
+    // 3E_1:2   -   reserved
+    typedef UReg<0x03, 0x3E, 3, 1> VDS_CONVT_BYPS;                      // YUV to RGB color space conversion bypass control, active high
+                                                                        // When this bit is 1, YUV data will bypass the YUV to RGB conversion, the output will still be YUV data.
+                                                                        // When this bit is 0, YUV data will do YUV to RGB conversion, the output will be RGB data.
+    typedef UReg<0x03, 0x3E, 4, 1> VDS_DYN_BYPS;                        // Dynamic range expansion bypass control, active high (When this bit is 1, data will bypass the dynamic range expansion process)
+    // 3E_5:2   -   reserved
+    typedef UReg<0x03, 0x3E, 7, 1> VDS_BLK_BF_EN;                       // Blanking set up enable, active high (When this bit is 1, final composite blank (dis_hb|dis_vb) will cut the garbage data in blanking interval)
+    typedef UReg<0x03, 0x3F, 0, 8> VDS_UV_BLK_VAL;                      // UV blanking amplitude value control bit (This filed indicates the amplitude value of UV in blanking interval, the highest bit of this programmable register is sign bit)
+    typedef UReg<0x03, 0x40, 0, 1> VDS_1ST_INT_BYPS;                    // The 1st stage interpolation bypass control, active high (When this bit is 1, the 1st stage interpolation (in YUV domain) will be bypassed, Y use tap19, and UV use tap7)
+    typedef UReg<0x03, 0x40, 1, 1> VDS_2ND_INT_BYPS;                    // The 2nd stage interpolation bypass control, active high (When this bit is 1, the 2nd stage interpolation (in RGB domain) will be bypassed, all RGB use tap11)
+    typedef UReg<0x03, 0x40, 2, 1> VDS_IN_DREG_BYPS;                    // Input data bypass the negedge trigger control, active high:
+                                                                        // When this bit is 0, input data will triggered by falling edge clock,
+                                                                        // When this bit is 1, the input data will bypass this falling edge clock delay.)
+    // 40_3:1   -   reserved
+    typedef UReg<0x03, 0x40, 4, 2> VDS_SVM_V4CLK_DELAY;                 // SVM delay be V2CLK control bit (see: DEVELOPER_NOTES.md -> S3_40)
+    // 40_6:2   -   reserved
+    typedef UReg<0x03, 0x41, 0, 10> VDS_PK_LINE_BUF_SP;                 // Line buffer for 2D peaking write reset position control bit (This field contains the write reset position of the line buffer, this position is also the write start position of the buffer.)
+    // 42_2:4   -   reserved
+    typedef UReg<0x03, 0x42, 6, 1> VDS_PK_RAM_BYPS;                     // Line buffer for 2D peaking one line delay data bypass, active high (When this bit is 1, data will bypass the line buffer)
+    // 42_7:1   -   reserved
+    typedef UReg<0x03, 0x43, 0, 1> VDS_PK_VL_HL_SEL;                    // 2D peaking vertical low-pass signal select the horizontal split filter control (low-pass filter select, 1 for tap3 and 0 for tap5)
+    typedef UReg<0x03, 0x43, 1, 1> VDS_PK_VL_HH_SEL;                    // 2D peaking vertical low-pass signal select the horizontal split filter control (for high-pass filter select, 1 for tap3 and 0 for tap5)
+    typedef UReg<0x03, 0x43, 2, 1> VDS_PK_VH_HL_SEL;                    // 2D peaking vertical high-pass signal select the horizontal split filter control (high-pass filter select, 1 for tap3 and 0 for tap5)
+    typedef UReg<0x03, 0x43, 3, 1> VDS_PK_VH_HH_SEL;                    // 2D peaking vertical high-pass signal select the horizontal split filter control (low-pass filter select, 1 for tap3 and 0 for tap5)
+    // 43_4:4   -   reserved
+    typedef UReg<0x03, 0x44, 0, 3> VDS_PK_LB_CORE;                      // 2D peaking vertical low-pass horizontal band-pass signal coring level (Vertical low-pass and horizontal band-pass signal larger than this coring level will remain unchanged, otherwise it will be cut to 0)
+    typedef UReg<0x03, 0x44, 3, 5> VDS_PK_LB_CMP;                       // 2D peaking vertical low-pass horizontal band-pass signal threshold level (Vertical low-pass and horizontal band-pass signal larger than this coring level will remain unchanged, otherwise the gain will added on it)
+    typedef UReg<0x03, 0x45, 0, 6> VDS_PK_LB_GAIN;                      // 2D peaking vertical low-pass horizontal band-pass signal gain control (Vertical low-pass horizontal band-pass signal gain, its range is (0~4)*16)
+    // 45_6:2   -   reserved
+    typedef UReg<0x03, 0x46, 0, 3> VDS_PK_LH_CORE;                      // 2D peaking vertical low-pass horizontal high-pass signal coring level (Vertical low-pass and horizontal high-pass signal larger than this coring level will remain unchanged, otherwise it will be cut to 0)
+    typedef UReg<0x03, 0x46, 3, 5> VDS_PK_LH_CMP;                       // 2D peaking vertical low-pass horizontal high-pass signal threshold level (Vertical low-pass and horizontal high-pass signal larger than this coring level will remain unchanged, otherwise the gain will added on it)
+    typedef UReg<0x03, 0x47, 0, 6> VDS_PK_LH_GAIN;                      // 2D peaking vertical low-pass horizontal high-pass signal gain control (Vertical low-pass horizontal high-pass signal gain, its range is (0~4)*16)
+    // 47_6:2   -   reserved
+    typedef UReg<0x03, 0x48, 0, 3> VDS_PK_HL_CORE;                      // 2D peaking vertical high-pass horizontal low-pass signal coring level (Vertical high-pass and horizontal low-pass signal larger than this coring level will remain unchanged, otherwise it will be cut to 0)
+    typedef UReg<0x03, 0x48, 3, 5> VDS_PK_HL_CMP;                       // 2D peaking vertical high-pass horizontal low-pass signal threshold level (Vertical high-pass and horizontal low-pass signal larger than this coring level will remain unchanged, otherwise the gain will added on it)
+    typedef UReg<0x03, 0x49, 0, 6> VDS_PK_HL_GAIN;                      // 2D peaking vertical high-pass horizontal low-pass signal gain control (Vertical high-pass horizontal low-pass signal gain, its range is (0~4)*16)
+    // 49_6:2   -   reserved
+    typedef UReg<0x03, 0x4A, 0, 3> VDS_PK_HB_CORE;                      // 2D peaking vertical high-pass horizontal band-pass signal coring level (Vertical high-pass and horizontal band-pass signal larger than this coring level will remain unchanged, otherwise it will be cut to 0)
+    typedef UReg<0x03, 0x4A, 3, 5> VDS_PK_HB_CMP;                       // 2D peaking vertical high-pass horizontal band-pass signal threshold level (Vertical high-pass and horizontal band-pass signal larger than this coring level will remain unchanged, otherwise the gain will added on it)
+    typedef UReg<0x03, 0x4B, 0, 6> VDS_PK_HB_GAIN;                      // 2D peaking vertical high-pass horizontal band-pass signal gain control (Vertical high-pass horizontal band-pass signal gain, its range is (0~4)*16)
+    typedef UReg<0x03, 0x4C, 0, 3> VDS_PK_HH_CORE;                      // 2D peaking vertical high-pass horizontal high-pass signal coring level (Vertical high-pass and horizontal high-pass signal larger than this coring level will remain unchanged, otherwise it will be cut to 0)
+    typedef UReg<0x03, 0x4C, 3, 5> VDS_PK_HH_CMP;                       // 2D peaking vertical high-pass horizontal high-pass signal threshold level (Vertical high-pass and horizontal high-pass signal larger than this coring level will remain unchanged, otherwise the gain will added on it)
+    typedef UReg<0x03, 0x4D, 0, 6> VDS_PK_HH_GAIN;                      // 2D peaking vertical high-pass horizontal high-pass signal gain control (Vertical high-pass horizontal high-pass signal gain, its range is (0~4)*16)
+    // 4D_6:2   -   reserved
+    typedef UReg<0x03, 0x4E, 0, 1> VDS_PK_Y_H_BYPS;                     // Y horizontal peaking bypass control, active high (When this bit is 1, Y horizontal peaking will be bypassed)
+    typedef UReg<0x03, 0x4E, 1, 1> VDS_PK_Y_V_BYPS;                     // Y vertical peaking bypass control, active high (When this bit is 1, Y vertical peaking will be bypassed)
+    // 4E_2:1   -   reserved
+    typedef UReg<0x03, 0x4E, 3, 1> VDS_C_VPK_BYPS;                      // UV vertical peaking bypass control, active high (When this bit is 1, UV vertical peaking will be bypassed)
+    typedef UReg<0x03, 0x4E, 4, 3> VDS_C_VPK_CORE;                      // UV vertical peaking coring level (UV vertical high-pass signal larger than this coring level will remain unchanged, otherwise it will be cut to 0)
+    // 4E_7:1   -   reserved
+    typedef UReg<0x03, 0x4F, 0, 6> VDS_C_VPK_GAIN;                      // UV vertical peaking gain control bit (UV vertical high-pass signal gain control, its range is (0~4)*16)
+    // 4F_6:2   -   reserved
+    typedef UReg<0x03, 0x50, 0, 4> VDS_TEST_BUS_SEL;                    // Test out select control bit (This register is used to select internal status bus to test bus)
+    typedef UReg<0x03, 0x50, 4, 1> VDS_TEST_EN;                         // Test enable, active high (This bit is the test bus out enable bit, when this bit is 1, the test bus can output the internal status, and otherwise, the test bus is 0Xaaaa)
+    typedef UReg<0x03, 0x50, 5, 1> VDS_DO_UV_DEV_BYPS;                  // 16-bit digital out UV decimation filter bypass control, active high (When this bit is 1, 16-bit 422 YUV digital out UV decimation will be bypassed)
+    typedef UReg<0x03, 0x50, 6, 1> VDS_DO_UVSEL_FLIP;                   // 16-bit digital out UV flip control (When this bit is 1, 16-bit 422 YUV digital out UV position will be flipped)
+    typedef UReg<0x03, 0x50, 7, 1> VDS_DO_16B_EN;                       // 16-bit digital out (422 format yuv) enable (When this bit is 1, digital out is 16-bit 422 YUV format; When it is 0, digital out is 24-bit)
 
-    typedef UReg<0x03, 0x3D, 0, 9> VDS_SYNC_LEV;
-    typedef UReg<0x03, 0x3E, 3, 1> VDS_CONVT_BYPS;
-    typedef UReg<0x03, 0x3E, 4, 1> VDS_DYN_BYPS;
-    typedef UReg<0x03, 0x3E, 7, 1> VDS_BLK_BF_EN;
-    typedef UReg<0x03, 0x3F, 0, 8> VDS_UV_BLK_VAL;
-    typedef UReg<0x03, 0x40, 0, 1> VDS_1ST_INT_BYPS;
-    typedef UReg<0x03, 0x40, 1, 1> VDS_2ND_INT_BYPS;
-    typedef UReg<0x03, 0x40, 2, 1> VDS_IN_DREG_BYPS;
-    typedef UReg<0x03, 0x40, 4, 2> VDS_SVM_V4CLK_DELAY;
+    typedef UReg<0x03, 0x51, 7, 11> VDS_GLB_NOISE;                      // Global still detection threshold value control bit:
+                                                                        // This field contains the global noise threshold value. If the total difference of two
+                                                                        // frame less than this programmable value, the picture is taken as still,
+                                                                        // otherwise, the picture is taken as moving picture.
+    // 52_3:1   -   reserved
+    typedef UReg<0x03, 0x52, 4, 1> VDS_NR_Y_BYPS;                       // Y bypass the noise reduction process control (When this bit is 1, Y data will bypass the noise reduction process)
+    typedef UReg<0x03, 0x52, 5, 1> VDS_NR_C_BYPS;                       // UV bypass the noise reduction process control (When this bit is 1, UV data will bypass the noise reduction process)
+    typedef UReg<0x03, 0x52, 6, 1> VDS_NR_DIF_LPF5_BYPS;                // Bypass control of the tap5 low-pass filter used for Y difference between two frames (When this bit is 1, Y difference data will bypass the tap5 low-pass filter)
+    typedef UReg<0x03, 0x52, 7, 1> VDS_NR_MI_TH_EN;                     // Noise reduction threshold control enable (This bit will enable the threshold control, active high)
+    typedef UReg<0x03, 0x53, 0, 7> VDS_NR_MI_OFFSET;                    // Motion index offset control bit (The offset control for motion index generation; When ds_mig_en is 1, ds_mig_offset[3:0] is user-defined motion index)
+    typedef UReg<0x03, 0x53, 7, 1> VDS_NR_MIG_USER_EN;                  // Motion index generation user mode enable (When this bit is 1, the motion index generation will use nr_mig_offt[3:0] as Motion index)
+    typedef UReg<0x03, 0x54, 0, 4> VDS_NR_MI_GAIN;                      // Motion index generation gain control bit (Motion index generation gain control, its range is (0~8)*2)
+    typedef UReg<0x03, 0x54, 4, 4> VDS_NR_STILL_GAIN;                   // Motion index generation gain control bit for still picture (When picture is still, this field contains the motion index generation gain, its range is (0~8)*2)
+    typedef UReg<0x03, 0x55, 0, 4> VDS_NR_MI_THRES;                     // Noise reduction threshold value bit (Noise-reduction threshold value. When MI is smaller than the threshold value, the noise reduction is enabled. Otherwise it is not)
+    typedef UReg<0x03, 0x55, 4, 1> VDS_NR_EN_H_NOISY;                   // High noisy picture index enable, active high (Enable high noisy index from de-interlacer, it means the picture’s noise is very large)
+    // 55_5:1   -   reserved
+    typedef UReg<0x03, 0x55, 6, 1> VDS_NR_EN_GLB_STILL;                 // Global still index enable, active high (This bit enables the global still signal)
+    typedef UReg<0x03, 0x55, 7, 1> VDS_NR_GLB_STILL_MENU;               // Menu mode control for global still index (used for debug) (see: DEVELOPER_NOTES.md -> S3_55)
+    typedef UReg<0x03, 0x56, 0, 7> VDS_NR_NOISY_OFFSET;                 // Motion index generation offset control bit for high noisy picture (When the picture is high noisy picture, this field contains the offset control for motion index generation)
+    typedef UReg<0x03, 0x56, 7, 1> VDS_W_LEV_BYPS;                      // White level expansion bypass control, active high (When this bit is 1, Y don’t do white level expansion)
+    typedef UReg<0x03, 0x57, 0, 8> VDS_W_LEV;                           // White level expansion level control bit (This field defines the white level expansion threshold level value; data less than this level will have no white level expansion process)
+    typedef UReg<0x03, 0x58, 0, 8> VDS_WLEV_GAIN;                       // White level expansion gain control bit (This field defines the white level expansion threshold level value; data less than this level will have no white level expansion process)
+    typedef UReg<0x03, 0x59, 0, 8> VDS_NS_U_CENTER;                     // Non-linear saturation center position U value control bit (This field contains the non-linear saturation center position U value, the value is 2’s)
+    typedef UReg<0x03, 0x5A, 0, 8> VDS_NS_V_CENTER;                     // Non-linear saturation center position V value control bit (This field contains the non-linear saturation center position V value, the value is 2’s)
+    typedef UReg<0x03, 0x5B, 0, 7> VDS_NS_U_GAIN;                       // Non-linear saturation U gain control bit (This field contains the U gain control for U component in the area which should do non-linear saturation, its range is (0~1)*128)
+    typedef UReg<0x03, 0x5B, 7, 15> VDS_NS_SQUARE_RAD;                  // Non-linear saturation range control bit (Non-linear saturation only did When (u-u_center)^2 + (v-v_center)^2 less than this programmable range value)
+    typedef UReg<0x03, 0x5D, 6, 8> VDS_NS_Y_HIGH_TH;                    // Non-linear saturation Y high threshold control bit (This filed defines the Y high threshold value for non-linear saturation, when y detect enable (60[3]=1), if y larger than this programmable value, no non-linear did)
+    typedef UReg<0x03, 0x5E, 6, 7> VDS_NS_V_GAIN;                       // Non-linear saturation V gain control bit (This field contains the V gain control for V component in the area which should do non-linear saturation, its range is (0~1)*128)
+    typedef UReg<0x03, 0x5F, 5, 5> VDS_NS_Y_LOW_TH;                     // Non-linear saturation Y low threshold control bit (This filed defines the Y low threshold value for non-linear saturation, when y detect enable (60[3]=1), if y less than this programmable value, no non-linear did)
+    typedef UReg<0x03, 0x60, 2, 1> VDS_NS_BYPS;                         // Non-linear saturation bypass control, active high (When this bit is 1, the process non-linear saturation will be bypassed)
+    typedef UReg<0x03, 0x60, 3, 1> VDS_NS_Y_ACTIVE_EN;                  // Non-linear saturation Y detect enable, active high (When this bit is 1, the process non-linear saturation only done when the Y larger than the value ns_y_low_th and less than the value ns_y_high_th)
 
-    typedef UReg<0x03, 0x41, 0, 10> VDS_PK_LINE_BUF_SP;
-    typedef UReg<0x03, 0x42, 6, 1> VDS_PK_RAM_BYPS;
-    typedef UReg<0x03, 0x43, 0, 1> VDS_PK_VL_HL_SEL;
-    typedef UReg<0x03, 0x43, 1, 1> VDS_PK_VL_HH_SEL;
-    typedef UReg<0x03, 0x43, 2, 1> VDS_PK_VH_HL_SEL;
-    typedef UReg<0x03, 0x43, 3, 1> VDS_PK_VH_HH_SEL;
-    typedef UReg<0x03, 0x44, 0, 3> VDS_PK_LB_CORE;
-    typedef UReg<0x03, 0x44, 3, 5> VDS_PK_LB_CMP;
-    typedef UReg<0x03, 0x45, 0, 6> VDS_PK_LB_GAIN;
-    typedef UReg<0x03, 0x46, 0, 3> VDS_PK_LH_CORE;
-    typedef UReg<0x03, 0x46, 3, 5> VDS_PK_LH_CMP;
-    typedef UReg<0x03, 0x47, 0, 6> VDS_PK_LH_GAIN;
-    typedef UReg<0x03, 0x48, 0, 3> VDS_PK_HL_CORE;
-    typedef UReg<0x03, 0x48, 3, 5> VDS_PK_HL_CMP;
-    typedef UReg<0x03, 0x49, 0, 6> VDS_PK_HL_GAIN;
-    typedef UReg<0x03, 0x4A, 0, 3> VDS_PK_HB_CORE;
-    typedef UReg<0x03, 0x4A, 3, 5> VDS_PK_HB_CMP;
-    typedef UReg<0x03, 0x4B, 0, 6> VDS_PK_HB_GAIN;
-    typedef UReg<0x03, 0x4C, 0, 3> VDS_PK_HH_CORE;
-    typedef UReg<0x03, 0x4C, 3, 5> VDS_PK_HH_CMP;
-    typedef UReg<0x03, 0x4D, 0, 6> VDS_PK_HH_GAIN;
-    typedef UReg<0x03, 0x4E, 0, 1> VDS_PK_Y_H_BYPS;
-    typedef UReg<0x03, 0x4E, 1, 1> VDS_PK_Y_V_BYPS;
-    typedef UReg<0x03, 0x4E, 3, 1> VDS_C_VPK_BYPS;
-    typedef UReg<0x03, 0x4E, 4, 3> VDS_C_VPK_CORE;
-    typedef UReg<0x03, 0x4F, 0, 6> VDS_C_VPK_GAIN;
+    typedef UReg<0x03, 0x60, 4, 10> VDS_C1_TAG_LOW_SLOPE;               // Red enhance angle tan value low threshold value control bit:
+                                                                        // This filed contains the low threshold value for red enhance angle tan value,
+                                                                        // when the input UV angle tan value less than this programmable value,
+                                                                        // no enhancement did
+    typedef UReg<0x03, 0x61, 6, 10> VDS_C1_TAG_HIGH_SLOPE;              // Red enhance angle tan value high threshold value control bit:
+                                                                        // This filed contains the high threshold value for red enhance angle tan value,
+                                                                        // when the input UV angle tan value larger than this programmable value,
+                                                                        // no enhancement did.
+    typedef UReg<0x03, 0x63, 0, 4> VDS_C1_GAIN;                         // Red enhance gain control bit (This field contains the gain control for red enhance, its range is (0~1)*16)
+    typedef UReg<0x03, 0x63, 4, 8> VDS_C1_U_LOW;                        // Red enhance U low threshold value control bit (This field contains the low threshold value for U component, if input U less then this programmable value, no enhancement did)
+    typedef UReg<0x03, 0x64, 4, 8> VDS_C1_U_HIGH;                       // Red enhance U high threshold value control bit (This field contains the high threshold value for U component, if input U larger then this programmable value, no enhancement did)
+    typedef UReg<0x03, 0x65, 4, 1> VDS_C1_BYPS;                         // Red enhance bypass control, active high (When this bit is 1, red enhancement will be bypassed)
+    typedef UReg<0x03, 0x65, 5, 8> VDS_C1_Y_THRESH;                     // Red enhance Y threshold value control bit (This field contains the Y threshold for red enhancement, when input Y larger than this programmable value, no enhancement did)
 
-    typedef UReg<0x03, 0x50, 0, 4> VDS_TEST_BUS_SEL;
-    typedef UReg<0x03, 0x50, 4, 1> VDS_TEST_EN;
-    typedef UReg<0x03, 0x50, 5, 1> VDS_DO_UV_DEV_BYPS;
-    typedef UReg<0x03, 0x50, 6, 1> VDS_DO_UVSEL_FLIP;
-    typedef UReg<0x03, 0x50, 7, 1> VDS_DO_16B_EN;
+    typedef UReg<0x03, 0x66, 5, 10> VDS_C2_TAG_LOW_SLOPE;               // Green enhance angle tan value low threshold value control bit:
+                                                                        // This filed contains the low threshold value for green enhance angle tan value,
+                                                                        // when the input UV angle tan value less than this programmable value, no enhancement did.
+    typedef UReg<0x03, 0x67, 7, 10> VDS_C2_TAG_HIGH_SLOPE;              //Green enhance angle tan value high threshold value control bit:
+                                                                        // This filed contains the high threshold value for green enhance angle tan value,
+                                                                        // when the input UV angle tan value larger than this programmable value,
+                                                                        // no enhancement did.
+    typedef UReg<0x03, 0x69, 1, 4> VDS_C2_GAIN;                         // Color enhance gain control bit (This field contains the gain control for green enhance, its range is (0~1)*16)
+    typedef UReg<0x03, 0x69, 5, 8> VDS_C2_U_LOW;                        // Green enhance U low threshold value control bit (This field contains the low threshold value for U component, if input U less then this programmable value, no enhancement did)
+    typedef UReg<0x03, 0x6A, 5, 8> VDS_C2_U_HIGH;                       // Green enhance U high threshold value control bit (This field contains the high threshold value for U component, if input U larger then this programmable value, no enhancement did)
+    typedef UReg<0x03, 0x6B, 5, 1> VDS_C2_BYPS;                         // Green enhance bypass control (When this bit is 1, color enhancement will be bypassed)
+    typedef UReg<0x03, 0x6B, 6, 8> VDS_C2_Y_THRESH;                     // Green enhance Y threshold value control bit (This field contains the Y threshold for green enhancement, when input Y larger than this programmable value, no enhancement did)
+    // 6C_6:2   -   reserved
+    typedef UReg<0x03, 0x6D, 0, 12> VDS_EXT_HB_ST;                      // External used horizontal blanking start position control bit (This field is used to program horizontal blanking start position, this blanking is for external used)
+    typedef UReg<0x03, 0x6E, 4, 12> VDS_EXT_HB_SP;                      // External used horizontal blanking stop position control bit (This field is used to program horizontal blanking stop position, this blanking is for external used)
+    typedef UReg<0x03, 0x70, 0, 11> VDS_EXT_VB_ST;                      // External used vertical blanking start position control bit (This field is used to program vertical blanking start position, this blanking is for external used)
+    // 71_3:1   -   reserved
+    typedef UReg<0x03, 0x71, 4, 11> VDS_EXT_VB_SP;                      // External used vertical blanking stop position control bit (This field is used to program vertical blanking stop position, this blanking is for external used)
+    typedef UReg<0x03, 0x72, 7, 1> VDS_SYNC_IN_SEL;                     // VDS module input sync selection control (When this bit is 1, the sync to VDS module is from external (out of the CHIP); When this bit is 0, the sync to VDS module is from IF module)
 
-    typedef UReg<0x03, 0x51, 7, 11> VDS_GLB_NOISE;
-    typedef UReg<0x03, 0x52, 4, 1> VDS_NR_Y_BYPS;
-    typedef UReg<0x03, 0x52, 5, 1> VDS_NR_C_BYPS;
-    typedef UReg<0x03, 0x52, 6, 1> VDS_NR_DIF_LPF5_BYPS;
-    typedef UReg<0x03, 0x52, 7, 1> VDS_NR_MI_TH_EN;
-    typedef UReg<0x03, 0x53, 0, 7> VDS_NR_MI_OFFSET;
-    typedef UReg<0x03, 0x53, 7, 1> VDS_NR_MIG_USER_EN;
-    typedef UReg<0x03, 0x54, 0, 4> VDS_NR_MI_GAIN;
-    typedef UReg<0x03, 0x54, 4, 4> VDS_NR_STILL_GAIN;
-    typedef UReg<0x03, 0x55, 0, 4> VDS_NR_MI_THRES;
-    typedef UReg<0x03, 0x55, 4, 1> VDS_NR_EN_H_NOISY;
-    typedef UReg<0x03, 0x55, 6, 1> VDS_NR_EN_GLB_STILL;
-    typedef UReg<0x03, 0x55, 7, 1> VDS_NR_GLB_STILL_MENU;
-    typedef UReg<0x03, 0x56, 0, 7> VDS_NR_NOISY_OFFSET;
-    typedef UReg<0x03, 0x56, 7, 1> VDS_W_LEV_BYPS;
-    typedef UReg<0x03, 0x57, 0, 8> VDS_W_LEV;
-    typedef UReg<0x03, 0x58, 0, 8> VDS_WLEV_GAIN;
-    typedef UReg<0x03, 0x59, 0, 8> VDS_NS_U_CENTER;
-    typedef UReg<0x03, 0x5A, 0, 8> VDS_NS_V_CENTER;
-    typedef UReg<0x03, 0x5B, 0, 7> VDS_NS_U_GAIN;
-    typedef UReg<0x03, 0x5B, 7, 15> VDS_NS_SQUARE_RAD;
-    typedef UReg<0x03, 0x5D, 6, 8> VDS_NS_Y_HIGH_TH;
-    typedef UReg<0x03, 0x5E, 6, 7> VDS_NS_V_GAIN;
-    typedef UReg<0x03, 0x5F, 5, 5> VDS_NS_Y_LOW_TH;
-    typedef UReg<0x03, 0x60, 2, 1> VDS_NS_BYPS;
-    typedef UReg<0x03, 0x60, 3, 1> VDS_NS_Y_ACTIVE_EN;
-
-    typedef UReg<0x03, 0x60, 4, 10> VDS_C1_TAG_LOW_SLOPE;
-    typedef UReg<0x03, 0x61, 6, 10> VDS_C1_TAG_HIGH_SLOPE;
-    typedef UReg<0x03, 0x63, 0, 4> VDS_C1_GAIN;
-    typedef UReg<0x03, 0x63, 4, 8> VDS_C1_U_LOW;
-    typedef UReg<0x03, 0x64, 4, 8> VDS_C1_U_HIGH;
-    typedef UReg<0x03, 0x65, 4, 1> VDS_C1_BYPS;
-    typedef UReg<0x03, 0x65, 5, 8> VDS_C1_Y_THRESH;
-
-    typedef UReg<0x03, 0x66, 5, 10> VDS_C2_TAG_LOW_SLOPE;
-    typedef UReg<0x03, 0x67, 7, 10> VDS_C2_TAG_HIGH_SLOPE;
-    typedef UReg<0x03, 0x69, 1, 4> VDS_C2_GAIN;
-    typedef UReg<0x03, 0x69, 5, 8> VDS_C2_U_LOW;
-    typedef UReg<0x03, 0x6A, 5, 8> VDS_C2_U_HIGH;
-    typedef UReg<0x03, 0x6B, 5, 1> VDS_C2_BYPS;
-    typedef UReg<0x03, 0x6B, 6, 8> VDS_C2_Y_THRESH;
-
-    typedef UReg<0x03, 0x6D, 0, 12> VDS_EXT_HB_ST;
-    typedef UReg<0x03, 0x6E, 4, 12> VDS_EXT_HB_SP;
-    typedef UReg<0x03, 0x70, 0, 11> VDS_EXT_VB_ST;
-    typedef UReg<0x03, 0x71, 4, 11> VDS_EXT_VB_SP;
-    typedef UReg<0x03, 0x72, 7, 1> VDS_SYNC_IN_SEL;
-
-    typedef UReg<0x03, 0x73, 0, 3> VDS_BLUE_RANGE;
-    typedef UReg<0x03, 0x73, 3, 1> VDS_BLUE_BYPS;
-    typedef UReg<0x03, 0x73, 4, 4> VDS_BLUE_UGAIN;
-    typedef UReg<0x03, 0x74, 0, 4> VDS_BLUE_VGAIN;
-    typedef UReg<0x03, 0x74, 4, 4> VDS_BLUE_Y_LEV;
+    typedef UReg<0x03, 0x73, 0, 3> VDS_BLUE_RANGE;                      // Blue extend range control bit (see: DEVELOPER_NOTES.md -> S3_73)
+    typedef UReg<0x03, 0x73, 3, 1> VDS_BLUE_BYPS;                       // Blue extend bypass control, active high (When this bit is 1, the blue extend process will be bypassed)
+    typedef UReg<0x03, 0x73, 4, 4> VDS_BLUE_UGAIN;                      // Blue extend U gain control bit (This field defines the U gain for U component in the area which should do blue extend, its range is (0~1)*16)
+    typedef UReg<0x03, 0x74, 0, 4> VDS_BLUE_VGAIN;                      // Blue extend V gain control bit (This field defines the V gain for V component in the area which should do blue extend, its range is (0~1)*16)
+    typedef UReg<0x03, 0x74, 4, 4> VDS_BLUE_Y_LEV;                      // Blue extend Y level threshold control bit:
+                                                                        // This field defines the Y threshold value of blue extend, the real level in the
+                                                                        // circuit is 16*blue_y_th + 15, the blue extend process done
+                                                                        // only when Y value larger than this level (real level).
 
     //
-    // PIP Registers
+    // Video Processor Registers -> PIP Registers
     //
-    typedef UReg<0x03, 0x80, 0, 1> PIP_UV_FLIP;
-    typedef UReg<0x03, 0x80, 1, 1> PIP_U_DELAY;
-    typedef UReg<0x03, 0x80, 2, 1> PIP_V_DELAY;
-    typedef UReg<0x03, 0x80, 3, 1> PIP_TAP3_BYPS;
-    typedef UReg<0x03, 0x80, 4, 2> PIP_Y_DELAY;
-    typedef UReg<0x03, 0x80, 6, 1> PIP_SUB_16B_SEL;
-    typedef UReg<0x03, 0x80, 7, 1> PIP_DYN_BYPS;
-    typedef UReg<0x03, 0x81, 0, 1> PIP_CONVT_BYPS;
-    typedef UReg<0x03, 0x81, 3, 1> PIP_DREG_BYPS;
-    typedef UReg<0x03, 0x81, 7, 1> PIP_EN;
-    typedef UReg<0x03, 0x82, 0, 8> PIP_Y_GAIN;
-    typedef UReg<0x03, 0x83, 0, 8> PIP_U_GAIN;
-    typedef UReg<0x03, 0x84, 0, 8> PIP_V_GAIN;
-    typedef UReg<0x03, 0x85, 0, 8> PIP_Y_OFST;
-    typedef UReg<0x03, 0x86, 0, 8> PIP_U_OFST;
-    typedef UReg<0x03, 0x87, 0, 8> PIP_V_OFST;
-    typedef UReg<0x03, 0x88, 0, 12> PIP_H_ST;
-    typedef UReg<0x03, 0x8A, 0, 12> PIP_H_SP;
-    typedef UReg<0x03, 0x8C, 0, 11> PIP_V_ST;
-    typedef UReg<0x03, 0x8E, 0, 11> PIP_V_SP;
+    typedef UReg<0x03, 0x80, 0, 1> PIP_UV_FLIP;                         // 422 to 444 conversion UV flip control (This bit is used to flip UV, when this bit is 1, UV position will be flipped)
+    typedef UReg<0x03, 0x80, 1, 1> PIP_U_DELAY;                         // UV 422 to 444 conversion U delay (When this bit is 1, U will delay 1 clock, otherwise, no delay for internal pipe)
+    typedef UReg<0x03, 0x80, 2, 1> PIP_V_DELAY;                         // UV 422 to 444 conversion V delay (When this bit is 1, V will delay 1 clock, otherwise, no delay for internal pipe)
+    typedef UReg<0x03, 0x80, 3, 1> PIP_TAP3_BYPS;                       // Tap3 filter in 422 to 444 conversion bypass control, active high (This bit is the UV interpolation filter enable control; when this bit is 1, UV bypass the filter)
+    typedef UReg<0x03, 0x80, 4, 2> PIP_Y_DELAY;                         // Y compensation delay control bit in 422 to 444 conversion (see: DEVELOPER_NOTES.md -> S3_80)
+    typedef UReg<0x03, 0x80, 6, 1> PIP_SUB_16B_SEL;                     // PIP 16-bit sub-picture select, active high (When this bit is 1, select 16-bit sub-picture; When it is 0, select 24-bit sub-picture)
+    typedef UReg<0x03, 0x80, 7, 1> PIP_DYN_BYPS;                        // Dynamic range expansion bypass control, active high (When this bit is 1, data will bypass the dynamic range expansion process)
+    typedef UReg<0x03, 0x81, 0, 1> PIP_CONVT_BYPS;                      // YUV to RGB color space conversion bypass control, active high:
+                                                                        // When this bit is 1, YUV data will bypass the YUV to RGB conversion, the output will still be YUV data.
+                                                                        // When this bit is 0, YUV data will do YUV to RGB conversion, the output will be RGB data
+    // 81_1:2   -   reserved
+    typedef UReg<0x03, 0x81, 3, 1> PIP_DREG_BYPS;                       // Input data bypass the negedge trigger control, active high:
+                                                                        // When this bit is 0, input data will triggered by falling edge clock,
+                                                                        // When this bit is 1, the input data will bypass this falling edge clock delay
+    // 81_4:3   -   reserved
+    typedef UReg<0x03, 0x81, 7, 1> PIP_EN;                              // PIP enable, active high (When this bit is 1, PIP insertion is enabled, otherwise, no PIP)
+    typedef UReg<0x03, 0x82, 0, 8> PIP_Y_GAIN;                          // Y dynamic range expansion gain control bit (This field contains the Y gain value in dynamic range expansion process, its range is (0 ~ 2)*128)
+    typedef UReg<0x03, 0x83, 0, 8> PIP_U_GAIN;                          // U dynamic range expansion gain control bit (This field contains the U gain value in dynamic range expansion process, its range is (0 ~ 4)*64)
+    typedef UReg<0x03, 0x84, 0, 8> PIP_V_GAIN;                          // V dynamic range expansion gain control bit (This field contains the V gain value in dynamic range expansion process, its range is (0 ~ 4)*64)
+    typedef UReg<0x03, 0x85, 0, 8> PIP_Y_OFST;                          // Y dynamic range expansion offset control bit (This field contains the Y offset value in dynamic range expansion process, its range is –128 ~ 127)
+    typedef UReg<0x03, 0x86, 0, 8> PIP_U_OFST;                          // U dynamic range expansion offset control bit (This field contains the U offset value in dynamic range expansion process, its range is –128 ~ 127)
+    typedef UReg<0x03, 0x87, 0, 8> PIP_V_OFST;                          // V dynamic range expansion offset control bit (This field contains the V offset value in dynamic range expansion process, its range is –128 ~ 127)
+    typedef UReg<0x03, 0x88, 0, 12> PIP_H_ST;                           // PIP window horizontal start position control bit (This field contains the horizontal start position of PIP window.)
+    // 89_4:4   -   reserved
+    typedef UReg<0x03, 0x8A, 0, 12> PIP_H_SP;                           // PIP window horizontal stop position control bit (This field contains the horizontal stop position of PIP window)
+    // 8B_4:4   -   reserved
+    typedef UReg<0x03, 0x8C, 0, 11> PIP_V_ST;                           // PIP window vertical start position control bit (This field contains the vertical start position of PIP window)
+    // 8D_3:5   -   reserved
+    typedef UReg<0x03, 0x8E, 0, 11> PIP_V_SP;                           // PIP window vertical stop position control  (This field contains the vertical stop position of PIP window)
+    // 8F_3:5   -   reserved
 
     //
     // Memory Controller Registers
     //
-    typedef UReg<0x04, 0x00, 0, 8> SDRAM_RESET_CONTROL; // fake name
-        typedef UReg<0x04, 0x00, 4, 1> SDRAM_RESET_SIGNAL;
-        typedef UReg<0x04, 0x00, 7, 1> SDRAM_START_INITIAL_CYCLE;
-    typedef UReg<0x04, 0x12, 0, 1> MEM_INTER_DLYCELL_SEL;
-    typedef UReg<0x04, 0x12, 1, 1> MEM_CLK_DLYCELL_SEL;
-    typedef UReg<0x04, 0x12, 2, 1> MEM_FBK_CLK_DLYCELL_SEL;
-    typedef UReg<0x04, 0x13, 0, 1> MEM_PAD_CLK_INVERT;
-    typedef UReg<0x04, 0x13, 1, 1> MEM_RD_DATA_CLK_INVERT;
-    typedef UReg<0x04, 0x13, 2, 1> MEM_FBK_CLK_INVERT;
-    typedef UReg<0x04, 0x15, 0, 1> MEM_REQ_PBH_RFFH;
-    typedef UReg<0x04, 0x1b, 0, 3> MEM_ADR_DLY_REG;
-    typedef UReg<0x04, 0x1b, 4, 3> MEM_CLK_DLY_REG;
+    typedef UReg<0x04, 0x00, 0, 8> SDRAM_RESET_CONTROL;                 // MEMORY CONTROLLER 00
+        typedef UReg<0x04, 0x00, 0, 1> MEM_INI_REG_0;                       // SDRAM Idle Period Control and IDLE Done Select: (default 0) (see: DEVELOPER_NOTES.md -> S4_00)
+        typedef UReg<0x04, 0x00, 0, 1> MEM_INI_REG_1;                       // Software Control SDRAM Idle Period (When this bit is 1, software programming will control the idle period to access memory.this bit is useful only when the register r_mslidl[1:0] sets 2’b11)
+        // 00_3:1   -   reserved
+        typedef UReg<0x04, 0x00, 4, 1> SDRAM_RESET_SIGNAL;                  // SDRAM Reset Signal (When this bit is 1, will generate 5-mmclk pulse, and reset memory controller timing, data pipe and state machine)
+        // 00_5:1   -   reserved
+        typedef UReg<0x04, 0x00, 6, 1> MEM_INI_REG_6;                       // Initial Cycle Mode Select (When this bit is 1, then during initial period, the mode cycle will go before refresh cycle; otherwise refresh cycle will be before mode cycle)
+        typedef UReg<0x04, 0x00, 7, 1> SDRAM_START_INITIAL_CYCLE;           // SDRAM Start Initial Cycle (This register should work with the register 80/[2:0]; When this bit is 1, memory controller initial cycle enable; When this bit is 0, memory controller initial cycle disable)
+    // TODO fine tuning memory registers
+    typedef UReg<0x04, 0x12, 0, 1> MEM_INTER_DLYCELL_SEL;               // Select SDRAM Delay Cell (This register is control the delay of data/address/command; When it is at 0, select bypass delay cell, when it is at 1, select DLY8LV cell)
+    typedef UReg<0x04, 0x12, 1, 1> MEM_CLK_DLYCELL_SEL;                 // Select SDRAM Delay Cell (This register is only control the delay of clock send to PAD; When it is at 0, select bypass delay cell, when it is at 1, select DLY8LV cell)
+    typedef UReg<0x04, 0x12, 2, 1> MEM_FBK_CLK_DLYCELL_SEL;             // Select SDRAM Delay Cell (This register is only control the delay of feed back clock; When it is at 0, select bypass delay cell, when it is at 1, select DLY8LV cell)
+    // 12_3:5   -   reserved
+    typedef UReg<0x04, 0x13, 0, 1> MEM_PAD_CLK_INVERT;                  // Invert Memory Rising Edge Clock to PAD (When this bit is 1, invert memory clock and send to PAD; When this bit is 0, will bypass memory clock and send to PAD)
+    typedef UReg<0x04, 0x13, 1, 1> MEM_RD_DATA_CLK_INVERT;              // Read memory data with Memory Clock rising or falling edge (When this bit is 1, with Memory clock falling edge; When this bit is 0, with Memory clock rising edge)
+    typedef UReg<0x04, 0x13, 2, 1> MEM_FBK_CLK_INVERT;                  // Control feedback clock register (When this bit is at 1, will invert feedback clock; When it’s at 0, will bypass feedback clock)
+    // 13_3:5   -   reserved
+    // TODO fine tuning memory registers
+    typedef UReg<0x04, 0x15, 0, 1> MEM_REQ_PBH_RFFH;                    // Play back high request priority exchange with read FIFO high request (When this bit is 1, read FIFO high request > play back high request; When this bit is 0, play back high request >read FIFO high request)
+    typedef UReg<0x04, 0x1b, 0, 3> MEM_ADR_DLY_REG;                     // Capture request exchange with PlayBack low request and Read FIFO low request (When this bit is 0: play back low req > read FIFO low req > capture req; When this bit is 1: cap req > play back low req > read FIFO low req)
+    typedef UReg<0x04, 0x1b, 4, 3> MEM_CLK_DLY_REG;                     // Write FIFO request priority exchange with capture request (When this bit is 1, capture request >write FIFO request, When this bit is 0, write FIFO request > capture request)
+    // 15_3:5   -   reserved
+    // TODO fine tuning memory registers
 
     //
     // Playback / Capture / Memory Registers
     //
-    typedef UReg<0x04, 0x21, 0, 1> CAPTURE_ENABLE;
-    typedef UReg<0x04, 0x21, 1, 1> CAP_FF_HALF_REQ;
-    typedef UReg<0x04, 0x21, 5, 1> CAP_SAFE_GUARD_EN;
-    typedef UReg<0x04, 0x22, 0, 1> CAP_REQ_OVER;
-    typedef UReg<0x04, 0x22, 1, 1> CAP_STATUS_SEL;
-    typedef UReg<0x04, 0x22, 3, 1> CAP_REQ_FREEZ;
-    typedef UReg<0x04, 0x24, 0, 21> CAP_SAFE_GUARD_A;
-    typedef UReg<0x04, 0x27, 0, 21> CAP_SAFE_GUARD_B;
-    typedef UReg<0x04, 0x2b, 0, 1> PB_CUT_REFRESH;
-    typedef UReg<0x04, 0x2b, 1, 2> PB_REQ_SEL;
-    typedef UReg<0x04, 0x2b, 3, 1> PB_BYPASS;
-    typedef UReg<0x04, 0x2b, 5, 1> PB_DB_BUFFER_EN;
-    typedef UReg<0x04, 0x2b, 7, 1> PB_ENABLE;
-    typedef UReg<0x04, 0x2c, 0, 8> PB_MAST_FLAG_REG;
-    typedef UReg<0x04, 0x2d, 0, 8> PB_GENERAL_FLAG_REG;
-    typedef UReg<0x04, 0x37, 0, 10> PB_CAP_OFFSET;
-    typedef UReg<0x04, 0x39, 0, 10> PB_FETCH_NUM;
-    typedef UReg<0x04, 0x42, 0, 1> WFF_ENABLE;
-    typedef UReg<0x04, 0x42, 2, 1> WFF_FF_STA_INV;
-    typedef UReg<0x04, 0x42, 3, 1> WFF_SAFE_GUARD;
-    typedef UReg<0x04, 0x42, 5, 1> WFF_ADR_ADD_2;
-    typedef UReg<0x04, 0x42, 7, 1> WFF_FF_STATUS_SEL;
-    typedef UReg<0x04, 0x44, 0, 21> WFF_SAFE_GUARD_A;
-    typedef UReg<0x04, 0x47, 0, 21> WFF_SAFE_GUARD_B;
-    typedef UReg<0x04, 0x4a, 0, 1> WFF_YUV_DEINTERLACE;
-    typedef UReg<0x04, 0x4a, 4, 1> WFF_LINE_FLIP;
-    typedef UReg<0x04, 0x4b, 0, 3> WFF_HB_DELAY;
-    typedef UReg<0x04, 0x4b, 4, 3> WFF_VB_DELAY;
-    typedef UReg<0x04, 0x4d, 4, 1> RFF_ADR_ADD_2;
-    typedef UReg<0x04, 0x4d, 5, 2> RFF_REQ_SEL;
-    typedef UReg<0x04, 0x4d, 7, 1> RFF_ENABLE;
-    typedef UReg<0x04, 0x4e, 0, 8> RFF_MASTER_FLAG;
-    typedef UReg<0x04, 0x50, 5, 1> RFF_LINE_FLIP;
-    typedef UReg<0x04, 0x50, 6, 1> RFF_YUV_DEINTERLACE;
-    typedef UReg<0x04, 0x50, 7, 1> RFF_LREQ_CUT;
-    typedef UReg<0x04, 0x51, 0, 21> RFF_WFF_STA_ADDR_A;
-    typedef UReg<0x04, 0x54, 0, 21> RFF_WFF_STA_ADDR_B;
-    typedef UReg<0x04, 0x57, 0, 10> RFF_WFF_OFFSET;
-    typedef UReg<0x04, 0x59, 0, 10> RFF_FETCH_NUM;
-    typedef UReg<0x04, 0x5B, 7, 1> MEM_FF_TOP_FF_SEL;
+    typedef UReg<0x04, 0x20, 0, 3> CAP_CNTRL_TST;                       // Capture Test logic control (Bit [2:0]: select capture internal test bus)
+    // 20_3:2   -   reserved
+    typedef UReg<0x04, 0x20, 5, 3> CAP_NR_STATUS_OFFSET;                // Capture Noise Reduction Frame Status Offset:
+                                                                        // For NTSC and PAL, Noise Reduction will save 4 or 6 frame data, for
+                                                                        // Play back read which frame at first, set different value,
+                                                                        // will read different frame data firstly, default 0.
+
+    typedef UReg<0x04, 0x21, 0, 1> CAPTURE_ENABLE;                      // Enable capture (When it’s set 1, capture will be turn on; When it’s set 0, capture will be turn off)
+    typedef UReg<0x04, 0x21, 1, 1> CAP_FF_HALF_REQ;                     // Request generated when capture FIFO half (When set to 1, request generated when capture FIFO half; When set to 0, request generated when capture FIFO write pointer is 1)
+
+    typedef UReg<0x04, 0x21, 2, 1> CAP_BUF_STA_INV;                     // Capture double buffer status invert before output (When set to 1, double buffer status invert; When set to 0, double buffer status doesn’t change)
+    typedef UReg<0x04, 0x21, 3, 1> CAP_DOUBLE_BUFFER;                   // Enable double buffer (When set to 1, enable double buffer; When set to 0, disable double buffer)
+    // 21_4:1   -   reserved
+    typedef UReg<0x04, 0x21, 5, 1> CAP_SAFE_GUARD_EN;                   // Enable safe guard function (When set to 1, turn on safe guard function; When set to 0, turn off safe guard function)
+    typedef UReg<0x04, 0x21, 6, 1> CAP_VRST_FFRST_EN;                   // Enable input v-sync reset FIFO (When set to 1, enable feed back v-sync reset FIFO; When set to 0, disable feed back v-sync reset FIFO)
+    typedef UReg<0x04, 0x21, 7, 1> CAP_ADR_ADD_2;                       // Enable address add by 2 (When set to 1,address added by 2 per pixel; When set to 0,added by 1 per pixel)
+    typedef UReg<0x04, 0x22, 0, 1> CAP_REQ_OVER;                        // Horizontal request end (When this bit set 1, the final capture request of one line is in the horizontal blank rising edge, set 0 capture request will free run)
+    typedef UReg<0x04, 0x22, 1, 1> CAP_STATUS_SEL;                      // Capture FIFO half status select (When set to 1, request generated when capture FIFO is half; When set to 0, request generated when capture FIFO is delm’s value)
+    typedef UReg<0x04, 0x22, 2, 1> CAP_LAST_POP_CTL;                    // Capture POP data control (When set to 1, horizontal or vertical load start address will check if there is pop; When set to 0, horizontal or vertical load start address will not check)
+    typedef UReg<0x04, 0x22, 3, 1> CAP_REQ_FREEZ;                       // Capture Request Freeze (When set to 1, capture FIFO will pause the FIFO write and read; When set to 0, capture FIFO will operate normally)
+    // 22_4:4   -   reserved
+    typedef UReg<0x04, 0x23, 0, 8> CAP_FF_STATUS;                       // Capture FIFO status (When cap_cntrl_[17] set 1’b1, this register will be valid, this value will less than 64)
+    typedef UReg<0x04, 0x24, 0, 21> CAP_SAFE_GUARD_A;                   // Safe Guard Address For Buffer A (Safe guard address A [7:0], Mapping to 32bits width data bus field)
+    // 26_5:3   -   reserved
+    typedef UReg<0x04, 0x27, 0, 21> CAP_SAFE_GUARD_B;                   // Safe Guard Address For Buffer B (Safe guard address B [7:0]; Mapping to 32bits width data bus field)
+    // 29_5:3   -   reserved
+    typedef UReg<0x04, 0x2b, 0, 1> PB_CUT_REFRESH;                      // Disable refresh request generation (When set to 1, disable refresh request generation; When set to 0, enable refresh request generation)
+    typedef UReg<0x04, 0x2b, 1, 2> PB_REQ_SEL;                          // Enable playback request mode (see: DEVELOPER_NOTES.md -> S4_28)
+    typedef UReg<0x04, 0x2b, 3, 1> PB_BYPASS;                           // Enable VDS input to select playback output or de-interlace data out (When this bit is 1, select de-interlace data out to VDS; When this bit is 0, select playback output to VDS)
+    typedef UReg<0x04, 0x2b, 4, 1> PB_DB_FIELD_EN;                      // Enable double field display (When set to 1, enable double field display; When set to 0, disable double field display)
+    typedef UReg<0x04, 0x2b, 5, 1> PB_DB_BUFFER_EN;                     // Enable double buffer (When set to 1, enable double field display; When set to 0, disable double field display)
+    typedef UReg<0x04, 0x2b, 6, 1> PB_2FRAME_EXCHG;                     // Exchange playback two frames output data (When set to 1, exchange playback current frame with past frame and output; When set to 0, don’t exchange)
+    typedef UReg<0x04, 0x2b, 7, 1> PB_ENABLE;                           // Enable Playback (When it’s set 1, play back will be on work, or will not work)
+    typedef UReg<0x04, 0x2c, 0, 8> PB_MAST_FLAG_REG;                    // Master line flag (Playback FIFO policy master value: This field will define FIFO high request timing)
+    // 2C_6:2   -   reserved
+    typedef UReg<0x04, 0x2d, 0, 8> PB_GENERAL_FLAG_REG;                 // General line flag (Playback FIFO policy general value: This field will define FIFO low request timing)
+    // 2D_6:2   -   reserved
+    typedef UReg<0x04, 0x2E, 0, 1> PB_RBUF_INV;                         // When rate convert from up to down, capture FIFO will refer to the play back buffer status, this bit is invert play back buffer status
+    typedef UReg<0x04, 0x2E, 1, 1> PB_RBUF_SEL;                         // When rate convert from up to down, capture FIFO will refer to the play back buffer status, this bit will be set to 1. Otherwise, it will be set to 0.
+    // 2E_2:5   -   reserved
+    typedef UReg<0x04, 0x2E, 7, 1> PB_DOUBLE_REFRESH_EN;                // Refresh Double (When set to 1, refresh request will at the rising and falling edge of hbout. When set to 0, refresh will be only at the rising edge of hbout)
+    typedef UReg<0x04, 0x2F, 0, 4> PB_TST_REG;                          // PlayBack Test Logic (To select playback test bus, total 8 groups can be selected.)
+    // 2F_4:4   -   reserved
+    typedef UReg<0x04, 0x30, 0, 4> PB_CAP_NOISE_CMD;                    // Capture Noise Reduction Command:
+                                                                        // 0: disable noise reduce function
+                                                                        // 1: turn on PAL mode 2 (50hz to 50hz) and storage in memory 5 frames
+                                                                        // 2: turn on PAL mode 3
+                                                                        // 5: turn on NTSC mode 2 and storage memory 3 frames
+                                                                        // 6: turn on NTSC mode 3
+                                                                        // 9: turn on PAL mode 2 (50hz to 50hz, 50hz to 60hz, 50hz to 100hz) and storage memory 6 frames.
+                                                                        // D: turn on NTSC mode 2 (60hz to 60hz, 60hz to 120hz) and storage memory 4 frames
+                                                                        // Note: in 50 to 100hz and 60 to 120,we must turn on [4] = 1 In playback
+    // 30_4:4   -   reserved
+    typedef UReg<0x04, 0x31, 0, 21> PB_CAP_BUF_STA_ADDR_A;              // Capture and Play Back Buffer A START ADDRESS (Mapping to 32bits width data bus field)
+    // 33_5:3   -   reserved
+    typedef UReg<0x04, 0x34, 0, 21> PB_CAP_BUF_STA_ADDR_B;              // Buffer B START address (When in double buffer mode, this is defined as capture and playback buffer B start address. Mapping to 32bits width data bus field)
+
+    typedef UReg<0x04, 0x37, 0, 10> PB_CAP_OFFSET;                      // Capture and Play Back Offset (Offset [7:0] will determine next line start address, Mapping to 64bits width data bus field)
+    // 38_2:6   -   reserved
+    typedef UReg<0x04, 0x39, 0, 10> PB_FETCH_NUM;                       // Fetch number [7:0] will determine to fetch the number of pixels from memory, Mapping to 64bits width data bus field.
+    // 3A_2:6   -   reserved
+    typedef UReg<0x04, 0x3B, 0, 21> PB_CAP_BUF_STA_ADDR_C;              // Capture and playback Buffer C Start Address (When in noise reduction mode, this is defined as capture and playback buffer C start address. Mapping to 32 bits width data bus field)
+    // 3D_5:3   -   reserved
+    typedef UReg<0x04, 0x3E, 0, 21> PB_CAP_BUF_STA_ADDR_D;              // Capture and Play Back Buffer D Start Address (When in noise reduction mode, this is defined as capture and playback buffer D start address. Mapping to 32 bits width data bus field)
+    // 40_5:3   -   reserved
+
+    //
+    // Video Processor Registers - Write & Read FIFO registers
+    //
+    // 41 - WRITE FIFO Test logic control
+    typedef UReg<0x04, 0x42, 0, 1> WFF_ENABLE;                          // Enable write FIFO (When it’s set 1, write FIFO will be turn on. When it’s set 0, write FIFO will be turn off)
+    typedef UReg<0x04, 0x42, 1, 1> WFF_FF_HALF_REQ;                     // Request generated when FIFO half (When set to 1, request generated when FIFO half; When set to 0, request generate when FIFO write pointer is 1)
+    typedef UReg<0x04, 0x42, 2, 1> WFF_FF_STA_INV;                      // Write FIFO status invert (When set to 1, write FIFO status invert; When set to 0, write FIFO status don’t change)
+    typedef UReg<0x04, 0x42, 3, 1> WFF_SAFE_GUARD;                      // Enable write FIFO safe guard (When set to 1, enable write FIFO safe guard. When set to 0, disable write FIFO safe guard.)
+    typedef UReg<0x04, 0x42, 4, 1> WFF_VRST_FF_RST;                     // Enable input V-sync reset FIFO (When set to 1, enable feedback v-sync reset FIFO. When set to 0, disable feedback v-sync reset FIFO)
+    typedef UReg<0x04, 0x42, 5, 1> WFF_ADR_ADD_2;                       // WRITE FIFO Address count select: (When it’s set to 1, address added by 2 per pixel. When it’s set to 0, address added by 1 per pixel)
+    typedef UReg<0x04, 0x42, 6, 1> WFF_REQ_OVER;                        // WRITE FIFO Horizontal Request End (When this bit set 1, the final write FIFO request of one line is in the horizontal blank rising edge, set 0 write FIFO request will free run)
+    typedef UReg<0x04, 0x42, 7, 1> WFF_FF_STATUS_SEL;                   // Write fifo half status select (When set to 1, request generated when FIFO is half; When set to 0, request generated when c FIFO is delm’s value)
+    typedef UReg<0x04, 0x43, 0, 8> WFF_FF_STATUS;                       // Write FIFO status (When wff_cntrl_[15] set 1’b1, this register will be valid, this value will less than 64)
+    typedef UReg<0x04, 0x44, 0, 21> WFF_SAFE_GUARD_A;                   // Write FIFO Buffer A Safe Guard Address (Safe guard address buffer A [7:0], Mapping to 32bits width data bus field)
+    // 46_5:3  -   reserved
+    typedef UReg<0x04, 0x47, 0, 21> WFF_SAFE_GUARD_B;                   // Write FIFO Buffer B Safe Guard Address (Safe guard address buffer B [7:0], Mapping to 32bits width data bus field)
+    // 49_5:3   -   reserved
+    typedef UReg<0x04, 0x4a, 0, 1> WFF_YUV_DEINTERLACE;                 // WRITE FIFO YUV DE-INTERLACE (When set 1, write FIFO will write one field YUV, set 0, will write one frame Y)
+    // 4A_1:3   -   reserved
+    typedef UReg<0x04, 0x4a, 4, 1> WFF_LINE_FLIP;                       // WRITE FIFO LINE INVERT (When set 1, line id will be inverted; When set 0, line id will be normal)
+    // 4A_5:2   -   reserved
+    typedef UReg<0x04, 0x4a, 7, 1> WFF_LAST_POP_CTL;                    // When set to 1, horizontal or vertical load start address will check if there is pop When set to 0, horizontal or vertical load start address will not check.
+
+    typedef UReg<0x04, 0x4b, 0, 3> WFF_HB_DELAY;                        // Write FIFO H-Timing Programmable Delay:
+    // 4B_3:1   -   reserved
+    typedef UReg<0x04, 0x4b, 4, 3> WFF_VB_DELAY;                        // Write FIFO V-Timing Programmable Delay
+    // 4B_7:1   -   reserved
+    typedef UReg<0x04, 0x4d, 0, 4> RFF_NEW_PAGE;                        // Read buffer page select from 1 to 16 (see: DEVELOPER_NOTES.md -> S4_4D_0)
+    typedef UReg<0x04, 0x4d, 4, 1> RFF_ADR_ADD_2;                       // Enable read FIFO address add by 2: Default 0 for added by 1 (When set 1, read FIFO address will count by 2, When set 0, read FIFO address will count by 1)
+    typedef UReg<0x04, 0x4d, 5, 2> RFF_REQ_SEL;                         // Enable read FIFO request mode (see: DEVELOPER_NOTES.md -> S4_4D_5)
+    typedef UReg<0x04, 0x4d, 7, 1> RFF_ENABLE;                          // Enable Read FIFO (When set 1, read FIFO will be turned on; When set 0, read FIFO will be turned off)
+    typedef UReg<0x04, 0x4e, 0, 6> RFF_MASTER_FLAG;                     // Master line flag (Read FIFO policy master value: This field will define FIFO high request timing)
+    // 4E_6:2   -   reserved
+    typedef UReg<0x04, 0x4F, 0, 6> RFF_GENERAL_FLAG;                    // General line flag (Read FIFO policy master value: This field will define FIFO low request timing)
+    // 4F_6:2   -   reserved
+    typedef UReg<0x04, 0x50, 0, 3> RFF_TST_REG;                         // General Test Logic (Read FIFO test bus select)
+    // 50_4:1   -   reserved
+    typedef UReg<0x04, 0x50, 5, 1> RFF_LINE_FLIP;                       // Line ID Invert (When set 1, line ID will be inverted; When set 0, line ID will be normal)
+    typedef UReg<0x04, 0x50, 6, 1> RFF_YUV_DEINTERLACE;                 // Read FIFO YUV De-interlace:
+                                                                        // When set 1, Read FIFO will read Frame 2 YUV data in line = 1, line =0, read Frame 1 YUV data.
+                                                                        // When set 0, Read FIFO will read Frame 2 Y data in line = 1, line =0 , read Frame 1 Y data
+    typedef UReg<0x04, 0x50, 7, 1> RFF_LREQ_CUT;                        // Read fifo low request cut enable (Cut the read FIFO low request, only output high request to memory)
+    typedef UReg<0x04, 0x51, 0, 21> RFF_WFF_STA_ADDR_A;                 // Read FIFO AND Write FIFO START Address buffer A (Mapping to 32bits width data bus field.)
+    // 53_5:3   -   reserved
+    typedef UReg<0x04, 0x54, 0, 21> RFF_WFF_STA_ADDR_B;                 // Read FIFO AND Write FIFO START Address Buffer B (Mapping to 32bits width data bus field)
+    // 56_5:3   -   reserved
+    typedef UReg<0x04, 0x57, 0, 10> RFF_WFF_OFFSET;                     // Read FIFO and Write FIFO offset (Offset will determine next horizontal line start address, Mapping to 64bits width data bus field.)
+    // 58_2:6   -   reserved
+    typedef UReg<0x04, 0x59, 0, 10> RFF_FETCH_NUM;                      // Fetch number (READ FIFO USE ONLY) (This will determine to fetch the number of pixels from memory each horizontal line. Mapping to 64bits width data bus field.)
+    // 5A_2:6   -   reserved
+    // 5B_0:7   -   reserved
+    typedef UReg<0x04, 0x5B, 7, 1> MEM_FF_TOP_FF_SEL;                   // All FIFO Status Output Enable (When set 1, all FIFO status output, can read FIFO status through test bus; When set 0, not FIFO status output.)
 
     //
     // OSD Registers    (all registers R/W)
     //
-    typedef UReg<0x00, 0x90, 0, 1> OSD_SW_RESET;
-    typedef UReg<0x00, 0x90, 1, 3> OSD_HORIZONTAL_ZOOM;
-    typedef UReg<0x00, 0x90, 4, 2> OSD_VERTICAL_ZOOM;
-    typedef UReg<0x00, 0x90, 6, 1> OSD_DISP_EN;
-    typedef UReg<0x00, 0x90, 7, 1> OSD_MENU_EN;
-    typedef UReg<0x00, 0x91, 0, 4> OSD_MENU_ICON_SEL;
-    typedef UReg<0x00, 0x91, 4, 4> OSD_MENU_MOD_SEL;
-    typedef UReg<0x00, 0x92, 0, 3> OSD_MENU_BAR_FONT_FORCOR;
-    typedef UReg<0x00, 0x92, 3, 3> OSD_MENU_BAR_FONT_BGCOR;
-    typedef UReg<0x00, 0x92, 6, 3> OSD_MENU_BAR_BORD_COR;
-    typedef UReg<0x00, 0x93, 1, 3> OSD_MENU_SEL_FORCOR;
-    typedef UReg<0x00, 0x93, 4, 3> OSD_MENU_SEL_BGCOR;
-    typedef UReg<0x00, 0x93, 7, 1> OSD_COMMAND_FINISH;
-    typedef UReg<0x00, 0x94, 0, 1> OSD_MENU_DISP_STYLE;
-    typedef UReg<0x00, 0x94, 2, 1> OSD_YCBCR_RGB_FORMAT;
-    typedef UReg<0x00, 0x94, 3, 1> OSD_INT_NG_LAT;
-    typedef UReg<0x00, 0x94, 4, 4> OSD_TEST_SEL;
-    typedef UReg<0x00, 0x95, 0, 8> OSD_MENU_HORI_START;
-    typedef UReg<0x00, 0x96, 0, 8> OSD_MENU_VER_START;
-    typedef UReg<0x00, 0x97, 0, 8> OSD_BAR_LENGTH;
-    typedef UReg<0x00, 0x98, 0, 8> OSD_BAR_FOREGROUND_VALUE;
+    typedef UReg<0x00, 0x90, 0, 1> OSD_SW_RESET;                        // Software reset for module , active high (When this bit is 1, it reset osd_top module)
+    typedef UReg<0x00, 0x90, 1, 3> OSD_HORIZONTAL_ZOOM;                 // Osd horizontal zoom select (see: DEVELOPER_NOTES.md -> S0_90_1)
+    typedef UReg<0x00, 0x90, 4, 2> OSD_VERTICAL_ZOOM;                   // Osd vertical zoom select (see: DEVELOPER_NOTES.md -> S0_90_4)
+    typedef UReg<0x00, 0x90, 6, 1> OSD_DISP_EN;                         // Osd display enable, active high (When this bit is 1, osd can display on screen)
+    typedef UReg<0x00, 0x90, 7, 1> OSD_MENU_EN;                         // Osd menu display enable, active high (When this bit is 1, osd state will jump to menu display state)
+    typedef UReg<0x00, 0x91, 0, 4> OSD_MENU_ICON_SEL;                   // Osd menu icons select (see: DEVELOPER_NOTES.md -> S0_91_0)
+    typedef UReg<0x00, 0x91, 4, 4> OSD_MENU_MOD_SEL;                    // Osd icons modification select (see: DEVELOPER_NOTES.md -> S0_90_4)
+    typedef UReg<0x00, 0x92, 0, 3> OSD_MENU_BAR_FONT_FORCOR;            // Menu font or bar foreground color (For bar and menu will not display on screen at the same time, so they are shared)
+    typedef UReg<0x00, 0x92, 3, 3> OSD_MENU_BAR_FONT_BGCOR;             // Menu font or bar background color (For bar and menu will not display on screen at the same time, so they are shared)
+    typedef UReg<0x00, 0x92, 6, 3> OSD_MENU_BAR_BORD_COR;               // Menu or bar border color (It is the low 2 bits of menu or bar border color, for bar and menu will not display on screen at the same time, so they are shared)
+    typedef UReg<0x00, 0x93, 1, 3> OSD_MENU_SEL_FORCOR;                 // Selected icon or bar’s icon foreground color
+    typedef UReg<0x00, 0x93, 4, 3> OSD_MENU_SEL_BGCOR;                  // Selected icon or bar’s icon background color
+    typedef UReg<0x00, 0x93, 7, 1> OSD_COMMAND_FINISH;                  // Command finished status:
+                                                                        // WHEN THIS BIT IS 1, IT MEANS CPU HAS FINISHED COMMAND AND HARDWARE CAN EXECUTE THE COMMAND,
+                                                                        // ELSE HARDWARE WILL DO LAST OPERATION. IN ORDER TO AVOID TEARING, WHEN YOU WANT TO ACCESS OSD,
+                                                                        // PULL THIS BIT DOWN FIRST AND PULL UP THIS BIT WHEN YOU FINISH PROGRAMMING OSD RESPONDING REGISTERS.
+    typedef UReg<0x00, 0x94, 0, 1> OSD_MENU_DISP_STYLE;                 // Menu display in row or column mode (When 1, osd menu displays in row style, else in column style)
+    typedef UReg<0x00, 0x94, 2, 1> OSD_YCBCR_RGB_FORMAT;                // YCbCr or RGB output (Osd display in YCbCr or RGB format, when set to 1, display in YCbCr mode)
+    typedef UReg<0x00, 0x94, 3, 1> OSD_INT_NG_LAT;                      // V2clk latch osd data with negative enable (When set to 1, V2CLK clock can latch osd data with negative edge)
+    typedef UReg<0x00, 0x94, 4, 4> OSD_TEST_SEL;                        // Test logic output select:
+                                                                        // TEST_SEL[0], test logic output enable, when set to 1, test logic can output.
+                                                                        // TEST_SEL[3:1] select 8 test logics to test bus.
+    typedef UReg<0x00, 0x95, 0, 8> OSD_MENU_HORI_START;                 // Menu or bar horizontal start address (The real address is { MENU_BAR_HORZ_START [7:0], 3’h0})
+    typedef UReg<0x00, 0x96, 0, 8> OSD_MENU_VER_START;                  // Menu or bar vertical start address (The real address is { MENU_BAR_VIRT_START [7:0], 3’h0})
+    typedef UReg<0x00, 0x97, 0, 8> OSD_BAR_LENGTH;                      // Bar display total length (Bar display on screen’s total length, when horizontal zoom is 0.)
+    typedef UReg<0x00, 0x98, 0, 8> OSD_BAR_FOREGROUND_VALUE;            // Bar foreground color value (The value of this register indicates the real value of icon, such as brightness’s value is 8’hf0, then this register is also programmed to 8’hf0)
 
     //
-    // ADC, SP Registers (all registers R/W)
+    // ADC, SP Registers    (all registers R/W)
     //
-    typedef UReg<0x05, 0x00, 0, 8> ADC_5_00; // convenience
-    typedef UReg<0x05, 0x00, 0, 2> ADC_CLK_PA;
-    typedef UReg<0x05, 0x00, 3, 1> ADC_CLK_ICLK2X;
-    typedef UReg<0x05, 0x00, 4, 1> ADC_CLK_ICLK1X;
-    typedef UReg<0x05, 0x02, 0, 1> ADC_SOGEN;
-    typedef UReg<0x05, 0x02, 1, 5> ADC_SOGCTRL;
-    typedef UReg<0x05, 0x02, 6, 2> ADC_INPUT_SEL;
-    typedef UReg<0x05, 0x03, 0, 8> ADC_5_03; // convenience
-    typedef UReg<0x05, 0x03, 0, 1> ADC_POWDZ;
-    typedef UReg<0x05, 0x03, 1, 1> ADC_RYSEL_R;
-    typedef UReg<0x05, 0x03, 2, 1> ADC_RYSEL_G;
-    typedef UReg<0x05, 0x03, 3, 1> ADC_RYSEL_B;
-    typedef UReg<0x05, 0x03, 4, 2> ADC_FLTR;
-    typedef UReg<0x05, 0x04, 0, 8> ADC_TEST_04;
-    typedef UReg<0x05, 0x04, 0, 2> ADC_TR_RSEL;
-    typedef UReg<0x05, 0x04, 1, 1> ADC_TR_RSEL_04_BIT1;
-    typedef UReg<0x05, 0x04, 2, 3> ADC_TR_ISEL;
-    typedef UReg<0x05, 0x05, 0, 1> ADC_TA_05_EN;
-    typedef UReg<0x05, 0x05, 0, 8> ADC_TA_05_CTRL;
-    typedef UReg<0x05, 0x06, 0, 8> ADC_ROFCTRL;
-    typedef UReg<0x05, 0x07, 0, 8> ADC_GOFCTRL;
-    typedef UReg<0x05, 0x08, 0, 8> ADC_BOFCTRL;
-    typedef UReg<0x05, 0x09, 0, 8> ADC_RGCTRL;
-    typedef UReg<0x05, 0x0A, 0, 8> ADC_GGCTRL;
-    typedef UReg<0x05, 0x0B, 0, 8> ADC_BGCTRL;
-    typedef UReg<0x05, 0x0C, 0, 8> ADC_TEST_0C;
-    typedef UReg<0x05, 0x0C, 1, 1> ADC_TEST_0C_BIT1;
-    typedef UReg<0x05, 0x0C, 3, 1> ADC_TEST_0C_BIT3;
-    typedef UReg<0x05, 0x0C, 4, 1> ADC_TEST_0C_BIT4;
-    typedef UReg<0x05, 0x0E, 0, 1> ADC_AUTO_OFST_EN;
-    typedef UReg<0x05, 0x0E, 1, 1> ADC_AUTO_OFST_PRD;
-    typedef UReg<0x05, 0x0E, 2, 2> ADC_AUTO_OFST_DELAY;
-    typedef UReg<0x05, 0x0E, 4, 2> ADC_AUTO_OFST_STEP;
-    typedef UReg<0x05, 0x0E, 7, 1> ADC_AUTO_OFST_TEST;
-    typedef UReg<0x05, 0x0F, 0, 8> ADC_AUTO_OFST_RANGE_REG;
-    typedef UReg<0x05, 0x11, 0, 8> PLLAD_CONTROL_00_5x11; // fake name
-    typedef UReg<0x05, 0x11, 0, 1> PLLAD_VCORST;
-    typedef UReg<0x05, 0x11, 1, 1> PLLAD_LEN;
-    typedef UReg<0x05, 0x11, 2, 1> PLLAD_TEST;
-    typedef UReg<0x05, 0x11, 3, 1> PLLAD_TS;
-    typedef UReg<0x05, 0x11, 4, 1> PLLAD_PDZ;
-    typedef UReg<0x05, 0x11, 5, 1> PLLAD_FS;
-    typedef UReg<0x05, 0x11, 6, 1> PLLAD_BPS;
-    typedef UReg<0x05, 0x11, 7, 1> PLLAD_LAT;
-    typedef UReg<0x05, 0x12, 0, 12> PLLAD_MD;
-    typedef UReg<0x05, 0x16, 0, 8> PLLAD_5_16; // fake name
-    typedef UReg<0x05, 0x16, 0, 2> PLLAD_R;
-    typedef UReg<0x05, 0x16, 2, 2> PLLAD_S;
-    typedef UReg<0x05, 0x16, 4, 2> PLLAD_KS;
-    typedef UReg<0x05, 0x16, 6, 2> PLLAD_CKOS;
-    typedef UReg<0x05, 0x17, 0, 3> PLLAD_ICP;
-    typedef UReg<0x05, 0x18, 0, 1> PA_ADC_BYPSZ;
-    typedef UReg<0x05, 0x18, 1, 5> PA_ADC_S;
-    typedef UReg<0x05, 0x18, 6, 1> PA_ADC_LOCKOFF;
-    typedef UReg<0x05, 0x18, 7, 1> PA_ADC_LAT;
-    typedef UReg<0x05, 0x19, 0, 1> PA_SP_BYPSZ;
-    typedef UReg<0x05, 0x19, 1, 5> PA_SP_S;
-    typedef UReg<0x05, 0x19, 6, 1> PA_SP_LOCKOFF;
-    typedef UReg<0x05, 0x19, 7, 1> PA_SP_LAT;
-    typedef UReg<0x05, 0x1E, 7, 1> DEC_WEN_MODE;
-    typedef UReg<0x05, 0x1F, 0, 8> DEC_5_1F; // convenience
-    typedef UReg<0x05, 0x1F, 0, 1> DEC1_BYPS;
-    typedef UReg<0x05, 0x1F, 1, 1> DEC2_BYPS;
-    typedef UReg<0x05, 0x1F, 2, 1> DEC_MATRIX_BYPS;
-    typedef UReg<0x05, 0x1F, 3, 1> DEC_TEST_ENABLE; // fake name
-    typedef UReg<0x05, 0x1F, 4, 3> DEC_TEST_SEL;
-    typedef UReg<0x05, 0x1F, 7, 1> DEC_IDREG_EN;
+    typedef UReg<0x05, 0x00, 0, 8> ADC_5_00;                            // ADC CLK CONTROL 00
+        typedef UReg<0x05, 0x00, 0, 2> ADC_CLK_PA;                          // Clock selection for PA_ADC:
+                                                                            // When = 00, PA_ADC input clock is from PLLAD’s CLKO2
+                                                                            // When = 01, PA_ADC input clock is from PCLKIN
+                                                                            // When = 10, PA_ADC input clock is from V4CLK
+                                                                            // When = 11, reserved
+        typedef UReg<0x05, 0x00, 2, 1> ADC_CLK_PLLAD;                       // Clock selection for PLLAD (When = 0, PLLAD input clock is from sync processor When = 1, PLLAD input clock is from OSC)
+        typedef UReg<0x05, 0x00, 3, 1> ADC_CLK_ICLK2X;                      // ICLK2X control (When = 0, ICLK2X = ADC output clock When = 1, ICLK2X = ADC output clock / 2)
+        typedef UReg<0x05, 0x00, 4, 1> ADC_CLK_ICLK1X;                      // ICLK1X control (When = 0, ICLK1X = ICLK2X When = 1, ICLK1X = ICLK2X /2)
+        // 00_5:3   -   reserved
+    typedef UReg<0x05, 0x02, 0, 1> ADC_SOGEN;                           // ADC SOG enable (When = 0, ADC disable SOG mode When = 1, ADC enable SOG mode)
+    typedef UReg<0x05, 0x02, 1, 5> ADC_SOGCTRL;                         // SOG control signal
+    typedef UReg<0x05, 0x02, 6, 2> ADC_INPUT_SEL;                       // ADC input selection:
+                                                                        // When = 00, R0/G0/B0/SOG0 as input
+                                                                        // When = 01, R1/G1/B1/SOG1 as input
+                                                                        // When = 10, R2/G2/B2 as input
+                                                                        // When = 11, reserved
+    typedef UReg<0x05, 0x03, 0, 8> ADC_5_03;                            // ADC CONTROL 01
+        typedef UReg<0x05, 0x03, 0, 1> ADC_POWDZ;                           // ADC power down control (When = 0, ADC in power down mode; When = 1, ADC work normally)
+        typedef UReg<0x05, 0x03, 1, 1> ADC_RYSEL_R;                         // Clamp to ground or midscale for R ADC (When = 0, clamp to GND When = 1, clamp to midscale)
+        typedef UReg<0x05, 0x03, 2, 1> ADC_RYSEL_G;                         // Clamp to ground or midscale for G ADC (When = 0, clamp to GND When = 1, clamp to midscale)
+        typedef UReg<0x05, 0x03, 3, 1> ADC_RYSEL_B;                         // Clamp to ground or midscale for B ADC (When = 0, clamp to GND When = 1, clamp to midscale)
+        typedef UReg<0x05, 0x03, 4, 2> ADC_FLTR;                            // ADC internal filter control (When = 00, 150MHz; When = 01, 110MHz; When = 10, 70MHz; When = 11, 40MHz)
+        // 03_6:2    -  reserved
+    typedef UReg<0x05, 0x04, 0, 8> ADC_TEST_04;                         // ADC CONTROL 02
+        typedef UReg<0x05, 0x04, 0, 2> ADC_TR_RSEL;                         // REF test resistor selection
+        typedef UReg<0x05, 0x04, 2, 3> ADC_TR_ISEL;                         // REF test currents selection
+        // 04_5:3   -   reserved
+    typedef UReg<0x05, 0x05, 0, 8> ADC_TA_05_CTRL;                      // ADC CONTROL 03
+        typedef UReg<0x05, 0x05, 0, 1> ADC_TA_05_EN;                            // ADC test enable (When = 0, ADC work normally; When = 1, ADC is in test mode)
+        typedef UReg<0x05, 0x05, 1, 4> ADC_TA_CTRL;                             // ADC test bus control bit
+        // 05_5:3   -   reserved
+    typedef UReg<0x05, 0x06, 0, 7> ADC_ROFCTRL;                         // Offset control for R channel of ADC
+    // 06_7:1   -   reserved
+    typedef UReg<0x05, 0x07, 0, 7> ADC_GOFCTRL;                         // Offset control for G channel of ADC
+    // 07_7:1   -   reserved
+    typedef UReg<0x05, 0x08, 0, 7> ADC_BOFCTRL;                         // Offset control for B channel of ADC
+    // 08_7:1   -   reserved
+    typedef UReg<0x05, 0x09, 0, 8> ADC_RGCTRL;                          // Gain control for R channel of ADC
+    typedef UReg<0x05, 0x0A, 0, 8> ADC_GGCTRL;                          // Gain control for G channel of ADC
+    typedef UReg<0x05, 0x0B, 0, 8> ADC_BGCTRL;                          // Gain control for B channel of ADC
+    typedef UReg<0x05, 0x0C, 0, 8> ADC_TEST_0C;                         // ADC CONTROL 10
+        typedef UReg<0x05, 0x0C, 0, 1> ADC_CKBS;                            // ADC output clock invert control (When = 0, default; When = 1, ADC output clock will be invert)
+        typedef UReg<0x05, 0x0C, 1, 4> ADC_TEST;                            // For ADC test reserved
+        // 0C_5:3   -   reserved
+    typedef UReg<0x05, 0x0E, 0, 1> ADC_AUTO_OFST_EN;                    // Auto offset adjustment enable (When = 0, auto offset adjustment disable; When = 1, auto offset adjustment enable)
+    typedef UReg<0x05, 0x0E, 1, 1> ADC_AUTO_OFST_PRD;                   // Offset adjustment by frame (When = 0, offset adjustment by frame; When = 1, offset adjustment by line)
+    typedef UReg<0x05, 0x0E, 2, 2> ADC_AUTO_OFST_DELAY;                 // Horizontal sample delay control:
+                                                                        // When = 00, offset adjustment horizontal sample delay 1 pipe
+                                                                        // When = 01, offset adjustment horizontal sample delay 2 pipe
+                                                                        // When = 10, offset adjustment horizontal sample delay 3 pipe
+                                                                        // When = 11, offset adjustment horizontal sample delay 4 pipe
+    typedef UReg<0x05, 0x0E, 4, 2> ADC_AUTO_OFST_STEP;                  // Offset adjustment step control:
+                                                                        // When = 00, offset adjustment by absolute difference
+                                                                        // When = 01, offset adjustment by 1
+                                                                        // When = 10, offset adjustment by 2
+                                                                        // When = 11, offset adjustment by 3
+    // 0E_6:1   -   reserved
+    typedef UReg<0x05, 0x0E, 7, 1> ADC_AUTO_OFST_TEST;                  // Auto offset adjustment test control
+    typedef UReg<0x05, 0x0F, 0, 4> ADC_AUTO_OFST_U_RANGE;               // U channel offset detection range (Define U channel offset detection range 0~15)
+    typedef UReg<0x05, 0x0F, 4, 4> ADC_AUTO_OFST_V_RANGE;               // V channel offset detection range (Define V channel offset detection range 0~15)
+    typedef UReg<0x05, 0x11, 0, 8> PLLAD_CONTROL_00_5x11;               // PLLAD CONTROL 00
+        typedef UReg<0x05, 0x11, 0, 1> PLLAD_VCORST;                        // Initial VCO control voltage
+        typedef UReg<0x05, 0x11, 1, 1> PLLAD_LEN;                           // Enable signal for clock
+        typedef UReg<0x05, 0x11, 2, 1> PLLAD_TEST;                          // Test clock selection
+        typedef UReg<0x05, 0x11, 3, 1> PLLAD_TS;                            // Test clock selection and HSL clock selection
+        typedef UReg<0x05, 0x11, 4, 1> PLLAD_PDZ;                           // PDZ (When = 0, PLLAD is power down mode; When = 1, PLLAD work normally)
+        typedef UReg<0x05, 0x11, 5, 1> PLLAD_FS;                            // FS, VCO gain selection (When = 0, default; When = 1, high gain selected)
+        typedef UReg<0x05, 0x11, 6, 1> PLLAD_BPS;                           // BPS (When = 0, default; When = 1, bypass input clock to CKO1 and CKO2)
+        typedef UReg<0x05, 0x11, 7, 1> PLLAD_LAT;                           // Latch control for PLLAD control - This bit’s rising edge is used to trigger PLLAD control bit: ND, MD, KS, CKOS, ICP
+    typedef UReg<0x05, 0x12, 0, 12> PLLAD_MD;                           // PLLAD feedback divider control
+    // 13_4:4   -   reserved
+    typedef UReg<0x05, 0x14, 0, 12> PLLAD_ND;                           // PLLAD input divider control
+    // 15_4:4   -   reserved
+    typedef UReg<0x05, 0x16, 0, 8> PLLAD_5_16;                          // PLLAD CONTROL 05
+        typedef UReg<0x05, 0x16, 0, 2> PLLAD_R;                             // Skew control for testing
+        typedef UReg<0x05, 0x16, 2, 2> PLLAD_S;                             // Skew control for testing
+        typedef UReg<0x05, 0x16, 4, 2> PLLAD_KS;                            // VCO post divider control, it is determined by CKO frequency:
+                                                                            // When = 00, divide by 1 (162MHz~80MHz)
+                                                                            // When = 01, divide by 2 (80MHz~40MHz)
+                                                                            // When = 10, divide by 4 (40MHz~20MHz)
+                                                                            // When = 11, divide by 8 (20MHz~min MHz)
+        typedef UReg<0x05, 0x16, 6, 2> PLLAD_CKOS;                          // PLLAD CKO2 output clock selection (see: DEVELOPER_NOTES.md -> S5_16)
+    typedef UReg<0x05, 0x17, 0, 3> PLLAD_ICP;                           // ICP - Charge pump current selection:
+                                                                        // When = 000, Icp = 50uA
+                                                                        // When = 001, Icp = 100uA
+                                                                        // When = 010, Icp = 150uA
+                                                                        // When = 011, Icp = 250uA
+                                                                        // When = 100, Icp = 350uA
+                                                                        // When = 101, Icp = 500uA
+                                                                        // When = 110, Icp = 750uA
+                                                                        // When = 111, Icp = 1mA
+    // 17_3:5   -   reserved
+    typedef UReg<0x05, 0x18, 0, 1> PA_ADC_BYPSZ;                        // BYPSZ, PA for ADC bypass control (When = 0, PA_ADC is bypass When = 1, PA_ADC work normally)
+    typedef UReg<0x05, 0x18, 1, 5> PA_ADC_S;                            // PA_ADC phase control
+    typedef UReg<0x05, 0x18, 6, 1> PA_ADC_LOCKOFF;                      // LOCKOFF (When = 0, default; When = 1, PA_ADC lock circuit disable)
+    typedef UReg<0x05, 0x18, 7, 1> PA_ADC_LAT;                          // PA_ADC latch signal (This bit’s rising edge is used to trigger PA_ADC_CNTRL)
+    typedef UReg<0x05, 0x19, 0, 1> PA_SP_BYPSZ;                         // BYPSZ, PA for PLLAD bypass control (When = 0, PA_PLLAD is bypass; When = 1, PA_PLLAD work normally)
+    typedef UReg<0x05, 0x19, 1, 5> PA_SP_S;                             // PA_PLLAD phase control
+    typedef UReg<0x05, 0x19, 6, 1> PA_SP_LOCKOFF;                       // LOCKOFF (When = 0, default; When = 1, PA_PLLAD lock circuit disable)
+    typedef UReg<0x05, 0x19, 7, 1> PA_SP_LAT;                           // PA_PLLAD latch signal (This bit’s rising edge is used to trigger PA_PLLAD_CNTRL)
+    // 20 - 1D - not described
+    // 1E_0:7   -   reserved
+    typedef UReg<0x05, 0x1E, 7, 1> DEC_WEN_MODE;                        // Write enable mode enable (When this bit is 1, then decimator will drop data by write enable signal generated by horizontal sync, else write enable is not used.)
+    typedef UReg<0x05, 0x1F, 0, 8> DEC_REG_01;                          // DEC_REG_01
+        typedef UReg<0x05, 0x1F, 0, 1> DEC1_BYPS;                           // The 4x to 2x decimator bypass enable (When 1, the 4x to 2x decimator bypass.)
+        typedef UReg<0x05, 0x1F, 1, 1> DEC2_BYPS;                           // The 2x to 1x decimator bypass enable (When 1, the 2x to 1x decimator hypass)
+        typedef UReg<0x05, 0x1F, 2, 1> DEC_MATRIX_BYPS;                     // Color space convert bypass enable (When set to 1, color space convert module bypass.)
+        typedef UReg<0x05, 0x1F, 3, 1> DEC_TEST_ENABLE;                 // Test logic output select (test logic output enable, when set to 1, test logic can output.)
+        typedef UReg<0x05, 0x1F, 4, 3> DEC_TEST_SEL;                    // Test logic output select (select 8 test logics to test bus)
+        typedef UReg<0x05, 0x1F, 7, 1> DEC_IDREG_EN;                    // Negative clock edge latch input hsync and vsync enable (When set to 1, decimator 4x clock will latch HSYNC and VSYNC with falling edge)
 
     //
     // Sync Proc (all registers R/W)
     //
-    typedef UReg<0x05, 0x20, 0, 1> SP_SOG_SRC_SEL;
-    typedef UReg<0x05, 0x20, 1, 1> SP_SOG_P_ATO;
-    typedef UReg<0x05, 0x20, 2, 1> SP_SOG_P_INV;
-    typedef UReg<0x05, 0x20, 3, 1> SP_EXT_SYNC_SEL;
-    typedef UReg<0x05, 0x20, 4, 1> SP_JITTER_SYNC;
-    typedef UReg<0x05, 0x26, 0, 12> SP_SYNC_PD_THD;
-    typedef UReg<0x05, 0x33, 0, 8> SP_H_TIMER_VAL;
-    typedef UReg<0x05, 0x35, 0, 12> SP_DLT_REG;
-    typedef UReg<0x05, 0x37, 0, 8> SP_H_PULSE_IGNOR;
-    typedef UReg<0x05, 0x38, 0, 8> SP_PRE_COAST;
-    typedef UReg<0x05, 0x39, 0, 8> SP_POST_COAST;
-    typedef UReg<0x05, 0x3A, 0, 8> SP_H_TOTAL_EQ_THD;
-    typedef UReg<0x05, 0x3B, 0, 3> SP_SDCS_VSST_REG_H;
-    typedef UReg<0x05, 0x3B, 4, 3> SP_SDCS_VSSP_REG_H;
-    typedef UReg<0x05, 0x3E, 0, 8> SP_CS_0x3E; // fake name
-    typedef UReg<0x05, 0x3E, 0, 1> SP_CS_P_SWAP;
-    typedef UReg<0x05, 0x3E, 1, 1> SP_HD_MODE;
-    typedef UReg<0x05, 0x3E, 2, 1> SP_H_COAST;
-    typedef UReg<0x05, 0x3E, 4, 1> SP_H_PROTECT;
-    typedef UReg<0x05, 0x3E, 5, 1> SP_DIS_SUB_COAST;
-    typedef UReg<0x05, 0x3F, 0, 8> SP_SDCS_VSST_REG_L;
-    typedef UReg<0x05, 0x40, 0, 8> SP_SDCS_VSSP_REG_L;
-    typedef UReg<0x05, 0x41, 0, 12> SP_CS_CLP_ST;
-    typedef UReg<0x05, 0x43, 0, 12> SP_CS_CLP_SP;
-    typedef UReg<0x05, 0x45, 0, 12> SP_CS_HS_ST;
-    typedef UReg<0x05, 0x47, 0, 12> SP_CS_HS_SP;
-    typedef UReg<0x05, 0x49, 0, 12> SP_RT_HS_ST;
-    typedef UReg<0x05, 0x4B, 0, 12> SP_RT_HS_SP;
-    typedef UReg<0x05, 0x4D, 0, 12> SP_H_CST_ST;
-    typedef UReg<0x05, 0x4F, 0, 12> SP_H_CST_SP;
-    typedef UReg<0x05, 0x55, 4, 1> SP_HS_POL_ATO;
-    typedef UReg<0x05, 0x55, 6, 1> SP_VS_POL_ATO;
-    typedef UReg<0x05, 0x55, 7, 1> SP_HCST_AUTO_EN;
-    typedef UReg<0x05, 0x56, 0, 8> SP_5_56; // convenience
-    typedef UReg<0x05, 0x56, 0, 1> SP_SOG_MODE;
-    typedef UReg<0x05, 0x56, 1, 1> SP_HS2PLL_INV_REG;
-    typedef UReg<0x05, 0x56, 2, 1> SP_CLAMP_MANUAL;
-    typedef UReg<0x05, 0x56, 3, 1> SP_CLP_SRC_SEL;
-    typedef UReg<0x05, 0x56, 4, 1> SP_SYNC_BYPS;
-    typedef UReg<0x05, 0x56, 5, 1> SP_HS_PROC_INV_REG;
-    typedef UReg<0x05, 0x56, 6, 1> SP_VS_PROC_INV_REG;
-    typedef UReg<0x05, 0x56, 7, 1> SP_CLAMP_INV_REG;
-    typedef UReg<0x05, 0x57, 0, 8> SP_5_57; // convenience
-    typedef UReg<0x05, 0x57, 0, 1> SP_NO_CLAMP_REG;
-    typedef UReg<0x05, 0x57, 1, 1> SP_COAST_INV_REG;
-    typedef UReg<0x05, 0x57, 2, 1> SP_NO_COAST_REG;
-    typedef UReg<0x05, 0x57, 6, 1> SP_HS_LOOP_SEL;
-    typedef UReg<0x05, 0x57, 7, 1> SP_HS_REG;
-    typedef UReg<0x05, 0x60, 0, 8> ADC_UNUSED_60;
-    typedef UReg<0x05, 0x61, 0, 8> ADC_UNUSED_61;
-    typedef UReg<0x05, 0x62, 0, 8> ADC_UNUSED_62;
-    typedef UReg<0x05, 0x63, 0, 8> TEST_BUS_SP_SEL;
-    typedef UReg<0x05, 0x64, 0, 8> ADC_UNUSED_64;
-    typedef UReg<0x05, 0x65, 0, 8> ADC_UNUSED_65;
-    typedef UReg<0x05, 0x66, 0, 8> ADC_UNUSED_66;
-    typedef UReg<0x05, 0x67, 0, 16> ADC_UNUSED_67; // + ADC_UNUSED_68;
-    typedef UReg<0x05, 0x69, 0, 8> ADC_UNUSED_69;
+    typedef UReg<0x05, 0x20, 0, 1> SP_SOG_SRC_SEL;                      // SOG signal source select (0: from ADC; 1: select hs as sog source)
+    typedef UReg<0x05, 0x20, 1, 1> SP_SOG_P_ATO;                        // SOG auto correct polarity
+    typedef UReg<0x05, 0x20, 2, 1> SP_SOG_P_INV;                        // Invert sog.
+    typedef UReg<0x05, 0x20, 3, 1> SP_EXT_SYNC_SEL;                     // Ext 2 set Hs_Hs select
+    typedef UReg<0x05, 0x20, 4, 1> SP_JITTER_SYNC;                      // Sync using both rising and falling trigger (Use falling and rising edge to sync input Hsync)
+    // 20_5:3    -  reserved
+    typedef UReg<0x05, 0x21, 0, 16> SP_SYNC_TGL_THD;                    // h active detect control (Sync toggle times threshold)
+    // 23_0:8   -   reserved
+    typedef UReg<0x05, 0x24, 0, 12> SP_T_DLT_REG;                       // H active detect control (H total width different threshold)
+    // 25:4:4   -   reserved
+    typedef UReg<0x05, 0x26, 0, 12> SP_SYNC_PD_THD;                     // H active detect control (H sync pulse width threshold)
+    // 27_4:4   -   reserved
+    typedef UReg<0x05, 0x2A, 0, 8> SP_PRD_EQ_THD;                       // H active detect control (How many continue legal line as valid)
+    // 2B - 2C - not described
+    typedef UReg<0x05, 0x2D, 0, 8> SP_VSYNC_TGL_THD;                    // V active detect control (V sync toggle times threshold)
+    typedef UReg<0x05, 0x2E, 0, 8> SP_SYNC_WIDTH_DTHD;                  // V active detect control (V sync pulse width threshod)
+    typedef UReg<0x05, 0x2F, 0, 8> SP_V_PRD_EQ_THD;                     // V active detect control (How many continue legal v sync as valid)
+    typedef UReg<0x05, 0x31, 0, 8> SP_VT_DLT_REG;                       // V active detect control (V total different threshold)
+    typedef UReg<0x05, 0x32, 0, 1> SP_VSIN_INV_REG;                     // V active detect control (Input v sync invert to v active detect)
+    // 32_1:7   -   reserved
+    typedef UReg<0x05, 0x33, 0, 8> SP_H_TIMER_VAL;                      // Timer value control (H timer value for h detect)
+    typedef UReg<0x05, 0x34, 0, 8> SP_V_TIMER_VAL;                      // Timer value control (V timer for V detect)
+    typedef UReg<0x05, 0x35, 0, 12> SP_DLT_REG;                         // Sync separation control (MSB for sync pulse width difference compare value)
+    // 36_4:4   -   reserved
+    typedef UReg<0x05, 0x37, 0, 8> SP_H_PULSE_IGNOR;                    // Sync separation control (H pulse less than this value will be ignore this counter is start when sync large different)
+    typedef UReg<0x05, 0x38, 0, 8> SP_PRE_COAST;                        // Sync separation control (Set the coast will valid before vertical sync (line number))
+    typedef UReg<0x05, 0x39, 0, 8> SP_POST_COAST;                       // Sync separation control (When line cnt reach this value coast goes down)
+    typedef UReg<0x05, 0x3A, 0, 8> SP_H_TOTAL_EQ_THD;                   // Sync separation control (How many regular line regard it as legal)
+    typedef UReg<0x05, 0x3B, 0, 3> SP_SDCS_VSST_REG_H;                  // Sync separation control (High bit of SD vs. start position)
+    // 3B_3:1   -   reserved
+    typedef UReg<0x05, 0x3B, 4, 3> SP_SDCS_VSSP_REG_H;                  // Sync separation control (High bit of SD vs. stop position)
+    // 3B_7:1   -   reserved
+    typedef UReg<0x05, 0x3E, 0, 8> SP_CS_0x3E;                          // SYNC_PROC 23
+        typedef UReg<0x05, 0x3E, 0, 1> SP_CS_P_SWAP;                        // Sync separation control (cs_p_swap cs edge reference select default rising edge)
+        typedef UReg<0x05, 0x3E, 1, 1> SP_HD_MODE;                          // hd_mode 1: HD mode 0: SD mode
+        typedef UReg<0x05, 0x3E, 2, 1> SP_H_COAST;                          // h_coast 1: with sub coast out
+        typedef UReg<0x05, 0x3E, 3, 1> SP_CS_INV_REG;                       // cs_inv_reg cs input invert
+        typedef UReg<0x05, 0x3E, 4, 1> SP_H_PROTECT;                        // H count overflow protect
+        typedef UReg<0x05, 0x3E, 5, 1> SP_DIS_SUB_COAST;                    // Disable sub coast
+        // 3E_6:2   -   reserved
+    typedef UReg<0x05, 0x3F, 0, 8> SP_SDCS_VSST_REG_L;                  // Sync separation control (SD vs. start position)
+    typedef UReg<0x05, 0x40, 0, 8> SP_SDCS_VSSP_REG_L;                  // Sync separation control (SD vs. stop position)
+    typedef UReg<0x05, 0x41, 0, 12> SP_CS_CLP_ST;                       // Sync separation control (SOG clamp start position MSB...LSB)
+    // 42_4:4   -   reserved
+    typedef UReg<0x05, 0x43, 0, 12> SP_CS_CLP_SP;                       // Sync separation control (SOG clamp stop position MSB...LSB)
+    // 42_4:4   -   reserved
+    typedef UReg<0x05, 0x45, 0, 12> SP_CS_HS_ST;                        // Sync separation control (If the horizontal period number is equal to the defined value, in XGA modes, It’s XGA 75Hz mode)
+    // 46_4:4   -   reserved
+    typedef UReg<0x05, 0x47, 0, 12> SP_CS_HS_SP;                        // Sync separation control (SOG hs stop position)
+    // 48_4:4   -   reserved
+    typedef UReg<0x05, 0x49, 0, 12> SP_RT_HS_ST;                        // Retiming control (Retiming hs start position)
+    // 4A_4:4   -   reserved
+    typedef UReg<0x05, 0x4B, 0, 12> SP_RT_HS_SP;                        // Retiming control (Retiming hs stop postion)
+    // 4C_4:4   -   reserved
+    typedef UReg<0x05, 0x4D, 0, 12> SP_H_CST_ST;                        // Retiming control (H coast start position (total-this value))
+    // 4E_4:4   -   reserved
+    typedef UReg<0x05, 0x4F, 0, 12> SP_H_CST_SP;                        // Retiming control (H coast stop position)
+    // 50_4:4   -   reserved
+    typedef UReg<0x05, 0x51, 0, 12> SP_RT_VS_ST;                        // Retiming control (Retiming vs start position)
+    // 52_4:4   -   reserved
+    typedef UReg<0x05, 0x53, 0, 12> SP_RT_VS_SP;                        // Retiming control (Retiming vs stop position)
+    // 54_4:4   -   reserved
+    typedef UReg<0x05, 0x55, 0, 2> SP_HS_EP_DLY_SEL;                    // Retiming control (Hs pulse delay sel for ( sync with vs ))
+    typedef UReg<0x05, 0x55, 3, 1> SP_HS_INV_REG;                       // Retiming control (hs_inv_reg inver hs to retimming module
+    typedef UReg<0x05, 0x55, 4, 1> SP_HS_POL_ATO;                       // Retiming control (hs auto correct in retiming module)
+    typedef UReg<0x05, 0x55, 5, 1> SP_VS_INV_REG;                       // Retiming control (vs inv_reg invert hs to retiming module)
+    typedef UReg<0x05, 0x55, 6, 1> SP_VS_POL_ATO;                       // Retiming control (vs auto correct in retiming module)
+    typedef UReg<0x05, 0x55, 7, 1> SP_HCST_AUTO_EN;                     // Retiming control (If enable h coast will start at ( V total - hcst_st))
+    typedef UReg<0x05, 0x56, 0, 8> SP_5_56;                             // SYNC_PROC 48
+        typedef UReg<0x05, 0x56, 0, 1> SP_SOG_MODE;                         // Out control (1: SOG mode; 0: normal mode)
+        typedef UReg<0x05, 0x56, 1, 1> SP_HS2PLL_INV_REG;                   // Out control (When =1, HS to PLL invert)
+        typedef UReg<0x05, 0x56, 2, 1> SP_CLAMP_MANUAL;                     // Out control (1: clamp turn on off by control by software (default) 0: for test)
+        typedef UReg<0x05, 0x56, 3, 1> SP_CLP_SRC_SEL;                      // Out control (Clamp source select - 1: pixel clock generate; 0: 27Mhz clock generate)
+        typedef UReg<0x05, 0x56, 4, 1> SP_SYNC_BYPS;                        // Out control (External sync bypass to decimator)
+        typedef UReg<0x05, 0x56, 5, 1> SP_HS_PROC_INV_REG;                  // Out control (HS to decimator invert)
+        typedef UReg<0x05, 0x56, 6, 1> SP_VS_PROC_INV_REG;                  // Out control (VS to decimator invert)
+        typedef UReg<0x05, 0x56, 7, 1> SP_CLAMP_INV_REG;                    // Out control (Clamp to ADC invert)
+    typedef UReg<0x05, 0x57, 0, 8> SP_5_57;                             // SYNC_PROC 49
+        typedef UReg<0x05, 0x57, 0, 1> SP_NO_CLAMP_REG;                     // Out control (Clamp always be 0)
+        typedef UReg<0x05, 0x57, 1, 1> SP_COAST_INV_REG;                    // Out control (Coast invert)
+        typedef UReg<0x05, 0x57, 2, 1> SP_NO_COAST_REG;                     // Out control (Coast always be REG S5_57[3])
+        typedef UReg<0x05, 0x57, 3, 1> SP_COAST_VALUE_REG;                  // Out control (Coast use 1x clk generate)
+        // 57_4:2   -   reserved
+        typedef UReg<0x05, 0x57, 6, 1> SP_HS_LOOP_SEL;                      // Out control (Bypass PLL HS to 57 core)
+        typedef UReg<0x05, 0x57, 7, 1> SP_HS_REG;                           // Out control (When sub_coast enable will select this value)
+    typedef UReg<0x05, 0x58, 0, 12> SP_HT_DIFF_REG;                         // Auto clamp control (H total difference less this value as valid for auto clamp enable control)
+    // 59_4:4   -   reserved
+    typedef UReg<0x05, 0x5A, 0, 12> SP_VT_DIFF_REG;                         // Auto clamp control (V total difference less this value as valid for auto clamp enable control)
+    // 5B_4:4   -   reserved
+    typedef UReg<0x05, 0x5C, 0, 8> SP_STBLE_CNT_REG;                         // Auto clamp control (Stable indicate frame threshold for auto clamp enable control)
+    // 5D - 62 - not described
+    // typedef UReg<0x05, 0x60, 0, 8> ADC_UNUSED_60;
+    // typedef UReg<0x05, 0x61, 0, 8> ADC_UNUSED_61;
+    // typedef UReg<0x05, 0x62, 0, 8> ADC_UNUSED_62;
+    typedef UReg<0x05, 0x63, 0, 8> TEST_BUS_SP_SEL;                         // SYNC_PROC 55
+        typedef UReg<0x05, 0x63, 0, 1> SP_TEST_EN;                              // Test bus enable
+        typedef UReg<0x05, 0x63, 1, 3> SP_TEST_MODULE;                          // test module select:
+                                                                                // # 0 none
+                                                                                // # 1 hs_pol_det module
+                                                                                // # 2 hs_act_det module
+                                                                                // # 3 vs_pol_det module
+                                                                                // # 4 vs_act_det module
+                                                                                // # 5 cs_sep module
+                                                                                // # 6 retiming module
+                                                                                // # 7 out proc module
+        typedef UReg<0x05, 0x63, 4, 2> SP_TEST_SIGNAL_SEL;                      // Test signal select
+        // 63_7:1   -   reserved
+    //
+    // there is no more registers ahead...
+    //
+    // typedef UReg<0x05, 0x64, 0, 8> ADC_UNUSED_64;
+    // typedef UReg<0x05, 0x65, 0, 8> ADC_UNUSED_65;
+    // typedef UReg<0x05, 0x66, 0, 8> ADC_UNUSED_66;
+    // typedef UReg<0x05, 0x67, 0, 16> ADC_UNUSED_67; // + ADC_UNUSED_68;
+    // typedef UReg<0x05, 0x69, 0, 8> ADC_UNUSED_69;
 
     typedef UReg<0x05, 0xD0, 0, 32> VERYWIDEDUMMYREG;
 

@@ -3,7 +3,7 @@
 # File: framesync.cpp                                                     #
 # File Created: Sunday, 5th May 2024 12:52:08 pm                          #
 # Author:                                                                 #
-# Last Modified: Tuesday, 18th June 2024 12:16:32 am                      #
+# Last Modified: Tuesday, 18th June 2024 1:29:36 pm                       #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -303,11 +303,11 @@ bool FrameSyncManager::runFrequency()
         return true;
     }
 
-    // if (rto->outModeHdBypass)
-    if (uopt->resolutionID == OutputHdBypass)
+    // if (rto.outModeHdBypass)
+    if (uopt.resolutionID == OutputHdBypass)
     {
         // #ifdef FRAMESYNC_DEBUG
-        // _DBGN(F("Skipping FrameSyncManager::runFrequency(), rto->outModeHdBypass"));
+        // _DBGN(F("Skipping FrameSyncManager::runFrequency(), rto.outModeHdBypass"));
         // #endif
         return true;
     }
@@ -439,7 +439,7 @@ bool FrameSyncManager::runFrequency()
 
     // This has floating-point conversion round-trip rounding errors, which
     // is suboptimal, but it's not a big deal.
-    const float prevFpsOutput = (float)rto->freqExtClockGen / maybeFreqExt_per_videoFps;
+    const float prevFpsOutput = (float)rto.freqExtClockGen / maybeFreqExt_per_videoFps;
 
     // In case fpsInput is measured incorrectly, rawFpsOutput may be
     // drastically different from the previous frame's output FPS. To limit
@@ -468,7 +468,7 @@ bool FrameSyncManager::runFrequency()
 
     #ifdef FRAMESYNC_DEBUG
     _DBGF(PSTR("Setting clock frequency from %u to %u\n"),
-         rto->freqExtClockGen, freqExtClockGen);
+         rto.freqExtClockGen, freqExtClockGen);
     #endif
 
     setExternalClockGenFrequencySmooth(freqExtClockGen);

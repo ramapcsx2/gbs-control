@@ -64,31 +64,31 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
             break;
     }
     if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read()) {
-        videoMode = rto->videoStandardInput;
+        videoMode = rto.videoStandardInput;
     }
-    uopt->resolutionID = preset;
+    uopt.resolutionID = preset;
     if (item->tag != MT_BYPASS) {
-        // uopt->presetPreference = preset;
-        // rto->presetID= preset;
-        rto->useHdmiSyncFix = 1;
-        if (rto->videoStandardInput == 14) {
-            rto->videoStandardInput = 15;
+        // uopt.presetPreference = preset;
+        // rto.presetID= preset;
+        rto.useHdmiSyncFix = 1;
+        if (rto.videoStandardInput == 14) {
+            rto.videoStandardInput = 15;
         } else {
             applyPresets(videoMode);
         }
     } else {
         setOutputHdBypassMode(false);
-        // uopt->presetPreference = preset;
-        // rto->presetID = preset;
-        if (rto->videoStandardInput != 15) {
-            rto->autoBestHtotalEnabled = 0;
-            if (rto->applyPresetDoneStage == 11) {
-                rto->applyPresetDoneStage = 1;
+        // uopt.presetPreference = preset;
+        // rto.presetID = preset;
+        if (rto.videoStandardInput != 15) {
+            rto.autoBestHtotalEnabled = 0;
+            if (rto.applyPresetDoneStage == 11) {
+                rto.applyPresetDoneStage = 1;
             } else {
-                rto->applyPresetDoneStage = 10;
+                rto.applyPresetDoneStage = 10;
             }
         } else {
-            rto->applyPresetDoneStage = 1;
+            rto.applyPresetDoneStage = 1;
         }
     }
     // saveUserPrefs();
@@ -123,20 +123,20 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
     display->drawString(OLED_MENU_WIDTH / 2, 16, item->str);
     display->drawXbm((OLED_MENU_WIDTH - TEXT_LOADED_WIDTH) / 2, OLED_MENU_HEIGHT / 2, IMAGE_ITEM(TEXT_LOADED));
     display->display();
-    // uopt->slotID = 'A' + item->tag; // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,
-    uopt->slotID = item->tag;
+    // uopt.slotID = 'A' + item->tag; // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,
+    uopt.slotID = item->tag;
     // now we're free to load new slot data
-    if(!slotLoad(uopt->slotID)) {
+    if(!slotLoad(uopt.slotID)) {
         _DBGF(PSTR("unable to read %s\n"), FPSTR(slotsFile));
     }
-    // uopt->presetPreference = OutputResolution::OutputCustomized;
+    // uopt.presetPreference = OutputResolution::OutputCustomized;
     // saveUserPrefs();
-    if (rto->videoStandardInput == 14) {
+    if (rto.videoStandardInput == 14) {
         // vga upscale path: let synwatcher handle it
-        rto->videoStandardInput = 15;
+        rto.videoStandardInput = 15;
     } else {
         // normal path
-        applyPresets(rto->videoStandardInput);
+        applyPresets(rto.videoStandardInput);
         savePresetToFS();
     }
     // saveUserPrefs();
@@ -274,7 +274,7 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
     display.clear();
     display.setColor(OLEDDISPLAY_COLOR::WHITE);
     display.setFont(ArialMT_Plain_16);
-    if (rto->sourceDisconnected || !rto->boardHasPower) {
+    if (rto.sourceDisconnected || !rto.boardHasPower) {
         if (millis() - oledMenuFreezeStartTime >= oledMenuFreezeTimeoutInMS) {
             manager->unfreeze();
             return false;
@@ -287,32 +287,32 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
         bool hsyncActive = 0;
         float ofr = getOutputFrameRate();
         uint8_t currentInput = GBS::ADC_INPUT_SEL::read();
-        // rto->presetID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
-        // uopt->resolutionID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
+        // rto.presetID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
+        // uopt.resolutionID = static_cast<OutputResolution>(GBS::GBS_PRESET_ID::read());
 
         // display.setFont(URW_Gothic_L_Book_20);
         display.setTextAlignment(TEXT_ALIGN_LEFT);
 
-        // if (rto->presetID == 0x01 || rto->presetID == 0x11) {
-        if (uopt->resolutionID == Output960p || uopt->resolutionID == Output960p50) {
+        // if (rto.presetID == 0x01 || rto.presetID == 0x11) {
+        if (uopt.resolutionID == Output960p || uopt.resolutionID == Output960p50) {
             display.drawString(0, 0, "1280x960");
-        // } else if (rto->presetID == 0x02 || rto->presetID == 0x12) {
-        } else if (uopt->resolutionID == Output1024p || uopt->resolutionID == Output1024p50) {
+        // } else if (rto.presetID == 0x02 || rto.presetID == 0x12) {
+        } else if (uopt.resolutionID == Output1024p || uopt.resolutionID == Output1024p50) {
             display.drawString(0, 0, "1280x1024");
-        // } else if (rto->presetID == 0x03 || rto->presetID == 0x13) {
-        } else if (uopt->resolutionID == Output720p || uopt->resolutionID == Output720p50) {
+        // } else if (rto.presetID == 0x03 || rto.presetID == 0x13) {
+        } else if (uopt.resolutionID == Output720p || uopt.resolutionID == Output720p50) {
             display.drawString(0, 0, "1280x720");
-        // } else if (rto->presetID == 0x05 || rto->presetID == 0x15) {
-        } else if (uopt->resolutionID == Output1080p || uopt->resolutionID == Output1080p50) {
+        // } else if (rto.presetID == 0x05 || rto.presetID == 0x15) {
+        } else if (uopt.resolutionID == Output1080p || uopt.resolutionID == Output1080p50) {
             display.drawString(0, 0, "1920x1080");
-        // } else if (rto->presetID == 0x06 || rto->presetID == 0x16) {
-        } else if (uopt->resolutionID == Output15kHz || uopt->resolutionID == Output15kHz50) {
+        // } else if (rto.presetID == 0x06 || rto.presetID == 0x16) {
+        } else if (uopt.resolutionID == Output15kHz || uopt.resolutionID == Output15kHz50) {
             display.drawString(0, 0, "Downscale");
-        // } else if (rto->presetID == 0x04) {
-        } else if (uopt->resolutionID == Output720p) {
+        // } else if (rto.presetID == 0x04) {
+        } else if (uopt.resolutionID == Output720p) {
             display.drawString(0, 0, "720x480");
-        // } else if (rto->presetID == 0x14) {
-        } else if (uopt->resolutionID == Output576p50) {
+        // } else if (rto.presetID == 0x14) {
+        } else if (uopt.resolutionID == Output576p50) {
             display.drawString(0, 0, "768x576");
         } else if (utilsIsPassThroughMode()) {
             display.drawString(0, 0, "bypass");
@@ -372,61 +372,61 @@ bool settingsMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMenuN
         // active slot parameters
         case MT_SSET_AUTOGAIN:
             serialCommand = 'T';
-            uopt->enableAutoGain == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            uopt.enableAutoGain == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
             break;
         case MT_SSET_SCANLINES:
             userCommand = '7';
-            uopt->wantScanlines == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            uopt.wantScanlines == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
             break;
         case MT_SSET_LINFILTR:
             userCommand = 'm';
-            uopt->wantVdsLineFilter == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            uopt.wantVdsLineFilter == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
             break;
         case MT_SSET_PEAKING:
             serialCommand = 'f';
-            uopt->wantPeaking == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            uopt.wantPeaking == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
             break;
         case MT_SSET_STPRESP:
             serialCommand = 'V';
-            uopt->wantStepResponse == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            uopt.wantStepResponse == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
             break;
         case MT_SSET_FULHEIGHT:
             userCommand = 'v';
-            uopt->wantFullHeight == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            uopt.wantFullHeight == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
             break;
         case MT_SSET_F50FREQ60:
             userCommand = '0';
-            uopt->PalForce60 == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            uopt.PalForce60 == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
             break;
         case MT_SSET_FTL:
             userCommand = '5';
-            uopt->enableFrameTimeLock == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            uopt.enableFrameTimeLock == 0 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
             break;
         case MT_SSET_FTLMETHOD:
             userCommand = 'i';
-            uopt->frameTimeLockMethod == 0 ? display.drawXbm(CENTER_IMAGE(OM_FTL_METHOD_0)) : display.drawXbm(CENTER_IMAGE(OM_FTL_METHOD_1));
+            uopt.frameTimeLockMethod == 0 ? display.drawXbm(CENTER_IMAGE(OM_FTL_METHOD_0)) : display.drawXbm(CENTER_IMAGE(OM_FTL_METHOD_1));
             break;
         case MT_SSET_DEINT_BOB_MAD:
             userCommand = 'q';
-            uopt->deintMode != 1 ? display.drawXbm(CENTER_IMAGE(OM_BOB_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_MAD_ENABLED));
+            uopt.deintMode != 1 ? display.drawXbm(CENTER_IMAGE(OM_BOB_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_MAD_ENABLED));
             break;
 
         // common settings
         case MT_CPRM_UPSCALE:
             userCommand = 'x';
-            uopt->preferScalingRgbhv != 1 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            uopt.preferScalingRgbhv != 1 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
             break;
         case MT_CPRM_FORCECOMPOSITE:
             serialCommand = 'L';
-            uopt->wantOutputComponent != 1 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            uopt.wantOutputComponent != 1 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
             break;
         case MT_CPRM_DISEXTCLK:
             userCommand = 'X';
-            uopt->disableExternalClockGenerator != 1 ? display.drawXbm(CENTER_IMAGE(OM_DISABLED)) : display.drawXbm(CENTER_IMAGE(OM_ENABLED));
+            uopt.disableExternalClockGenerator != 1 ? display.drawXbm(CENTER_IMAGE(OM_DISABLED)) : display.drawXbm(CENTER_IMAGE(OM_ENABLED));
             break;
         case MT_CPRM_ADCCALIBR:
             userCommand = 'w';
-            uopt->enableCalibrationADC != 1 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
+            uopt.enableCalibrationADC != 1 ? display.drawXbm(CENTER_IMAGE(OM_ENABLED)) : display.drawXbm(CENTER_IMAGE(OM_DISABLED));
             break;
     }
     display.display();

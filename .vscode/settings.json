@@ -9,7 +9,13 @@
         "typeinfo": "cpp",
         "random": "cpp",
         "*.html.tpl": "html",
-        "new": "cpp"
+        "new": "cpp",
+        "atomic": "cpp",
+        "memory": "cpp",
+        "type_traits": "cpp",
+        "cmath": "cpp",
+        "limits": "cpp",
+        "utility": "cpp"
     },
     "editor.tabSize": 4,
     "editor.insertSpaces": true,

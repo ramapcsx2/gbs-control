@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Sunday, 16th June 2024 2:04:38 am                        #
+# Last Modified: Tuesday, 18th June 2024 1:29:36 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -92,69 +92,69 @@ static void wifiEventHandler(System_Event_t *e)
 //     //     webSocket.disconnect();
 //     // }
 // #if WEB_SERVER_ENABLE == 1
-////     if (rto->webServerStarted) {
+////     if (rto.webServerStarted) {
 //         if (webSocket.connectedClients() > 0) {
 //             constexpr size_t MESSAGE_LEN = 8;
 //             uint8_t toSend[MESSAGE_LEN];
 //             memset(toSend, 0, MESSAGE_LEN);
 //             // special character # used for message filtering in WebUI
 //             toSend[0] = '#';
-//             toSend[1] = uopt->slotID + '0';
+//             toSend[1] = uopt.slotID + '0';
 //             // TODO: resolutionID must be INTEGER too?
-//             toSend[2] = (char)uopt->resolutionID;
+//             toSend[2] = (char)uopt.resolutionID;
 //             //
-//             if (uopt->wantScanlines)
+//             if (uopt.wantScanlines)
 //                 toSend[3] |= (1 << 0);
-//             if (uopt->wantVdsLineFilter)
+//             if (uopt.wantVdsLineFilter)
 //                 toSend[3] |= (1 << 1);
-//             if (uopt->wantStepResponse)
+//             if (uopt.wantStepResponse)
 //                 toSend[3] |= (1 << 2);
-//             if (uopt->wantPeaking)
+//             if (uopt.wantPeaking)
 //                 toSend[3] |= (1 << 3);
-//             if (uopt->enableAutoGain)
+//             if (uopt.enableAutoGain)
 //                 toSend[3] |= (1 << 4);
-//             if (uopt->enableFrameTimeLock)
+//             if (uopt.enableFrameTimeLock)
 //                 toSend[3] |= (1 << 5);
 
 //             //
-//             if (uopt->deintMode == 0)      // motion adaptive if == 0
+//             if (uopt.deintMode == 0)      // motion adaptive if == 0
 //                 toSend[4] |= (1 << 0);
-//             if (uopt->deintMode == 1)      // bob if == 1
+//             if (uopt.deintMode == 1)      // bob if == 1
 //                 toSend[4] |= (1 << 1);
-//             // if (uopt->wantTap6) {
+//             // if (uopt.wantTap6) {
 //             //     toSend[4] |= (1 << 1);
 //             // }
-//             if (uopt->wantFullHeight)
+//             if (uopt.wantFullHeight)
 //                 toSend[4] |= (1 << 2);
-//             // if (uopt->matchPresetSource)
+//             // if (uopt.matchPresetSource)
 //             //     toSend[4] |= (1 << 3);
-//             if (uopt->PalForce60 == 1)
+//             if (uopt.PalForce60 == 1)
 //                 toSend[4] |= (1 << 3);
 
 //             // system preferences
-//             if (uopt->wantOutputComponent)
+//             if (uopt.wantOutputComponent)
 //                 toSend[5] |= (1 << 0);
-//             if (uopt->enableCalibrationADC)
+//             if (uopt.enableCalibrationADC)
 //                 toSend[5] |= (1 << 1);
-//             if (uopt->preferScalingRgbhv)
+//             if (uopt.preferScalingRgbhv)
 //                 toSend[5] |= (1 << 2);
-//             if (uopt->disableExternalClockGenerator)
+//             if (uopt.disableExternalClockGenerator)
 //                 toSend[5] |= (1 << 3);
 
 //             // developer panel controls status
-//             if(rto->printInfos)
+//             if(rto.printInfos)
 //                 toSend[6] |= (1 << 0);
-//             if(uopt->invertSync)
+//             if(uopt.invertSync)
 //                 toSend[6] |= (1 << 1);
-//             if(rto->osr != 0)
+//             if(rto.osr != 0)
 //                 toSend[6] |= (1 << 2);
 //             if(GBS::ADC_FLTR::read() != 0)
 //                 toSend[6] |= (1 << 3);
-//             if(uopt->debugView)
+//             if(uopt.debugView)
 //                 toSend[6] |= (1 << 4);
 
 //             // system tab controls
-//             if(rto->allowUpdatesOTA)
+//             if(rto.allowUpdatesOTA)
 //                 toSend[7] |= (1 << 0);
 
 //             webSocket.broadcastBIN(toSend, MESSAGE_LEN);
