@@ -430,6 +430,36 @@
         "ru": "Разработчик",
         "zh": ""
     },
+    "REGISTER_CMD_SEGMENT": {
+        "en": "segment",
+        "es": "segmento",
+        "ru": "сегмент",
+        "zh": ""
+    },
+    "REGISTER_CMD_OPERATION": {
+        "en": "operation",
+        "es": "operación",
+        "ru": "операция",
+        "zh": ""
+    },
+    "REGISTER_DATA_LEGEND": {
+        "en": "Register data (format: HEX_OCTET_ADDR&#8592;(HEX_OCTET_VALUE or HEX_OCTET_LENGTH if reading))",
+        "es": "Valores de registros (formato: HEX_OCTET_ADDR&#8592;(HEX_OCTET_VALUE o HEX_OCTET_LENGTH si es recepción))",
+        "ru": "Формат данных: HEX_OCTET_РЕГИСТР&#8592;(HEX_OCTET_ЗНАЧЕНИЕ или HEX_OCTET_ДЛИНА если чтение))",
+        "zh": ""
+    },
+    "WRITE": {
+        "en": "Write",
+        "es": "Enviar",
+        "ru": "Запись",
+        "zh": ""
+    },
+    "READ": {
+        "en": "Read",
+        "es": "Recibir",
+        "ru": "Чтение",
+        "zh": ""
+    },
     "DEVELOPER_JS_ALERT_TEXTDECODER": {
         "en": "This browser does not support TextDecoder feature...",
         "es": "Este navegador no es compatible con la función TextDecoder...",
@@ -497,9 +527,9 @@
         "zh": ""
     },
     "CYCLE_SDRAM_BUTTON": {
-        "en": "Cycle SDRAM",
-        "es": "Actualizar SDRAM",
-        "ru": "Обновить SDRAM",
+        "en": "SDRAM refresh rate",
+        "es": "frecuencia de SDRAM",
+        "ru": "частота обновления SDRAM",
         "zh": ""
     },
     "DEBUG_VIEW_BUTTON": {
@@ -593,21 +623,33 @@
         "zh": ""
     },
     "RESTART_DEVICE_BUTTON": {
-        "en": "Restart",
+        "en": "Restart device",
         "es": "Reiniciar",
         "ru": "Перезагрузить",
         "zh": ""
     },
-    "RESET_DEFAULTS_BUTTON": {
-        "en": "Reset to Defaults",
-        "es": "Resetear ajustes",
-        "ru": "Сброс настроек",
+    "RESET_ACTIVE_SLOT": {
+        "en": "Reset active Slot",
+        "es": "Resetear Perfil activo",
+        "ru": "Сброс активного Профиля",
         "zh": ""
     },
-    "RESET_BUTTON_JS_ALERT_MESSAGE": {
-        "en": "<p>This action will reset your device to factory state. The data to be deleted:</p><ul><li>All Slots and Presets data,</li><li>Common parameters</li></ul><p>Are you ready to continue?</p>",
-        "es": "<p>Restablecer el estado de fábrica. Los siguientes datos serán eliminados:</p><ul><li>Todos Perfiles y sus ajustes,</li><li>Configuración común</li></ul><p>Quiere seguir reiniciando?</p>",
-        "ru": "<p>Сброс устройства к заводскому состоянию. Следующие данные будут удалены:</p><ul><li>Все Профили и предустановки,</li><li>Общесистемные параметры</li></ul><p>Желаете продолжить?</p>",
+    "RESET_ACTIVE_SLOT_JS_ALERT_MESSAGE": {
+        "en": "<p>Reset active Slot to its initial state. The data to be deleted:</p><ul><li>Active Slot and its active Preset data</li></ul><p>The device will be restarted. Are you ready to continue?</p>",
+        "es": "<p>Esta acción restablecerá el Perfil activa a su estado inicial. Los siguientes datos serán eliminados:</p><ul><li>Perfil activo y sus ajustes</li></ul><p>El dispositivo se reiniciará. Está seguro de continuar?</p>",
+        "ru": "<p>Сброс активного Профиля в исходное состояние. Следующие данные будут удалены:</p><ul><li>Активный Профиль и его активные настройки (preset)</li></ul><p>Устройство будет перезапущено. Желаете продолжить?</p>",
+        "zh": ""
+    },
+    "RESET_DEFAULTS_BUTTON": {
+        "en": "Restore factory defaults",
+        "es": "Restablecer el estado de fábrica",
+        "ru": "Сброс к заводским настройкам",
+        "zh": ""
+    },
+    "RESET_FACTORY_BUTTON_JS_ALERT_MESSAGE": {
+        "en": "<p>This action will reset your device to factory state. The data to be deleted:</p><ul><li>All Slots and Presets data,</li><li>Common parameters</li></ul><p>The device will be restarted. Are you ready to continue?</p>",
+        "es": "<p>Restablecer el estado de fábrica. Los siguientes datos serán eliminados:</p><ul><li>Todos Perfiles y sus ajustes,</li><li>Configuración común</li></ul><p>El dispositivo se reiniciará. Está seguro de continuar?</p>",
+        "ru": "<p>Сброс устройства к заводскому состоянию. Следующие данные будут удалены:</p><ul><li>Все Профили и предустановки (presets),</li><li>Общесистемные параметры</li></ul><p>Устройство будет перезапущено. Желаете продолжить?</p>",
         "zh": ""
     },
     "BACKUP_LEGEND": {

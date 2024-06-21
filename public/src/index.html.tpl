@@ -366,19 +366,6 @@
                         <div>L{SLOT_SETTINGS_LEGEND}</div>
                     </legend>
                     <table class="gbs-preferences">
-                        <!-- <tr>
-                            <td>
-                                L{MATCH_PRESETS_SWITCH}
-                                <ul class="gbs-help"> -->
-                                    <!-- prettier-ignore -->
-                                    <!-- <li>L{MATCH_PRESETS_SWITCH_HELP_1}</li>
-                                </ul>
-                            </td>
-                            <td gbs-message="Z" gbs-message-type="action" gbs-click="normal" class="gbs-icon"
-                                gbs-toggle-switch="matchPreset">
-                                toggle_off
-                            </td>
-                        </tr> -->
                         <tr>
                             <td>
                                 L{FULL_HEIGHT_SWITCH}
@@ -555,10 +542,31 @@
                         <div class="gbs-icon">input</div>
                         <div>L{DEVELOPER_LEGEND}</div>
                     </legend>
-                    <div class="gbs-flex gbs-margin__bottom--16">
-                        <button class="gbs-button" gbs-output-toggle>
-                            <div class="gbs-icon">code</div>
-                            <div>L{TOGGLE_CONSOLE_BUTTON}</div>
+                    <div class="gbs-flex gbs-padding__bottom-8">
+                        <div class="gbs-input-group">
+                            <legend>L{REGISTER_CMD_SEGMENT}</legend>
+                            <select gbs-register-section>
+                                <option value="0">0 (status [ro], misc, OSD)</option>
+                                <option value="1">1 (inp.formt, HD-bypass, mode detect)</option>
+                                <option value="2">2 (de-interlace)</option>
+                                <option value="3">3 (video proc., PIP)</option>
+                                <option value="4">4 (mem., capture&playb., r/w FIFO)</option>
+                                <option value="5">5 (ADC, sync. proc.)</option>
+                            </select>
+                        </div>
+                        <div class="gbs-input-group gbs-margin__left--8">
+                            <legend>L{REGISTER_CMD_OPERATION}</legend>
+                            <select gbs-register-operation>
+                                <option value="0">L{WRITE}</option>
+                                <option value="1">L{READ}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="gbs-flex gbs-margin__bottom--16 gbs-input-group">
+                        <legend>L{REGISTER_DATA_LEGEND}</legend>
+                        <textarea gbs-register-data></textarea>
+                        <button class="gbs-button gbs-button__secondary gbs-button__reg-cmd-submit" gbs-register-submit>
+                            <div class="gbs-icon">send_time_extension</div>
                         </button>
                     </div>
                     <div class="gbs-flex gbs-margin__bottom--16">
@@ -584,6 +592,10 @@
                         </button>
                     </div>
                     <div class="gbs-flex">
+                        <button class="gbs-button" gbs-output-toggle>
+                            <div class="gbs-icon">code</div>
+                            <div>L{TOGGLE_CONSOLE_BUTTON}</div>
+                        </button>
                         <button gbs-message="e" gbs-message-type="user" gbs-click="normal" class="gbs-button">
                             <div class="gbs-icon">list</div>
                             <div>L{LIST_OPTIONS_BUTTON}</div>
@@ -592,15 +604,15 @@
                             <div class="gbs-icon">info</div>
                             <div>L{PRINT_INFO_BUTTON}</div>
                         </button>
+                    </div>
+
+                    <div class="gbs-flex">
                         <button gbs-message="," gbs-message-type="action" gbs-click="normal" class="gbs-button">
                             <div class="gbs-icon">alarm</div>
                             <div>L{GET_VIDEO_TIMING_BUTTON}</div>
                         </button>
-                    </div>
-
-                    <div class="gbs-flex">
                         <button gbs-message="F" gbs-message-type="user" gbs-click="normal"
-                            class="gbs-button gbs-margin__bottom--16">
+                            class="gbs-button">
                             <div class="gbs-icon">add_a_photo</div>
                             <div>L{FREEZE_CAPTURE_BUTTON}</div>
                         </button>
@@ -708,10 +720,19 @@
                         <button gbs-message="a" gbs-message-type="user" gbs-click="normal"
                             class="gbs-button gbs-button__control">
                             <div class="gbs-icon">
-                                settings_backup_restore
+                                restart_alt
                             </div>
                             <div>L{RESTART_DEVICE_BUTTON}</div>
                         </button>
+                        <button gbs-message="2" gbs-message-type="user" gbs-click="normal"
+                            class="gbs-button gbs-button__control">
+                            <div class="gbs-icon">
+                                settings_backup_restore
+                            </div>
+                            <div>L{RESET_ACTIVE_SLOT}</div>
+                        </button>
+                    </div>
+                    <div class="gbs-flex">
                         <button gbs-message="1" gbs-message-type="user" gbs-click="normal"
                             class="gbs-button gbs-button__control gbs-button__secondary">
                             <div class="gbs-icon">
@@ -838,7 +859,7 @@
                         </button>
                     </div>
                     <div class="gbs-flex">
-                        <textarea id="outputTextArea" class="gbs-output__textarea"></textarea>
+                        <textarea id="outputTextArea" class="gbs-output__textarea" readonly></textarea>
                     </div>
                 </fieldset>
             </div>

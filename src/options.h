@@ -36,7 +36,7 @@
 #define BACK_SHIFT                      4
 #endif          // HAVE_BUTTONS
 #if !defined(SERIAL_BUFFER_MAX_LEN)
-#define SERIAL_BUFFER_MAX_LEN           512UL   // use a number aligned with 4
+#define SERIAL_BUFFER_MAX_LEN           1024UL   // use a number aligned with 4
 #endif          // SERIAL_BUFFER_MAX_LEN
 #if !defined(DISPLAY_SDA)
 // SDA = D2 (Lolin), D14 (Wemos D1) // ESP8266 Arduino default map: SDA
@@ -110,11 +110,11 @@
 #define OLED_MENU_USABLE_AREA_HEIGHT                    (OLED_MENU_HEIGHT - OLED_MENU_STATUS_BAR_HEIGHT)
 #define OLED_MENU_SCROLL_LEAD_IN_FRAMES                 (OLED_MENU_SCROLL_LEAD_IN_TIME_IN_MS / OLED_MENU_REFRESH_INTERVAL_IN_MS)
 
-#define LEDON                     \
-    pinMode(LED_BUILTIN, OUTPUT); \
+#define LEDON                               \
+    pinMode(LED_BUILTIN, OUTPUT);           \
     digitalWrite(LED_BUILTIN, LOW)
-#define LEDOFF                       \
-    digitalWrite(LED_BUILTIN, HIGH); \
+#define LEDOFF                              \
+    digitalWrite(LED_BUILTIN, HIGH);        \
     pinMode(LED_BUILTIN, INPUT)
 // fast ESP8266 digitalRead (21 cycles vs 77), *should* work with all possible input pins
 // but only "D7" and "D6" have been tested so far
@@ -283,6 +283,7 @@ extern userOptions uopt;
 // extern struct adcOptions *adco;
 extern adcOptions adco;
 
+// this is probably TODO
 // const char preset_ntsc[] PROGMEM = "/preset_ntsc.";
 // const char preset_pal[] PROGMEM = "/preset_pal.";
 // const char preset_ntsc_480p[] PROGMEM = "/preset_ntsc_480p.";

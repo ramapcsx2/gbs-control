@@ -3,7 +3,7 @@
 # File: utils.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 5:37:47 pm                                   #
 # Author:                                                                           #
-# Last Modified: Thursday, 20th June 2024 6:41:56 pm                      #
+# Last Modified: Friday, 21st June 2024 5:05:30 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -481,6 +481,7 @@ void dumpRegisters(byte segment)
 {
     if (segment > 5)
         return;
+        
     writeOneByte(0xF0, segment);
     int x = 0x40;
     switch (segment) {
@@ -792,16 +793,16 @@ void utilsZeroAll()
         while (z < 16) {
             // while(w < 16) {
             //     bank[w] = 0;
-            //     // exceptions
-            //     // if (y == 5 && z == 0 && w == 2) {
-            //     //  bank[w] = 0x51; // 5_02
-            //     //}
-            //     // if (y == 5 && z == 5 && w == 6) {
-            //     //  bank[w] = 0x01; // 5_56
-            //     //}
-            //     // if (y == 5 && z == 5 && w == 7) {
-            //     //  bank[w] = 0xC0; // 5_57
-            //     //}
+                // exceptions
+                // if (y == 5 && z == 0 && w == 2) {
+                //  bank[w] = 0x51; // 5_02
+                //}
+                // if (y == 5 && z == 5 && w == 6) {
+                //  bank[w] = 0x01; // 5_56
+                //}
+                // if (y == 5 && z == 5 && w == 7) {
+                //  bank[w] = 0xC0; // 5_57
+                //}
             //     w++;
             // }
             uint8_t bank[16];
@@ -813,6 +814,33 @@ void utilsZeroAll()
         y++;
     }
     _DBGN(F("(!) all registers reset"));
+}
+
+/**
+ * @brief A simple getter for preset file names depending on videoMode ID
+ * 
+ * @param videoMode 
+ * @param buffer 
+ */
+void utilsGetPresetsFileNameFor(uint8_t & videoMode, char * buffer) {
+    if (rto.videoStandardInput == 1)
+        sprintf(buffer, PSTR("/preset_ntsc.%d"), uopt.slotID);
+    else if (rto.videoStandardInput == 2)
+        sprintf(buffer, PSTR("/preset_pal.%d"), uopt.slotID);
+    else if (rto.videoStandardInput == 3)
+        sprintf(buffer, PSTR("/preset_ntsc_480p.%d"), uopt.slotID);
+    else if (rto.videoStandardInput == 4)
+        sprintf(buffer, PSTR("/preset_pal_576p.%d"), uopt.slotID);
+    else if (rto.videoStandardInput == 5)
+        sprintf(buffer, PSTR("/preset_ntsc_720p.%d"), uopt.slotID);
+    else if (rto.videoStandardInput == 6)
+        sprintf(buffer, PSTR("/preset_ntsc_1080p.%d"), uopt.slotID);
+    else if (rto.videoStandardInput == 8)
+        sprintf(buffer, PSTR("/preset_medium_res.%d"), uopt.slotID);
+    else if (rto.videoStandardInput == 14)
+        sprintf(buffer, PSTR("/preset_vga_upscale.%d"), uopt.slotID);
+    else // if (rto.videoStandardInput == 0)
+        sprintf(buffer, PSTR("/preset_unknown.%d"), uopt.slotID);
 }
 
 /**

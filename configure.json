@@ -17,10 +17,10 @@
         "oled_menu_screen_saver_kick_in_seconds": 180,
         "oled_menu_over_draw": 0,
         "oled_menu_reset_always_scroll_on_selection": 0,
-        "serial_buffer_max_len": 1024
+        "serial_buffer_max_len": 2048
     },
     "ui-lang": "en",
     "ui-hdw-fonts": "12@FreeSans,16@FreeSans",
     "ui-web-font": "Oswald Regular",
-    "version": "24.0620"
+    "version": "24.0621"
 }

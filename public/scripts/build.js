@@ -1,13 +1,20 @@
-const fs = require('fs')
-if (!fs.existsSync('data')) {
-    fs.mkdirSync('data')
-}
 const path = require('path');
+const root = path.resolve('.');
+const nodeModulesPath = `${root}/node_modules`;
+const dataPath = `${root}/data`;
+const webRootPath = `${root}/public`;
+const fs = require('fs');
+if (!fs.existsSync(dataPath)) {
+    fs.mkdirSync(dataPath)
+}
+const minify = require(`${nodeModulesPath}/@node-minify/core`);
+const htmlMinifier = require(`${nodeModulesPath}/@node-minify/html-minifier`);
+const uglifyJS = require(`${nodeModulesPath}/@node-minify/uglify-js`);
 var html = fs
-    .readFileSync('public/src/index.html.tpl', 'utf-8')
+    .readFileSync(`${webRootPath}/src/index.html.tpl`, 'utf-8');
 var js = fs
-    .readFileSync('public/src/index.js', 'utf-8')
-    .replaceAll(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '')
+    .readFileSync(`${webRootPath}/src/index.js`, 'utf-8')
+    .replaceAll(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '');
 
 //
 // A simple script which does i18n of HTML template.
@@ -18,9 +25,9 @@ var js = fs
 // In order to keep things "as is" as possible, let's search and replace a tag both HTML and JS
 //
 const default_ui_lang = 'en';
-const config = require(path.resolve(__dirname + '/../../configure.json'));
-const package = require(path.resolve(__dirname + '/../../package.json'));
-const lang = require(path.resolve(__dirname + '/../../translation.webui.json'));
+const config = require(`${root}/configure.json`);
+const package = require(`${root}/package.json`);
+const lang = require(`${root}/translation.webui.json`);
 String.prototype.format = function() {
     a = this;
     for (k in arguments) {
@@ -66,41 +73,59 @@ for(const l in lang) {
 // i18n end
 
 const icon1024 = fs
-    .readFileSync('public/assets/icons/icon-1024-maskable.png')
+    .readFileSync(`${webRootPath}/assets/icons/icon-1024-maskable.png`)
     .toString('base64')
 const webUIFont = fs
-    .readFileSync(`public/assets/fonts/${config['ui-web-font']}.woff2`)
+    .readFileSync(`${webRootPath}/assets/fonts/${config['ui-web-font']}.woff2`)
     .toString('base64')
 const material = fs
-    .readFileSync('public/assets/fonts/material.woff2')
+    .readFileSync(`${webRootPath}/assets/fonts/material.woff2`)
     .toString('base64')
 const favicon = fs
-    .readFileSync('public/assets/icons/gbsc-logo.png')
+    .readFileSync(`${webRootPath}/assets/icons/gbsc-logo.png`)
     .toString('base64')
 
 const css = fs
-    .readFileSync('public/src/style.css', 'utf-8')
+    .readFileSync(`${webRootPath}/src/style.css`, 'utf-8')
     .replaceAll('${webUIFontName}', config['ui-web-font'])
     .replaceAll('${webUIFont}', webUIFont)
     .replace('${material}', material)
 
 const manifest = fs
-    .readFileSync('public/src/manifest.json', 'utf-8')
+    .readFileSync(`${webRootPath}/src/manifest.json`, 'utf-8')
     .replaceAll(/\$\{icon1024\}/g, `data:image/png;base64,${icon1024}`)
 
-fs.writeFileSync(
-    'data/webui.html',
-    html
-        .replace('${styles}', css)
-        .replace('${js}', js.trim())
-        .replace('${favicon}', `data:image/png;base64,${favicon}`)
-        .replace('${VERSION_FIRMWARE}', config['version'])
-        .replace('${VERSION_UI}', package['version'])
-        .replace(
-            '${manifest}',
-            `data:application/json;base64,${Buffer.from(manifest).toString('base64')}`
-        )
-        .replace('${icon1024}', `data:image/png;base64,${icon1024}`)
-        .trim(),
-    'utf8'
-)
+minify({
+    compressor: uglifyJS,
+    content: js,
+    options: {
+        warnings: true,
+        mangle: true,
+        compress: true
+    }
+}).then((minifiedJS) => {
+    minify({
+        compressor: htmlMinifier,
+        content: html
+                .replace('${styles}', css)
+                .replace('${js}', minifiedJS)
+                .replace('${favicon}', `data:image/png;base64,${favicon}`)
+                .replace('${VERSION_FIRMWARE}', config['version'])
+                .replace('${VERSION_UI}', package['version'])
+                .replace(
+                    '${manifest}',
+                    `data:application/json;base64,${Buffer.from(manifest).toString('base64')}`
+                )
+                .replace('${icon1024}', `data:image/png;base64,${icon1024}`)
+                .trim(),
+        options: {
+            removeAttributeQuotes: true
+        },
+    }).then((minifiedHtml) => {
+        fs.writeFileSync(
+            'data/webui.html',
+            minifiedHtml,
+            'utf8'
+        );
+    });
+});

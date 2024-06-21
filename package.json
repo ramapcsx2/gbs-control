@@ -34,6 +34,9 @@
         "proseWrap": "preserve"
     },
     "devDependencies": {
+        "@node-minify/core": "^8.0.6",
+        "@node-minify/html-minifier": "^8.0.6",
+        "@node-minify/uglify-js": "^8.0.6",
         "@types/node": "^20.14.2",
         "prettier": "^3.2.5",
         "typescript": "^4.1.3"

@@ -217,6 +217,10 @@ const GBSControl = {
         slotButtonList: null,
         slotContainer: null,
         terminal: null,
+        registerCmdRegSection: null,
+        registerCmdRegOp: null,
+        registerCmdRegData: null,
+        registerCmdRegSubmit: null,
         toggleConsole: null,
         toggleList: null,
         toggleSwichList: null,
@@ -1068,6 +1072,10 @@ const initUIElements = () => {
         slotButtonList: nodelistToArray(
             document.querySelectorAll('[gbs-role="slot"]')
         ) as HTMLElement[],
+        registerCmdRegSection: document.querySelector('[gbs-register-section]'),
+        registerCmdRegOp: document.querySelector('[gbs-register-operation]'),
+        registerCmdRegData: document.querySelector('[gbs-register-data]'),
+        registerCmdRegSubmit: document.querySelector('[gbs-register-submit]'),
         toggleConsole: document.querySelector('[gbs-output-toggle]'),
         toggleList: document.querySelectorAll('[gbs-toggle]'),
         toggleSwichList: document.querySelectorAll('[gbs-toggle-switch]'),
@@ -1368,6 +1376,62 @@ const updateHelp = (help: boolean) => {
     }
 }
 
+
+/**
+ * A simple functionality that changes visual represetation of register data
+ * dependint on the operation
+ */
+const switchRegisterCmdOp = () => {
+    const dta = GBSControl.ui.registerCmdRegData.value
+    if(GBSControl.ui.registerCmdRegOp.value === '0') {
+        // write
+        GBSControl.ui.registerCmdRegData.value = dta.replaceAll('\u21E5', '\u2190')
+    } else {
+        // read
+        GBSControl.ui.registerCmdRegData.value = dta.replaceAll('\u2190', '\u21E5')
+    }
+}
+
+/**
+ * Prepare and submit register data
+ */
+const submitRegisterCmd = () => {
+    const formData = new FormData();
+    GBSControl.ui.registerCmdRegSubmit.setAttribute('disabled', '')
+    formData.append('s', GBSControl.ui.registerCmdRegSection.value.trim())
+    formData.append('o', GBSControl.ui.registerCmdRegOp.value.trim())
+    const dataStringRaw = GBSControl.ui.registerCmdRegData.value.trim()
+    if(dataStringRaw.length <= 1) {
+        GBSControl.ui.registerCmdRegData.focus()
+        GBSControl.ui.registerCmdRegData.classList.add('gbs-focus-form-element')
+        GBSControl.ui.registerCmdRegSubmit.removeAttribute('disabled')
+        console.log('data cannot be empty')
+        return false
+    }
+    const dataRaw = dataStringRaw.split(' ')
+    var data = new Array()
+    dataRaw.map((val: string) => {
+        // there are different delimiters for read and write
+        const reg = val.split((GBSControl.ui.registerCmdRegOp.value === '0' ? '\u2190' : '\u21E5'))
+        // only pairs [address <- value | -> length]
+        if(reg[0] !== undefined && reg[1] !== undefined) {
+            const a = parseInt(reg[0], 16)
+            const v = parseInt(reg[1], 16)
+            data.push(a)
+            data.push(v)
+        }
+    })
+    formData.append('d', data.join(','))
+
+    fetch(`http://${GBSControl.serverIP}/data/cmd`, {
+        method: 'POST',
+        body: formData,
+    }).then((response) => {
+        console.log('data sent, response: ', response.statusText)
+        GBSControl.ui.registerCmdRegSubmit.removeAttribute('disabled')
+    })
+}
+
 /**
  * Toggle console visibility (see corresponding button)
  *
@@ -1601,7 +1665,7 @@ const initGBSButtons = () => {
                 if(message == '1' && messageType == 'user') {
                     // reset to defaults (factory) button
                     gbsAlert(
-                        'L{RESET_BUTTON_JS_ALERT_MESSAGE}',
+                        'L{RESET_FACTORY_BUTTON_JS_ALERT_MESSAGE}',
                         '<div class="gbs-icon">close</div><div>L{JS_NO}</div>',
                         '<div class="gbs-icon">done</div><div>L{ALERT_BUTTON_JS_ACK}</div>'
                     )
@@ -1610,6 +1674,27 @@ const initGBSButtons = () => {
                             // do nothing
                         },
                         () => {
+                            button.setAttribute('disabled', '')
+                            action(message, button)
+                            window.setTimeout(() => {
+                                window.location.reload()
+                            }, 5000)
+                        }
+                    ).catch(() => {
+                    })
+                } else if(message == '2' && messageType == 'user') {
+                    // reset active slot
+                    gbsAlert(
+                        'L{RESET_ACTIVE_SLOT_JS_ALERT_MESSAGE}',
+                        '<div class="gbs-icon">close</div><div>L{JS_NO}</div>',
+                        '<div class="gbs-icon">done</div><div>L{ALERT_BUTTON_JS_ACK}</div>'
+                    )
+                    .then(
+                        () => {
+                            // do nothing
+                        },
+                        () => {
+                            button.setAttribute('disabled', '')
                             action(message, button)
                             window.setTimeout(() => {
                                 window.location.reload()
@@ -1804,6 +1889,41 @@ const initGeneralListeners = () => {
         if (event.keyCode === 27) {
             gbsPromptPromise.reject()
         }
+    })
+
+    // register cmd data filtering function
+    GBSControl.ui.registerCmdRegData.addEventListener('keydown', (e: KeyboardEvent) => {
+        const cc = e.key.charCodeAt(0)
+        const target = e.target as HTMLTextAreaElement;
+        if(cc != 0x42) {
+            // not the backspace key
+            if((cc > 57 && cc < 97) || cc < 48 || cc > 102) { // && cc != 0x20) {
+                e.preventDefault()
+                return false
+            }
+            GBSControl.ui.registerCmdRegData.classList.remove('gbs-focus-form-element')
+            const dtaLen = target.value.length
+            if(dtaLen % 6 == 0) {
+                target.value = `${target.value} `
+            } else if(dtaLen % 3 == 0) {
+                target.value = (GBSControl.ui.registerCmdRegOp.value === '0' ? `${target.value}\u2190` : `${target.value}\u21E5`)
+            }
+        } else {
+            // backspace
+            e.preventDefault();
+            const lastChar = target.value.charAt(target.value.length-1)
+            target.value = target.value.substring(0, target.value.length - ((lastChar == ' ' || lastChar == '\u2190' || lastChar == '\u21E5') ? 3 : 1))
+        }
+    })
+
+    // register cmd switch operation
+    GBSControl.ui.registerCmdRegOp.addEventListener('change', () => {
+        switchRegisterCmdOp()
+    })
+
+    // register cmd submit button in developer tab
+    GBSControl.ui.registerCmdRegSubmit.addEventListener('click', () => {
+        submitRegisterCmd()
     })
 
     // toggle console visibility button

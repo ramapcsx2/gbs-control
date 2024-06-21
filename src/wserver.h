@@ -3,7 +3,7 @@
 # File: wserver.h                                                                    #
 # File Created: Friday, 19th April 2024 3:11:47 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Wednesday, 19th June 2024 12:44:38 pm                    #
+# Last Modified: Thursday, 20th June 2024 11:06:06 pm                     #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -63,6 +63,7 @@ void serverSlotRemove();
 void serverFsUploadResponder();
 void serverFsUploadHandler();
 void serverBackupDownload();
+void serverRegisterCmd();
 void extractBackup();
 // void serverFsDir();
 // void serverFsFormat();

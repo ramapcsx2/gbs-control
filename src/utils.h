@@ -3,7 +3,7 @@
 # File: utils.h                                                                    #
 # File Created: Thursday, 2nd May 2024 5:38:14 pm                                   #
 # Author:                                                                           #
-# Last Modified: Wednesday, 19th June 2024 8:19:02 pm                     #
+# Last Modified: Friday, 21st June 2024 4:11:50 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -59,6 +59,7 @@ bool utilsCheckBoardPower();
 void utilsResetAllOffline();
 void utilsResetOnline();
 void utilsZeroAll();
+void utilsGetPresetsFileNameFor(uint8_t & videoMode, char * buffer);
 void calibrateAdcOffset();
 void setExternalClockGenFrequencySmooth(uint32_t freq);
 

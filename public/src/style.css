@@ -1,3 +1,10 @@
+/*
+ * DEVELOPER MEMO:
+ *   1. WebUI icons: https://jossef.github.io/material-design-icons-iconfont
+ *   2. prettier config: https://prettier.io/docs/en/options
+ *
+ */
+
 /** variables */
 :root {
     --color-black: black;
@@ -11,8 +18,9 @@
     --color-secondary-rgba: 234, 182, 56;
     --color-secondary: #eab638;
     --color-silver-chalice: #aaa;
-    --color-warning: red;
-    --color-white: white;
+    --color-warning: #ff0000;
+    --color-warning-rgba: 255, 0, 0;
+    --color-white: 255,255,255;
     --viewport-height: 100%;
 
     /*GBC
@@ -79,6 +87,33 @@ body {
     -moz-user-select: none;
     -ms-user-select: none;
     user-select: none;
+}
+
+textarea[gbs-register-data=""], select {
+    appearance: none;
+    background-color: var(--color-mine-shaft-light);
+    border-radius: 5px;
+    /* border: 1px dashed rgba(var(--color-primary-rgba), 0.2); */
+    border: 1px solid rgba(var(--color-primary-rgba), .2);
+    color: rgb(var(--color-white));
+    flex-grow: 1;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 300;
+    outline: 0;
+    width: 100%;
+}
+
+select {
+    padding: 2px 5px;
+    cursor: pointer;
+}
+
+textarea[gbs-register-data=""] {
+    padding: 6px;
+    height: 150px;
+    text-transform:uppercase;
+    resize:vertical;
 }
 
 .gbs-text-center {
@@ -340,6 +375,13 @@ a:hover {
     text-align: right;
 }
 
+.gbs-button__reg-cmd-submit {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    font-size: 12px;
+}
+
 /* fieldset */
 .gbs-fieldset {
     border-radius: 4px;
@@ -502,7 +544,7 @@ a:hover {
     flex-grow: 1;
     height: 400px;
     outline: 0;
-    padding: 16px;
+    padding: 5px 10px;
     resize: none;
     scrollbar-color: var(--color-primary) var(--color-black);
     scrollbar-width: thin;
@@ -690,8 +732,16 @@ section[name="alert"] {
     margin-bottom: 8px;
 }
 
+.gbs-margin__left--8 {
+    margin-left: 8px;
+}
+
 .gbs-margin__bottom--16 {
     margin-bottom: 16px;
+}
+
+.gbs-padding__bottom-8 {
+    padding-bottom: 8px;
 }
 
 .gbs-padding__left-16 {
@@ -701,6 +751,24 @@ section[name="alert"] {
 .gbs-padding__hor-16 {
     padding-left: 16px;
     padding-right: 16px;
+}
+
+.gbs-input-group {
+    width: 100%;
+    margin-top: 15px;
+    position: relative;
+}
+
+.gbs-input-group legend {
+    position: absolute;
+    top: -18px;
+    left: 0px;
+    font-size: 10px;
+}
+
+.gbs-focus-form-element {
+    border: 1px solid rgba(var(--color-warning-rgba), .9)!important;
+    box-shadow: inset 0 0 6px 4px rgba(var(--color-warning-rgba), 0.2), 0 0 6px 4px rgba(var(--color-warning-rgba), 0.2)!important;
 }
 
 @media (max-width: 414px) {

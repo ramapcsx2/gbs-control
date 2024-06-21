@@ -3,7 +3,7 @@
 # File: preset.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 6:38:23 pm                                   #
 # Author:                                                                           #
-# Last Modified: Thursday, 20th June 2024 6:23:27 pm                      #
+# Last Modified: Friday, 21st June 2024 4:43:15 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -73,6 +73,9 @@ void presetsResetParameters()
     adco.r_gain = 0;
     adco.g_gain = 0;
     adco.b_gain = 0;
+    adco.r_off = 0;
+    adco.g_off = 0;
+    adco.b_off = 0;
 
     // clear temp storage
     // GBS::ADC_UNUSED_64::write(0);
@@ -94,44 +97,44 @@ void presetsResetParameters()
     // could stop ext clock gen output here?
     FrameSync::cleanup();
 
-    GBS::OUT_SYNC_CNTRL::write(0);    // no H / V sync out to PAD
-    GBS::ADC_TA_05_CTRL::write(0x02); // 5_05 1 // minor SOG clamp effect
-    GBS::ADC_TEST_04::write(0x02);    // 5_04
-    GBS::ADC_TEST_0C::write(0x12);    // 5_0c 1 4
-    GBS::ADC_CLK_PA::write(0);        // 5_00 0/1 PA_ADC input clock = PLLAD CLKO2
+    GBS::OUT_SYNC_CNTRL::write(0);          // no H / V sync out to PAD
+    GBS::ADC_TA_05_CTRL::write(0x02);       // 5_05 1 // minor SOG clamp effect
+    GBS::ADC_TEST_04::write(0x02);          // 5_04
+    GBS::ADC_TEST_0C::write(0x12);          // 5_0c 1 4
+    GBS::ADC_CLK_PA::write(0);              // 5_00 0/1 PA_ADC input clock = PLLAD CLKO2
     GBS::ADC_SOGEN::write(1);
     GBS::SP_SOG_MODE::write(1);
-    GBS::ADC_INPUT_SEL::write(1); // 1 = RGBS / RGBHV adc data input
-    GBS::ADC_POWDZ::write(1);     // ADC on
+    GBS::ADC_INPUT_SEL::write(1);           // 1 = RGBS / RGBHV adc data input
+    GBS::ADC_POWDZ::write(1);               // ADC on
     setAndUpdateSogLevel(rto.currentLevelSOG);
-    GBS::RESET_CONTROL_0x46::write(0x00); // all units off
+    GBS::RESET_CONTROL_0x46::write(0x00);   // all units off
     GBS::RESET_CONTROL_0x47::write(0x00);
-    GBS::GPIO_CONTROL_00::write(0x67);     // most GPIO pins regular GPIO
-    GBS::GPIO_CONTROL_01::write(0x00);     // all GPIO outputs disabled
-    GBS::DAC_RGBS_PWDNZ::write(0);         // disable DAC (output)
-    GBS::PLL648_CONTROL_01::write(0x00);   // VCLK(1/2/4) display clock // needs valid for debug bus
-    GBS::PAD_CKIN_ENZ::write(0);           // 0 = clock input enable (pin40)
-    GBS::PAD_CKOUT_ENZ::write(1);          // clock output disable
-    GBS::IF_SEL_ADC_SYNC::write(1);        // ! 1_28 2
-    GBS::PLLAD_VCORST::write(1);           // reset = 1
-    GBS::PLL_ADS::write(1);                // When = 1, input clock is from ADC ( otherwise, from unconnected clock at pin 40 )
-    GBS::PLL_CKIS::write(0);               // PLL use OSC clock
-    GBS::PLL_MS::write(2);                 // fb memory clock can go lower power
-    GBS::PAD_CONTROL_00_0x48::write(0x2b); // disable digital inputs, enable debug out pin
-    GBS::PAD_CONTROL_01_0x49::write(0x1f); // pad control pull down/up transistors on
-    loadHdBypassSection();                 // 1_30 to 1_55
-    loadPresetMdSection();                 // 1_60 to 1_83
+    GBS::GPIO_CONTROL_00::write(0x67);      // most GPIO pins regular GPIO
+    GBS::GPIO_CONTROL_01::write(0x00);      // all GPIO outputs disabled
+    GBS::DAC_RGBS_PWDNZ::write(0);          // disable DAC (output)
+    GBS::PLL648_CONTROL_01::write(0x00);    // VCLK(1/2/4) display clock // needs valid for debug bus
+    GBS::PAD_CKIN_ENZ::write(0);            // 0 = clock input enable (pin40)
+    GBS::PAD_CKOUT_ENZ::write(1);           // clock output disable
+    GBS::IF_SEL_ADC_SYNC::write(1);         // ! 1_28 2
+    GBS::PLLAD_VCORST::write(1);            // reset = 1
+    GBS::PLL_ADS::write(1);                 // When = 1, input clock is from ADC ( otherwise, from unconnected clock at pin 40 )
+    GBS::PLL_CKIS::write(0);                // PLL use OSC clock
+    GBS::PLL_MS::write(2);                  // fb memory clock can go lower power
+    GBS::PAD_CONTROL_00_0x48::write(0x2b);  // disable digital inputs, enable debug out pin
+    GBS::PAD_CONTROL_01_0x49::write(0x1f);  // pad control pull down/up transistors on
+    loadHdBypassSection();                  // 1_30 to 1_55
+    loadPresetMdSection();                  // 1_60 to 1_83
     setAdcParametersGainAndOffset();
-    GBS::SP_PRE_COAST::write(9);    // was 0x07 // need pre / poast to allow all sources to detect
-    GBS::SP_POST_COAST::write(18);  // was 0x10 // ps2 1080p 18
-    GBS::SP_NO_COAST_REG::write(0); // can be 1 in some soft reset situations, will prevent sog vsync decoding << really?
-    GBS::SP_CS_CLP_ST::write(32);   // define it to something at start
+    GBS::SP_PRE_COAST::write(9);            // was 0x07 // need pre / poast to allow all sources to detect
+    GBS::SP_POST_COAST::write(18);          // was 0x10 // ps2 1080p 18
+    GBS::SP_NO_COAST_REG::write(0);         // can be 1 in some soft reset situations, will prevent sog vsync decoding << really?
+    GBS::SP_CS_CLP_ST::write(32);           // define it to something at start
     GBS::SP_CS_CLP_SP::write(48);
-    GBS::SP_SOG_SRC_SEL::write(0);  // SOG source = ADC
-    GBS::SP_EXT_SYNC_SEL::write(0); // connect HV input ( 5_20 bit 3 )
+    GBS::SP_SOG_SRC_SEL::write(0);          // SOG source = ADC
+    GBS::SP_EXT_SYNC_SEL::write(0);         // connect HV input ( 5_20 bit 3 )
     GBS::SP_NO_CLAMP_REG::write(1);
-    GBS::PLLAD_ICP::write(0); // lowest charge pump current
-    GBS::PLLAD_FS::write(0);  // low gain (have to deal with cold and warm startups)
+    GBS::PLLAD_ICP::write(0);               // lowest charge pump current
+    GBS::PLLAD_FS::write(0);                // low gain (have to deal with cold and warm startups)
     GBS::PLLAD_5_16::write(0x1f);
     GBS::PLLAD_MD::write(0x700);
     resetPLL(); // cycles PLL648
@@ -146,8 +149,8 @@ void presetsResetParameters()
     GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
     GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
     GBS::INTERRUPT_CONTROL_00::write(0x00);
-    GBS::PAD_SYNC_OUT_ENZ::write(0); // sync output enabled, will be low (HC125 fix)
-    rto.clampPositionIsSet = 0;     // some functions override these, so make sure
+    GBS::PAD_SYNC_OUT_ENZ::write(0);        // sync output enabled, will be low (HC125 fix)
+    rto.clampPositionIsSet = 0;             // some functions override these, so make sure
     rto.coastPositionIsSet = 0;
     rto.phaseIsSet = 0;
     rto.continousStableCounter = 0;
@@ -1281,22 +1284,6 @@ void applyPresets(uint8_t videoMode)
     rto.presetIsPalForce60 = 0; // the default
     // rto.outModeHdBypass = 0;    // the default at this stage
 
-    // in case it is set; will get set appropriately later in doPostPresetLoadSteps()
-    // GBS::GBS_PRESET_CUSTOM::write(0);
-    // rto.isCustomPreset = false;
-
-    // carry over debug view if possible
-    // if (GBS::ADC_UNUSED_62::read() != 0x00)
-    // {
-        // only if the preset to load isn't custom
-        // (else the command will instantly disable debug view)
-        // if (rto.presetID != OutputCustom) {
-        // if (uopt.resolutionID != OutputCustom) {
-        // serialCommand = 'D'; // debug view
-        // }
-    // }
-// FIXME to remove
-_DBGF(PSTR("apply presets: %d\n"), videoMode);
     if (videoMode == 0)
     {
         // Unknown
@@ -1643,9 +1630,10 @@ void loadPresetDeinterlacerSection()
 #if defined(ESP8266)
 
 /**
- * @brief Load preset preferences from "preset.slot" file
- *      into an array that must be deleted afterwards,
- *       if file not found, returns nullptr
+ * @brief Read preset preferences from "preset_name.slotID",
+ *      file for active Slot, into an array that
+ *                  MUST be DELETED
+ *      afterwards. If preset file doesn't esists, returns nullptr.
  *
  * @param forVideoMode
  * @return const uint8_t*
@@ -1655,7 +1643,7 @@ const uint8_t *loadPresetFromFS(byte forVideoMode)
     // static uint8_t preset[432];
     static uint8_t * preset = nullptr;
     String s = "";
-    uint8_t slot = 0;
+    // uint8_t slot = 0;
     char buffer[32] = "";
     fs::File f;
     char *tmp;
@@ -1664,7 +1652,7 @@ const uint8_t *loadPresetFromFS(byte forVideoMode)
     // we may change this assumption below the code
     rto.isCustomPreset = false;
 
-    f = LittleFS.open(FPSTR(preferencesFile), "r");
+    /* f = LittleFS.open(FPSTR(preferencesFile), "r");
     if (f)
     {
         slot = static_cast<uint8_t>(f.read());
@@ -1680,44 +1668,46 @@ const uint8_t *loadPresetFromFS(byte forVideoMode)
         //     return ntsc_240p;
         _WSF(PSTR("unable to open: %s\n"), FPSTR(preferencesFile));
         goto load_preset_from_fs_end;
-    }
+    } */
 
-    if (forVideoMode == 1)
-    {
-        sprintf(buffer, PSTR("/preset_ntsc.%d"), slot);
-    }
-    else if (forVideoMode == 2)
-    {
-        sprintf(buffer, PSTR("/preset_pal.%d"), slot);
-    }
-    else if (forVideoMode == 3)
-    {
-        sprintf(buffer, PSTR("/preset_ntsc_480p.%d"), slot);
-    }
-    else if (forVideoMode == 4)
-    {
-        sprintf(buffer, PSTR("/preset_pal_576p.%d"), slot);
-    }
-    else if (forVideoMode == 5)
-    {
-        sprintf(buffer, PSTR("/preset_ntsc_720p.%d"), slot);
-    }
-    else if (forVideoMode == 6)
-    {
-        sprintf(buffer, PSTR("/preset_ntsc_1080p.%d"), slot);
-    }
-    else if (forVideoMode == 8)
-    {
-        sprintf(buffer, PSTR("/preset_medium_res.%d"), slot);
-    }
-    else if (forVideoMode == 14)
-    {
-        sprintf(buffer, PSTR("/preset_vga_upscale.%d"), slot);
-    }
-    else if (forVideoMode == 0)
-    {
-        sprintf(buffer, PSTR("/preset_unknown.%d"), slot);
-    }
+    utilsGetPresetsFileNameFor(forVideoMode, buffer);
+
+    // if (forVideoMode == 1)
+    // {
+    //     sprintf(buffer, PSTR("/preset_ntsc.%d"), slot);
+    // }
+    // else if (forVideoMode == 2)
+    // {
+    //     sprintf(buffer, PSTR("/preset_pal.%d"), slot);
+    // }
+    // else if (forVideoMode == 3)
+    // {
+    //     sprintf(buffer, PSTR("/preset_ntsc_480p.%d"), slot);
+    // }
+    // else if (forVideoMode == 4)
+    // {
+    //     sprintf(buffer, PSTR("/preset_pal_576p.%d"), slot);
+    // }
+    // else if (forVideoMode == 5)
+    // {
+    //     sprintf(buffer, PSTR("/preset_ntsc_720p.%d"), slot);
+    // }
+    // else if (forVideoMode == 6)
+    // {
+    //     sprintf(buffer, PSTR("/preset_ntsc_1080p.%d"), slot);
+    // }
+    // else if (forVideoMode == 8)
+    // {
+    //     sprintf(buffer, PSTR("/preset_medium_res.%d"), slot);
+    // }
+    // else if (forVideoMode == 14)
+    // {
+    //     sprintf(buffer, PSTR("/preset_vga_upscale.%d"), slot);
+    // }
+    // else if (forVideoMode == 0)
+    // {
+    //     sprintf(buffer, PSTR("/preset_unknown.%d"), slot);
+    // }
 
     // reading preset data
     f = LittleFS.open(buffer, "r");
@@ -1781,42 +1771,44 @@ void savePresetToFS()
     //     return;
     // }
 
-    if (rto.videoStandardInput == 1)
-    {
-        sprintf(buffer, PSTR("/preset_ntsc.%d"), uopt.slotID);
-    }
-    else if (rto.videoStandardInput == 2)
-    {
-        sprintf(buffer, PSTR("/preset_pal.%d"), uopt.slotID);
-    }
-    else if (rto.videoStandardInput == 3)
-    {
-        sprintf(buffer, PSTR("/preset_ntsc_480p.%d"), uopt.slotID);
-    }
-    else if (rto.videoStandardInput == 4)
-    {
-        sprintf(buffer, PSTR("/preset_pal_576p.%d"), uopt.slotID);
-    }
-    else if (rto.videoStandardInput == 5)
-    {
-        sprintf(buffer, PSTR("/preset_ntsc_720p.%d"), uopt.slotID);
-    }
-    else if (rto.videoStandardInput == 6)
-    {
-        sprintf(buffer, PSTR("/preset_ntsc_1080p.%d"), uopt.slotID);
-    }
-    else if (rto.videoStandardInput == 8)
-    {
-        sprintf(buffer, PSTR("/preset_medium_res.%d"), uopt.slotID);
-    }
-    else if (rto.videoStandardInput == 14)
-    {
-        sprintf(buffer, PSTR("/preset_vga_upscale.%d"), uopt.slotID);
-    }
-    else if (rto.videoStandardInput == 0)
-    {
-        sprintf(buffer, PSTR("/preset_unknown.%d"), uopt.slotID);
-    }
+    utilsGetPresetsFileNameFor(rto.videoStandardInput, buffer);
+
+    // if (rto.videoStandardInput == 1)
+    // {
+    //     sprintf(buffer, PSTR("/preset_ntsc.%d"), uopt.slotID);
+    // }
+    // else if (rto.videoStandardInput == 2)
+    // {
+    //     sprintf(buffer, PSTR("/preset_pal.%d"), uopt.slotID);
+    // }
+    // else if (rto.videoStandardInput == 3)
+    // {
+    //     sprintf(buffer, PSTR("/preset_ntsc_480p.%d"), uopt.slotID);
+    // }
+    // else if (rto.videoStandardInput == 4)
+    // {
+    //     sprintf(buffer, PSTR("/preset_pal_576p.%d"), uopt.slotID);
+    // }
+    // else if (rto.videoStandardInput == 5)
+    // {
+    //     sprintf(buffer, PSTR("/preset_ntsc_720p.%d"), uopt.slotID);
+    // }
+    // else if (rto.videoStandardInput == 6)
+    // {
+    //     sprintf(buffer, PSTR("/preset_ntsc_1080p.%d"), uopt.slotID);
+    // }
+    // else if (rto.videoStandardInput == 8)
+    // {
+    //     sprintf(buffer, PSTR("/preset_medium_res.%d"), uopt.slotID);
+    // }
+    // else if (rto.videoStandardInput == 14)
+    // {
+    //     sprintf(buffer, PSTR("/preset_vga_upscale.%d"), uopt.slotID);
+    // }
+    // else if (rto.videoStandardInput == 0)
+    // {
+    //     sprintf(buffer, PSTR("/preset_unknown.%d"), uopt.slotID);
+    // }
 
     // open preset file
     f = LittleFS.open(buffer, "w");

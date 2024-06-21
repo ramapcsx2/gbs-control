@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Thursday, 20th June 2024 8:06:39 pm                      #
+# Last Modified: Friday, 21st June 2024 5:23:33 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -49,6 +49,7 @@ void serverInit()
     // server.on(F("/data/upload"), HTTP_GET, serverFsUpload);
     server.on(F("/data/restore"), HTTP_POST, serverFsUploadResponder, serverFsUploadHandler);
     server.on(F("/data/backup"), HTTP_GET, serverBackupDownload);
+    server.on(F("/data/cmd"), HTTP_POST, serverRegisterCmd);
     // server.on(F("/data/dir"), HTTP_GET, serverFsDir);
     server.on(F("/wifi/status"), HTTP_GET, serverWiFiStatus);
     // server.on(F("/gbs/restore-filters"), HTTP_GET, serverRestoreFilters);
@@ -297,8 +298,6 @@ void serverSlotRemove()
     // reset parameters
     presetsResetParameters();
     _DBGN(F("(!) slot has been removed, parameters now reset to defaults"));
-    // also reset resolution
-    uopt.resolutionID = Output240p;
 
 server_slot_remove_end:
     server.send(200, mimeAppJson, result ? F("[\"ok\"]") : F("[\"fail\"]"));
@@ -448,6 +447,99 @@ void serverBackupDownload()
     LittleFS.remove(FPSTR(backupFile)); */
 
     webSocket.begin();
+}
+
+/**
+ * @brief Receives and executes GBSC register data
+ *
+ */
+void serverRegisterCmd() {
+    uint8_t op = server.arg(String(F("o"))).toInt();
+    uint8_t seg = server.arg(String(F("s"))).toInt();
+    String dta = server.arg(String(F("d")));
+    uint16_t i = 0;
+    char addr[4] = "";
+    char val[4] = "";
+
+    if(op != 0 && op != 1) {
+        _DBGF(PSTR("(!) operation [%d] is not recognised"), op);
+        return;
+    }
+
+    if(seg > 5) {
+        _DBGF(PSTR("(!) wrong segment [%d]"), seg);
+        return;
+    }
+
+    if(dta.length() == 0) {
+        _DBGN(F("(!) expecting some data"));
+        return;
+    }
+
+    auto nextNumber = [&dta, &i](char * buff) {
+        uint8_t k = 0;
+        while(i < dta.length()) {
+            char c = dta.charAt(i);
+            // only numbers < 0xFF
+            if(c == ',' || k > 2) break;
+            *(buff + k) = c;
+            k++;
+            i++;
+        }
+        // skip comma
+        i++;
+    };
+
+    while(i < dta.length()) {
+        nextNumber(addr);
+        nextNumber(val);
+        uint8_t a = atoi(addr);
+        uint8_t v = atoi(val);
+        if(op == 0) {
+            _WSF(
+                PSTR("write segm: %d addr: %d <- val: %d\n"),
+                seg,
+                a,
+                v
+            );
+            GBS::write(seg, a, &v, 1);
+        } else {
+            String ro = "";
+            uint8_t readout[v];
+            uint8_t j = 0;
+            memset(readout, 0, v);
+            GBS::read(seg, a, readout, v);
+            delay(10);
+            // array to string of HEX values
+            while(j < v) {
+                char c[9] = "";
+                c[0] = (readout[j] & 0x80) != 0 ? '1' : '0';
+                c[1] = (readout[j] & 0x40) != 0 ? '1' : '0';
+                c[2] = (readout[j] & 0x20) != 0 ? '1' : '0';
+                c[3] = (readout[j] & 0x10) != 0 ? '1' : '0';
+                c[4] = (readout[j] & 0x08) != 0 ? '1' : '0';
+                c[5] = (readout[j] & 0x04) != 0 ? '1' : '0';
+                c[6] = (readout[j] & 0x02) != 0 ? '1' : '0';
+                c[7] = (readout[j] & 0x01) != 0 ? '1' : '0';
+                if((j != 0 && j+1 % 4 == 0))
+                    c[8] = 0x0A;    // new line
+                else
+                    c[8] = 0x20;    // space
+                ro += c;
+                j++;
+            }
+            _WSF(
+                PSTR("read segm: %d start addr: %d, leng: %d ->\n%s\n"),
+                seg,
+                a,
+                v,
+                ro.c_str()
+            );
+        }
+        optimistic_yield(1000);
+    }
+
+    server.send(200, mimeAppJson, F("[\"ok\"]"));
 }
 
 /**
@@ -2075,12 +2167,22 @@ void handleUserCommand()
         prefsLoadDefaults();
         // saveUserPrefs();
         prefsSave();
-        _WSN(F("options set to defaults, restarting"));
+        _WSN(F("(!) factory defaults has been restored, restarting"));
         resetInMSec(2000);
         break;
-    // case '2':
-        //
-        // break;
+    case '2':               // reset only active slot and active preset
+        {
+            char buffer[64] = "";
+            // get active preset
+            utilsGetPresetsFileNameFor(rto.videoStandardInput, buffer);
+            if(*buffer != '\0')
+                LittleFS.remove(buffer);
+            // reset slot
+            slotResetFlush(uopt.slotID);
+            _WSN(F("(i) slot has been reset, restarting"));
+            resetInMSec(2000);
+        }
+        break;
     case '3': // load new preset on slot change
     {
         // TODO: unknown logic
@@ -2182,10 +2284,12 @@ void handleUserCommand()
         //
         _WSF(
             PSTR("\nruntime parameters:\n"\
-                "  board power: %d\n  sync watcher: %d\n" \
-                "  input YPbRp: %d\n  is low power: %d\n"\
-                "  source disconnected: %d\n" \
-                "  video std. inp.: %d\n"\
+                "  boardHasPower: %d\n"\
+                "  syncWatcherEnabled: %d\n" \
+                "  inputIsYPbPr: %d\n"\
+                "  isInLowPowerMode: %d\n"\
+                "  sourceDisconnected: %d\n" \
+                "  videoStandardInput: %d\n"\
                 "  continousStableCounter: %d\n" \
                 "  currentLevelSOG: %d\n" \
                 "  syncTypeCsync: %d\n" \
@@ -2193,7 +2297,7 @@ void handleUserCommand()
                 "  medResLineCount: %d\n" \
                 "  isCustomPreset: %d\n" \
                 "  presetDisplayClock: %d\n" \
-                "  freqExtClockGen: %d\n" \
+                "  freqExtClockGen: %ld\n" \
                 "  noSyncCounter: %d\n" \
                 "  presetVlineShift: %d\n" \
                 "  phaseSP: %d\n" \
@@ -2348,8 +2452,7 @@ void handleUserCommand()
         activeFrameTimeLockInitialSteps();
         slotFlush();
         break;
-    case 'l':
-        // cycle through available SDRAM clocks
+    case 'l':               // cycle through available SDRAM clocks
         {
             _WS(F("SDRAM clock: "));
             uint8_t PLL_MS = GBS::PLL_MS::read();
@@ -2368,6 +2471,8 @@ void handleUserCommand()
                 PLL_MS = 0b110;
             else if (PLL_MS == 0b110)
                 PLL_MS = 0b111;
+            else
+                PLL_MS = 0;
 
             switch (PLL_MS)
             {
