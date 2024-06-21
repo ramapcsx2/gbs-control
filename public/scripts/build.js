@@ -3,8 +3,11 @@ if (!fs.existsSync('data')) {
     fs.mkdirSync('data')
 }
 const path = require('path');
-var html = fs.readFileSync('public/src/index.html.tpl', 'utf-8')
-var js = fs.readFileSync('public/src/index.js', 'utf-8')
+var html = fs
+    .readFileSync('public/src/index.html.tpl', 'utf-8')
+var js = fs
+    .readFileSync('public/src/index.js', 'utf-8')
+    .replaceAll(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '')
 
 //
 // A simple script which does i18n of HTML template.
@@ -89,7 +92,7 @@ fs.writeFileSync(
     'data/webui.html',
     html
         .replace('${styles}', css)
-        .replace('${js}', js)
+        .replace('${js}', js.trim())
         .replace('${favicon}', `data:image/png;base64,${favicon}`)
         .replace('${VERSION_FIRMWARE}', config['version'])
         .replace('${VERSION_UI}', package['version'])
@@ -97,6 +100,7 @@ fs.writeFileSync(
             '${manifest}',
             `data:application/json;base64,${Buffer.from(manifest).toString('base64')}`
         )
-        .replace('${icon1024}', `data:image/png;base64,${icon1024}`),
+        .replace('${icon1024}', `data:image/png;base64,${icon1024}`)
+        .trim(),
     'utf8'
 )

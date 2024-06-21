@@ -3,7 +3,7 @@
 # File: utils.h                                                                    #
 # File Created: Thursday, 2nd May 2024 5:38:14 pm                                   #
 # Author:                                                                           #
-# Last Modified: Tuesday, 18th June 2024 2:46:52 pm                       #
+# Last Modified: Wednesday, 19th June 2024 8:19:02 pm                     #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -54,9 +54,11 @@ void dumpRegisters(byte segment);
 
 void stopWire();
 void startWire();
-bool checkBoardPower();
-void resetAllOffline();
-void resetAllOnline();
+int8_t utilsExternClockGenInit();
+bool utilsCheckBoardPower();
+void utilsResetAllOffline();
+void utilsResetOnline();
+void utilsZeroAll();
 void calibrateAdcOffset();
 void setExternalClockGenFrequencySmooth(uint32_t freq);
 

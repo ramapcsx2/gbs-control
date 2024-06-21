@@ -3,7 +3,7 @@
 # File: video.cpp                                                                   #
 # File Created: Thursday, 2nd May 2024 4:07:57 pm                                   #
 # Author:                                                                           #
-# Last Modified: Wednesday, 19th June 2024 12:23:54 pm                    #
+# Last Modified: Thursday, 20th June 2024 7:30:37 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -296,111 +296,41 @@ float getOutputFrameRate()
  */
 void externalClockGenSyncInOutRate()
 {
-    _DBGN("externalClockGenSyncInOutRate()");
-
-    if (!rto.extClockGenDetected) {
-        return;
-    }
-    if (GBS::PAD_CKIN_ENZ::read() != 0) {
-        return;
-    }
-    // if (rto.outModeHdBypass) {
-    if (uopt.resolutionID == OutputHdBypass) {
-        return;
-    }
-    if (GBS::PLL648_CONTROL_01::read() != 0x75) {
+    if (!rto.extClockGenDetected || GBS::PAD_CKIN_ENZ::read() != 0
+        || uopt.resolutionID == OutputHdBypass
+            || GBS::PLL648_CONTROL_01::read() != 0x75) {
         return;
     }
 
-    float sfr = getSourceFieldRate(0);
-    if (sfr < 47.0f || sfr > 86.0f) {
-        _WSF(PSTR("sync skipped sfr wrong: %.02f\n"), sfr);
-        return;
-    }
+    _DBGN(F("external clock sync I/O rate"));
 
-    float ofr = getOutputFrameRate();
-    if (ofr < 47.0f || ofr > 86.0f) {
-        _WSF(PSTR("sync skipped ofr wrong: %.02f\n"), ofr);
-        return;
-    }
-
+    int32_t diff = 0;
     uint32_t old = rto.freqExtClockGen;
+    float sfr = getSourceFieldRate(0);
+    float ofr = getOutputFrameRate();
+
+    if (sfr < 47.0f || sfr > 86.0f) {
+        _DBGF(PSTR("sync skipped sfr wrong: %.02f\n"), sfr);
+        return;
+    }
+
+    if (ofr < 47.0f || ofr > 86.0f) {
+        _DBGF(PSTR("sync skipped ofr wrong: %.02f\n"), ofr);
+        return;
+    }
+
     FrameSync::initFrequency(ofr, old);
 
     setExternalClockGenFrequencySmooth((sfr / ofr) * rto.freqExtClockGen);
 
-    int32_t diff = rto.freqExtClockGen - old;
+    diff = rto.freqExtClockGen - old;
 
-    _WSF(PSTR("source Hz: %.5f new out: %.5f clock: %u (%s%d)\n"),
+    _DBGF(PSTR("source Hz: %.5f new out: %.5f clock: %u (%s%d)\n"),
         sfr,
-        getOutputFrameRate(),
+        ofr,
         rto.freqExtClockGen,
         (diff >= 0 ? "+" : ""),
         diff);
-}
-
-/**
- * @brief Detect if external clock installed
- *
- * @return int8_t
- *          1 = device ready, init completed,
- *          0 - no device detected
- *         -1 - any other error
- */
-int8_t externalClockGenDetectAndInitialize()
-{
-    const uint8_t xtal_cl = 0xD2; // 10pF, other choices are 8pF (0x92) and 6pF (0x52) NOTE: Per AN619, the low bytes should be written 0b010010
-
-    // MHz: 27, 32.4, 40.5, 54, 64.8, 81, 108, 129.6, 162
-    rto.freqExtClockGen = 81000000;
-    rto.extClockGenDetected = 0;
-
-    if (uopt.disableExternalClockGenerator) {
-        _DBGN(F("(!) external clock generator disabled, skipping detection"));
-        return 0;
-    }
-
-    uint8_t retVal = 0;
-    Wire.beginTransmission(SIADDR);
-    // returns:
-    // 4 = line busy
-    // 3 = received NACK on transmit of data
-    // 2 = received NACK on transmit of address
-    // 0 = success
-    retVal = Wire.endTransmission();
-    _DBGF(PSTR("(!) a problem while detect external clock, err: %d\n"), retVal);
-    if (retVal != 0) {
-        return -1;
-    }
-
-    Wire.beginTransmission(SIADDR);
-    Wire.write(0); // Device Status
-    Wire.endTransmission();
-    size_t bytes_read = Wire.requestFrom((uint8_t)SIADDR, (size_t)1, false);
-
-    if (bytes_read == 1) {
-        retVal = Wire.read();
-        if ((retVal & 0x80) == 0) {
-            // SYS_INIT indicates device is ready.
-            rto.extClockGenDetected = 1;
-        } else {
-            return 0;
-        }
-    } else {
-        return -1;
-    }
-
-    _DBGN(F("ext. clock detected"));
-
-    Si.init(25000000L); // many Si5351 boards come with 25MHz crystal; 27000000L for one with 27MHz
-    Wire.beginTransmission(SIADDR);
-    Wire.write(183); // XTAL_CL
-    Wire.write(xtal_cl);
-    Wire.endTransmission();
-    Si.setPower(0, SIOUT_6mA);
-    Si.setFreq(0, rto.freqExtClockGen);
-    Si.disable(0);
-    return 1;
 }
 
 /**
@@ -413,7 +343,6 @@ void externalClockGenResetClock()
         _DBGN(F(" no ext.clock detected"));
         return;
     }
-    _DBGN("externalClockGenResetClock()");
 
     uint8_t activeDisplayClock = GBS::PLL648_CONTROL_01::read();
 
@@ -2096,53 +2025,6 @@ void disableMotionAdaptDeinterlace()
 }
 
 /**
- * @brief Clear tv5725 registers
- *      "All registers (except chapter 01 status register is read only)
- *       have default value “0x00” after power up."
- *      "All registers require segment for access.
- *       Segment is defined in address F0."
- *
- */
-void zeroAll()
-{
-    // this goes into resetAllOffline()
-    // turn processing units off first
-    // writeOneByte(0xF0, 0);
-    // writeOneByte(0x46, 0x00); // reset controls 1
-    // writeOneByte(0x47, 0x00); // reset controls 2
-
-    // zero out entire register space = (6 segments * 255 bytes)
-    uint8_t y = 0;
-    uint8_t z = 0;
-
-    while (y < 6) {
-        writeOneByte(0xF0, y);
-        while (z < 16) {
-            // while(w < 16) {
-            //     bank[w] = 0;
-            //     // exceptions
-            //     // if (y == 5 && z == 0 && w == 2) {
-            //     //  bank[w] = 0x51; // 5_02
-            //     //}
-            //     // if (y == 5 && z == 5 && w == 6) {
-            //     //  bank[w] = 0x01; // 5_56
-            //     //}
-            //     // if (y == 5 && z == 5 && w == 7) {
-            //     //  bank[w] = 0xC0; // 5_57
-            //     //}
-            //     w++;
-            // }
-            uint8_t bank[16];
-            memset(bank, 0, 16);
-            writeBytes(z * 16, bank, 16);
-            z++;
-        }
-        z = 0;
-        y++;
-    }
-}
-
-/**
  * @brief programs all valid registers (the register map has holes in
  *      it, so it's not straight forward) 'index' keeps track of the current
  *      preset data location.
@@ -2567,7 +2449,7 @@ void updateHVSyncEdge()
  *      thus "see" a source. It is possible to run in low power mode. Function
  *      should not further nest, so it can be called in syncwatcher
  *
- *      before making changes, see: checkBoardPower()
+ *      before making changes, see: utilsCheckBoardPower()
  *
  *   in operation: t5t04t1 for 10% lower power on ADC
  *   also: s0s40s1c for 5% (lower memclock of 108mhz)
@@ -2582,9 +2464,9 @@ void goLowPowerWithInputDetection()
 {
     GBS::OUT_SYNC_CNTRL::write(0); // no H / V sync out to PAD
     GBS::DAC_RGBS_PWDNZ::write(0); // direct disableDAC()
-    // zeroAll();
+    // utilsZeroAll();
     _DBGN(F("(!) reset runtime parameters while going LowPower"));
-    setResetParameters(); // includes rto.videoStandardInput = 0
+    presetsResetParameters(); // includes rto.videoStandardInput = 0
     prepareSyncProcessor();
     delay(100);
     rto.isInLowPowerMode = true;
@@ -2598,7 +2480,7 @@ void goLowPowerWithInputDetection()
  */
 void optimizeSogLevel()
 {
-    if (rto.boardHasPower == false) // checkBoardPower is too invasive now
+    if (rto.boardHasPower == false) // utilsCheckBoardPower is too invasive now
     {
         rto.thisSourceMaxLevelSOG = rto.currentLevelSOG = 13;
         return;
@@ -4860,7 +4742,7 @@ void runSyncWatcher()
         if (RGBHVNoSyncCounter > limitNoSync) {
             RGBHVNoSyncCounter = 0;
             _DBGN(F("(!) reset runtime parameters while running syncWatcher"));
-            setResetParameters();
+            presetsResetParameters();
             prepareSyncProcessor();
             resetSyncProcessor(); // todo: fix MD being stuck in last mode when sync disappears
             // resetModeDetect();

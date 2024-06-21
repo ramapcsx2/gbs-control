@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Wednesday, 19th June 2024 1:02:38 pm                     #
+# Last Modified: Thursday, 20th June 2024 7:48:13 pm                      #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -98,6 +98,13 @@ void setup()
     // bool powerOrWireIssue = false;
     lastVsyncLock = millis();
 
+    pinMode(DEBUG_IN_PIN, INPUT);
+    pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(PIN_CLK, INPUT_PULLUP);
+    pinMode(PIN_DATA, INPUT_PULLUP);
+    pinMode(PIN_SWITCH, INPUT_PULLUP);
+    LEDON; // enable the LED, lets users know the board is starting up
+
     Serial.begin(115200); // Arduino IDE Serial Monitor requires the same 115200 bauds!
     Serial.setTimeout(10);
 
@@ -152,13 +159,6 @@ void setup()
     // adco.r_off = 0;
     // adco.g_off = 0;
     // adco.b_off = 0;
-
-    pinMode(DEBUG_IN_PIN, INPUT);
-    pinMode(LED_BUILTIN, OUTPUT);
-    pinMode(PIN_CLK, INPUT_PULLUP);
-    pinMode(PIN_DATA, INPUT_PULLUP);
-    pinMode(PIN_SWITCH, INPUT_PULLUP);
-    LEDON; // enable the LED, lets users know the board is starting up
 
     // filesystem (web page, custom presets, etc)
     if (!LittleFS.begin()) {
@@ -224,25 +224,20 @@ void setup()
     }
     display.clear();
 
-    // software reset
-    resetAllOffline();
-    delay(100);
-    resetAllOnline();
-
      // load user preferences file
     if(!prefsLoad())
         prefsLoadDefaults();
 
     GBS::PAD_CKIN_ENZ::write(1); // disable to prevent startup spike damage
-    if(externalClockGenDetectAndInitialize() == -1) {
+    if(utilsExternClockGenInit() == -1) {
         retryExtClockDetect = true;
         _DBGN(F("(!) unable to detect ext. clock, going to try later..."));
     }
     // library may change i2c clock or pins, so restart
-    startWire();
-    GBS::STATUS_00::read();
-    GBS::STATUS_00::read();
-    GBS::STATUS_00::read();
+    // startWire();
+    // GBS::STATUS_00::read();
+    // GBS::STATUS_00::read();
+    // GBS::STATUS_00::read();
 
     // delay 2 of 2
     // ? WHY?
@@ -257,7 +252,7 @@ void setup()
     // GBS::STATUS_00::read();
     // GBS::STATUS_00::read();
 
-    /* if (!checkBoardPower()) {
+    /* if (!utilsCheckBoardPower()) {
         _DBGN(F("(!) board has no power"));
         int i = 0;
         stopWire(); // sets pinmodes SDA, SCL to INPUT
@@ -280,7 +275,7 @@ void setup()
             i++;
         }
 
-        if (!checkBoardPower()) {
+        if (!utilsCheckBoardPower()) {
             stopWire();
             rto.syncWatcherEnabled = false;
             _DBGN(F("(!) timeout, unable to init board connection"));
@@ -291,53 +286,60 @@ void setup()
     } */
 
     // if (powerOrWireIssue == 0) {
-    if (checkBoardPower()) {
-        // second init, in cases where i2c got stuck earlier but has recovered
-        // *if* ext clock gen is installed and *if* i2c got stuck, then clockgen must be already running
-        if (!rto.extClockGenDetected && retryExtClockDetect)
-            externalClockGenDetectAndInitialize();
+    // second init, in cases where i2c got stuck earlier but has recovered
+    // *if* ext clock gen is installed and *if* i2c got stuck, then clockgen must be already running
+    if (!rto.extClockGenDetected && retryExtClockDetect
+        && utilsExternClockGenInit() != 1) {
+        _WSN(F("\n   (!) No external clock detected\n"));
+        return;
+    }
 
-        zeroAll();
-        setResetParameters();
-        prepareSyncProcessor();
+    // software reset
+    utilsZeroAll();
+    // utilsResetAllOffline();
+    // utilsResetOnline();
+    delay(10);
+    // put system in the default state
+    presetsResetParameters();
+    prepareSyncProcessor();
 
-        if (uopt.enableCalibrationADC) {
-            // enabled by default
-            calibrateAdcOffset();
-        }
+    if (uopt.enableCalibrationADC) {
+        // enabled by default
+        calibrateAdcOffset();
+    }
 
-        // prefs data loaded, load current slot
-        if(!slotLoad(uopt.slotID))
-            slotResetFlush(uopt.slotID);
+    // prefs data loaded, load current slot
+    if(!slotLoad(uopt.slotID))
+        slotResetFlush(uopt.slotID);
 
-        // rto.syncWatcherEnabled = false; // allows passive operation by disabling syncwatcher here
-        // inputAndSyncDetect();
-        // if (rto.syncWatcherEnabled == true) {
-        //   rto.isInLowPowerMode = true; // just for initial detection; simplifies code later
-        //   for (uint8_t i = 0; i < 3; i++) {
-        //     if (inputAndSyncDetect()) {
-        //       break;
-        //     }
-        //   }
-        //   rto.isInLowPowerMode = false;
-        // }
-    } else {
+    // rto.syncWatcherEnabled = false; // allows passive operation by disabling syncwatcher here
+    // inputAndSyncDetect();
+    // if (rto.syncWatcherEnabled == true) {
+    //   rto.isInLowPowerMode = true; // just for initial detection; simplifies code later
+    //   for (uint8_t i = 0; i < 3; i++) {
+    //     if (inputAndSyncDetect()) {
+    //       break;
+    //     }
+    //   }
+    //   rto.isInLowPowerMode = false;
+    // }
+    if(!utilsCheckBoardPower()) {
         _WSN(F("\n   (!) Please check board power and cabling or restart\n"));
         return;
     }
 
-    LEDOFF; // LED behaviour: only light LED on active sync
-
     // some debug tools leave garbage in the serial rx buffer
     discardSerialRxData();
 
-    _DBGF(PSTR("\n   GBS-Control v.%s\n\n\nTV id: 0x%02X rev: 0x%02X\n"),
+    _DBGF(PSTR("\n\n   GBS-Control v.%s\n\n\nTV id: 0x%02X rev: 0x%02X\n"),
         STRING(VERSION),
         GBS::CHIP_ID_PRODUCT::read(),
         GBS::CHIP_ID_REVISION::read()
     );
     // system init is OK
     rto.systemInitOK = true;
+
+    LEDOFF; // LED behaviour: only light LED on active sync
 }
 
 
@@ -355,7 +357,7 @@ void loop()
     wifiLoop();
 
     // run FrameTimeLock if enabled
-    if (uopt.enableFrameTimeLock && rto.sourceDisconnected == false
+    if (uopt.enableFrameTimeLock && !rto.sourceDisconnected
         && rto.autoBestHtotalEnabled && rto.syncWatcherEnabled
             && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval
                 && rto.continousStableCounter > 20 && rto.noSyncCounter == 0)
@@ -386,7 +388,6 @@ void loop()
             if (debug_backup != 0x0) {
                 GBS::TEST_BUS_SEL::write(debug_backup);
             }
-_DBGN(F("11"));
         }
         lastVsyncLock = millis();
     }
@@ -401,7 +402,7 @@ _DBGN(F("11"));
     }
 
     // TODO heavy load for serial and WS. to reimplement
-    if (rto.printInfos == true) {
+    if (rto.printInfos) {
         printInfo();
     }
     // uint16_t testbus = GBS::TEST_BUS::read() & 0x0fff;
@@ -413,14 +414,14 @@ _DBGN(F("11"));
     // }
 
     // syncwatcher polls SP status. when necessary, initiates adjustments or preset changes
-    if (rto.sourceDisconnected == false && rto.syncWatcherEnabled == true
+    if (!rto.sourceDisconnected && rto.syncWatcherEnabled
         && (millis() - lastTimeSyncWatcher) > 20)
     {
         runSyncWatcher();
         lastTimeSyncWatcher = millis();
 
         // auto adc gain
-        if (uopt.enableAutoGain == 1 && !rto.sourceDisconnected
+        if (uopt.enableAutoGain && !rto.sourceDisconnected
             && rto.videoStandardInput > 0 && rto.clampPositionIsSet
                 && rto.noSyncCounter == 0 && rto.continousStableCounter > 90
                     && rto.boardHasPower)
@@ -459,10 +460,10 @@ _DBGN(F("11"));
     }
 
     // update clamp + coast positions after preset change // do it quickly
-    if ((rto.videoStandardInput <= 14 && rto.videoStandardInput != 0) &&
+    if (rto.videoStandardInput <= 14 && rto.videoStandardInput != 0 &&
         rto.syncWatcherEnabled && !rto.coastPositionIsSet) {
         if (rto.continousStableCounter >= 7) {
-            if ((getStatus16SpHsStable() == 1) && (getVideoMode() == rto.videoStandardInput)) {
+            if (getStatus16SpHsStable() == 1 && getVideoMode() == rto.videoStandardInput) {
                 updateCoastPosition(0);
                 if (rto.coastPositionIsSet && videoStandardInputIsPalNtscSd()) {
                     // TODO: verify for other csync formats
@@ -474,17 +475,16 @@ _DBGN(F("11"));
     }
 
     // don't exclude modes 13 / 14 / 15 (rgbhv bypass)
-    if ((rto.videoStandardInput != 0) && (rto.continousStableCounter >= 4) &&
+    if (rto.videoStandardInput != 0 && rto.continousStableCounter >= 4 &&
         !rto.clampPositionIsSet && rto.syncWatcherEnabled) {
         updateClampPosition();
         if (rto.clampPositionIsSet && GBS::SP_NO_CLAMP_REG::read() == 1) {
             GBS::SP_NO_CLAMP_REG::write(0);
-_DBGN(F("6"));
         }
     }
 
     // later stage post preset adjustments
-    if ((rto.applyPresetDoneStage == 1) &&
+    if (rto.applyPresetDoneStage == 1 &&
         ((rto.continousStableCounter > 35 && rto.continousStableCounter < 45) || // this
          !rto.syncWatcherEnabled))                                                // or that
     {
@@ -493,12 +493,10 @@ _DBGN(F("6"));
             GBS::DAC_RGBS_PWDNZ::write(1); // 2nd chance
             if (!uopt.wantOutputComponent) {
                 GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out // 2nd chance
-_DBGN(F("72"));
             }
             if (!rto.syncWatcherEnabled) {
                 updateClampPosition();
                 GBS::SP_NO_CLAMP_REG::write(0); // 5_57 0
-_DBGN(F("73"));
             }
 
             if (rto.extClockGenDetected && rto.videoStandardInput != 14) {
@@ -514,41 +512,34 @@ _DBGN(F("73"));
                         Si.enable(0);
                         delayMicroseconds(800);
                         GBS::PLL648_CONTROL_01::write(0x75);
-_DBGN(F("76"));
                     }
-_DBGN(F("75"));
                 }
                 // sync clocks now
                 externalClockGenSyncInOutRate();
-_DBGN(F("74"));
             }
             rto.applyPresetDoneStage = 0;
-_DBGN(F("71"));
         }
-    } else if (rto.applyPresetDoneStage == 1 && (rto.continousStableCounter > 35)) {
+    } else if (rto.applyPresetDoneStage == 1 && rto.continousStableCounter > 35) {
         // 3rd chance
         GBS::DAC_RGBS_PWDNZ::write(1); // enable DAC // 3rd chance
         if (!uopt.wantOutputComponent) {
             GBS::PAD_SYNC_OUT_ENZ::write(0); // enable sync out // 3rd chance
-_DBGN(F("81"));
         }
 
         // sync clocks now
         externalClockGenSyncInOutRate();
         rto.applyPresetDoneStage = 0; // timeout
-_DBGN(F("8"));
     }
 
     if (rto.applyPresetDoneStage == 10) {
         rto.applyPresetDoneStage = 11; // set first, so we don't loop applying presets
         setOutputHdBypassMode(false);
-_DBGN(F("9"));
     }
 
     // Input signal detection
-    if (rto.syncWatcherEnabled == true && rto.sourceDisconnected == true && rto.boardHasPower) {
+    if (rto.syncWatcherEnabled && rto.sourceDisconnected && rto.boardHasPower) {
         if ((millis() - lastTimeSourceCheck) >= 500) {
-            if (checkBoardPower()) {
+            if (utilsCheckBoardPower()) {
                 inputAndSyncDetect();
             } else {
                 // rto.boardHasPower = false;
@@ -573,7 +564,7 @@ _DBGN(F("9"));
     // check at 2 points, in case one doesn't register
     // low values chosen to not do this check on small sync issues
     if ((rto.noSyncCounter == 61 || rto.noSyncCounter == 62) && rto.boardHasPower) {
-        if (!checkBoardPower()) {
+        if (!utilsCheckBoardPower()) {
             rto.noSyncCounter = 1; // some neutral "no sync" value
             rto.continousStableCounter = 0;
             // rto.syncWatcherEnabled = false;
@@ -591,7 +582,7 @@ _DBGN(F("9"));
         if (digitalRead(SCL) && digitalRead(SDA)) {
             delay(50);
             if (digitalRead(SCL) && digitalRead(SDA)) {
-                _DBGN(F("board power is ok"));
+                _DBGN(F("(!) board power recovered"));
                 delay(350); // i've seen the MTV230 go on briefly on GBS power cycle
                 startWire();
                 {
@@ -603,8 +594,9 @@ _DBGN(F("9"));
                     GBS::STATUS_00::read();
                 }
                 rto.syncWatcherEnabled = true;
-                rto.boardHasPower = true;
-                // delay(100);
+                utilsCheckBoardPower();
+                // rto.boardHasPower = true;
+                delay(100);
                 goLowPowerWithInputDetection();
             }
         }

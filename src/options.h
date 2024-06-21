@@ -185,7 +185,7 @@ typedef struct
     // system state
     bool systemInitOK = false;
     // source identification
-    bool boardHasPower = true;          // ambigous, it is enough to checkBoardPower at all times
+    bool boardHasPower = true;          // ambigous, it is enough to utilsCheckBoardPower at all times
     uint8_t continousStableCounter = 0;
     bool syncWatcherEnabled = true;
     bool inputIsYPbPr = false;

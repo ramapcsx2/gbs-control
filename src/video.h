@@ -3,7 +3,7 @@
 # File: video.h                                                                     #
 # File Created: Thursday, 2nd May 2024 4:08:03 pm                                   #
 # Author:                                                                           #
-# Last Modified: Monday, 17th June 2024 12:00:54 am                       #
+# Last Modified: Wednesday, 19th June 2024 8:02:40 pm                     #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -22,7 +22,7 @@ extern void doPostPresetLoadSteps();
 extern void printInfo();
 extern void loadPresetMdSection();
 extern void loadPresetDeinterlacerSection();
-extern void setResetParameters();
+extern void presetsResetParameters();
 extern void printVideoTimings();
 extern void applyPresets(uint8_t result);
 
@@ -35,7 +35,6 @@ bool getStatus16SpHsStable();
 float getSourceFieldRate(bool useSPBus);
 float getOutputFrameRate();
 void externalClockGenSyncInOutRate();
-int8_t externalClockGenDetectAndInitialize();
 void externalClockGenResetClock();
 bool applyBestHTotal(uint16_t bestHTotal);
 bool runAutoBestHTotal();
@@ -56,7 +55,6 @@ void enableScanlines();
 void disableScanlines();
 void enableMotionAdaptDeinterlace();
 void disableMotionAdaptDeinterlace();
-void zeroAll();
 void writeProgramArrayNew(const uint8_t *programArray, bool skipMDSection);
 void activeFrameTimeLockInitialSteps();
 void applyComponentColorMixing();

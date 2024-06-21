@@ -310,6 +310,7 @@ ESP8266 version of the factory built GBSC, boots into firmware upload mode by pr
 - [ ] disable ambigous preset paramters inside slots
   - [ ] startup reuntime parameters loading malfunction
 - [ ] De-interlacer noise reduction ctl.
+- [ ] color artifacts on screen depending on SDRAM frequency
 - [x] fix OLEDMenu items list offset
 - [x] feature request [#553]
 - [x] creation/destruction OLEDMenuItem procedure

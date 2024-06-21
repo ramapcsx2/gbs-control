@@ -3,7 +3,7 @@
 # File: preset.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 6:38:23 pm                                   #
 # Author:                                                                           #
-# Last Modified: Wednesday, 19th June 2024 12:43:23 pm                    #
+# Last Modified: Thursday, 20th June 2024 6:23:27 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -37,7 +37,7 @@ void loadPresetMdSection()
  * @brief reset runtime parameters and some registers
  *
  */
-void setResetParameters()
+void presetsResetParameters()
 {
     rto.videoStandardInput = 0;
     rto.presetDisplayClock = 0;
@@ -95,7 +95,6 @@ void setResetParameters()
     FrameSync::cleanup();
 
     GBS::OUT_SYNC_CNTRL::write(0);    // no H / V sync out to PAD
-    GBS::DAC_RGBS_PWDNZ::write(0);    // disable DAC
     GBS::ADC_TA_05_CTRL::write(0x02); // 5_05 1 // minor SOG clamp effect
     GBS::ADC_TEST_04::write(0x02);    // 5_04
     GBS::ADC_TEST_0C::write(0x12);    // 5_0c 1 4
@@ -142,7 +141,6 @@ void setResetParameters()
     GBS::PLLAD_CONTROL_00_5x11::write(0x01); // reset on
     resetDebugPort();
 
-    // GBS::RESET_CONTROL_0x47::write(0x16);
     GBS::RESET_CONTROL_0x46::write(0x41);   // new 23.07.19
     GBS::RESET_CONTROL_0x47::write(0x17);   // new 23.07.19 (was 0x16)
     GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
@@ -154,6 +152,8 @@ void setResetParameters()
     rto.phaseIsSet = 0;
     rto.continousStableCounter = 0;
 
+    _DBGN(F("(!) reset preset parameters"));
+
     serialCommand = '@';
     userCommand = '@';
 }
@@ -164,6 +164,7 @@ void setResetParameters()
  */
 void doPostPresetLoadSteps()
 {
+    bool avoidAutoBest = false;
     // unsigned long postLoadTimer = millis();
     // delay(10);
     // adco.r_gain gets applied if uopt.enableAutoGain is set.
@@ -203,7 +204,7 @@ void doPostPresetLoadSteps()
     // GBS::ADC_UNUSED_65::write(0); // clear temp storage
     // GBS::ADC_UNUSED_66::write(0);
     // GBS::ADC_UNUSED_67::write(0); // clear temp storage
-    // GBS::PAD_CKIN_ENZ::write(0);  // 0 = clock input enable (pin40)
+    GBS::PAD_CKIN_ENZ::write(0);  // 0 = clock input enable (pin40)
 
     // if preset is not loaded from FS
     if (!rto.isCustomPreset)
@@ -331,13 +332,13 @@ void doPostPresetLoadSteps()
     rto.boardHasPower = true;       // same
 
     // if (rto.presetID == 0x06 || rto.presetID == 0x16) {
-    if (utilsIsDownscaleMode())
-    {
+    // if (utilsIsDownscaleMode())
+    // {
         // override so it applies section 2 deinterlacer settings
-        rto.isCustomPreset = false;
-    }
+    //     rto.isCustomPreset = false;
+    // }
 
-    if (!rto.isCustomPreset)
+    if (!rto.isCustomPreset || utilsIsDownscaleMode())
     {
         if (rto.videoStandardInput == 3 || rto.videoStandardInput == 4 ||
             rto.videoStandardInput == 8 || rto.videoStandardInput == 9)
@@ -665,7 +666,6 @@ void doPostPresetLoadSteps()
 
     resetDebugPort();
 
-    bool avoidAutoBest = 0;
     if (rto.syncTypeCsync)
     {
         if (GBS::TEST_BUS_2F::read() == 0)
@@ -748,7 +748,7 @@ void doPostPresetLoadSteps()
     GBS::ADC_TA_05_CTRL::write(0x02); // 5_05
 
     // auto ADC gain
-    if (uopt.enableAutoGain == 1)
+    if (uopt.enableAutoGain)
     {
         if (adco.r_gain == 0)
         {
@@ -870,7 +870,7 @@ void doPostPresetLoadSteps()
         {
             GBS::PAD_SYNC_OUT_ENZ::write(0); // sync out
         }
-        delay(70); // minimum delay without random failures: TBD
+        delay(100); // minimum delay without random failures: TBD
 
         for (uint8_t i = 0; i < 4; i++)
         {
@@ -901,7 +901,7 @@ void doPostPresetLoadSteps()
                     if (ok)
                     { // else leave it for later
                         runAutoBestHTotal();
-                        delay(1); // wifi
+                        // delay(1); // wifi
                         break;
                     }
                 }
@@ -1060,13 +1060,13 @@ void doPostPresetLoadSteps()
         unsigned long timeout = millis();
         while ((!getStatus16SpHsStable()) && (millis() - timeout < 2002))
         {
-            delay(4);
+            delay(10);
             // wifiLoop(0);
             updateStopPositionDynamic(false);
         }
         while ((getVideoMode() == 0) && (millis() - timeout < 1505))
         {
-            delay(4);
+            delay(10);
             // wifiLoop(0);
             updateStopPositionDynamic(false);
         }
@@ -1178,11 +1178,10 @@ void doPostPresetLoadSteps()
     if (utilsIsPassThroughMode())
     {
         _WS(F(" (bypass)"));
-    }
-    // else if (rto.isCustomPreset)
-    // {
-    //     _WS(F(" (custom)"));
-    // }
+    } /* else if (rto.isCustomPreset)
+    {
+        _WS(F(" (custom)"));
+    } */
 
     _WS(F(" for "));
     if (rto.videoStandardInput == 1)
@@ -1241,7 +1240,7 @@ void doPostPresetLoadSteps()
  */
 void applyPresets(uint8_t videoMode)
 {
-    bool waitExtra = 0;
+    bool waitExtra = false;
 
     // TODO replace videoMode with VideoStandardInput enum
     if (!rto.boardHasPower)
@@ -1271,7 +1270,7 @@ void applyPresets(uint8_t videoMode)
     // if (rto.outModeHdBypass || rto.videoStandardInput == 15 || rto.videoStandardInput == 0)
     if (uopt.resolutionID == OutputHdBypass || rto.videoStandardInput == 15 || rto.videoStandardInput == 0)
     {
-        waitExtra = 1;
+        waitExtra = true;
         if (videoMode <= 4 || videoMode == 14 || videoMode == 8 || videoMode == 9)
         {
             GBS::SFTRST_IF_RSTZ::write(1); // early init
@@ -1296,7 +1295,8 @@ void applyPresets(uint8_t videoMode)
         // serialCommand = 'D'; // debug view
         // }
     // }
-
+// FIXME to remove
+_DBGF(PSTR("apply presets: %d\n"), videoMode);
     if (videoMode == 0)
     {
         // Unknown
@@ -1335,12 +1335,12 @@ void applyPresets(uint8_t videoMode)
             {
                 // found nothing at all, turn off output
 
-                // If we call setResetParameters(), soon afterwards loop() ->
+                // If we call presetsResetParameters(), soon afterwards loop() ->
                 // inputAndSyncDetect() -> goLowPowerWithInputDetection() will
-                // call setResetParameters() again. But if we don't call
-                // setResetParameters() here, the second call will never happen.
+                // call presetsResetParameters() again. But if we don't call
+                // presetsResetParameters() here, the second call will never happen.
                 _DBGN(F("(!) reset runtime parameters while applying preset"));
-                setResetParameters();
+                presetsResetParameters();
 
                 // Deselect the output resolution in the web UI. We cannot call
                 // doPostPresetLoadSteps() to select the right resolution, since

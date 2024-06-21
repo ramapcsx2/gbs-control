@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Wednesday, 19th June 2024 12:47:07 pm                    #
+# Last Modified: Thursday, 20th June 2024 8:06:39 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -295,7 +295,7 @@ void serverSlotRemove()
             result = true;
     }
     // reset parameters
-    setResetParameters();
+    presetsResetParameters();
     _DBGN(F("(!) slot has been removed, parameters now reset to defaults"));
     // also reset resolution
     uopt.resolutionID = Output240p;
@@ -2122,10 +2122,11 @@ void handleUserCommand()
     // case '6':
     //     break;
     case '7':           // toggle scanlines
-        uopt.wantScanlines = !uopt.wantScanlines;
+        // uopt.wantScanlines = !uopt.wantScanlines;
         _WS(F("scanlines: "));
-        if (uopt.wantScanlines)
+        if (!uopt.wantScanlines)
         {
+            enableScanlines();
             _WSN(F("on (Line Filter recommended)"));
         }
         else
@@ -2167,8 +2168,8 @@ void handleUserCommand()
         else
         {
             _WSF(
-                PSTR("\nsystem preferences:\n  active slotID = %d\n  component out. = %d\n  scaling RGBHV = %d\n" \
-                    "  ADC calibration = %d\n  ext. clock gen. = %d\n\n"),
+                PSTR("\nsystem preferences:\n  active slotID: %d\n  component out.: %d\n  scaling RGBHV: %d\n" \
+                    "  ADC calibration: %d\n  ext. clock gen.: %d\n"),
                 f.read(),
                 f.read(),
                 f.read(),
@@ -2178,6 +2179,83 @@ void handleUserCommand()
 
             f.close();
         }
+        //
+        _WSF(
+            PSTR("\nruntime parameters:\n"\
+                "  board power: %d\n  sync watcher: %d\n" \
+                "  input YPbRp: %d\n  is low power: %d\n"\
+                "  source disconnected: %d\n" \
+                "  video std. inp.: %d\n"\
+                "  continousStableCounter: %d\n" \
+                "  currentLevelSOG: %d\n" \
+                "  syncTypeCsync: %d\n" \
+                "  thisSourceMaxLevelSOG: %d\n" \
+                "  medResLineCount: %d\n" \
+                "  isCustomPreset: %d\n" \
+                "  presetDisplayClock: %d\n" \
+                "  freqExtClockGen: %d\n" \
+                "  noSyncCounter: %d\n" \
+                "  presetVlineShift: %d\n" \
+                "  phaseSP: %d\n" \
+                "  phaseADC: %d\n" \
+                "  syncLockFailIgnore: %d\n" \
+                "  applyPresetDoneStage: %d\n" \
+                "  failRetryAttempts: %d\n" \
+                "  HPLLState: %d\n" \
+                "  osr: %d\n" \
+                "  notRecognizedCounter: %d\n" \
+                "  clampPositionIsSet: %d\n" \
+                "  coastPositionIsSet: %d\n" \
+                "  phaseIsSet: %d\n" \
+                "  printInfos: %d\n" \
+                "  allowUpdatesOTA: %d\n" \
+                "  autoBestHtotalEnabled: %d\n" \
+                "  forceRetime: %d\n" \
+                "  motionAdaptiveDeinterlaceActive: %d\n" \
+                "  deinterlaceAutoEnabled: %d\n" \
+                "  presetIsPalForce60: %d\n" \
+                "  isValidForScalingRGBHV: %d\n" \
+                "  useHdmiSyncFix: %d\n" \
+                "  extClockGenDetected: %d\n\n"
+            ),
+            rto.boardHasPower,
+            rto.syncWatcherEnabled,
+            rto.inputIsYPbPr,
+            rto.isInLowPowerMode,
+            rto.sourceDisconnected,
+            rto.videoStandardInput,
+            rto.continousStableCounter,
+            rto.currentLevelSOG,
+            rto.syncTypeCsync,
+            rto.thisSourceMaxLevelSOG,
+            rto.medResLineCount,
+            rto.isCustomPreset,
+            rto.presetDisplayClock,
+            rto.freqExtClockGen,
+            rto.noSyncCounter,
+            rto.presetVlineShift,
+            rto.phaseSP,
+            rto.phaseADC,
+            rto.syncLockFailIgnore,
+            rto.applyPresetDoneStage,
+            rto.failRetryAttempts,
+            rto.HPLLState,
+            rto.osr,
+            rto.notRecognizedCounter,
+            rto.clampPositionIsSet,
+            rto.coastPositionIsSet,
+            rto.phaseIsSet,
+            rto.printInfos,
+            rto.allowUpdatesOTA,
+            rto.autoBestHtotalEnabled,
+            rto.forceRetime,
+            rto.motionAdaptiveDeinterlaceActive,
+            rto.deinterlaceAutoEnabled,
+            rto.presetIsPalForce60,
+            rto.isValidForScalingRGBHV,
+            rto.useHdmiSyncFix,
+            rto.extClockGenDetected
+        );
     }
     break;
     /**
@@ -2273,61 +2351,55 @@ void handleUserCommand()
     case 'l':
         // cycle through available SDRAM clocks
         {
+            _WS(F("SDRAM clock: "));
             uint8_t PLL_MS = GBS::PLL_MS::read();
-            uint8_t memClock = 0;
 
             if (PLL_MS == 0)
-                PLL_MS = 2;
-            else if (PLL_MS == 2)
-                PLL_MS = 7;
-            else if (PLL_MS == 7)
-                PLL_MS = 4;
-            else if (PLL_MS == 4)
-                PLL_MS = 3;
-            else if (PLL_MS == 3)
-                PLL_MS = 5;
-            else if (PLL_MS == 5)
-                PLL_MS = 0;
+                PLL_MS = 0b001;
+            else if (PLL_MS == 0x001)
+                PLL_MS = 0b010;
+            else if (PLL_MS == 0b010)
+                PLL_MS = 0b011;
+            else if (PLL_MS == 0b011)
+                PLL_MS = 0b100;
+            else if (PLL_MS == 0b100)
+                PLL_MS = 0b101;
+            else if (PLL_MS == 0b101)
+                PLL_MS = 0b110;
+            else if (PLL_MS == 0b110)
+                PLL_MS = 0b111;
 
             switch (PLL_MS)
             {
             case 0:
-                memClock = 108;
+                _WSN(F("100MHz"));
                 break;
             case 1:
-                memClock = 81;
+                _WSN(F("81MHz"));
                 break; // goes well with 4_2C = 0x14, 4_2D = 0x27
             case 2:
-                memClock = 10;
+                _WSN(F("feedback clock (pin 110)"));
                 break; // feedback clock
             case 3:
-                memClock = 162;
+                _WSN(F("162MHz"));
                 break;
             case 4:
-                memClock = 144;
+                _WSN(F("144MHz"));
                 break;
             case 5:
-                memClock = 185;
+                _WSN(F("185MHz"));
                 break; // slight OC
             case 6:
-                memClock = 216;
+                _WSN(F("216MHz"));
                 break; // !OC!
             case 7:
-                memClock = 129;
+                _WSN(F("129.6MHz"));
                 break;
             default:
                 break;
             }
             GBS::PLL_MS::write(PLL_MS);
             ResetSDRAM();
-            if (memClock != 10)
-            {
-                _WSF(PSTR("SDRAM clock: %dMhz\n"), memClock);
-            }
-            else
-            {
-                _WSN(F("SDRAM clock: feedback clock"));
-            }
         }
         break;
     case 'm':           // toggle line filter
@@ -2531,7 +2603,7 @@ void handleUserCommand()
         {
             _WSN(F("on, detecting..."));
             uopt.disableExternalClockGenerator = false;
-            externalClockGenDetectAndInitialize();
+            utilsExternClockGenInit();
         }
         // saveUserPrefs();
         prefsSave();
@@ -2873,6 +2945,8 @@ void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length)
                     toSend[6] |= (1 << 5);
                 if(uopt.freezeCapture)
                     toSend[6] |= (1 << 6);
+                if(rto.syncWatcherEnabled)
+                    toSend[6] |= (1 << 7);
 
                 // system tab controls
                 if(rto.allowUpdatesOTA)

@@ -173,10 +173,11 @@ public:
     typedef UReg<0x00, 0x40, 1, 1> PLL_DIVBY2Z;                         // DIVBY2Z, PLL source clock divide bypass (When = 0, PLL source clock divide by two When = 1, PLL source clock bypass divide)
     typedef UReg<0x00, 0x40, 2, 1> PLL_IS;                              // IS, ICLK source selection (When = 0, ICLK use PLL clock When = 1, ICLK use input clock)
     typedef UReg<0x00, 0x40, 3, 1> PLL_ADS;                             // ADS, input clock selection (When = 0, input clock is from PCLKIN(pin40) When = 1, input clock is from ADC)
-    typedef UReg<0x00, 0x40, 4, 3> PLL_MS;                              // MS[2:0], memory clock control
-                                                                        //      When = 000, memory clock =108MHz
+    typedef UReg<0x00, 0x40, 4, 3> PLL_MS;                              // Memory clock control:
+                                                                        //      When = 000, memory clock = 108MHz
                                                                         //      When = 001, memory clock = 81MHz
-                                                                        //      When = 010, memory clock from FBCLK (pin110) When = 011, memory clock = 162MHz
+                                                                        //      When = 010, memory clock from FBCLK (pin 110)
+                                                                        //      When = 011, memory clock = 162MHz
                                                                         //      When = 100, memory clock = 144MHz
                                                                         //      When = 101, memory clock = 185MHz
                                                                         //      When = 110, memory clock = 216MHz
@@ -220,7 +221,7 @@ public:
     typedef UReg<0x00, 0x47, 0, 8> RESET_CONTROL_0x47;                  // CONTROL 01
         typedef UReg<0x00, 0x47, 0, 1> SFTRST_DEC_RSTZ;                     // Decimation reset control (When = 0, decimation is in reset status; When = 1, decimation work normally)
         typedef UReg<0x00, 0x47, 1, 1> SFTRST_MODE_RSTZ;                    // Mode detection reset control (When = 0, mode detection is in reset status When = 1, mode detection work normally)
-        typedef UReg<0x00, 0x47, 2, 1> SFTRST_SYNC_RSTZ;                    // Sync procesor reset control (When = 0, sync processor is in reset status When = 1, sync processor work normally)
+        typedef UReg<0x00, 0x47, 2, 1> SFTRST_SYNC_RSTZ;                    // Sync processor reset control (When = 0, sync processor is in reset status When = 1, sync processor work normally)
         typedef UReg<0x00, 0x47, 3, 1> SFTRST_HDBYPS_RSTZ;                  // HD bypass channel reset control (When = 0, HD bypass is in reset status; When = 1, HD bypasswork normally)
         typedef UReg<0x00, 0x47, 4, 1> SFTRST_INT_RSTZ;                     // Interrupt generator reset control (When = 0, interrupt generator is in reset status; When = 1, interrupt generator work normally)
         // 47_5:3   -    reserved
@@ -253,11 +254,15 @@ public:
     typedef UReg<0x00, 0x4E, 0, 1> DIGOUT_BYPS2PAD;                     // HD bypass channel to digital output control (When = 0, disable HD bypass to digital output; When = 1, enable HD bypass to digital output (VG_[7:0], VR_[7:0], VB_[7:0]))
     typedef UReg<0x00, 0x4E, 1, 1> DIGOUT_ADC2PAD;                      // ADC to digital output control (When = 0, disable ADC to digital output; When = 1, enable ADC (with decimation) to digital output (VG, VR, VB))
     // 4E_2:6   -   reserved
-    typedef UReg<0x00, 0x4F, 0, 1> DAC_RGBS_V4CLK_INVT;                 // V4CLK invert control ()
-    typedef UReg<0x00, 0x4F, 1, 1> OUT_CLK_PHASE_CNTRL;                 // CLKOUT invert control ()
-    typedef UReg<0x00, 0x4F, 2, 1> OUT_CLK_EN;                          // CLKOUT selection control ()
-    typedef UReg<0x00, 0x4F, 3, 2> CLKOUT_EN;                           // CLKOUT enable control ()
-    typedef UReg<0x00, 0x4F, 5, 1> OUT_SYNC_CNTRL;                      // H/V sync output enable ()
+    typedef UReg<0x00, 0x4F, 0, 1> DAC_RGBS_V4CLK_INVT;                 // V4CLK invert control (When = 0, V4CLK to DAC directly; When = 1, V4CLK will invert before go to DAC)
+    typedef UReg<0x00, 0x4F, 1, 1> OUT_CLK_PHASE_CNTRL;                 // CLKOUT invert control (When = 0, CLKOUT output no invert; When = 1, CLKOUT will invert before output)
+    typedef UReg<0x00, 0x4F, 2, 2> OUT_CLK_EN;                          // CLKOUT selection control:
+                                                                        // When = 00, CLKOUT = V4CLK
+                                                                        // When = 01, CLKOUT = V2CLK
+                                                                        // When = 10, CLKOUT = VCLK
+                                                                        // When = 11, CLKOUT = ADC output clock
+    typedef UReg<0x00, 0x4F, 4, 1> CLKOUT_EN;                           // CLKOUT enable control (When = 0, disable CLKOUT to PAD When = 1, enable CLKOUT to PAD)
+    typedef UReg<0x00, 0x4F, 5, 1> OUT_SYNC_CNTRL;                      // H/V sync output enable (When = 0, disable H/V sync output to PAD When = 1, enable H/V sync output to PAD)
     typedef UReg<0x00, 0x4F, 6, 2> OUT_SYNC_SEL;                        // H/V sync output selection control
                                                                         //      When = 00, H/V sync output are from vds_proc
                                                                         //      When = 01, H/V sync output are from HD bypass
@@ -398,7 +403,7 @@ public:
     typedef UReg<0x01, 0x2A, 0, 4> IF_AUTO_OFST_U_RANGE;                // U channel offset detection range
     typedef UReg<0x01, 0x2A, 4, 4> IF_AUTO_OFST_V_RANGE;                // V channel offset detection range
     // 01_2B:2F    -   not described registers
-    typedef UReg<0x01, 0x2B, 0, 7> GBS_PRESET_ID;
+    typedef UReg<0x01, 0x2B, 0, 7> GBS_PRESET_ID;                       // used to store output resolutionID
 
     // ! @sk: supressed for now
     // typedef UReg<0x01, 0x2B, 7, 1> GBS_PRESET_CUSTOM;

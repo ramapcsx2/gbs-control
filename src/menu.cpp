@@ -3,7 +3,7 @@
 # File: menu.cpp                                                          #
 # File Created: Thursday, 2nd May 2024 11:31:34 pm                        #
 # Author:                                                                 #
-# Last Modified: Tuesday, 18th June 2024 1:29:36 pm                       #
+# Last Modified: Thursday, 20th June 2024 6:26:05 pm                      #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -860,14 +860,22 @@ void menuInit() {
  *
  */
 void menuLoop() {
-    #if ! USE_NEW_OLED_MENU
+#ifdef HAVE_BUTTONS
+    static unsigned long lastButton = micros();
+    if (micros() - lastButton > buttonPollInterval) {
+        lastButton = micros();
+        handleButtons();
+    }
+#endif                      // HAVE_BUTTONS
+
+#if USE_NEW_OLED_MENU != 1
 
     settingsMenuOLED();
     if (oled_encoder_pos != oled_lastCount) {
         oled_lastCount = oled_encoder_pos;
     }
 
-    #else                       // \! USE_NEW_OLED_MENU
+#else                       // \! USE_NEW_OLED_MENU
 
     uint8_t oldIsrID = rotaryIsrID;
     // make sure no rotary encoder isr happened while menu was updating.
@@ -878,13 +886,5 @@ void menuLoop() {
         oledNav = OLEDMenuNav::IDLE;
     }
 
-    #endif                      // \! USE_NEW_OLED_MENU
-
-#ifdef HAVE_BUTTONS
-    static unsigned long lastButton = micros();
-    if (micros() - lastButton > buttonPollInterval) {
-        lastButton = micros();
-        handleButtons();
-    }
-#endif                  // HAVE_BUTTONS
+#endif                      // \! USE_NEW_OLED_MENU
 }

@@ -3,7 +3,7 @@
 # File: utils.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 5:37:47 pm                                   #
 # Author:                                                                           #
-# Last Modified: Wednesday, 19th June 2024 11:36:06 am                    #
+# Last Modified: Thursday, 20th June 2024 6:41:56 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -586,20 +586,82 @@ void startWire()
 }
 
 /**
+ * @brief Detect if external clock installed
+ *
+ * @return int8_t
+ *          1 = device ready, init completed,
+ *          0 - no device detected
+ *         -1 - any other error
+ */
+int8_t utilsExternClockGenInit()
+{
+    const uint8_t xtal_cl = 0xD2; // 10pF, other choices are 8pF (0x92) and 6pF (0x52) NOTE: Per AN619, the low bytes should be written 0b010010
+
+    // MHz: 27, 32.4, 40.5, 54, 64.8, 81, 108, 129.6, 162
+    rto.freqExtClockGen = 81000000;
+    rto.extClockGenDetected = 0;
+
+    if (uopt.disableExternalClockGenerator) {
+        _DBGN(F("(!) external clock generator disabled, skipping detection"));
+        return 0;
+    }
+
+    uint8_t retVal = 0;
+    Wire.beginTransmission(SIADDR);
+    // returns:
+    // 4 = line busy
+    // 3 = received NACK on transmit of data
+    // 2 = received NACK on transmit of address
+    // 0 = success
+    retVal = Wire.endTransmission();
+    _DBGF(PSTR("(i) external clock, status: %d\n"), retVal);
+    if (retVal != 0) {
+        return -1;
+    }
+
+    Wire.beginTransmission(SIADDR);
+    Wire.write(0); // Device Status
+    Wire.endTransmission();
+    size_t bytes_read = Wire.requestFrom((uint8_t)SIADDR, (size_t)1, false);
+
+    if (bytes_read == 1) {
+        retVal = Wire.read();
+        if ((retVal & 0x80) == 0) {
+            // SYS_INIT indicates device is ready.
+            rto.extClockGenDetected = 1;
+        } else {
+            return 0;
+        }
+    } else {
+        return -1;
+    }
+
+    _DBGN(F("external clock detected"));
+
+    Si.init(25000000L); // many Si5351 boards come with 25MHz crystal; 27000000L for one with 27MHz
+    Wire.beginTransmission(SIADDR);
+    Wire.write(183); // XTAL_CL
+    Wire.write(xtal_cl);
+    Wire.endTransmission();
+    Si.setPower(0, SIOUT_6mA);
+    Si.setFreq(0, rto.freqExtClockGen);
+    Si.disable(0);
+    return 1;
+}
+
+/**
  * @brief Check if TV chip is acting as expeced when all systems are powered-on
  *        (this function sets rto.boardHasPower status variable)
  *
  * @return true
  * @return false
  */
-bool checkBoardPower()
+bool utilsCheckBoardPower()
 {
-    // assume everything works fine, then read specific registers and decide
-    rto.boardHasPower = true;
-    // check DAC
+    // check DAC (disabled by default)
     if(!rto.isInLowPowerMode && GBS::DAC_RGBS_PWDNZ::read() == 0) {
-        _DBGN(F("(!) DAC is in power down mode"));
-        goto board_power_bad;
+        _DBGN(F("(i) DAC is in power down mode"));
+        // goto board_power_bad;
     }
 
     // check ADC
@@ -609,16 +671,19 @@ bool checkBoardPower()
     }
 
     // check PLL power
-    if(GBS::PLLAD_PDZ::read() == 0) {
-        _DBGN(F("(!) PLL is in power down mode"));
-        goto board_power_bad;
-    }
+    // if(GBS::PLLAD_PDZ::read() == 0) {
+    //     _DBGN(F("(i) PLL is in power down mode"));
+    //     // goto board_power_bad;
+    // }
 
-    return true;
+    rto.boardHasPower = true;
+    goto board_power_end;
 
 board_power_bad:
     rto.boardHasPower = false;
-    return false;
+
+board_power_end:
+    return rto.boardHasPower;
 
     // GBS::ADC_UNUSED_69::write(0x6a); // 0110 1010
     // if (GBS::ADC_UNUSED_69::read() == 0x6a) {
@@ -634,25 +699,6 @@ board_power_bad:
     // rto.boardHasPower = false;
 
     // return false;
-
-    // stopWire(); // sets pinmodes SDA, SCL to INPUT
-    // uint8_t SCL_SDA = 0;
-    // for (int i = 0; i < 2; i++) {
-    //   SCL_SDA += digitalRead(SCL);
-    //   SCL_SDA += digitalRead(SDA);
-    // }
-
-    // if (SCL_SDA != 6)
-    //{
-    //   if (rto.boardHasPower == true) {
-    //     _WSN("! power / i2c lost !");
-    //   }
-    //   // I2C stays off and pins are INPUT
-    //   return 0;
-    // }
-
-    // startWire();
-    // return 1;
 }
 
 /**
@@ -662,12 +708,15 @@ board_power_bad:
  *        state machine is only reset by external reset..."
  *
  */
-void resetAllOffline() {
+void utilsResetAllOffline() {
     GBS::PLL_VCORST::write(1);
 
     GBS::ADC_POWDZ::write(0);
     GBS::PLLAD_PDZ::write(0);
+    GBS::PLLAD_LEN::write(0);
     GBS::DAC_RGBS_PWDNZ::write(0);
+    GBS::OUT_SYNC_CNTRL::write(0);
+    GBS::SFTRST_VDS_RSTZ::write(0);
     GBS::SFTRST_SYNC_RSTZ::write(0);
     GBS::SFTRST_DEC_RSTZ::write(0);
     GBS::SFTRST_IF_RSTZ::write(0);
@@ -676,22 +725,25 @@ void resetAllOffline() {
     GBS::SFTRST_MEM_RSTZ::write(0);
     GBS::SFTRST_FIFO_RSTZ::write(0);
     GBS::SFTRST_OSD_RSTZ::write(0);
-    GBS::SFTRST_VDS_RSTZ::write(0);
     GBS::SFTRST_MODE_RSTZ::write(0);
     GBS::SFTRST_HDBYPS_RSTZ::write(0);
     GBS::SFTRST_INT_RSTZ::write(0);
+
+    GBS::PAD_CONTROL_00_0x48::write(0);
+    GBS::PAD_CONTROL_01_0x49::write(0);
 }
 
 /**
  * @brief All systems online
  *
  */
-void resetAllOnline() {
-    GBS::PLLAD_VCORST::write(1);
-
+void utilsResetOnline() {
     GBS::ADC_POWDZ::write(1);
-    GBS::PLLAD_PDZ::write(1);
+    resetDigital();
+    resetPLLAD();
+    GBS::PLLAD_LEN::write(1);
     GBS::DAC_RGBS_PWDNZ::write(1);
+    GBS::OUT_SYNC_CNTRL::write(1);
     GBS::SFTRST_SYNC_RSTZ::write(1);
     GBS::SFTRST_DEC_RSTZ::write(1);
     GBS::SFTRST_IF_RSTZ::write(1);
@@ -704,6 +756,63 @@ void resetAllOnline() {
     GBS::SFTRST_MODE_RSTZ::write(1);
     GBS::SFTRST_HDBYPS_RSTZ::write(1);
     GBS::SFTRST_INT_RSTZ::write(1);
+
+    // GBS::PAD_CONTROL_00_0x48::write(0x2b);
+    GBS::PAD_CKIN_ENZ::write(1);
+    GBS::PAD_CKOUT_ENZ::write(1);
+    GBS::PAD_SYNC_OUT_ENZ::write(1);
+    GBS::PAD_BLK_OUT_ENZ::write(1);
+    GBS::PAD_TRI_ENZ::write(1);
+}
+
+/**
+ * @brief Clear tv5725 registers
+ *      "All registers (except chapter 01 status register is read only)
+ *       have default value “0x00” after power up."
+ *      "All registers require segment for access.
+ *       Segment is defined in address F0."
+ *
+ */
+void utilsZeroAll()
+{
+    // this goes into utilsResetAllOffline()
+    // turn processing units off first
+    // writeOneByte(0xF0, 0);
+    // writeOneByte(0x46, 0x00); // reset controls 1
+    // writeOneByte(0x47, 0x00); // reset controls 2
+
+    // zero out entire register space = (6 segments * 255 bytes)
+    uint8_t y = 0;
+    uint8_t z = 0;
+
+    while (y < 6) {
+        writeOneByte(0xF0, y);
+        // skip RO registers
+        if(y == 0) z = 3;
+        while (z < 16) {
+            // while(w < 16) {
+            //     bank[w] = 0;
+            //     // exceptions
+            //     // if (y == 5 && z == 0 && w == 2) {
+            //     //  bank[w] = 0x51; // 5_02
+            //     //}
+            //     // if (y == 5 && z == 5 && w == 6) {
+            //     //  bank[w] = 0x01; // 5_56
+            //     //}
+            //     // if (y == 5 && z == 5 && w == 7) {
+            //     //  bank[w] = 0xC0; // 5_57
+            //     //}
+            //     w++;
+            // }
+            uint8_t bank[16];
+            memset(bank, 0, 16);
+            writeBytes(z * 16, bank, 16);
+            z++;
+        }
+        z = 0;
+        y++;
+    }
+    _DBGN(F("(!) all registers reset"));
 }
 
 /**

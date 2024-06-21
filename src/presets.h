@@ -3,7 +3,7 @@
 # File: presets.h                                                                    #
 # File Created: Thursday, 2nd May 2024 6:38:29 pm                                   #
 # Author:                                                                           #
-# Last Modified: Saturday, 15th June 2024 12:59:28 pm                     #
+# Last Modified: Wednesday, 19th June 2024 7:05:06 pm                     #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -37,7 +37,7 @@ extern char serialCommand;
 extern char userCommand;
 
 void loadPresetMdSection();
-void setResetParameters();
+void presetsResetParameters();
 void doPostPresetLoadSteps();
 void applyPresets(uint8_t result);
 void loadPresetDeinterlacerSection();

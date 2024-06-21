@@ -753,7 +753,10 @@ const createWebSocket = () => {
         )
         const freezeCaptureButton = document.querySelector(
             `button[gbs-message="F"][gbs-message-type="user"]`
-        );
+        )
+        const syncWatcherButton = document.querySelector(
+            `button[gbs-message="m"][gbs-message-type="action"]`
+        )
         if ((optionByte6 & 0x01) == 0x01)
             GBSControl.developerMode = true;
         else
@@ -784,6 +787,10 @@ const createWebSocket = () => {
             freezeCaptureButton.setAttribute('active', '')
         else
             freezeCaptureButton.removeAttribute('active')
+        if ((optionByte6 & 0x80) == 0x80)
+            syncWatcherButton.setAttribute('active', '')
+        else
+            syncWatcherButton.removeAttribute('active')
 
         // system tab
         const enableOTAButton = document.querySelector(
