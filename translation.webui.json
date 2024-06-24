@@ -647,7 +647,7 @@
         "zh": ""
     },
     "RESET_FACTORY_BUTTON_JS_ALERT_MESSAGE": {
-        "en": "<p>This action will reset your device to factory state. The data to be deleted:</p><ul><li>All Slots and Presets data,</li><li>Common parameters</li></ul><p>The device will be restarted. Are you ready to continue?</p>",
+        "en": "<p>This action will reset your device to factory state. The data to be deleted:</p><ul><li>All Slots and Presets data,</li><li>System parameters</li></ul><p>The device will be restarted. Are you ready to continue?</p>",
         "es": "<p>Restablecer el estado de fábrica. Los siguientes datos serán eliminados:</p><ul><li>Todos Perfiles y sus ajustes,</li><li>Configuración común</li></ul><p>El dispositivo se reiniciará. Está seguro de continuar?</p>",
         "ru": "<p>Сброс устройства к заводскому состоянию. Следующие данные будут удалены:</p><ul><li>Все Профили и предустановки (presets),</li><li>Общесистемные параметры</li></ul><p>Устройство будет перезапущено. Желаете продолжить?</p>",
         "zh": ""

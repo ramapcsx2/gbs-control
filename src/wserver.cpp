@@ -3,7 +3,7 @@
 # fs::File: server.cpp                                                                  #
 # fs::File Created: Friday, 19th April 2024 3:11:40 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Friday, 21st June 2024 5:23:33 pm                        #
+# Last Modified: Monday, 24th June 2024 3:18:02 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -126,8 +126,7 @@ void serverSC()
     ASSERT_LOMEM_RETURN();
     if (server.args() > 0)
     {
-        const String p = server.argName(0);
-
+        String p = server.argName(0);
         serialCommand = p.charAt(0);
 
         // hack, problem with '+' command received via url param
@@ -150,8 +149,6 @@ void serverUC()
     {
         String p = server.argName(0);
         userCommand = p.charAt(0);
-        // _DBG(F("[w] user command received: "));
-        // _DBGF("%c\n", userCommand);
     }
     server.send(200, mimeAppJson, F("[]"));
 }
@@ -1036,7 +1033,7 @@ void handleSerialCommand()
 
     _WSF(
         commandDescr,
-        PSTR("serial"),
+        PSTR("Scmd"),
         serialCommand,
         serialCommand,
         uopt.slotID,
@@ -1147,7 +1144,7 @@ void handleSerialCommand()
         {
             // if (uopt.wantPeaking == 0) { GBS::VDS_PK_Y_H_BYPS::write(1); } // 3_4e 0
             // if (rto.presetID == 0x05) {
-            if (uopt.resolutionID == Output1080p)
+            if (uopt.resolutionID == Output1080)
             {
                 GBS::VDS_PK_LB_GAIN::write(0x16); // 3_45
                 GBS::VDS_PK_LH_GAIN::write(0x0A); // 3_47
@@ -1203,16 +1200,8 @@ void handleSerialCommand()
         doPostPresetLoadSteps();
         break;
     case 'P':
-        _WS(F("auto deinterlace: "));
         rto.deinterlaceAutoEnabled = !rto.deinterlaceAutoEnabled;
-        if (rto.deinterlaceAutoEnabled)
-        {
-            _WSN(F("on"));
-        }
-        else
-        {
-            _WSN(F("off"));
-        }
+        _WSF(PSTR("auto deinterlace: %s\n"), (rto.deinterlaceAutoEnabled ? F("on") : F("off")));
         break;
     case 'p':
         if (!rto.motionAdaptiveDeinterlaceActive)
@@ -1232,35 +1221,34 @@ void handleSerialCommand()
         break;
     case 'k':               // set OutputRGBHVBypass
         setOutputRGBHVBypassMode();
-        _WSN(F("OutputRGBHVBypass mode is now active"));
-        savePresetToFS();
+        // since we update registers
+        presetSaveToFS();
         slotFlush();
+        _WSN(F("OutputRGBHVBypass mode is now active"));
         break;
     case 'K':               // set OutputHdBypass
         setOutputHdBypassMode(false);
-        _WSN(F("OutputHdBypass mode is now active"));
-        savePresetToFS();
+        // since we update registers
+        presetSaveToFS();
         slotFlush();
-        // saveUserPrefs();
+        _WSN(F("OutputHdBypass mode is now active"));
         break;
     case 'T':               // toggle auto gain
-        _WS(F("auto gain "));
         if (uopt.enableAutoGain == 0)
         {
             uopt.enableAutoGain = 1;
             setAdcGain(AUTO_GAIN_INIT);
             GBS::DEC_TEST_ENABLE::write(1);
-            _WSN(F("on"));
         }
         else
         {
             uopt.enableAutoGain = 0;
             GBS::DEC_TEST_ENABLE::write(0);
-            _WSN(F("off"));
         }
-        savePresetToFS();
+        _WSF(PSTR("auto gain: %s\n"), (uopt.enableAutoGain ? F("on") : F("off")));
+        // since we update registers
+        presetSaveToFS();
         slotFlush();
-        // saveUserPrefs();
         break;
     case 'e':
         writeProgramArrayNew(ntsc_240p, false);
@@ -1383,19 +1371,17 @@ void handleSerialCommand()
         // GBS::RFF_ENABLE::write(!GBS::RFF_ENABLE::read());
 
         // if (rto.scanlinesEnabled)
-        _DBG(F("scanlines: "));
         if (uopt.wantScanlines)
         {
-            // rto.scanlinesEnabled = false;
             disableScanlines();
             _DBGN(F("off"));
         }
         else
         {
-            // rto.scanlinesEnabled = true;
             enableScanlines();
             _DBGN(F("on"));
         }
+        _WSF(PSTR("scanlines: %s\n"), (rto.scanlinesEnabled ? F("on") : F("off")));
     }
     break;
     case 'a':
@@ -1429,22 +1415,18 @@ void handleSerialCommand()
     }
     break;
     case 'm':               // toggle syncWatcher
-        _WS(F("syncwatcher "));
         if (rto.syncWatcherEnabled == true)
         {
             rto.syncWatcherEnabled = false;
-            // if (rto.videoIsFrozen)
-            if (uopt.freezeCapture)
+            if (rto.videoIsFrozen)
             {
                 unfreezeVideo();
             }
-            _WSN(F("off"));
         }
         else
-        {
             rto.syncWatcherEnabled = true;
-            _WSN(F("on"));
-        }
+
+        _WSF(PSTR("syncwatcher: %s\n"), (rto.syncWatcherEnabled ? F("on") : F("off")));
         break;
     case ',':
         printVideoTimings();
@@ -1476,39 +1458,30 @@ void handleSerialCommand()
         ResetSDRAM();
         break;
     case 'f':               // toggle peaking
-        _WS(F("peaking "));
-        if (uopt.wantPeaking == 0)
-        {
-            uopt.wantPeaking = 1;
+        uopt.wantPeaking = !uopt.wantPeaking;
+        if (uopt.wantPeaking)
             GBS::VDS_PK_Y_H_BYPS::write(0);
-            _WSN(F("on"));
-        }
         else
-        {
-            uopt.wantPeaking = 0;
             GBS::VDS_PK_Y_H_BYPS::write(1);
-            _WSN(F("off"));
-        }
-        savePresetToFS();
+        // since we update registers
+        presetSaveToFS();
         slotFlush();
-        // saveUserPrefs();
+        _WSF(PSTR("peaking: %s\n"), (uopt.wantPeaking ? F("on") : F("off")));
         break;
     case 'F':                   // switch ADC filter button (dev.mode)
-        _WS(F("ADC filter "));
         if (GBS::ADC_FLTR::read() != 0)
         {
             GBS::ADC_FLTR::write(0);
             uopt.adcFilter = false;
-            _WSN(F("off"));
         }
         else
         {
             GBS::ADC_FLTR::write(3);
             uopt.adcFilter = true;
-            _WSN(F("on"));
         }
+        _WSF(PSTR("ADC filter: %s\n"), (GBS::ADC_FLTR::read() != 0 ? F("on") : F("off")));
         break;
-    case 'L':               // force outut component
+    case 'L':               // force output component
     {
         // Component / VGA Output
         uopt.wantOutputComponent = !uopt.wantOutputComponent;
@@ -1519,18 +1492,15 @@ void handleSerialCommand()
             videoMode = rto.videoStandardInput;
         // OutputResolution backup = uopt.resolutionID;
         // uopt.presetPreference = Output720P;
-        // uopt.resolutionID = Output720p;
+        // uopt.resolutionID = Output720;
         rto.videoStandardInput = 0; // force hard reset
         applyPresets(videoMode);
         // uopt.resolutionID = backup;
-        // saveUserPrefs();
-        savePresetToFS();
         prefsSave();
-        // savePresetToFS();
     }
     break;
     case 'l':
-        _WSN(F("resetSyncProcessor"));
+        _WSN(F("reset Sync Processor"));
         // freezeVideo();
         resetSyncProcessor();
         // delay(10);
@@ -1543,12 +1513,12 @@ void handleSerialCommand()
     //     slotFlush();
     //     uint8_t vidMode = getVideoMode();
     //     // if (uopt.presetPreference == 0 && GBS::GBS_PRESET_ID::read() == 0x11) {
-    //     if (uopt.resolutionID == Output240p && GBS::GBS_PRESET_ID::read() == Output960p50)
+    //     if (uopt.resolutionID == Output240p && GBS::GBS_PRESET_ID::read() == Output960PAL)
     //     {
     //         applyPresets(vidMode);
     //         // } else if (uopt.presetPreference == 4 && GBS::GBS_PRESET_ID::read() == 0x02) {
     //     }
-    //     else if (uopt.resolutionID == Output1024p && GBS::GBS_PRESET_ID::read() == Output1024p)
+    //     else if (uopt.resolutionID == Output1024 && GBS::GBS_PRESET_ID::read() == Output1024)
     //     {
     //         applyPresets(vidMode);
     //     }
@@ -1564,8 +1534,8 @@ void handleSerialCommand()
         break;
     case 'R':
         writeProgramArrayNew(pal_1280x1024, false);
-        _WSN(F("pal_1280x1024 is now active"));
         doPostPresetLoadSteps();
+        _WSN(F("pal_1280x1024 is now active"));
         break;
     case '0':
         moveHS(4, true);
@@ -1575,8 +1545,8 @@ void handleSerialCommand()
         break;
     case '2':
         writeProgramArrayNew(pal_768x576, false); // ModeLine "720x576@50" 27 720 732 795 864 576 581 586 625 -hsync -vsync
-        _WSN(F("pal_768x576 is now active"));
         doPostPresetLoadSteps();
+        _WSN(F("pal_768x576 is now active"));
         break;
     // case '3':
     //     break;
@@ -2073,9 +2043,9 @@ void handleSerialCommand()
             GBS::VDS_UV_STEP_BYPS::write(1);
             _WSN(F("off"));
         }
-        savePresetToFS();
+        // since we update registers
+        presetSaveToFS();
         slotFlush();
-        // saveUserPrefs();
     }
     break;
     case 'S':
@@ -2142,7 +2112,7 @@ void handleUserCommand()
 
     _WSF(
         commandDescr,
-        PSTR("user"),
+        PSTR("Ucmd"),
         userCommand,
         userCommand,
         uopt.slotID,
@@ -2152,20 +2122,16 @@ void handleUserCommand()
     switch (userCommand)
     {
     case '0':               // force increase frequency to 60Hz for PAL 50Hz
-        _WS(F("pal force 60hz "));
         uopt.PalForce60 = !uopt.PalForce60;
-        if (uopt.PalForce60 == 1)
-            _WSN(F("on"));
-        else
-            _WSN(F("off"));
+        // TODO apply presets here!
         slotFlush();
+        _WSF(PSTR("pal force 60hz %s\n"), (uopt.PalForce60 == 1 ? F("on") : F("off")));
         break;
     case '1':               // reset to factory defaults button
         // active slot settings reset
         fsToFactory();
-        // common parameters reset
+        // reset common parameters
         prefsLoadDefaults();
-        // saveUserPrefs();
         prefsSave();
         _WSN(F("(!) factory defaults has been restored, restarting"));
         resetInMSec(2000);
@@ -2189,13 +2155,8 @@ void handleUserCommand()
         if (rto.videoStandardInput == 14) {
             // vga upscale path: let synwatcher handle it
             rto.videoStandardInput = 15;
-        } else {
+        } else
             applyPresets(rto.videoStandardInput);
-            // if at this point isCustomPreset it true,
-            // then preset is loaded from FS, therefore no need to save it again
-            if(!rto.isCustomPreset)
-                savePresetToFS();
-        }
     }
     break;
     // case '4':
@@ -2224,9 +2185,9 @@ void handleUserCommand()
     // case '6':
     //     break;
     case '7':           // toggle scanlines
-        // uopt.wantScanlines = !uopt.wantScanlines;
+        uopt.wantScanlines = !uopt.wantScanlines;
         _WS(F("scanlines: "));
-        if (!uopt.wantScanlines)
+        if (uopt.wantScanlines)
         {
             enableScanlines();
             _WSN(F("on (Line Filter recommended)"));
@@ -2236,7 +2197,7 @@ void handleUserCommand()
             disableScanlines();
             _WSN(F("off"));
         }
-        savePresetToFS();
+        presetSaveToFS();
         slotFlush();
         // saveUserPrefs();
         break;
@@ -2284,6 +2245,7 @@ void handleUserCommand()
         //
         _WSF(
             PSTR("\nruntime parameters:\n"\
+                "  slotIsCustom: %d\n" \
                 "  boardHasPower: %d\n"\
                 "  syncWatcherEnabled: %d\n" \
                 "  inputIsYPbPr: %d\n"\
@@ -2295,7 +2257,6 @@ void handleUserCommand()
                 "  syncTypeCsync: %d\n" \
                 "  thisSourceMaxLevelSOG: %d\n" \
                 "  medResLineCount: %d\n" \
-                "  isCustomPreset: %d\n" \
                 "  presetDisplayClock: %d\n" \
                 "  freqExtClockGen: %ld\n" \
                 "  noSyncCounter: %d\n" \
@@ -2322,6 +2283,7 @@ void handleUserCommand()
                 "  useHdmiSyncFix: %d\n" \
                 "  extClockGenDetected: %d\n\n"
             ),
+            uopt.slotIsCustom,
             rto.boardHasPower,
             rto.syncWatcherEnabled,
             rto.inputIsYPbPr,
@@ -2333,7 +2295,6 @@ void handleUserCommand()
             rto.syncTypeCsync,
             rto.thisSourceMaxLevelSOG,
             rto.medResLineCount,
-            rto.isCustomPreset,
             rto.presetDisplayClock,
             rto.freqExtClockGen,
             rto.noSyncCounter,
@@ -2375,6 +2336,7 @@ void handleUserCommand()
     case 'h':           // 480p
     case 'j':           // 240p
     case 'L':           // 15kHz/downscale
+    case 'W':           // bypass
     {
         // load preset via webui
         uint8_t videoMode = getVideoMode();
@@ -2384,25 +2346,25 @@ void handleUserCommand()
         // else videoMode stays 0 and we'll apply via some assumptions
         if (userCommand == 'f')
             // uopt.presetPreference = Output960P; // 1280x960
-            uopt.resolutionID = Output960p; // 1280x960
-        if (userCommand == 'g')
+            uopt.resolutionID = Output960; // 1280x960
+        else if (userCommand == 'g')
             // uopt.presetPreference = Output720P; // 1280x720
-            uopt.resolutionID = Output720p; // 1280x720
-        if (userCommand == 'h')
+            uopt.resolutionID = Output720; // 1280x720
+        else if (userCommand == 'h')
             // uopt.presetPreference = Output480P; // 720x480/768x576
-            uopt.resolutionID = Output480p; // 720x480/768x576
-        if (userCommand == 'p')
+            uopt.resolutionID = Output480; // 720x480/768x576
+        else if (userCommand == 'p')
             // uopt.presetPreference = Output1024P; // 1280x1024
-            uopt.resolutionID = Output1024p; // 1280x1024
-        if (userCommand == 's')
+            uopt.resolutionID = Output1024; // 1280x1024
+        else if (userCommand == 's')
             // uopt.presetPreference = Output1080P; // 1920x1080
-            uopt.resolutionID = Output1080p; // 1920x1080
-        if (userCommand == 'L')
+            uopt.resolutionID = Output1080; // 1920x1080
+        else if (userCommand == 'L')
             // uopt.presetPreference = OutputDownscale; // downscale
             uopt.resolutionID = Output15kHz; // downscale
-        if (userCommand == 'k')
-            uopt.resolutionID = Output576p50; // PAL
-        if (userCommand == 'j')
+        else if (userCommand == 'k')
+            uopt.resolutionID = Output576PAL; // PAL
+        else if (userCommand == 'j')
             uopt.resolutionID = Output240p; // 240p
 
         rto.useHdmiSyncFix = 1; // disables sync out when programming preset
@@ -2418,13 +2380,7 @@ void handleUserCommand()
             // resolution is stored in GBSC registers
             // doing this after applyPresets to be able to find if resolution has changed
             GBS::GBS_PRESET_ID::write(uopt.resolutionID);
-            // if at this point isCustomPreset it true, then preset is loaded from FS and
-            // resolution doesn't change, therefore no need to save it again
-            if(!rto.isCustomPreset) {
-                savePresetToFS();
-                slotFlush();
-            }
-            // saveUserPrefs();
+            slotFlush();
         }
     }
     break;
@@ -2457,25 +2413,33 @@ void handleUserCommand()
             _WS(F("SDRAM clock: "));
             uint8_t PLL_MS = GBS::PLL_MS::read();
 
-            if (PLL_MS == 0)
+            if (PLL_MS == 0) {
+                _WS(F("100MHz -> "));
                 PLL_MS = 0b001;
-            else if (PLL_MS == 0x001)
+            } else if (PLL_MS == 0x001) {
+                _WS(F("81MHz ->"));
                 PLL_MS = 0b010;
-            else if (PLL_MS == 0b010)
+            } else if (PLL_MS == 0b010) {
+                _WS(F("feedback clock -> "));
                 PLL_MS = 0b011;
-            else if (PLL_MS == 0b011)
+            } else if (PLL_MS == 0b011) {
+                _WS(F("162MHz -> "));
                 PLL_MS = 0b100;
-            else if (PLL_MS == 0b100)
+            } else if (PLL_MS == 0b100) {
+                _WS(F("144MHz -> "));
                 PLL_MS = 0b101;
-            else if (PLL_MS == 0b101)
+            } else if (PLL_MS == 0b101) {
+                _WS(F("185MHz -> "));
                 PLL_MS = 0b110;
-            else if (PLL_MS == 0b110)
+            } else if (PLL_MS == 0b110) {
+                _WS(F("216MHz -> "));
                 PLL_MS = 0b111;
-            else
+            } else {
+                _WS(F("129.6 -> "));
                 PLL_MS = 0;
+            }
 
-            switch (PLL_MS)
-            {
+            switch (PLL_MS) {
             case 0:
                 _WSN(F("100MHz"));
                 break;
@@ -2521,7 +2485,7 @@ void handleUserCommand()
             GBS::VDS_D_RAM_BYPS::write(0);
             _WSN(F("on"));
         }
-        savePresetToFS();
+        presetSaveToFS();
         slotFlush();
         // saveUserPrefs();
         break;
@@ -2621,7 +2585,8 @@ void handleUserCommand()
             // saveUserPrefs();
             _WSN(F("Deinterlacer: Motion Adaptive"));
         }
-        savePresetToFS();
+        // since we update registers
+        presetSaveToFS();
         slotFlush();
         break;
     // case 'r':
@@ -2643,14 +2608,16 @@ void handleUserCommand()
             GBS::MADPT_Y_DELAY_UV_DELAY::write(GBS::MADPT_Y_DELAY_UV_DELAY::read() + 1);
             _WSN(F("off"));
         }
-        // saveUserPrefs();
+        // since we update registers
+        presetSaveToFS();
         slotFlush();
         break;
     case 'u':       // extract backup
         extractBackup();
+        // load new prefs for resetting slotID
+        prefsLoad();
         // reset active slot
         uopt.slotID = 0;
-        // saveUserPrefs();
         prefsSave();
         // reset device to apply new configuration
         resetInMSec(2000);
@@ -2658,44 +2625,29 @@ void handleUserCommand()
     case 'v':           // toggle full Height
     {
         uopt.wantFullHeight = !uopt.wantFullHeight;
-        // saveUserPrefs();
-        slotFlush();
         uint8_t vidMode = getVideoMode();
         // if (uopt.presetPreference == 5) {
-        if (uopt.resolutionID == Output1080p)
-        {
-            if (GBS::GBS_PRESET_ID::read() == 0x05 || GBS::GBS_PRESET_ID::read() == 0x15)
-            {
-                applyPresets(vidMode);
-            }
-        }
-        savePresetToFS();
+        // if (uopt.resolutionID == Output1080 || uopt.resolutionID == Output1080PAL)
+        // {
+            applyPresets(vidMode);
+        // }
+        slotFlush();
     }
     break;
     case 'w':                   // ADC calibration
-        _WS(F("ADC calibration: "));
         uopt.enableCalibrationADC = !uopt.enableCalibrationADC;
-        if(uopt.enableCalibrationADC)
-            _WSN(F("on"));
-        else
-            _WSN(F("off"));
-        // saveUserPrefs();
-        savePresetToFS();
+        presetSaveToFS();
         prefsSave();
+        _WSF(PSTR("ADC calibration: %s\n"), (uopt.enableCalibrationADC ? F("on") : F("off")));
         break;
     case 'x':                   // do upscaling on low resolutions (preferScalingRgbhv)
-        uopt.preferScalingRgbhv = !uopt.preferScalingRgbhv;
-        _WS(F("preferScalingRgbhv: "));
-        if (uopt.preferScalingRgbhv)
         {
-            _WSN(F("on"));
+            uopt.preferScalingRgbhv = !uopt.preferScalingRgbhv;
+            _WSF(PSTR("preferScalingRgbhv: %s\n"), (uopt.preferScalingRgbhv ? F("on") : F("off")));
+            uint8_t videomode = getVideoMode();
+            applyPresets(videomode);
+            prefsSave();
         }
-        else
-        {
-            _WSN(F("off"));
-        }
-        // saveUserPrefs();
-        prefsSave();
         break;
     case 'X':                   // enable/disable ext. clock generator
         _WS(F("external clock generator: "));
@@ -2710,19 +2662,14 @@ void handleUserCommand()
             uopt.disableExternalClockGenerator = false;
             utilsExternClockGenInit();
         }
-        // saveUserPrefs();
+        // TODO do restart here?
         prefsSave();
         break;
-    case 'z':
-        // sog slicer level
+    case 'z':                   // sog slicer level
         if (rto.currentLevelSOG > 0)
-        {
             rto.currentLevelSOG -= 1;
-        }
         else
-        {
             rto.currentLevelSOG = 16;
-        }
         setAndUpdateSogLevel(rto.currentLevelSOG);
         optimizePhaseSP();
         _WSF(
@@ -2732,16 +2679,8 @@ void handleUserCommand()
         break;
     case 'E':
         // test option for now
-        _WS(F("IF Auto Offset: "));
         toggleIfAutoOffset();
-        if (GBS::IF_AUTO_OFST_EN::read())
-        {
-            _WSN(F("on"));
-        }
-        else
-        {
-            _WSN(F("off"));
-        }
+        _WSF(PSTR("IF auto offset: "), (GBS::IF_AUTO_OFST_EN::read() ? F("on") : F("off")));
         break;
     case 'F':           // freeze pic
         if (GBS::CAPTURE_ENABLE::read() == 0)
@@ -2757,22 +2696,18 @@ void handleUserCommand()
         break;
     case 'K':           // scanline strength
         if (uopt.scanlineStrength >= 0x10)
-        {
             uopt.scanlineStrength -= 0x10;
-        }
         else
-        {
             uopt.scanlineStrength = 0x50;
-        }
         // if (rto.scanlinesEnabled)
         if (uopt.wantScanlines)
         {
             GBS::MADPT_Y_MI_OFFSET::write(uopt.scanlineStrength);
             GBS::MADPT_UV_MI_OFFSET::write(uopt.scanlineStrength);
         }
-        savePresetToFS();
+        // since we update registers
+        presetSaveToFS();
         slotFlush();
-        // saveUserPrefs();
         _WSF(PSTR("scanline strength set: 0x%04X\n"), uopt.scanlineStrength);
         break;
     case 'Z':           // brightness++
@@ -3048,7 +2983,7 @@ void webSocketEvent(uint8_t num, uint8_t type, uint8_t * payload, size_t length)
                     toSend[6] |= (1 << 4);
                 if(uopt.debugView)
                     toSend[6] |= (1 << 5);
-                if(uopt.freezeCapture)
+                if(rto.videoIsFrozen)
                     toSend[6] |= (1 << 6);
                 if(rto.syncWatcherEnabled)
                     toSend[6] |= (1 << 7);

@@ -3,7 +3,7 @@
 # File: video.h                                                                     #
 # File Created: Thursday, 2nd May 2024 4:08:03 pm                                   #
 # Author:                                                                           #
-# Last Modified: Wednesday, 19th June 2024 8:02:40 pm                     #
+# Last Modified: Sunday, 23rd June 2024 12:15:28 am                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -18,7 +18,7 @@
 #include "framesync.h"
 
 extern unsigned long lastVsyncLock;
-extern void doPostPresetLoadSteps();
+extern void doPostPresetLoadSteps(bool forceApply);
 extern void printInfo();
 extern void loadPresetMdSection();
 extern void loadPresetDeinterlacerSection();
@@ -45,7 +45,7 @@ void setAndUpdateSogLevel(uint8_t level);
 bool optimizePhaseSP();
 void setOverSampleRatio(uint8_t newRatio, bool prepareOnly);
 void updateStopPositionDynamic(bool withCurrentVideoModeCheck);
-void setOutputHdBypassMode(bool regsInitialized);
+void setOutputHdBypassMode(bool regsInitialized = true);
 void setAdcGain(uint8_t gain);
 void resetSyncProcessor();
 void togglePhaseAdjustUnits();

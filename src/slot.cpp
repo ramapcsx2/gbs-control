@@ -3,7 +3,7 @@
 # File: slot.cpp                                                          #
 # File Created: Friday, 31st May 2024 8:41:15 am                          #
 # Author: Sergey Ko                                                       #
-# Last Modified: Tuesday, 18th June 2024 1:29:36 pm                       #
+# Last Modified: Monday, 24th June 2024 2:16:13 pm                        #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -23,6 +23,8 @@ bool slotLoad(const uint8_t & slotIndex) {
     SlotMetaArray slotsObject;
     uopt.slotID = slotIndex;
     fs::File slotsBinaryFile = LittleFS.open(FPSTR(slotsFile), "r");
+    // reset custom slot indicator
+    uopt.slotIsCustom = false;
     if (slotsBinaryFile)
     {
         slotsBinaryFile.read((byte *)&slotsObject, sizeof(slotsObject));
@@ -43,6 +45,11 @@ bool slotLoad(const uint8_t & slotIndex) {
         uopt.wantFullHeight = (bool)slotsObject.slot[slotIndex].wantFullHeight;
         // uopt.matchPresetSource = slotsObject.slot[slotIndex].matchPresetSource;
         uopt.PalForce60 = (bool)slotsObject.slot[slotIndex].PalForce60;
+        // identify if slot is customized
+        String slot_name = String(emptySlotName);
+        if(strcmp(slotsObject.slot[slotIndex].name, slot_name.c_str()) != 0) {
+            uopt.slotIsCustom = true;
+        }
         return true;
     }
     return false;
@@ -108,7 +115,7 @@ int8_t slotGetData(SlotMetaArray & slotsObject) {
     while (i < SLOTS_TOTAL)
     {
         slotsObject.slot[i].scanlines = 0;
-        slotsObject.slot[i].resolutionID = Output240p;
+        slotsObject.slot[i].resolutionID = Output480;
         slotsObject.slot[i].scanlinesStrength = 0x30;
         slotsObject.slot[i].wantVdsLineFilter = 0;
         slotsObject.slot[i].wantStepResponse = 1;
@@ -153,6 +160,13 @@ bool slotSetData(SlotMetaArray & slotsObject) {
     if(slotsBinaryFile) {
         slotsBinaryFile.write((byte *)&slotsObject, sizeof(slotsObject));
         slotsBinaryFile.close();
+        String slot_name = String(emptySlotName);
+        if(strcmp(slotsObject.slot[uopt.slotID].name, slot_name.c_str()) != 0) {
+            // now it's a custom preset
+            uopt.slotIsCustom = true;
+            // dump preset data
+            presetSaveToFS();
+        }
         return true;
     }
     return false;
@@ -165,6 +179,13 @@ bool slotSetData(SlotMetaArray & slotsObject) {
  * @return false
  */
 bool slotFlush() {
+    // proceed with update ONLY if it's previously
+    // created (slot/set) slot
+    if(!uopt.slotIsCustom) {
+        _DBGN(F("(!) this is not a custom slot, omit update..."));
+        return false;
+    }
+
     SlotMetaArray slotObject;
     // retrieve data
     if(slotGetData(slotObject) == -1)
@@ -209,7 +230,7 @@ bool slotResetFlush(const uint8_t & slotIndex) {
 void slotResetDefaults(SlotMetaArray & slotsObject, const uint8_t & slotIndex) {
     // here could be memcpy of a new object...
     String slot_name = String(emptySlotName);
-    slotsObject.slot[slotIndex].resolutionID = Output240p;
+    slotsObject.slot[slotIndex].resolutionID = Output480;
     slotsObject.slot[slotIndex].scanlines = 0;
     slotsObject.slot[slotIndex].scanlinesStrength = 0x30;
     slotsObject.slot[slotIndex].wantVdsLineFilter = 0;
@@ -231,7 +252,7 @@ void slotResetDefaults(SlotMetaArray & slotsObject, const uint8_t & slotIndex) {
     // if that was current slot, also reset the runtime paramters
     // TODO: see prefsLoadDefaults()
     if(slotIndex == uopt.slotID) {
-        uopt.resolutionID = Output240p;
+        uopt.resolutionID = Output480;
         GBS::GBS_PRESET_ID::write((uint8_t)uopt.resolutionID);
         uopt.wantScanlines = false;
         uopt.scanlineStrength = SCANLINE_STRENGTH_INIT;

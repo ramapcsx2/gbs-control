@@ -5,6 +5,7 @@
 #include "options.h"
 #include "tv5725.h"
 #include "wserial.h"
+#include "presets.h"
 
 // SLOTS
 const char slotsFile[] PROGMEM = "/slots.bin"; // the file where to store slots metadata

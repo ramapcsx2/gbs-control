@@ -166,10 +166,8 @@ const GBSControl = {
         12: 'button15kHz',
         13: 'button15kHz', // 50Hz
         15: 'button576p', // 50Hz
-        // q: 'buttonSourcePassThrough',
         18: 'buttonSourcePassThrough', // OutputHdBypass
         20: 'buttonSourcePassThrough', // OutputRGBHVBypass
-        // 'w': "buttonLoadCustomPreset",
     },
     controlKeysMobileMode: 'move',
     controlKeysMobile: {
@@ -662,6 +660,8 @@ const createWebSocket = () => {
         // curent resolution
         // const resID = GBSControl.buttonMapping[String.fromCharCode(optionByte2)]
         const resID = GBSControl.buttonMapping[optionByte2]
+        // TODO somehow indicate that this is passthrough which is scaled
+        //      if (optionByte5 & 0x04) == 0x04 && RGB/HV is detected
         const resEl = document.querySelector(`[gbs-element-ref="${resID}"]`)
         const activePresetButton = resEl
             ? resEl.getAttribute('gbs-element-ref')

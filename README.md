@@ -244,7 +244,7 @@ For more details visit: https://github.com/JAndrassy/ArduinoOTA/blob/master/READ
 ### Slots vs Presets
 
 - Preset - is a collection of predefined runtime values (including output screen resolution, etc). 
-  - Custom presets - a collection of predefined runtime values stored on GBSC filesystem.
+  - Custom presets - a collection of predefined runtime values stored on GBSC filesystem. Custom presets are created and updated together with correspondng Slot.
 - Slot - is a collection of Presets.
 - Preferences - a collection of parameters which are used system-wide independently of Slots and Presets. So when Slot changes which causes Preset to change, Preferences will remain the same until user not to switch them manually.
 
@@ -306,11 +306,11 @@ ESP8266 version of the factory built GBSC, boots into firmware upload mode by pr
 - [ ] Invert Sync issue
 - [ ] PassThrough doesn't work
 - [ ] preferScalingRgbhv doesn't work (?)
-- [ ] device disconnects from WiFi when displaying Output status on screen
-- [ ] disable ambigous preset paramters inside slots
-  - [ ] startup reuntime parameters loading malfunction
+- [x] device disconnects from WiFi when displaying Output status
+- [x] disable ambigous preset paramters inside slots
+  - [ ] startup runtime parameters loading malfunction
 - [ ] De-interlacer noise reduction ctl.
-- [ ] color artifacts on screen depending on SDRAM frequency
+- [ ] color artifacts on high SDRAM refresh rates
 - [x] fix OLEDMenu items list offset
 - [x] feature request [#553]
 - [x] creation/destruction OLEDMenuItem procedure

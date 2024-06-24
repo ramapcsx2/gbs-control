@@ -55,7 +55,6 @@ bool osdScanlines(OSDMenuConfig &config)
         }
         GBS::MADPT_Y_MI_OFFSET::write(uopt.scanlineStrength);
         // saveUserPrefs();
-        savePresetToFS();
         slotFlush();
     }
     config.barLength = 128;

@@ -3,7 +3,7 @@
 # File: presets.h                                                                    #
 # File Created: Thursday, 2nd May 2024 6:38:29 pm                                   #
 # Author:                                                                           #
-# Last Modified: Wednesday, 19th June 2024 7:05:06 pm                     #
+# Last Modified: Saturday, 22nd June 2024 4:58:21 pm                      #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -38,14 +38,14 @@ extern char userCommand;
 
 void loadPresetMdSection();
 void presetsResetParameters();
-void doPostPresetLoadSteps();
+void doPostPresetLoadSteps(bool forceApply = false);
 void applyPresets(uint8_t result);
 void loadPresetDeinterlacerSection();
 
 #if defined(ESP8266)
 
-const uint8_t *loadPresetFromFS(byte forVideoMode);
-void savePresetToFS();
+const uint8_t * presetLoadFromFS(byte forVideoMode);
+void presetSaveToFS();
 
 #endif                      // defined(ESP8266)
 

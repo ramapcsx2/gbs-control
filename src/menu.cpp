@@ -3,7 +3,7 @@
 # File: menu.cpp                                                          #
 # File Created: Thursday, 2nd May 2024 11:31:34 pm                        #
 # Author:                                                                 #
-# Last Modified: Thursday, 20th June 2024 6:26:05 pm                      #
+# Last Modified: Monday, 24th June 2024 1:36:31 pm                        #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -195,14 +195,12 @@ void settingsMenuOLED()
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
                 videoMode = rto.videoStandardInput;
             // uopt.presetPreference = Output960P;
-            uopt.resolutionID = Output960p;
+            uopt.resolutionID = Output960;
             rto.useHdmiSyncFix = 1;
             if (rto.videoStandardInput == 14) {
                 rto.videoStandardInput = 15;
             } else {
                 applyPresets(videoMode);
-                // saveUserPrefs();
-                savePresetToFS();
             }
             oled_selectOption = 1;
             oled_subsetFrame = 1;
@@ -219,14 +217,12 @@ void settingsMenuOLED()
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
                 videoMode = rto.videoStandardInput;
             // uopt.presetPreference = Output1024P;
-            uopt.resolutionID = Output1024p;
+            uopt.resolutionID = Output1024;
             rto.useHdmiSyncFix = 1;
             if (rto.videoStandardInput == 14) {
                 rto.videoStandardInput = 15;
             } else {
                 applyPresets(videoMode);
-                // saveUserPrefs();
-                savePresetToFS();
             }
             oled_selectOption = 1;
             oled_subsetFrame = 1;
@@ -243,14 +239,12 @@ void settingsMenuOLED()
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
                 videoMode = rto.videoStandardInput;
             // uopt.presetPreference = Output720P;
-            uopt.resolutionID = Output720p;
+            uopt.resolutionID = Output720;
             rto.useHdmiSyncFix = 1;
             if (rto.videoStandardInput == 14) {
                 rto.videoStandardInput = 15;
             } else {
                 applyPresets(videoMode);
-                // saveUserPrefs();
-                savePresetToFS();
             }
             oled_selectOption = 1;
             oled_subsetFrame = 1;
@@ -267,14 +261,12 @@ void settingsMenuOLED()
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
                 videoMode = rto.videoStandardInput;
             // uopt.presetPreference = Output1080P;
-            uopt.resolutionID = Output1080p;
+            uopt.resolutionID = Output1080;
             rto.useHdmiSyncFix = 1;
             if (rto.videoStandardInput == 14) {
                 rto.videoStandardInput = 15;
             } else {
                 applyPresets(videoMode);
-                // saveUserPrefs();
-                savePresetToFS();
             }
             oled_selectOption = 1;
             oled_subsetFrame = 1;
@@ -290,14 +282,12 @@ void settingsMenuOLED()
             }
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
                 videoMode = rto.videoStandardInput;
-            uopt.resolutionID = Output480p;
+            uopt.resolutionID = Output480;
             rto.useHdmiSyncFix = 1;
             if (rto.videoStandardInput == 14) {
                 rto.videoStandardInput = 15;
             } else {
                 applyPresets(videoMode);
-                // saveUserPrefs();
-                savePresetToFS();
             }
             oled_selectOption = 1;
             oled_subsetFrame = 2;
@@ -320,8 +310,6 @@ void settingsMenuOLED()
                 rto.videoStandardInput = 15;
             } else {
                 applyPresets(videoMode);
-                // saveUserPrefs();
-                savePresetToFS();
             }
             oled_selectOption = 1;
             oled_subsetFrame = 2;
@@ -335,6 +323,7 @@ void settingsMenuOLED()
                 display.drawString(0, 30, "Loaded!");
                 display.display();
             }
+            // registers uninitialized do post preset
             setOutputHdBypassMode(false);
             // uopt.presetPreference = OutputBypass;
             // if (uopt.presetPreference == 10 && rto.videoStandardInput != 15) {
@@ -348,8 +337,7 @@ void settingsMenuOLED()
             } else {
                 rto.applyPresetDoneStage = 1;
             }
-            // saveUserPrefs();
-            savePresetToFS();
+            presetSaveToFS();
             oled_selectOption = 1;
             oled_subsetFrame = 2;
         }
@@ -408,8 +396,6 @@ void settingsMenuOLED()
                 rto.videoStandardInput = 15;
             } else {
                 applyPresets(rto.videoStandardInput);
-                // saveUserPrefs();
-                savePresetToFS();
             }
             delay(50);             // allowing "catchup"
             oled_selectOption = 1; // reset select container
@@ -435,8 +421,6 @@ void settingsMenuOLED()
                 rto.videoStandardInput = 15;
             } else {
                 applyPresets(rto.videoStandardInput);
-                // saveUserPrefs();
-                savePresetToFS();
             }
             delay(50);
             oled_selectOption = 1;
@@ -447,7 +431,6 @@ void settingsMenuOLED()
             // uopt.slotID = 'C';
             // uopt.presetPreference = OutputCustomized;
             uopt.resolutionID = OutputCustom;
-            // saveUserPrefs();
             for (int i = 0; i <= 280; i++) {
                 display.clear();
                 display.setFont(Open_Sans_Regular_20);
@@ -462,8 +445,6 @@ void settingsMenuOLED()
                 rto.videoStandardInput = 15;
             } else {
                 applyPresets(rto.videoStandardInput);
-                // saveUserPrefs();
-                savePresetToFS();
             }
             delay(50);
             oled_selectOption = 1;
@@ -489,8 +470,6 @@ void settingsMenuOLED()
                 rto.videoStandardInput = 15;
             } else {
                 applyPresets(rto.videoStandardInput);
-                // saveUserPrefs();
-                savePresetToFS();
             }
             delay(50);
             oled_selectOption = 1;
@@ -516,8 +495,6 @@ void settingsMenuOLED()
                 rto.videoStandardInput = 15;
             } else {
                 applyPresets(rto.videoStandardInput);
-                // saveUserPrefs();
-                savePresetToFS();
             }
             delay(50);
             oled_selectOption = 1;
@@ -543,8 +520,6 @@ void settingsMenuOLED()
                 rto.videoStandardInput = 15;
             } else {
                 applyPresets(rto.videoStandardInput);
-                // saveUserPrefs();
-                savePresetToFS();
             }
             delay(50);
             oled_selectOption = 1;
@@ -570,8 +545,6 @@ void settingsMenuOLED()
                 rto.videoStandardInput = 15;
             } else {
                 applyPresets(rto.videoStandardInput);
-                // saveUserPrefs();
-                savePresetToFS();
             }
             delay(50);
             oled_selectOption = 1;
@@ -664,25 +637,25 @@ void settingsMenuOLED()
         display.setTextAlignment(TEXT_ALIGN_LEFT);
 
         // if (rto.presetID == 0x01 || rto.presetID == 0x11) {
-        if (uopt.resolutionID == Output960p || uopt.resolutionID == Output960p50) {
+        if (uopt.resolutionID == Output960 || uopt.resolutionID == Output960PAL) {
             display.drawString(0, 0, "1280x960");
         // } else if (rto.presetID == 0x02 || rto.presetID == 0x12) {
-        } else if (uopt.resolutionID == Output1024p || uopt.resolutionID == Output1024p50) {
+        } else if (uopt.resolutionID == Output1024 || uopt.resolutionID == Output1024PAL) {
             display.drawString(0, 0, "1280x1024");
         // } else if (rto.presetID == 0x03 || rto.presetID == 0x13) {
-        } else if (uopt.resolutionID == Output720p || uopt.resolutionID == Output720p50) {
+        } else if (uopt.resolutionID == Output720 || uopt.resolutionID == Output720PAL) {
             display.drawString(0, 0, "1280x720");
         // } else if (rto.presetID == 0x05 || rto.presetID == 0x15) {
-        } else if (uopt.resolutionID == Output1080p || uopt.resolutionID == Output1080p50) {
+        } else if (uopt.resolutionID == Output1080 || uopt.resolutionID == Output1080PAL) {
             display.drawString(0, 0, "1920x1080");
         // } else if (rto.presetID == 0x06 || rto.presetID == 0x16) {
-        } else if (uopt.resolutionID == Output15kHz || uopt.resolutionID == Output15kHz50) {
+        } else if (uopt.resolutionID == Output15kHz || uopt.resolutionID == Output15kHzPAL) {
             display.drawString(0, 0, "Downscale");
         // } else if (rto.presetID == 0x04) {
-        } else if (uopt.resolutionID == Output480p) {
+        } else if (uopt.resolutionID == Output480) {
             display.drawString(0, 0, "720x480");
         // } else if (rto.presetID == 0x14) {
-        } else if (uopt.resolutionID == Output576p50) {
+        } else if (uopt.resolutionID == Output576PAL) {
             display.drawString(0, 0, "768x576");
         } else if (utilsIsPassThroughMode()) {
             display.drawString(0, 0, "bypass");

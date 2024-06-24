@@ -32,25 +32,25 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
     display->display();
     uint8_t videoMode = getVideoMode();
     // OutputResolution preset = OutputBypass;
-    OutputResolution preset = Output240p;
+    OutputResolution preset = Output480;
     switch (item->tag) {
         case MT1920x1080:
-            preset = Output1080p;
+            preset = Output1080;
             break;
         case MT1280x1024:
-            preset = Output1024p;
+            preset = Output1024;
             break;
         case MT_1280x960:
-            preset = Output960p;
+            preset = Output960;
             break;
         case MT1280x720:
-            preset = Output720p;
+            preset = Output720;
             break;
         case MT_768x576:
-            preset = Output576p50;
+            preset = Output576PAL;
             break;
         case MT_720x480:
-            preset = Output480p;
+            preset = Output480;
             break;
         case MT_DOWNSCALE:
             preset = Output15kHz;
@@ -60,6 +60,8 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
             preset = OutputHdBypass;
             break;
         case MT_240p:
+            preset = Output240p;
+            break;
         default:
             break;
     }
@@ -77,6 +79,7 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
             applyPresets(videoMode);
         }
     } else {
+        // registers unitialized, do post preset
         setOutputHdBypassMode(false);
         // uopt.presetPreference = preset;
         // rto.presetID = preset;
@@ -91,8 +94,6 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
             rto.applyPresetDoneStage = 1;
         }
     }
-    // saveUserPrefs();
-    savePresetToFS();
     slotFlush();
     manager->freeze();
     return false;
@@ -130,16 +131,13 @@ bool presetSelectionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OL
         _DBGF(PSTR("unable to read %s\n"), FPSTR(slotsFile));
     }
     // uopt.presetPreference = OutputResolution::OutputCustomized;
-    // saveUserPrefs();
     if (rto.videoStandardInput == 14) {
         // vga upscale path: let synwatcher handle it
         rto.videoStandardInput = 15;
     } else {
         // normal path
         applyPresets(rto.videoStandardInput);
-        savePresetToFS();
     }
-    // saveUserPrefs();
     manager->freeze();
     oledMenuFreezeTimeoutInMS = 2000;
     oledMenuFreezeStartTime = millis();
@@ -294,25 +292,25 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
         display.setTextAlignment(TEXT_ALIGN_LEFT);
 
         // if (rto.presetID == 0x01 || rto.presetID == 0x11) {
-        if (uopt.resolutionID == Output960p || uopt.resolutionID == Output960p50) {
+        if (uopt.resolutionID == Output960 || uopt.resolutionID == Output960PAL) {
             display.drawString(0, 0, "1280x960");
         // } else if (rto.presetID == 0x02 || rto.presetID == 0x12) {
-        } else if (uopt.resolutionID == Output1024p || uopt.resolutionID == Output1024p50) {
+        } else if (uopt.resolutionID == Output1024 || uopt.resolutionID == Output1024PAL) {
             display.drawString(0, 0, "1280x1024");
         // } else if (rto.presetID == 0x03 || rto.presetID == 0x13) {
-        } else if (uopt.resolutionID == Output720p || uopt.resolutionID == Output720p50) {
+        } else if (uopt.resolutionID == Output720 || uopt.resolutionID == Output720PAL) {
             display.drawString(0, 0, "1280x720");
         // } else if (rto.presetID == 0x05 || rto.presetID == 0x15) {
-        } else if (uopt.resolutionID == Output1080p || uopt.resolutionID == Output1080p50) {
+        } else if (uopt.resolutionID == Output1080 || uopt.resolutionID == Output1080PAL) {
             display.drawString(0, 0, "1920x1080");
         // } else if (rto.presetID == 0x06 || rto.presetID == 0x16) {
-        } else if (uopt.resolutionID == Output15kHz || uopt.resolutionID == Output15kHz50) {
+        } else if (uopt.resolutionID == Output15kHz || uopt.resolutionID == Output15kHzPAL) {
             display.drawString(0, 0, "Downscale");
         // } else if (rto.presetID == 0x04) {
-        } else if (uopt.resolutionID == Output720p) {
+        } else if (uopt.resolutionID == Output720) {
             display.drawString(0, 0, "720x480");
         // } else if (rto.presetID == 0x14) {
-        } else if (uopt.resolutionID == Output576p50) {
+        } else if (uopt.resolutionID == Output576PAL) {
             display.drawString(0, 0, "768x576");
         } else if (utilsIsPassThroughMode()) {
             display.drawString(0, 0, "bypass");

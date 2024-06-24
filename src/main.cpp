@@ -3,7 +3,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Friday, 21st June 2024 5:05:30 pm                        #
+# Last Modified: Monday, 24th June 2024 12:50:19 pm                       #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -85,6 +85,32 @@ void resetInMSec(unsigned long ms) {
 }
 
 /**
+ * @brief This function used to start communication with the board while setup()
+ *        or restart communication after power loss
+ *        (which is actually may never happen on production env.).
+ *
+ */
+inline bool powerLossBoardReinit() {
+    // software reset
+    utilsZeroAll();
+    delay(10);
+    // put system in the default state
+    presetsResetParameters();
+    prepareSyncProcessor();
+
+    // prefs data loaded, load current slot
+    if(!slotLoad(uopt.slotID))
+        slotResetFlush(uopt.slotID);
+
+    if(!utilsCheckBoardPower()) {
+        stopWire();
+        _WSN(F("\n   (!) Please check board power and cabling or restart\n"));
+        return false;
+    }
+    return true;
+}
+
+/**
  * @brief
  *
  */
@@ -105,13 +131,6 @@ void setup()
     Serial.begin(115200); // Arduino IDE Serial Monitor requires the same 115200 bauds!
     Serial.setTimeout(10);
 
-    // adco.r_gain = 0;
-    // adco.g_gain = 0;
-    // adco.b_gain = 0;
-    // adco.r_off = 0;
-    // adco.g_off = 0;
-    // adco.b_off = 0;
-
     // filesystem (web page, custom presets, etc)
     if (!LittleFS.begin()) {
         _DBGN(F("FS mount failed ((1M FS) selected?)"));
@@ -126,11 +145,6 @@ void setup()
     menuInit();
 
     startWire();
-    // run some dummy commands to init I2C to GBS and cached segments
-    writeOneByte(0xF0, 0);
-    GBS::SP_SOG_MODE::read();
-    // writeOneByte(0x00, 0);
-    GBS::STATUS_00::read();
 
 #if WEB_SERVER_ENABLE == 1
     wifiInit();
@@ -246,23 +260,19 @@ void setup()
         return;
     }
 
+    if(!powerLossBoardReinit())
+        return;
+
     // software reset
-    utilsZeroAll();
-    // utilsResetAllOffline();
-    utilsResetOnline();
-    delay(10);
-    // put system in the default state
-    presetsResetParameters();
-    prepareSyncProcessor();
+    // utilsZeroAll();
+    // delay(10);
+    // // put system in the default state
+    // presetsResetParameters();
+    // prepareSyncProcessor();
 
-    if (uopt.enableCalibrationADC) {
-        // enabled by default
-        calibrateAdcOffset();
-    }
-
-    // prefs data loaded, load current slot
-    if(!slotLoad(uopt.slotID))
-        slotResetFlush(uopt.slotID);
+    // // prefs data loaded, load current slot
+    // if(!slotLoad(uopt.slotID))
+    //     slotResetFlush(uopt.slotID);
 
     // rto.syncWatcherEnabled = false; // allows passive operation by disabling syncwatcher here
     // inputAndSyncDetect();
@@ -275,9 +285,15 @@ void setup()
     //   }
     //   rto.isInLowPowerMode = false;
     // }
-    if(!utilsCheckBoardPower()) {
-        _WSN(F("\n   (!) Please check board power and cabling or restart\n"));
-        return;
+    // if(!utilsCheckBoardPower()) {
+    //     stopWire();
+    //     _WSN(F("\n   (!) Please check board power and cabling or restart\n"));
+    //     return;
+    // }
+
+    if (uopt.enableCalibrationADC) {
+        // enabled by default
+        calibrateAdcOffset();
     }
 
     // some debug tools leave garbage in the serial rx buffer
@@ -415,7 +431,7 @@ void loop()
     if (rto.videoStandardInput <= 14 && rto.videoStandardInput != 0 &&
         rto.syncWatcherEnabled && !rto.coastPositionIsSet) {
         if (rto.continousStableCounter >= 7) {
-            if (getStatus16SpHsStable() == 1 && getVideoMode() == rto.videoStandardInput) {
+            if (getStatus16SpHsStable() && getVideoMode() == rto.videoStandardInput) {
                 updateCoastPosition(0);
                 if (rto.coastPositionIsSet && videoStandardInputIsPalNtscSd()) {
                     // TODO: verify for other csync formats
@@ -485,6 +501,7 @@ void loop()
 
     if (rto.applyPresetDoneStage == 10) {
         rto.applyPresetDoneStage = 11; // set first, so we don't loop applying presets
+        // registers uninitialized, do post preset
         setOutputHdBypassMode(false);
     }
 
@@ -495,8 +512,8 @@ void loop()
                 inputAndSyncDetect();
             } else {
                 // rto.boardHasPower = false;
-                rto.continousStableCounter = 0;
-                rto.syncWatcherEnabled = false;
+                // rto.continousStableCounter = 0;
+                // rto.syncWatcherEnabled = false;
             }
             lastTimeSourceCheck = millis();
 
@@ -518,7 +535,7 @@ void loop()
     if ((rto.noSyncCounter == 61 || rto.noSyncCounter == 62) && rto.boardHasPower) {
         if (!utilsCheckBoardPower()) {
             rto.noSyncCounter = 1; // some neutral "no sync" value
-            rto.continousStableCounter = 0;
+            // rto.continousStableCounter = 0;
             // rto.syncWatcherEnabled = false;
             stopWire(); // sets pinmodes SDA, SCL to INPUT
             _DBGN(F("(!) TWI has been stopped"));
@@ -537,18 +554,20 @@ void loop()
                 _DBGN(F("(!) board power recovered"));
                 delay(350); // i've seen the MTV230 go on briefly on GBS power cycle
                 startWire();
-                {
-                    // run some dummy commands to init I2C
-                    writeOneByte(0xF0, 0);
-                    GBS::SP_SOG_MODE::read();
-                    GBS::SP_SOG_MODE::read();
-                    // writeOneByte(0x00, 0); // update cached segment
-                    GBS::STATUS_00::read();
-                }
-                rto.syncWatcherEnabled = true;
-                utilsCheckBoardPower();
+                delay(10);
+                powerLossBoardReinit();
+                // {
+                //     // run some dummy commands to init I2C
+                //     writeOneByte(0xF0, 0);
+                //     GBS::SP_SOG_MODE::read();
+                //     GBS::SP_SOG_MODE::read();
+                //     // writeOneByte(0x00, 0); // update cached segment
+                //     GBS::STATUS_00::read();
+                // }
+                // rto.syncWatcherEnabled = true;
+                // utilsCheckBoardPower();
                 // rto.boardHasPower = true;
-                delay(100);
+                delay(10);
                 goLowPowerWithInputDetection();
             }
         }

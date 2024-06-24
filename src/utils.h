@@ -3,7 +3,7 @@
 # File: utils.h                                                                    #
 # File Created: Thursday, 2nd May 2024 5:38:14 pm                                   #
 # Author:                                                                           #
-# Last Modified: Friday, 21st June 2024 4:11:50 pm                        #
+# Last Modified: Friday, 21st June 2024 10:20:49 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -56,8 +56,8 @@ void stopWire();
 void startWire();
 int8_t utilsExternClockGenInit();
 bool utilsCheckBoardPower();
-void utilsResetAllOffline();
-void utilsResetOnline();
+// void utilsResetAllOffline();
+// void utilsResetOnline();
 void utilsZeroAll();
 void utilsGetPresetsFileNameFor(uint8_t & videoMode, char * buffer);
 void calibrateAdcOffset();

@@ -3,7 +3,7 @@
 # File: utils.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 5:37:47 pm                                   #
 # Author:                                                                           #
-# Last Modified: Friday, 21st June 2024 5:05:30 pm                        #
+# Last Modified: Monday, 24th June 2024 12:46:07 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -42,7 +42,7 @@ bool utilsNotPassThroughMode() {
  * @return false
  */
 bool utilsIsDownscaleMode() {
-    return (uopt.resolutionID == Output15kHz || uopt.resolutionID == Output15kHz50);
+    return (uopt.resolutionID == Output15kHz || uopt.resolutionID == Output15kHzPAL);
 }
 
 /**
@@ -52,7 +52,7 @@ bool utilsIsDownscaleMode() {
  * @return false
  */
 bool utilsNotDownscaleMode() {
-    return (uopt.resolutionID != Output15kHz && uopt.resolutionID != Output15kHz50);
+    return (uopt.resolutionID != Output15kHz && uopt.resolutionID != Output15kHzPAL);
 }
 
 /**
@@ -62,7 +62,8 @@ bool utilsNotDownscaleMode() {
 void latchPLLAD()
 {
     GBS::PLLAD_LAT::write(0);
-    delayMicroseconds(128);
+    // delayMicroseconds(128);
+    delay(100);
     GBS::PLLAD_LAT::write(1);
 }
 
@@ -141,8 +142,8 @@ void setCsVsStop(uint16_t stop)
 void freezeVideo()
 {
     // GBS::IF_VB_ST::write(GBS::IF_VB_SP::read());
-    uopt.freezeCapture = true;
     GBS::CAPTURE_ENABLE::write(0);
+    rto.videoIsFrozen = true;
 }
 
 /**
@@ -152,8 +153,8 @@ void freezeVideo()
 void unfreezeVideo()
 {
     // GBS::IF_VB_ST::write(GBS::IF_VB_SP::read() - 2);
-    uopt.freezeCapture = false;
     GBS::CAPTURE_ENABLE::write(1);
+    rto.videoIsFrozen = false;
 }
 
 /**
@@ -481,7 +482,7 @@ void dumpRegisters(byte segment)
 {
     if (segment > 5)
         return;
-        
+
     writeOneByte(0xF0, segment);
     int x = 0x40;
     switch (segment) {
@@ -584,6 +585,11 @@ void startWire()
     // no problem with Si5351 at 700k either
     Wire.setClock(400000);
     // Wire.setClock(700000);
+    // run some dummy commands to init I2C
+    writeOneByte(0xF0, 0);
+    GBS::SP_SOG_MODE::read();
+    GBS::SP_SOG_MODE::read();
+    GBS::STATUS_00::read();
 }
 
 /**
@@ -678,10 +684,13 @@ bool utilsCheckBoardPower()
     // }
 
     rto.boardHasPower = true;
+    rto.syncWatcherEnabled = true;
     goto board_power_end;
 
 board_power_bad:
     rto.boardHasPower = false;
+    rto.syncWatcherEnabled = false;
+    rto.continousStableCounter = 0;
 
 board_power_end:
     return rto.boardHasPower;
@@ -709,62 +718,62 @@ board_power_end:
  *        state machine is only reset by external reset..."
  *
  */
-void utilsResetAllOffline() {
-    GBS::PLL_VCORST::write(1);
+// void utilsResetAllOffline() {
+//     GBS::PLL_VCORST::write(1);
 
-    GBS::ADC_POWDZ::write(0);
-    GBS::PLLAD_PDZ::write(0);
-    GBS::PLLAD_LEN::write(0);
-    GBS::DAC_RGBS_PWDNZ::write(0);
-    GBS::OUT_SYNC_CNTRL::write(0);
-    GBS::SFTRST_VDS_RSTZ::write(0);
-    GBS::SFTRST_SYNC_RSTZ::write(0);
-    GBS::SFTRST_DEC_RSTZ::write(0);
-    GBS::SFTRST_IF_RSTZ::write(0);
-    GBS::SFTRST_DEINT_RSTZ::write(0);
-    GBS::SFTRST_MEM_FF_RSTZ::write(0);
-    GBS::SFTRST_MEM_RSTZ::write(0);
-    GBS::SFTRST_FIFO_RSTZ::write(0);
-    GBS::SFTRST_OSD_RSTZ::write(0);
-    GBS::SFTRST_MODE_RSTZ::write(0);
-    GBS::SFTRST_HDBYPS_RSTZ::write(0);
-    GBS::SFTRST_INT_RSTZ::write(0);
+//     GBS::ADC_POWDZ::write(0);
+//     GBS::PLLAD_PDZ::write(0);
+//     GBS::PLLAD_LEN::write(0);
+//     GBS::DAC_RGBS_PWDNZ::write(0);
+//     GBS::OUT_SYNC_CNTRL::write(0);
+//     GBS::SFTRST_VDS_RSTZ::write(0);
+//     GBS::SFTRST_SYNC_RSTZ::write(0);
+//     GBS::SFTRST_DEC_RSTZ::write(0);
+//     GBS::SFTRST_IF_RSTZ::write(0);
+//     GBS::SFTRST_DEINT_RSTZ::write(0);
+//     GBS::SFTRST_MEM_FF_RSTZ::write(0);
+//     GBS::SFTRST_MEM_RSTZ::write(0);
+//     GBS::SFTRST_FIFO_RSTZ::write(0);
+//     GBS::SFTRST_OSD_RSTZ::write(0);
+//     GBS::SFTRST_MODE_RSTZ::write(0);
+//     GBS::SFTRST_HDBYPS_RSTZ::write(0);
+//     GBS::SFTRST_INT_RSTZ::write(0);
 
-    GBS::PAD_CONTROL_00_0x48::write(0);
-    GBS::PAD_CONTROL_01_0x49::write(0);
-}
+//     GBS::PAD_CONTROL_00_0x48::write(0);
+//     GBS::PAD_CONTROL_01_0x49::write(0);
+// }
 
 /**
  * @brief All systems online
  *
  */
-void utilsResetOnline() {
-    GBS::ADC_POWDZ::write(1);
-    resetDigital();
-    resetPLLAD();
-    GBS::PLLAD_LEN::write(1);
-    GBS::DAC_RGBS_PWDNZ::write(1);
-    GBS::OUT_SYNC_CNTRL::write(1);
-    GBS::SFTRST_SYNC_RSTZ::write(1);
-    GBS::SFTRST_DEC_RSTZ::write(1);
-    GBS::SFTRST_IF_RSTZ::write(1);
-    GBS::SFTRST_DEINT_RSTZ::write(1);
-    GBS::SFTRST_MEM_FF_RSTZ::write(1);
-    GBS::SFTRST_MEM_RSTZ::write(1);
-    GBS::SFTRST_FIFO_RSTZ::write(1);
-    GBS::SFTRST_OSD_RSTZ::write(1);
-    GBS::SFTRST_VDS_RSTZ::write(1);
-    GBS::SFTRST_MODE_RSTZ::write(1);
-    GBS::SFTRST_HDBYPS_RSTZ::write(1);
-    GBS::SFTRST_INT_RSTZ::write(1);
+// void utilsResetOnline() {
+//     GBS::ADC_POWDZ::write(1);
+//     resetDigital();
+//     resetPLLAD();
+//     GBS::PLLAD_LEN::write(1);
+//     GBS::DAC_RGBS_PWDNZ::write(1);
+//     GBS::OUT_SYNC_CNTRL::write(1);
+//     GBS::SFTRST_SYNC_RSTZ::write(1);
+//     GBS::SFTRST_DEC_RSTZ::write(1);
+//     GBS::SFTRST_IF_RSTZ::write(1);
+//     GBS::SFTRST_DEINT_RSTZ::write(1);
+//     GBS::SFTRST_MEM_FF_RSTZ::write(1);
+//     GBS::SFTRST_MEM_RSTZ::write(1);
+//     GBS::SFTRST_FIFO_RSTZ::write(1);
+//     GBS::SFTRST_OSD_RSTZ::write(1);
+//     GBS::SFTRST_VDS_RSTZ::write(1);
+//     GBS::SFTRST_MODE_RSTZ::write(1);
+//     GBS::SFTRST_HDBYPS_RSTZ::write(1);
+//     GBS::SFTRST_INT_RSTZ::write(1);
 
-    // GBS::PAD_CONTROL_00_0x48::write(0x2b);
-    GBS::PAD_CKIN_ENZ::write(1);
-    GBS::PAD_CKOUT_ENZ::write(1);
-    GBS::PAD_SYNC_OUT_ENZ::write(1);
-    GBS::PAD_BLK_OUT_ENZ::write(1);
-    GBS::PAD_TRI_ENZ::write(1);
-}
+//     // GBS::PAD_CONTROL_00_0x48::write(0x2b);
+//     GBS::PAD_CKIN_ENZ::write(1);
+//     GBS::PAD_CKOUT_ENZ::write(1);
+//     GBS::PAD_SYNC_OUT_ENZ::write(1);
+//     GBS::PAD_BLK_OUT_ENZ::write(1);
+//     GBS::PAD_TRI_ENZ::write(1);
+// }
 
 /**
  * @brief Clear tv5725 registers
@@ -818,9 +827,9 @@ void utilsZeroAll()
 
 /**
  * @brief A simple getter for preset file names depending on videoMode ID
- * 
- * @param videoMode 
- * @param buffer 
+ *
+ * @param videoMode
+ * @param buffer
  */
 void utilsGetPresetsFileNameFor(uint8_t & videoMode, char * buffer) {
     if (rto.videoStandardInput == 1)

@@ -23,8 +23,8 @@
 #define WEBSOCK_HBEAT_INTVAL            1500UL
 #define WEBSOCK_HBEAT_PONG_TOUT         1500UL
 #define WEBSOCK_HBEAT_DISCONN_CNT       5
-#define WEBSOCK_HBEAT_DEV_INTVAL        300UL
-#define WEBSOCK_HBEAT_DEV_PONG_TOUT     1000UL
+#define WEBSOCK_HBEAT_DEV_INTVAL        600UL
+#define WEBSOCK_HBEAT_DEV_PONG_TOUT     1500UL
 #define WEBSOCK_HBEAT_DEV_DISCONN_CNT   3
 #define THIS_DEVICE_MASTER
 #define WEB_SERVER_ENABLE               1
@@ -122,38 +122,38 @@
 
 // Output resolution requested by user, *given to* applyPresets().
 enum OutputResolution : uint8_t {
-                                //  RESOLUTION         | FREQ | U.CMD. | OLD ID  |
+                                     //  RESOLUTION         | FREQ | U.CMD. | OLD ID  |
     Output240p          = 0, //'a',  //   320x240 (512/640?)|  ?   |   'j'  |   0     |
-    Output960p          = 2, //'c',  //   SXGA- | 1280x960  | 60Hz |   'f'  |  0x01   |
-    Output960p50        = 3, //'d',  // ? SXGA- | 1280x960  | 50Hz |        |  0x11   |
-    Output1024p         = 4, //'e',  //   SXGA  | 1280x1024 | 60Hz |   'p'  |  0x02   |
-    Output1024p50       = 5, //'f',  // ? SXGA  | 1280x1024 | 50Hz |        |  0x12   |
-    Output720p          = 6, //'g',  //   HD    | 1280×720  | 60Hz |   'g'  |  0x03   |
-    Output720p50        = 7, //'h',  // ? HD    | 1280×720  | 50Hz |        |  0x13   |
-    Output480p          = 8, //'i',  //   SD    | 720×480   | 60Hz |   'h'  |  0x04   |
-    Output480p50        = 9, //'j',  // ? SD    | 720×480   | 50Hz |        |  -      |
-    Output1080p         = 10,//'k',  //   FHD   | 1920×1080 | 60Hz |   's'  |  0x05   |
-    Output1080p50       = 11,//'l',  // ? FHD   | 1920×1080 | 50Hz |        |  0x15   |
-    Output15kHz         = 12,//'m',  //   15kHz scale-down  | 60Hz |   'L'  |  0x06   |
-    Output15kHz50       = 13,//'n',  // ? 15kHz scale-down  | 50Hz |        |  0x16   |
-    Output576p50        = 15,//'p',  //   PAL   | 768×576   | 50Hz |   'k'  |  0x14   |
-    // OutputBypass        = 'q',                              serial comm.
-    OutputHdBypass      = 18,//'s',  //                            |    'K'    |  0x21   |
-    OutputRGBHVBypass   = 20,//'u',  //                            |   'k'     |  0x22   |
-    // It suppose to be that the output custom sets automatically in case
-    // if user does scale the output video signal. However we operate with
-    // registers directly (ex: video->scaleHorizontal()) and there is no connection
-    // between output image scale (ex. GBS::VDS_HSCALE) and resolution
-    // (however it must be logically, so the custom scale changes output image size)
-    // hence the following is disabled
-    // OutputCustom        = 'w'
+    Output960           = 2, //'c',  //   SXGA- | 1280x960  | 60Hz |   'f'  |  0x01   |
+    Output960PAL        = 3, //'d',  // ? SXGA- | 1280x960  | 50Hz |        |  0x11   |
+    Output1024          = 4, //'e',  //   SXGA  | 1280x1024 | 60Hz |   'p'  |  0x02   |
+    Output1024PAL       = 5, //'f',  // ? SXGA  | 1280x1024 | 50Hz |        |  0x12   |
+    Output720           = 6, //'g',  //   HD    | 1280×720  | 60Hz |   'g'  |  0x03   |
+    Output720PAL        = 7, //'h',  // ? HD    | 1280×720  | 50Hz |        |  0x13   |
+    Output480           = 8, //'i',  //   SD    | 720×480   | 60Hz |   'h'  |  0x04   |
+    Output480PAL        = 9, //'j',  // ? SD    | 720×480   | 50Hz |        |  -      |
+    Output1080          = 10,//'k',  //   FHD   | 1920×1080 | 60Hz |   's'  |  0x05   |
+    Output1080PAL       = 11,//'l',  // ? FHD   | 1920×1080 | 50Hz |        |  0x15   |
+    Output15kHz         = 12,//'m',  //   15kHz/downscale   | 60Hz |   'L'  |  0x06   |
+    Output15kHzPAL      = 13,//'n',  // ? 15kHz/downscale   | 50Hz |        |  0x16   |
+    Output576PAL        = 15,//'p',  //   PAL   | 768×576   | 50Hz |   'k'  |  0x14   |
+    OutputHdBypass      = 18,//'s',  //                            |   'K'   |  0x21   |
+    OutputRGBHVBypass   = 20,//'u',  //                            |   'k'   |  0x22   |
 };
 
 // userOptions holds user preferences / customizations
 typedef struct
 {
-    OutputResolution resolutionID = OutputHdBypass;
     uint8_t slotID = 0;
+    // there is no way for now to recognize if slot is occupied but
+    // its name. This variable sets duting slot/set process and must
+    // remain the same until the next slot/set.
+    // If a slot is custom this means we are allowed
+    // to store preset files, if it's not no preset file will be
+    // stored to FS.
+    // I.E.: custom slot contains custom presets.
+    bool slotIsCustom = false;
+    OutputResolution resolutionID = OutputHdBypass;
     bool enableFrameTimeLock = false;
     uint8_t frameTimeLockMethod = 0;
     bool enableAutoGain = false;
@@ -175,7 +175,6 @@ typedef struct
     bool invertSync = false;
     bool debugView = false;
     bool developerMode = false;
-    bool freezeCapture = false;
     bool adcFilter = true;
 } userOptions;
 
@@ -185,7 +184,7 @@ typedef struct
     // system state
     bool systemInitOK = false;
     // source identification
-    bool boardHasPower = true;          // ambigous, it is enough to utilsCheckBoardPower at all times
+    bool boardHasPower = true;
     uint8_t continousStableCounter = 0;
     bool syncWatcherEnabled = true;
     bool inputIsYPbPr = false;
@@ -217,7 +216,7 @@ typedef struct
     uint8_t thisSourceMaxLevelSOG;
     uint8_t medResLineCount = 0x33; // 51*8=408;
     //
-    bool isCustomPreset = false;
+    // bool isCustomPreset = false;
     uint8_t presetDisplayClock = 0;
     uint32_t freqExtClockGen = 0;
     uint16_t noSyncCounter = 0; // is always at least 1 when checking value in syncwatcher
@@ -240,11 +239,11 @@ typedef struct
     bool enableDebugPings = false;
 #endif
     bool autoBestHtotalEnabled = true;
-    // bool videoIsFrozen = false;
+    bool videoIsFrozen = false;
     bool forceRetime = false;
     bool motionAdaptiveDeinterlaceActive = false;
     bool deinterlaceAutoEnabled = true;
-    // bool scanlinesEnabled;
+    bool scanlinesEnabled = false;
     bool presetIsPalForce60 = false;
     bool isValidForScalingRGBHV = false;
     bool useHdmiSyncFix = false;
@@ -308,7 +307,7 @@ extern adcOptions adco;
 
 const char preferencesFile[] PROGMEM = "/prefs.dat";
 const char systemInfo[] PROGMEM = "h:%4u v:%4u PLL:%01u A:%02x%02x%02x S:%02x.%02x.%02x %c%c%c%c I:%02x D:%04x m:%hu ht:%4d vt:%4d hpw:%4d u:%3x s:%2x S:%2d W:%2d\n";
-const char commandDescr[] PROGMEM = "\n> %s command: %c (0x%02X) slotID: %d, resolutionID: %d\n\n";
+const char commandDescr[] PROGMEM = "\n> %s: %c (0x%02X) (sID:%d,rID:%d)\n\n";
 
 extern void resetInMSec(unsigned long ms = 0);
 

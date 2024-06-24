@@ -46,10 +46,10 @@
                 <button gbs-section="filters" class="gbs-button gbs-button__menu gbs-icon">
                     blur_on
                 </button>
+                <button gbs-section="preferences" class="gbs-button gbs-button__menu gbs-icon">
+                    tune
+                </button>
             </div>
-            <button gbs-section="preferences" class="gbs-button gbs-button__menu gbs-icon gbs-button__uwidth">
-                tune
-            </button>
             <button gbs-section="developer" class="gbs-button gbs-button__menu gbs-icon gbs-button__uwidth" hidden>
                 developer_mode
             </button>
@@ -113,18 +113,18 @@
                                 gbs-click="normal" gbs-element-ref="button720p" gbs-role="preset">
                                 1280 x 720
                             </button>
-                            <button class="gbs-button gbs-button__resolution" gbs-message="k" gbs-message-type="user"
+                            <!-- <button class="gbs-button gbs-button__resolution" gbs-message="k" gbs-message-type="user"
                                 gbs-click="normal" gbs-element-ref="button576p" gbs-role="preset">
                                 768 x 576
-                            </button>
+                            </button> -->
                             <button class="gbs-button gbs-button__resolution" gbs-message="h" gbs-message-type="user"
                                 gbs-click="normal" gbs-element-ref="button480p" gbs-role="preset">
                                 720 x 480
                             </button>
-                            <button class="gbs-button gbs-button__resolution" gbs-message="j" gbs-message-type="user"
+                            <!-- <button class="gbs-button gbs-button__resolution" gbs-message="j" gbs-message-type="user"
                                 gbs-click="normal" gbs-element-ref="button240p" gbs-role="preset">
                                 240p
-                            </button>
+                            </button> -->
                         </div>
                         <div class="gbs-flex">
                             <button gbs-message="L" gbs-message-type="user" gbs-click="normal"
@@ -133,7 +133,7 @@
                                 <div class="gbs-icon">tv</div>
                                 <div>15KHz/L{DOWNSCALE}</div>
                             </button>
-                            <button gbs-message="K" gbs-message-type="action" gbs-click="normal"
+                            <button gbs-message="W" gbs-message-type="user" gbs-click="normal"
                                 class="gbs-button gbs-button__resolution gbs-button__resolution--center gbs-button__secondary"
                                 gbs-element-ref="buttonSourcePassThrough" gbs-role="preset">
                                 <div class="gbs-icon">swap_calls</div>
@@ -143,35 +143,6 @@
                                 </div>
                             </button>
                         </div>
-                    </div>
-                </fieldset>
-                <fieldset class="gbs-fieldset">
-                    <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
-                        <div class="gbs-icon">wb_sunny</div>
-                        <div>L{ADC_GAIN_LEGEND}</div>
-                    </legend>
-                    <!-- prettier-ignore -->
-                    <ul class="gbs-help">
-                        <li>L{ADC_GAIN_LEGEND_HELP_1}</li>
-                    </ul>
-                    <div class="gbs-flex gbs-margin__bottom--16">
-                        <button gbs-message="o" gbs-message-type="user" gbs-click="repeat"
-                            class="gbs-button gbs-button__control">
-                            <div class="gbs-icon">
-                                remove_circle_outline
-                            </div>
-                            <div>L{GAIN_BUTTON}</div>
-                        </button>
-                        <button gbs-message="n" gbs-message-type="user" gbs-click="repeat"
-                            class="gbs-button gbs-button__control">
-                            <div class="gbs-icon">add_circle_outline</div>
-                            <div>L{GAIN_BUTTON}</div>
-                        </button>
-                        <button gbs-message="T" gbs-message-type="action" gbs-click="normal" gbs-toggle="adcAutoGain"
-                            class="gbs-button gbs-button__control gbs-button__secondary">
-                            <div class="gbs-icon">brightness_auto</div>
-                            <div>L{AUTO_GAIN_BUTTON}</div>
-                        </button>
                     </div>
                 </fieldset>
                 <fieldset class="gbs-fieldset gbs-controls">
@@ -362,6 +333,38 @@
                 </fieldset>
                 <fieldset class="gbs-fieldset">
                     <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
+                        <div class="gbs-icon">wb_sunny</div>
+                        <div>L{ADC_GAIN_LEGEND}</div>
+                    </legend>
+                    <!-- prettier-ignore -->
+                    <ul class="gbs-help">
+                        <li>L{ADC_GAIN_LEGEND_HELP_1}</li>
+                    </ul>
+                    <div class="gbs-flex gbs-margin__bottom--16">
+                        <button gbs-message="o" gbs-message-type="user" gbs-click="repeat"
+                            class="gbs-button gbs-button__control">
+                            <div class="gbs-icon">
+                                remove_circle_outline
+                            </div>
+                            <div>L{GAIN_BUTTON}</div>
+                        </button>
+                        <button gbs-message="n" gbs-message-type="user" gbs-click="repeat"
+                            class="gbs-button gbs-button__control">
+                            <div class="gbs-icon">add_circle_outline</div>
+                            <div>L{GAIN_BUTTON}</div>
+                        </button>
+                        <button gbs-message="T" gbs-message-type="action" gbs-click="normal" gbs-toggle="adcAutoGain"
+                            class="gbs-button gbs-button__control gbs-button__secondary">
+                            <div class="gbs-icon">brightness_auto</div>
+                            <div>L{AUTO_GAIN_BUTTON}</div>
+                        </button>
+                    </div>
+                </fieldset>
+            </section>
+
+            <section name="preferences" hidden>
+                <fieldset class="gbs-fieldset">
+                    <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
                         <div class="gbs-icon">settings_brightness</div>
                         <div>L{SLOT_SETTINGS_LEGEND}</div>
                     </legend>
@@ -454,9 +457,6 @@
                         </tr>
                     </table>
                 </fieldset>
-            </section>
-
-            <section name="preferences" hidden>
                 <fieldset class="gbs-fieldset">
                     <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
                         <div class="gbs-icon">tune</div>

@@ -7,11 +7,6 @@
 // which we reference by template argument, but in the meantime use
 // forward declarations to functions in the main file
 
-// extern void shiftHorizontal(uint16_t amountToAdd, bool subtracting);
-// extern void shiftVertical(uint16_t amountToAdd, bool subtracting);
-// extern void scaleHorizontal(uint16_t amountToAdd, bool subtracting);
-// extern void scaleVertical(uint16_t amountToAdd, bool subtracting);
-
 enum class MenuInput {
     UP,
     DOWN,
