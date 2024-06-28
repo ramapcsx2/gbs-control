@@ -97,6 +97,60 @@
         "ru": "Авто. усиление",
         "zh": ""
     },
+    "COLOR_CORRECTION_LEGEND": {
+        "en": "Color correction",
+        "es": "Corrección de color",
+        "ru": "Коррекция цвета",
+        "zh": ""
+    },
+    "BRIGHTNESS_CTRL_BUTTON": {
+        "en": "Brightness",
+        "es": "Brillo",
+        "ru": "Яркость",
+        "zh": ""
+    },
+    "CONTRAST_CTRL_BUTTON": {
+        "en": "Contrast",
+        "es": "Contraste",
+        "ru": "Котраст",
+        "zh": ""
+    },
+    "PB_U_GAIN_CTRL_BUTTON": {
+        "en": "Pb/U gain",
+        "es": "Aumento Pb/U",
+        "ru": "Усиление Pb/U",
+        "zh": ""
+    },
+    "PR_V_GAIN_CTRL_BUTTON": {
+        "en": "Pr/V gain",
+        "es": "Aumento Pr/V",
+        "ru": "Усиление Pr/V",
+        "zh": ""
+    },
+    "COLOR_CORRECTION_HELP_0": {
+        "en": "Pb/U gain - change blue-luma gain.",
+        "es": "Aumento Pr/U - cambia el aumento de luma de canal azul.",
+        "ru": "Усиление Pr/U - изменяет усиление яркости синего канала.",
+        "zh": ""
+    },
+    "COLOR_CORRECTION_HELP_1": {
+        "en": "Pr/V gain - change red-luma gain.",
+        "es": "Aumento Pr/V - cambia el aumento de luma de canal rojo.",
+        "ru": "Усиление Pr/V - изменяет усиление яркости красного канала.",
+        "zh": ""
+    },
+    "COLOR_INFO_CTRL_BUTTON": {
+        "en": "Color info",
+        "es": "Info. de color",
+        "ru": "Инфо.",
+        "zh": ""
+    },
+    "RESET_DEFAULT_COLOR_CTRL_BUTTON": {
+        "en": "Restore defaults",
+        "es": "Restaurar colores",
+        "ru": "Восстановить",
+        "zh": ""
+    },
     "PICTURE_CONTROL_LEGEND": {
         "en": "Picture Control",
         "es": "Control de imagen",

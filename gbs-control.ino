@@ -8,7 +8,7 @@
 # File: main.cpp                                                          #
 # File Created: Friday, 19th April 2024 3:13:38 pm                        #
 # Author: Robert Neumann                                                  #
-# Last Modified: Monday, 24th June 2024 12:50:19 pm                       #
+# Last Modified: Tuesday, 25th June 2024 12:48:15 pm                      #
 # Modified By: Sergey Ko                                                  #
 #                                                                         #
 #                           License: GPLv3                                #
@@ -112,6 +112,12 @@ inline bool powerLossBoardReinit() {
         _WSN(F("\n   (!) Please check board power and cabling or restart\n"));
         return false;
     }
+
+    if (uopt.enableCalibrationADC) {
+        // enabled by default
+        calibrateAdcOffset();
+    }
+
     return true;
 }
 
@@ -204,57 +210,13 @@ void setup()
         retryExtClockDetect = true;
         _DBGN(F("(!) unable to detect ext. clock, going to try later..."));
     }
-    // library may change i2c clock or pins, so restart
-    // startWire();
-    // GBS::STATUS_00::read();
-    // GBS::STATUS_00::read();
-    // GBS::STATUS_00::read();
 
     // delay 2 of 2
-    // ? WHY?
     // initDelay = millis();
     // while (millis() - initDelay < 1000) {
     //     // wifiLoop(0);
     //     delay(10);
     // }
-
-    // dummy commands
-    // GBS::STATUS_00::read();
-    // GBS::STATUS_00::read();
-    // GBS::STATUS_00::read();
-
-    /* if (!utilsCheckBoardPower()) {
-        _DBGN(F("(!) board has no power"));
-        int i = 0;
-        stopWire(); // sets pinmodes SDA, SCL to INPUT
-        // let is stop
-        delay(100);
-        // wait...
-        while (i < 40) {
-            // I2C SDA probably stuck, attempt recovery (max attempts in tests was around 10)
-            startWire();
-            GBS::STATUS_00::read();
-            digitalWrite(SCL, 0);
-            delayMicroseconds(12);
-            stopWire();
-            if (digitalRead(SDA) == 1) {
-                break;
-            } // unstuck
-            if ((i % 7) == 0) {
-                delay(10);
-            }
-            i++;
-        }
-
-        if (!utilsCheckBoardPower()) {
-            stopWire();
-            rto.syncWatcherEnabled = false;
-            _DBGN(F("(!) timeout, unable to init board connection"));
-        } else {
-            rto.syncWatcherEnabled = true;
-            _DBGN(F("board power is OK"));
-        }
-    } */
 
     // if (powerOrWireIssue == 0) {
     // second init, in cases where i2c got stuck earlier but has recovered
@@ -267,39 +229,6 @@ void setup()
 
     if(!powerLossBoardReinit())
         return;
-
-    // software reset
-    // utilsZeroAll();
-    // delay(10);
-    // // put system in the default state
-    // presetsResetParameters();
-    // prepareSyncProcessor();
-
-    // // prefs data loaded, load current slot
-    // if(!slotLoad(uopt.slotID))
-    //     slotResetFlush(uopt.slotID);
-
-    // rto.syncWatcherEnabled = false; // allows passive operation by disabling syncwatcher here
-    // inputAndSyncDetect();
-    // if (rto.syncWatcherEnabled == true) {
-    //   rto.isInLowPowerMode = true; // just for initial detection; simplifies code later
-    //   for (uint8_t i = 0; i < 3; i++) {
-    //     if (inputAndSyncDetect()) {
-    //       break;
-    //     }
-    //   }
-    //   rto.isInLowPowerMode = false;
-    // }
-    // if(!utilsCheckBoardPower()) {
-    //     stopWire();
-    //     _WSN(F("\n   (!) Please check board power and cabling or restart\n"));
-    //     return;
-    // }
-
-    if (uopt.enableCalibrationADC) {
-        // enabled by default
-        calibrateAdcOffset();
-    }
 
     // some debug tools leave garbage in the serial rx buffer
     discardSerialRxData();
@@ -475,7 +404,7 @@ void loop()
             if (rto.extClockGenDetected && rto.videoStandardInput != 14) {
                 // switch to ext clock
                 // if (!rto.outModeHdBypass) {
-                if (uopt.resolutionID != OutputHdBypass) {
+                if (utilsNotPassThroughMode()) {
                     uint8_t pll648_value = GBS::PLL648_CONTROL_01::read();
                     if (pll648_value != 0x35 && pll648_value != 0x75) {
                         // first store original in an option byte in 1_2D
@@ -560,20 +489,21 @@ void loop()
                 delay(350); // i've seen the MTV230 go on briefly on GBS power cycle
                 startWire();
                 delay(10);
-                powerLossBoardReinit();
-                // {
-                //     // run some dummy commands to init I2C
-                //     writeOneByte(0xF0, 0);
-                //     GBS::SP_SOG_MODE::read();
-                //     GBS::SP_SOG_MODE::read();
-                //     // writeOneByte(0x00, 0); // update cached segment
-                //     GBS::STATUS_00::read();
-                // }
-                // rto.syncWatcherEnabled = true;
-                // utilsCheckBoardPower();
-                // rto.boardHasPower = true;
-                delay(10);
-                goLowPowerWithInputDetection();
+                if(powerLossBoardReinit()) {
+                    // {
+                    //     // run some dummy commands to init I2C
+                    //     writeOneByte(0xF0, 0);
+                    //     GBS::SP_SOG_MODE::read();
+                    //     GBS::SP_SOG_MODE::read();
+                    //     // writeOneByte(0x00, 0); // update cached segment
+                    //     GBS::STATUS_00::read();
+                    // }
+                    // rto.syncWatcherEnabled = true;
+                    // utilsCheckBoardPower();
+                    // rto.boardHasPower = true;
+                    delay(10);
+                    goLowPowerWithInputDetection();
+                }
             }
         }
     }

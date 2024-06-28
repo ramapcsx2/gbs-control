@@ -57,7 +57,7 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
             break;
         case MT_BYPASS:
             // FIXME do detection which mode is actually to apply
-            preset = OutputHdBypass;
+            preset = OutputBypass;
             break;
         case MT_240p:
             preset = Output240p;

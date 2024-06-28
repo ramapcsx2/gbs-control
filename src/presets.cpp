@@ -3,7 +3,7 @@
 # File: preset.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 6:38:23 pm                                   #
 # Author:                                                                           #
-# Last Modified: Monday, 24th June 2024 3:25:24 pm                        #
+# Last Modified: Tuesday, 25th June 2024 2:13:09 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -45,7 +45,7 @@ void presetsResetParameters()
     rto.applyPresetDoneStage = 0;
     rto.presetVlineShift = 0;
     rto.sourceDisconnected = true;
-    // rto.outModeHdBypass = 0;
+    rto.outModeHdBypass = None;
     rto.clampPositionIsSet = 0;
     rto.coastPositionIsSet = 0;
     rto.phaseIsSet = 0;
@@ -198,11 +198,11 @@ void doPostPresetLoadSteps(bool forceApply)
     if (rto.videoStandardInput == 0)
     {
         uint8_t videoMode = getVideoMode();
-        _WSF(PSTR("post preset: rto.videoStandardInput 0 > %d\n"), videoMode);
-        if (videoMode > 0)
-        {
-            rto.videoStandardInput = videoMode;
-        }
+        _WSF(PSTR("post preset: rto.videoStandardInput = %d\n"), videoMode);
+        // if (videoMode > 0)
+        // {
+        rto.videoStandardInput = videoMode;
+        // }
     }
     // set output resolution
     // rto.isCustomPreset = GBS::GBS_PRESET_CUSTOM::read();
@@ -265,8 +265,7 @@ void doPostPresetLoadSteps(bool forceApply)
     GBS::SP_H_PROTECT::write(0);
     GBS::SP_COAST_INV_REG::write(0); // just in case
     // if (!rto.outModeHdBypass && GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
-    // if (!rto.outModeHdBypass && !uopt.preferScalingRgbhv)
-    if (uopt.resolutionID != OutputHdBypass && !uopt.preferScalingRgbhv)
+    if (utilsNotPassThroughMode() && !uopt.preferScalingRgbhv)
     {
         // setOutputHdBypassMode has it's own and needs to update later
         updateStopPositionDynamic(false); // remember: rto.videoStandardInput for RGB(C/HV) in scaling is 1, 2 or 3 here
@@ -294,7 +293,7 @@ void doPostPresetLoadSteps(bool forceApply)
     }
 
     // if (rto.outModeHdBypass)
-    if (uopt.resolutionID == OutputHdBypass)
+    if (utilsIsPassThroughMode())
     {
         GBS::OUT_SYNC_SEL::write(1); // 0_4f 1=sync from HDBypass, 2=sync from SP
         rto.autoBestHtotalEnabled = false;
@@ -861,7 +860,7 @@ void doPostPresetLoadSteps(bool forceApply)
     GBS::VDS_FLOCK_EN::write(0);
 
     // if (!rto.outModeHdBypass && rto.autoBestHtotalEnabled &&
-    if (uopt.resolutionID != OutputHdBypass && rto.autoBestHtotalEnabled &&
+    if (utilsNotPassThroughMode() && rto.autoBestHtotalEnabled &&
         // GBS::GBS_OPTION_SCALING_RGBHV::read() == 0 && !avoidAutoBest &&
         !uopt.preferScalingRgbhv && !avoidAutoBest &&
         (rto.videoStandardInput >= 1 && rto.videoStandardInput <= 4))
@@ -943,7 +942,7 @@ void doPostPresetLoadSteps(bool forceApply)
     if (!uopt.slotIsCustom || forceApply)
     {
         // if (videoStandardInputIsPalNtscSd() && !rto.outModeHdBypass)
-        if (videoStandardInputIsPalNtscSd() && uopt.resolutionID != OutputHdBypass)
+        if (videoStandardInputIsPalNtscSd() && utilsNotPassThroughMode())
         {
             // SNES has less total lines and a slight offset (only relevant in 60Hz)
             if (GBS::VPERIOD_IF::read() == 523)
@@ -1003,7 +1002,7 @@ void doPostPresetLoadSteps(bool forceApply)
     }
 
     // if (!rto.outModeHdBypass)
-    if (uopt.resolutionID != OutputHdBypass)
+    if (utilsNotPassThroughMode())
     {
         ResetSDRAM();
     }
@@ -1049,7 +1048,7 @@ void doPostPresetLoadSteps(bool forceApply)
     rto.clampPositionIsSet = false;
 
     // if (rto.outModeHdBypass)
-    if (uopt.resolutionID == OutputHdBypass)
+    if (utilsIsPassThroughMode())
     {
         GBS::INTERRUPT_CONTROL_01::write(0xff); // enable interrupts
         GBS::INTERRUPT_CONTROL_00::write(0xff); // reset irq status
@@ -1063,7 +1062,8 @@ void doPostPresetLoadSteps(bool forceApply)
     if (uopt.preferScalingRgbhv)
     {
         rto.videoStandardInput = 14;
-    } else
+    }
+    else
     // if (GBS::GBS_OPTION_SCALING_RGBHV::read() == 0)
     {
         unsigned long timeout = millis();
@@ -1240,7 +1240,6 @@ void doPostPresetLoadSteps(bool forceApply)
  * @brief This func. does preparations for preset to be loaded by doPostPresetLoadSteps,
  *        in case of a OutputBypass it is searching FS for matching preset
  *        and does its loading if it has been found...
- *        Also does presetSaveToFS() if needed.
  *
  * @param videoMode
  */
@@ -1274,7 +1273,7 @@ void applyPresets(uint8_t videoMode)
     }
 
     // if (rto.outModeHdBypass || rto.videoStandardInput == 15 || rto.videoStandardInput == 0)
-    if (uopt.resolutionID == OutputHdBypass || rto.videoStandardInput == 15 || rto.videoStandardInput == 0)
+    if (utilsIsPassThroughMode() || rto.videoStandardInput == 15 || rto.videoStandardInput == 0)
     {
         waitExtra = true;
         if (videoMode <= 4 || videoMode == 14 || videoMode == 8 || videoMode == 9)
@@ -1285,7 +1284,7 @@ void applyPresets(uint8_t videoMode)
         }
     }
     rto.presetIsPalForce60 = 0; // the default
-    // rto.outModeHdBypass = 0;    // the default at this stage
+    rto.outModeHdBypass = None;    // the default at this stage
 
     if (videoMode == 0)
     {
@@ -1430,7 +1429,7 @@ void applyPresets(uint8_t videoMode)
 
         // uint8_t rawPresetId = GBS::GBS_PRESET_ID::read();
         // if (rawPresetId == OutputHdBypass)
-        if (uopt.resolutionID == OutputHdBypass)
+        if (rto.outModeHdBypass == OutputHdBypass)
         {
             // Required for switching from 240p to 480p to work.
             rto.videoStandardInput = videoMode;
@@ -1440,7 +1439,7 @@ void applyPresets(uint8_t videoMode)
             return true;
         }
         // if (rawPresetId == OutputRGBHVBypass)
-        if (uopt.resolutionID == OutputRGBHVBypass)
+        if (rto.outModeHdBypass == OutputRGBHVBypass)
         {
             // TODO implement setOutputRGBHVBypassMode (I don't have RGBHV inputs to verify)
         }
@@ -1617,7 +1616,7 @@ apply_presets_skip_preset_loading:
 
 apply_presets_end:
     // since we probably load all new register values
-    presetSaveToFS();
+    // presetSaveToFS();
     return;
 }
 

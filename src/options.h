@@ -123,22 +123,30 @@
 // Output resolution requested by user, *given to* applyPresets().
 enum OutputResolution : uint8_t {
                                      //  RESOLUTION         | FREQ | U.CMD. | OLD ID  |
-    Output240p          = 0, //'a',  //   320x240 (512/640?)|  ?   |   'j'  |   0     |
-    Output960           = 2, //'c',  //   SXGA- | 1280x960  | 60Hz |   'f'  |  0x01   |
-    Output960PAL        = 3, //'d',  // ? SXGA- | 1280x960  | 50Hz |        |  0x11   |
-    Output1024          = 4, //'e',  //   SXGA  | 1280x1024 | 60Hz |   'p'  |  0x02   |
-    Output1024PAL       = 5, //'f',  // ? SXGA  | 1280x1024 | 50Hz |        |  0x12   |
-    Output720           = 6, //'g',  //   HD    | 1280×720  | 60Hz |   'g'  |  0x03   |
-    Output720PAL        = 7, //'h',  // ? HD    | 1280×720  | 50Hz |        |  0x13   |
-    Output480           = 8, //'i',  //   SD    | 720×480   | 60Hz |   'h'  |  0x04   |
-    Output480PAL        = 9, //'j',  // ? SD    | 720×480   | 50Hz |        |  -      |
-    Output1080          = 10,//'k',  //   FHD   | 1920×1080 | 60Hz |   's'  |  0x05   |
-    Output1080PAL       = 11,//'l',  // ? FHD   | 1920×1080 | 50Hz |        |  0x15   |
-    Output15kHz         = 12,//'m',  //   15kHz/downscale   | 60Hz |   'L'  |  0x06   |
-    Output15kHzPAL      = 13,//'n',  // ? 15kHz/downscale   | 50Hz |        |  0x16   |
-    Output576PAL        = 15,//'p',  //   PAL   | 768×576   | 50Hz |   'k'  |  0x14   |
-    OutputHdBypass      = 18,//'s',  //                            |   'K'   |  0x21   |
-    OutputRGBHVBypass   = 20,//'u',  //                            |   'k'   |  0x22   |
+    Output240p          = 0,   //   320x240 (512/640?)|  ?   |   'j'  |   0     |
+    Output960           = 2,   //   SXGA- | 1280x960  | 60Hz |   'f'  |  0x01   |
+    Output960PAL        = 3,   // ? SXGA- | 1280x960  | 50Hz |        |  0x11   |
+    Output1024          = 4,   //   SXGA  | 1280x1024 | 60Hz |   'p'  |  0x02   |
+    Output1024PAL       = 5,   // ? SXGA  | 1280x1024 | 50Hz |        |  0x12   |
+    Output720           = 6,   //   HD    | 1280×720  | 60Hz |   'g'  |  0x03   |
+    Output720PAL        = 7,   // ? HD    | 1280×720  | 50Hz |        |  0x13   |
+    Output480           = 8,   //   SD    | 720×480   | 60Hz |   'h'  |  0x04   |
+    Output480PAL        = 9,   // ? SD    | 720×480   | 50Hz |        |  -      |
+    Output1080          = 10,  //   FHD   | 1920×1080 | 60Hz |   's'  |  0x05   |
+    Output1080PAL       = 11,  // ? FHD   | 1920×1080 | 50Hz |        |  0x15   |
+    Output15kHz         = 12,  //   15kHz/downscale   | 60Hz |   'L'  |  0x06   |
+    Output15kHzPAL      = 13,  // ? 15kHz/downscale   | 50Hz |        |  0x16   |
+    Output576PAL        = 15,  //   PAL   | 768×576   | 50Hz |   'k'  |  0x14   |
+    OutputBypass        = 16,
+
+    // OutputHdBypass      = 18,  //                            |   'K'  |  0x21   |
+    // OutputRGBHVBypass   = 20,  //                            |   'k'  |  0x22   |
+};
+
+enum OutputBypasModeType: uint8_t {
+    None                = 0,    // default value
+    OutputHdBypass      = 18,   //                            |   'K'  |  0x21   |
+    OutputRGBHVBypass   = 20,   //                            |   'k'  |  0x22   |
 };
 
 // userOptions holds user preferences / customizations
@@ -153,7 +161,7 @@ typedef struct
     // stored to FS.
     // I.E.: custom slot contains custom presets.
     bool slotIsCustom = false;
-    OutputResolution resolutionID = OutputHdBypass;
+    OutputResolution resolutionID = Output480;
     bool enableFrameTimeLock = false;
     uint8_t frameTimeLockMethod = 0;
     bool enableAutoGain = false;
@@ -232,7 +240,7 @@ typedef struct
     bool clampPositionIsSet = false;
     bool coastPositionIsSet = false;
     bool phaseIsSet = false;
-    // bool outModeHdBypass;
+    OutputBypasModeType outModeHdBypass = None;
     bool printInfos = false;
     bool allowUpdatesOTA = false;
 #ifdef HAVE_PINGER_LIBRARY

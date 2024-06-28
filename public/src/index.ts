@@ -166,8 +166,9 @@ const GBSControl = {
         12: 'button15kHz',
         13: 'button15kHz', // 50Hz
         15: 'button576p', // 50Hz
-        18: 'buttonSourcePassThrough', // OutputHdBypass
-        20: 'buttonSourcePassThrough', // OutputRGBHVBypass
+        16: 'buttonSourcePassThrough',
+        // 18: 'buttonSourcePassThrough', // OutputHdBypass
+        // 20: 'buttonSourcePassThrough', // OutputRGBHVBypass
     },
     controlKeysMobileMode: 'move',
     controlKeysMobile: {
@@ -628,6 +629,7 @@ const createWebSocket = () => {
             optionByte6, // developerMode, printInfos, invertSync, oversampling, ADC Filter, debugView, freezeCapture
             // system tab
             optionByte7, // enableOTA
+            optionByte8, // videoMode
         ] = bufArr
 
         if (optionByte0 != '#'.charCodeAt(0)) {
@@ -660,8 +662,18 @@ const createWebSocket = () => {
         // curent resolution
         // const resID = GBSControl.buttonMapping[String.fromCharCode(optionByte2)]
         const resID = GBSControl.buttonMapping[optionByte2]
-        // TODO somehow indicate that this is passthrough which is scaled
-        //      if (optionByte5 & 0x04) == 0x04 && RGB/HV is detected
+        // somehow indicate that this is passthrough which is scaled
+        // (?) but not a downscale option
+        const passThroughButton = document.querySelector('[gbs-message="W"][gbs-message-type="user"]')
+        if((optionByte5 & 0x04) == 0x04 && optionByte2 != 12 && optionByte2 != 13) {
+            // we have RGB/HV and scale RGB/HV option enabled, so
+            // reflect this in UI
+            passThroughButton.setAttribute('active', '')
+            passThroughButton.setAttribute('disabled', '')
+        } else {
+            passThroughButton.removeAttribute('active')
+            passThroughButton.removeAttribute('disabled')
+        }
         const resEl = document.querySelector(`[gbs-element-ref="${resID}"]`)
         const activePresetButton = resEl
             ? resEl.getAttribute('gbs-element-ref')
@@ -688,7 +700,13 @@ const createWebSocket = () => {
                     // case "scanlinesStrength":
                     /** 1 */
                     case 'scanlines':
-                        toggleButtonCheck(button, (optionByte3 & 0x01) == 0x01)
+                        // disable scanlines control button if enabled MotionAdaptive
+                        if((optionByte4 & 0x01) == 0x01
+                            && (optionByte8 == 1 || optionByte8 == 2 || optionByte8 == 14))
+                            // MAD enabled + specific video mode
+                            button.setAttribute('disabled', '')
+                        else
+                            toggleButtonCheck(button, (optionByte3 & 0x01) == 0x01)
                         break
                     case 'vdsLineFilter':
                         toggleButtonCheck(button, (optionByte3 & 0x02) == 0x02)

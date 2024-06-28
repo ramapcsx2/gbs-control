@@ -4,11 +4,13 @@
 <head>
     <meta charset="UTF-8" />
     <title>GBS-Control</title>
-    <link rel="manifest" href="${manifest}" />
-    <style>${styles}</style>
+    <link rel="manifest" href="${MANIFEST}" />
+    <style>
+        ${STYLES}
+    </style>
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <link rel="icon" type="image/png" href="${favicon}" />
-    <link rel="apple-touch-icon" href="${icon1024}" />
+    <link rel="icon" type="image/png" href="${FAVICON}" />
+    <link rel="apple-touch-icon" href="${ICON1024}" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="viewport"
         content="viewport-fit=cover, user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1" />
@@ -75,8 +77,8 @@
                             <div class="gbs-icon">delete</div>
                             <div>L{REMOVE_SLOT}</div>
                         </button>
-                        <button class="gbs-button gbs-button__control-action gbs-button__secondary" gbs-element-ref="buttonCreateSlot"
-                            active>
+                        <button class="gbs-button gbs-button__control-action gbs-button__secondary"
+                            gbs-element-ref="buttonCreateSlot" active>
                             <div class="gbs-icon">fiber_manual_record</div>
                             <div>L{SAVE_PRESET}</div>
                         </button>
@@ -119,7 +121,7 @@
                             </button> -->
                             <button class="gbs-button gbs-button__resolution" gbs-message="h" gbs-message-type="user"
                                 gbs-click="normal" gbs-element-ref="button480p" gbs-role="preset">
-                                720 x 480
+                                480p / 576p
                             </button>
                             <!-- <button class="gbs-button gbs-button__resolution" gbs-message="j" gbs-message-type="user"
                                 gbs-click="normal" gbs-element-ref="button240p" gbs-role="preset">
@@ -360,6 +362,78 @@
                         </button>
                     </div>
                 </fieldset>
+
+                <fieldset class="gbs-fieldset filters">
+                    <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
+                        <div class="gbs-icon">wb_sunny</div>
+                        <div>L{COLOR_CORRECTION_LEGEND}</div>
+                    </legend>
+                    <ul class="gbs-help">
+                        <!-- prettier-ignore -->
+                        <li>L{COLOR_CORRECTION_HELP_0}</li>
+                        <li>L{COLOR_CORRECTION_HELP_1}</li>
+                    </ul>
+                    <div class="gbs-flex">
+                        <button gbs-message="Z" gbs-message-type="user" gbs-click="repeat"
+                            class="gbs-button gbs-button__control">
+                            <div class="gbs-icon">add_circle_outline</div>
+                            <div>L{BRIGHTNESS_CTRL_BUTTON}</div>
+                        </button>
+                        <button gbs-message="T" gbs-message-type="user" gbs-click="repeat"
+                            class="gbs-button gbs-button__control">
+                            <div class="gbs-icon">remove_circle_outline</div>
+                            <div>L{BRIGHTNESS_CTRL_BUTTON}</div>
+                        </button>
+                    </div>
+                    <div class="gbs-flex">
+                        <button gbs-message="N" gbs-message-type="user" gbs-click="repeat"
+                            class="gbs-button gbs-button__control">
+                            <div class="gbs-icon">add_circle_outline</div>
+                            <div>L{CONTRAST_CTRL_BUTTON}</div>
+                        </button>
+                        <button gbs-message="M" gbs-message-type="user" gbs-click="repeat"
+                            class="gbs-button gbs-button__control">
+                            <div class="gbs-icon">remove_circle_outline</div>
+                            <div>L{CONTRAST_CTRL_BUTTON}</div>
+                        </button>
+                    </div>
+                    <div class="gbs-flex">
+                        <button gbs-message="Q" gbs-message-type="user" gbs-click="repeat"
+                            class="gbs-button gbs-button__control">
+                            <div class="gbs-icon">add_circle_outline</div>
+                            <div>L{PB_U_GAIN_CTRL_BUTTON}</div>
+                        </button>
+                        <button gbs-message="H" gbs-message-type="user" gbs-click="repeat"
+                            class="gbs-button gbs-button__control">
+                            <div class="gbs-icon">remove_circle_outline</div>
+                            <div>L{PB_U_GAIN_CTRL_BUTTON}</div>
+                        </button>
+                    </div>
+                    <div class="gbs-flex">
+                        <button gbs-message="P" gbs-message-type="user" gbs-click="repeat"
+                            class="gbs-button gbs-button__control">
+                            <div class="gbs-icon">add_circle_outline</div>
+                            <div>L{PR_V_GAIN_CTRL_BUTTON}</div>
+                        </button>
+                        <button gbs-message="S" gbs-message-type="user" gbs-click="repeat"
+                            class="gbs-button gbs-button__control">
+                            <div class="gbs-icon">remove_circle_outline</div>
+                            <div>L{PR_V_GAIN_CTRL_BUTTON}</div>
+                        </button>
+                    </div>
+                    <div class="gbs-flex">
+                        <button gbs-message="O" gbs-message-type="user" gbs-click="repeat"
+                            class="gbs-button gbs-button__control">
+                            <div class="gbs-icon">info</div>
+                            <div>L{COLOR_INFO_CTRL_BUTTON}</div>
+                        </button>
+                        <button gbs-message="U" gbs-message-type="user" gbs-click="repeat"
+                            class="gbs-button gbs-button__control">
+                            <div class="gbs-icon">settings_backup_restore</div>
+                            <div>L{RESET_DEFAULT_COLOR_CTRL_BUTTON}</div>
+                        </button>
+                    </div>
+                </fieldset>
             </section>
 
             <section name="preferences" hidden>
@@ -529,8 +603,8 @@
                                     <li>L{DEVELOPER_MODE_SWITCH_HELP_1}</li>
                                 </ul>
                             </td>
-                            <td gbs-message="d" gbs-message-type="user" gbs-click="normal"
-                                class="gbs-icon">toggle_off</td>
+                            <td gbs-message="d" gbs-message-type="user" gbs-click="normal" class="gbs-icon">toggle_off
+                            </td>
                         </tr>
                     </table>
                 </fieldset>
@@ -611,8 +685,7 @@
                             <div class="gbs-icon">alarm</div>
                             <div>L{GET_VIDEO_TIMING_BUTTON}</div>
                         </button>
-                        <button gbs-message="F" gbs-message-type="user" gbs-click="normal"
-                            class="gbs-button">
+                        <button gbs-message="F" gbs-message-type="user" gbs-click="normal" class="gbs-button">
                             <div class="gbs-icon">add_a_photo</div>
                             <div>L{FREEZE_CAPTURE_BUTTON}</div>
                         </button>
@@ -796,12 +869,12 @@
                             <div>L{CONNECTO_TO_SSID_BUTTON}</div>
                         </legend>
                         <div class="gbs-flex">
-                            <input class="gbs-button gbs-wifi__input" placeholder="L{SSID_PLACEHOLDER}" type="text" readonly
-                                gbs-input="ssid" />
+                            <input class="gbs-button gbs-wifi__input" placeholder="L{SSID_PLACEHOLDER}" type="text"
+                                readonly gbs-input="ssid" />
                         </div>
                         <div class="gbs-flex">
-                            <input class="gbs-button gbs-wifi__input" placeholder="L{PASSWORD_PLACEHOLDER}" type="password"
-                                gbs-input="password" />
+                            <input class="gbs-button gbs-wifi__input" placeholder="L{PASSWORD_PLACEHOLDER}"
+                                type="password" gbs-input="password" />
                         </div>
                         <div class="gbs-flex">
                             <button gbs-wifi-connect-button
@@ -867,8 +940,11 @@
         <div class="gbs-scroll__footer">
             <div>
                 <a target="_blank" href="https://github.com/ramapcsx2/gbs-control">
-                    <svg focusable="false" aria-hidden="true" viewBox="0 0 24 24" width="12px" height="12px" data-testid="GitHubIcon" aria-label="fontSize small">
-                        <path fill="#FFFFFF" d="M12 1.27a11 11 0 00-3.48 21.46c.55.09.73-.28.73-.55v-1.84c-3.03.64-3.67-1.46-3.67-1.46-.55-1.29-1.28-1.65-1.28-1.65-.92-.65.1-.65.1-.65 1.1 0 1.73 1.1 1.73 1.1.92 1.65 2.57 1.2 3.21.92a2 2 0 01.64-1.47c-2.47-.27-5.04-1.19-5.04-5.5 0-1.1.46-2.1 1.2-2.84a3.76 3.76 0 010-2.93s.91-.28 3.11 1.1c1.8-.49 3.7-.49 5.5 0 2.1-1.38 3.02-1.1 3.02-1.1a3.76 3.76 0 010 2.93c.83.74 1.2 1.74 1.2 2.94 0 4.21-2.57 5.13-5.04 5.4.45.37.82.92.82 2.02v3.03c0 .27.1.64.73.55A11 11 0 0012 1.27"></path>
+                    <svg focusable="false" aria-hidden="true" viewBox="0 0 24 24" width="12px" height="12px"
+                        data-testid="GitHubIcon" aria-label="fontSize small">
+                        <path fill="#FFFFFF"
+                            d="M12 1.27a11 11 0 00-3.48 21.46c.55.09.73-.28.73-.55v-1.84c-3.03.64-3.67-1.46-3.67-1.46-.55-1.29-1.28-1.65-1.28-1.65-.92-.65.1-.65.1-.65 1.1 0 1.73 1.1 1.73 1.1.92 1.65 2.57 1.2 3.21.92a2 2 0 01.64-1.47c-2.47-.27-5.04-1.19-5.04-5.5 0-1.1.46-2.1 1.2-2.84a3.76 3.76 0 010-2.93s.91-.28 3.11 1.1c1.8-.49 3.7-.49 5.5 0 2.1-1.38 3.02-1.1 3.02-1.1a3.76 3.76 0 010 2.93c.83.74 1.2 1.74 1.2 2.94 0 4.21-2.57 5.13-5.04 5.4.45.37.82.92.82 2.02v3.03c0 .27.1.64.73.55A11 11 0 0012 1.27">
+                        </path>
                     </svg>
                     GBS-CONTROL
                 </a>
@@ -880,7 +956,7 @@
         <div class="gbs-icon blink_me">signal_wifi_off</div>
     </div>
     <div class="gbs-loader"><img /></div>
-    <script>${js}</script>
+    <script>${JS}</script>
 </body>
 
 </html>

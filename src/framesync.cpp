@@ -3,7 +3,7 @@
 # File: framesync.cpp                                                     #
 # File Created: Sunday, 5th May 2024 12:52:08 pm                          #
 # Author:                                                                 #
-# Last Modified: Tuesday, 18th June 2024 1:29:36 pm                       #
+# Last Modified: Tuesday, 25th June 2024 2:07:00 pm                       #
 # Modified By: Sergey Ko                                                  #
 ###########################################################################
 # CHANGELOG:                                                              #
@@ -286,8 +286,9 @@ bool FrameSyncManager::runFrequency()
 {
     if (maybeFreqExt_per_videoFps < 0)
     {
-        _WSN(
-            F("Error: trying to tune external clock frequency while clock frequency uninitialized!"));
+        // NOTE: before must be called externalClockGenSyncInOutRate()
+        _DBGN(
+            F("Error: trying to tune external clock frequency while it's uninitialized"));
         return true;
     }
 
@@ -304,7 +305,7 @@ bool FrameSyncManager::runFrequency()
     }
 
     // if (rto.outModeHdBypass)
-    if (uopt.resolutionID == OutputHdBypass)
+    if (utilsIsPassThroughMode())
     {
         // #ifdef FRAMESYNC_DEBUG
         // _DBGN(F("Skipping FrameSyncManager::runFrequency(), rto.outModeHdBypass"));
@@ -313,7 +314,7 @@ bool FrameSyncManager::runFrequency()
     }
     if (GBS::PLL648_CONTROL_01::read() != 0x75)
     {
-        _WSF(
+        _DBGF(
             PSTR("Error: trying to tune external clock frequency while set to internal clock, PLL648_CONTROL_01=%d!\n"),
             GBS::PLL648_CONTROL_01::read());
         return true;

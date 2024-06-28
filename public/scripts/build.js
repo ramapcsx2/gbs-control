@@ -8,13 +8,12 @@ if (!fs.existsSync(dataPath)) {
     fs.mkdirSync(dataPath)
 }
 const minify = require(`${nodeModulesPath}/@node-minify/core`);
-const htmlMinifier = require(`${nodeModulesPath}/@node-minify/html-minifier`);
 const uglifyJS = require(`${nodeModulesPath}/@node-minify/uglify-js`);
 var html = fs
     .readFileSync(`${webRootPath}/src/index.html.tpl`, 'utf-8');
 var js = fs
-    .readFileSync(`${webRootPath}/src/index.js`, 'utf-8')
-    .replaceAll(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '');
+    .readFileSync(`${webRootPath}/src/index.js`, 'utf-8');
+    // .replaceAll(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '');
 
 //
 // A simple script which does i18n of HTML template.
@@ -95,6 +94,7 @@ const manifest = fs
     .readFileSync(`${webRootPath}/src/manifest.json`, 'utf-8')
     .replaceAll(/\$\{icon1024\}/g, `data:image/png;base64,${icon1024}`)
 
+// NOTE @node-minify/html-minifier will not work here
 minify({
     compressor: uglifyJS,
     content: js,
@@ -104,28 +104,20 @@ minify({
         compress: true
     }
 }).then((minifiedJS) => {
-    minify({
-        compressor: htmlMinifier,
-        content: html
-                .replace('${styles}', css)
-                .replace('${js}', minifiedJS)
-                .replace('${favicon}', `data:image/png;base64,${favicon}`)
-                .replace('${VERSION_FIRMWARE}', config['version'])
-                .replace('${VERSION_UI}', package['version'])
-                .replace(
-                    '${manifest}',
-                    `data:application/json;base64,${Buffer.from(manifest).toString('base64')}`
-                )
-                .replace('${icon1024}', `data:image/png;base64,${icon1024}`)
-                .trim(),
-        options: {
-            removeAttributeQuotes: true
-        },
-    }).then((minifiedHtml) => {
-        fs.writeFileSync(
-            'data/webui.html',
-            minifiedHtml,
-            'utf8'
-        );
-    });
+    fs.writeFileSync(
+        'data/webui.html',
+        html
+            .replace('${STYLES}', css)
+            .replace('${JS}', minifiedJS)
+            .replace('${FAVICON}', `data:image/png;base64,${favicon}`)
+            .replace('${VERSION_FIRMWARE}', config['version'])
+            .replace('${VERSION_UI}', package['version'])
+            .replace(
+                '${MANIFEST}',
+                `data:application/json;base64,${Buffer.from(manifest).toString('base64')}`
+            )
+            .replace('${ICON1024}', `data:image/png;base64,${icon1024}`)
+            .trim(),
+        'utf8'
+    );
 });

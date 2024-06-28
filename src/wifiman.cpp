@@ -3,7 +3,7 @@
 # File: wifiman.cpp                                                                 #
 # File Created: Friday, 19th April 2024 2:25:33 pm                                  #
 # Author: Sergey Ko                                                                 #
-# Last Modified: Tuesday, 18th June 2024 1:29:36 pm                       #
+# Last Modified: Monday, 24th June 2024 9:16:38 pm                        #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -77,90 +77,6 @@ static void wifiEventHandler(System_Event_t *e)
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     }
 }
-
-/**
- * @brief Response to WS with current
- *          system status and preset data
- *          the data structure must match those
- *          which is in webUI (see: createWebSocket())
- *
- */
-// void updateWebSocketData()
-// {
-//     // assert free heap
-//     // if (ESP.getFreeHeap() > 14000) {
-//     //     webSocket.disconnect();
-//     // }
-// #if WEB_SERVER_ENABLE == 1
-////     if (rto.webServerStarted) {
-//         if (webSocket.connectedClients() > 0) {
-//             constexpr size_t MESSAGE_LEN = 8;
-//             uint8_t toSend[MESSAGE_LEN];
-//             memset(toSend, 0, MESSAGE_LEN);
-//             // special character # used for message filtering in WebUI
-//             toSend[0] = '#';
-//             toSend[1] = uopt.slotID + '0';
-//             // TODO: resolutionID must be INTEGER too?
-//             toSend[2] = (char)uopt.resolutionID;
-//             //
-//             if (uopt.wantScanlines)
-//                 toSend[3] |= (1 << 0);
-//             if (uopt.wantVdsLineFilter)
-//                 toSend[3] |= (1 << 1);
-//             if (uopt.wantStepResponse)
-//                 toSend[3] |= (1 << 2);
-//             if (uopt.wantPeaking)
-//                 toSend[3] |= (1 << 3);
-//             if (uopt.enableAutoGain)
-//                 toSend[3] |= (1 << 4);
-//             if (uopt.enableFrameTimeLock)
-//                 toSend[3] |= (1 << 5);
-
-//             //
-//             if (uopt.deintMode == 0)      // motion adaptive if == 0
-//                 toSend[4] |= (1 << 0);
-//             if (uopt.deintMode == 1)      // bob if == 1
-//                 toSend[4] |= (1 << 1);
-//             // if (uopt.wantTap6) {
-//             //     toSend[4] |= (1 << 1);
-//             // }
-//             if (uopt.wantFullHeight)
-//                 toSend[4] |= (1 << 2);
-//             // if (uopt.matchPresetSource)
-//             //     toSend[4] |= (1 << 3);
-//             if (uopt.PalForce60 == 1)
-//                 toSend[4] |= (1 << 3);
-
-//             // system preferences
-//             if (uopt.wantOutputComponent)
-//                 toSend[5] |= (1 << 0);
-//             if (uopt.enableCalibrationADC)
-//                 toSend[5] |= (1 << 1);
-//             if (uopt.preferScalingRgbhv)
-//                 toSend[5] |= (1 << 2);
-//             if (uopt.disableExternalClockGenerator)
-//                 toSend[5] |= (1 << 3);
-
-//             // developer panel controls status
-//             if(rto.printInfos)
-//                 toSend[6] |= (1 << 0);
-//             if(uopt.invertSync)
-//                 toSend[6] |= (1 << 1);
-//             if(rto.osr != 0)
-//                 toSend[6] |= (1 << 2);
-//             if(GBS::ADC_FLTR::read() != 0)
-//                 toSend[6] |= (1 << 3);
-//             if(uopt.debugView)
-//                 toSend[6] |= (1 << 4);
-
-//             // system tab controls
-//             if(rto.allowUpdatesOTA)
-//                 toSend[7] |= (1 << 0);
-
-//             webSocket.broadcastBIN(toSend, MESSAGE_LEN);
-//         }
-//     }
-// }
 
 /**
  * @brief

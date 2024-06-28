@@ -3,7 +3,7 @@
 # File: utils.cpp                                                                  #
 # File Created: Thursday, 2nd May 2024 5:37:47 pm                                   #
 # Author:                                                                           #
-# Last Modified: Monday, 24th June 2024 12:46:07 pm                       #
+# Last Modified: Tuesday, 25th June 2024 1:01:10 pm                       #
 # Modified By: Sergey Ko                                                            #
 #####################################################################################
 # CHANGELOG:                                                                        #
@@ -21,7 +21,7 @@ static uint8_t lastSegment = 0xFF;
  * @return false
  */
 bool utilsIsPassThroughMode() {
-    return (uopt.resolutionID == OutputHdBypass || uopt.resolutionID == OutputRGBHVBypass);
+    return (rto.outModeHdBypass == OutputHdBypass || rto.outModeHdBypass == OutputRGBHVBypass);
 }
 
 /**
@@ -31,7 +31,7 @@ bool utilsIsPassThroughMode() {
  * @return false
  */
 bool utilsNotPassThroughMode() {
-    return (uopt.resolutionID != OutputHdBypass && uopt.resolutionID != OutputRGBHVBypass);
+    return (rto.outModeHdBypass != OutputHdBypass && rto.outModeHdBypass != OutputRGBHVBypass);
 }
 
 /**
@@ -173,7 +173,7 @@ void resetDigital()
     GBS::RESET_CONTROL_0x47::write(0x17); // new, keep 0,1,2,4 on (DEC,MODE,SYNC,INT) //MODE okay?
 
     // if (rto.outModeHdBypass) { // if currently in bypass
-    if (uopt.resolutionID == OutputHdBypass) { // if currently in bypass
+    if (utilsIsPassThroughMode()) { // if currently in bypass
         GBS::RESET_CONTROL_0x46::write(0x00);
         GBS::RESET_CONTROL_0x47::write(0x1F);
         return; // 0x46 stays all 0
