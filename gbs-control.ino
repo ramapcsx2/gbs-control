@@ -7601,7 +7601,6 @@ void setup()
     //needed to add this here because it wasn't working higher up in the first section
     #if USE_LCD_MENU //LCD VOID SETUP #2
     if(USE_REALTIME_UPDATING == 0){ LCD_Load_PresetIDs_Into_slotobject();  } //if USE_REALTIME_UPDATING is disabled we dont want it to loop constantly, only run once at startup.
-    //createDefaultSlotsIfMissing(); // If user freshly (flashes all content) to install gbscontrol, they need an empty slot to view and start with
     lcd.init();         //LCD DISPLAY START    
     #endif
     
