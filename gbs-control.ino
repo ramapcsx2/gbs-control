@@ -23,9 +23,13 @@
 #include "SSD1306Wire.h"
 #include "images.h"
 
-#define HAVE_BUTTONS 0
-#define USE_NEW_OLED_MENU 1
 
+
+#define HAVE_BUTTONS 0
+#define USE_NEW_OLED_MENU 1 
+#define USE_ORIGINAL_OLED_MENU 0 
+#define USE_LCD_MENU 0 //USE WITH 16x2 I2C LCD MODULE 
+   
 
 static inline void writeBytes(uint8_t slaveRegister, uint8_t *values, uint8_t numValues);
 const uint8_t *loadPresetFromSPIFFS(byte forVideoMode);
@@ -36,6 +40,8 @@ const int pin_data = 13;           //D7 = GPIO13	(input of one direction for enc
 const int pin_switch = 0;          //D3 = GPIO0 pulled HIGH, else boot fail (middle push button for encoder)
 
 
+
+
 #if USE_NEW_OLED_MENU
 #include "OLEDMenuImplementation.h"
 #include "OSDManager.h"
@@ -43,7 +49,9 @@ OLEDMenuManager oledMenu(&display);
 OSDManager osdManager;
 volatile OLEDMenuNav oledNav = OLEDMenuNav::IDLE;
 volatile uint8_t rotaryIsrID = 0;
-#else
+#endif
+
+#if USE_ORIGINAL_OLED_MENU
 String oled_menu[4] = {"Resolutions", "Presets", "Misc.", "Current Settings"};
 String oled_Resolutions[7] = {"1280x960", "1280x1024", "1280x720", "1920x1080", "480/576", "Downscale", "Pass-Through"};
 String oled_Presets[8] = {"1", "2", "3", "4", "5", "6", "7", "Back"};
@@ -60,6 +68,23 @@ volatile int oled_main_pointer = 0; // volatile vars change done with ISR
 volatile int oled_pointer_count = 0;
 volatile int oled_sub_pointer = 0;
 #endif
+
+#if USE_LCD_MENU //LCD
+#include <hd44780.h>                       
+#include <hd44780ioClass/hd44780_I2Cexp.h> 
+#include "LCDMenu.h"
+extern hd44780_I2Cexp lcd; 
+extern int LCD_menuItem; 
+extern int LCD_subsetFrame; 
+extern int LCD_selectOption;
+extern int LCD_page;
+extern int LCD_lastCount;
+extern volatile int LCD_encoder_pos;
+extern volatile int LCD_main_pointer; // volatile vars change done with ISR //default is 0
+extern volatile int LCD_pointer_count;
+extern volatile int LCD_sub_pointer;
+#endif //LCD
+
 #include <ESP8266WiFi.h>
 // ESPAsyncTCP and ESPAsyncWebServer libraries by me-no-dev
 // download (green "Clone or download" button) and extract to Arduino libraries folder
@@ -7124,7 +7149,35 @@ void loadDefaultUserOptions()
 //  system_phy_set_powerup_option(0);
 //}
 
-#if !USE_NEW_OLED_MENU
+#if USE_LCD_MENU  //LCD 
+void ICACHE_RAM_ATTR isrRotaryEncoder()
+{
+    static unsigned long lastInterruptTime = 0;
+    unsigned long interruptTime = millis();
+
+    if (interruptTime - lastInterruptTime > 120) {
+        if (!digitalRead(pin_data)) {
+            LCD_encoder_pos++;
+            LCD_main_pointer += 15;
+            LCD_sub_pointer += 15;
+            LCD_pointer_count++;
+            // down = true;
+            // up = false;
+        } else {
+            LCD_encoder_pos--;
+            LCD_main_pointer -= 15;
+            LCD_sub_pointer -= 15;
+            LCD_pointer_count--;
+            // down = false;
+            // up = true;
+        }
+    }
+    lastInterruptTime = interruptTime;
+}
+#endif
+
+
+#if USE_ORIGINAL_OLED_MENU
 void ICACHE_RAM_ATTR isrRotaryEncoder()
 {
     static unsigned long lastInterruptTime = 0;
@@ -7191,8 +7244,8 @@ void ICACHE_RAM_ATTR isrRotaryEncoderPushForNewMenu()
 
 void setup()
 {
-    display.init();                 //inits OLED on I2C bus
-    display.flipScreenVertically(); //orientation fix for OLED
+    display.init();                 //inits OLED on I2C bus   
+    display.flipScreenVertically(); //orientation fix for OLED  
 
     pinMode(pin_clk, INPUT_PULLUP);
     pinMode(pin_data, INPUT_PULLUP);
@@ -7203,11 +7256,16 @@ void setup()
     attachInterrupt(digitalPinToInterrupt(pin_switch), isrRotaryEncoderPushForNewMenu, FALLING);
     initOLEDMenu();
     initOSD();
-#else
+#endif
+#if USE_ORIGINAL_OLED_MENU
     // ISR TO PIN
     attachInterrupt(digitalPinToInterrupt(pin_clk), isrRotaryEncoder, FALLING);
 #endif
-
+#if USE_LCD_MENU //LCD VOID SETUP #1
+   
+    // ISR TO PIN
+    attachInterrupt(digitalPinToInterrupt(pin_clk), isrRotaryEncoder, FALLING);
+#endif
     rto->webServerEnabled = true;
     rto->webServerStarted = false; // make sure this is set
 
@@ -7307,8 +7365,10 @@ void setup()
     unsigned long initDelay = millis();
     // upped from < 500 to < 1500, allows more time for wifi and GBS startup
     while (millis() - initDelay < 1500) {
-        display.drawXbm(2, 2, gbsicon_width, gbsicon_height, gbsicon_bits);
-        display.display();
+        display.drawXbm(2, 2, gbsicon_width, gbsicon_height, gbsicon_bits); 
+        display.display(); 
+        if(USE_LCD_MENU) { LCD_printSplash(LCD_SPLASH_SCREEN_TYPE); }  //LCD STARTUP SPLASH SCREEN
+
         handleWiFi(0);
         delay(1);
     }
@@ -7537,6 +7597,14 @@ void setup()
     if (Serial.available()) {
         discardSerialRxData();
     }
+    
+    //needed to add this here because it wasn't working higher up in the first section
+    #if USE_LCD_MENU //LCD VOID SETUP #2
+    if(USE_REALTIME_UPDATING == 0){ LCD_Load_PresetIDs_Into_slotobject();  } //if USE_REALTIME_UPDATING is disabled we dont want it to loop constantly, only run once at startup.
+    //createDefaultSlotsIfMissing(); // If user freshly (flashes all content) to install gbscontrol, they need an empty slot to view and start with
+    lcd.init();         //LCD DISPLAY START    
+    #endif
+    
 }
 
 #if HAVE_BUTTONS
@@ -7750,7 +7818,7 @@ void myLog(char const* type, char command) {
         type, command, uopt->presetPreference, uopt->presetSlot, rto->presetID);
 }
 
-void loop()
+void loop() 
 {
     static uint8_t readout = 0;
     static uint8_t segmentCurrent = 255;
@@ -7778,11 +7846,19 @@ void loop()
     if (oldIsrID == rotaryIsrID) {
         oledNav = OLEDMenuNav::IDLE;
     }
-#else
+#endif
+#if USE_ORIGINAL_OLED_MENU
     settingsMenuOLED();
     if (oled_encoder_pos != oled_lastCount) {
         oled_lastCount = oled_encoder_pos;
     }
+#endif
+#if USE_LCD_MENU //LCD 
+    //LCD LOOP
+    if (USE_REALTIME_UPDATING == 1)                 {LCD_Load_PresetIDs_Into_slotobject(); }  //LCD instantly load preset slot names into variable to access when needed  //its looped which might be costly
+    settingsMenuLCD();
+
+    if (LCD_encoder_pos != LCD_lastCount) { LCD_lastCount = LCD_encoder_pos; }
 #endif
 
     handleWiFi(0); // WiFi + OTA + WS + MDNS, checks for server enabled + started
@@ -10195,10 +10271,9 @@ void saveUserPrefs()
 
     f.close();
 }
-
 #endif
 
-#if !USE_NEW_OLED_MENU
+#if USE_ORIGINAL_OLED_MENU 
 //OLED Functionality
 void settingsMenuOLED()
 {
@@ -10769,7 +10844,7 @@ void settingsMenuOLED()
             oled_selectOption = 0;
         }
     }
-}
+} //end of Oled menu
 
 void pointerfunction()
 {
@@ -10786,6 +10861,7 @@ void pointerfunction()
         oled_pointer_count = 3;
     }
 }
+
 void subpointerfunction()
 {
     if (oled_sub_pointer < 0) {
@@ -10808,5 +10884,5 @@ void subpointerfunction()
     } else if (oled_pointer_count >= 7) {
         oled_pointer_count = 7;
     }
-}
+} 
 #endif
