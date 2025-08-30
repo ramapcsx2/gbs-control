@@ -466,7 +466,7 @@ if (LCD_menuItem == 2 && LCD_selectOption == 2)
               LCD_selectOption == 0;
               lcd.clear();
               lcd.setCursor(0,0); 
-              lcd.print("FACTORY RESET:");  
+              lcd.print("FACTORY RESTORE:");  
               lcd.setCursor(0,1);
               lcd.print("ABORTED!"); 
               delay(2500); //give user a chance to see they aborted
@@ -1050,3 +1050,4 @@ void LCD_resetToXMenu(int location) //uses enum LOCATIONS for values
     }
 
 }
+
