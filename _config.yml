@@ -1,7 +1,7 @@
 title: GBS Control
 description: alternative firmware for Tvia Trueview5725 based upscalers
 markdown: GFM
-remote_theme: rundocs/jekyll-rtd-theme
+remote_theme: israpps/jekyll-theme-read-the-docs
 # debug:
 #   compress: true
 #   dist: false
