@@ -5,7 +5,9 @@
 #include "ntsc_1280x720.h"
 #include "ntsc_1280x1024.h"
 #include "ntsc_1920x1080.h"
+#include "ntsc_1024x768.h"
 #include "ntsc_downscale.h"
+#include "pal_1024x768.h"
 #include "pal_1280x720.h"
 #include "pal_1280x1024.h"
 #include "pal_1920x1080.h"
@@ -16,6 +18,8 @@
 #include "ofw_RGBS.h"
 #include "options.h"
 #include "slot.h"
+#include "led_calc.h"
+#include "color_calc.h"
 
 #include <Wire.h>
 #include "tv5725.h"
@@ -155,24 +159,11 @@ PersWiFiManager persWM(server, dnsServer);
 #define digitalRead(x) ((GPIO_REG_READ(GPIO_IN_ADDRESS) >> x) & 1)
 
 // feed the current measurement, get back the moving average
+#include "moving_avg.h"
+static MovingAvg movingAvgCtx;
 uint8_t getMovingAverage(uint8_t item)
 {
-    static const uint8_t sz = 16;
-    static uint8_t arr[sz] = {0};
-    static uint8_t pos = 0;
-
-    arr[pos] = item;
-    if (pos < (sz - 1)) {
-        pos++;
-    } else {
-        pos = 0;
-    }
-
-    uint16_t sum = 0;
-    for (uint8_t i = 0; i < sz; i++) {
-        sum += arr[i];
-    }
-    return sum >> 4; // for array size 16
+    return movingAvgFeed(&movingAvgCtx, item);
 }
 
 struct MenuAttrs
@@ -203,6 +194,18 @@ struct adcOptions *adco = &adcopts;
 String slotIndexMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~()!*:,";
 
 char serialCommand;               // Serial / Web Server commands
+
+// deferred register write queue from /wr endpoint
+// writes are deferred to loop() to avoid I2C contention; reads are synchronous because the response needs the value
+#include "wr_queue.h"
+#include "wr_parse.h"
+#include "timing_calc.h"
+#include "shift_calc.h"
+#include "scale_calc.h"
+static WrEntry wrQueue[WR_QUEUE_SIZE];
+static uint8_t wrHead = 0;
+static uint8_t wrTail = 0;
+
 char userCommand;               // Serial / Web Server commands
 static uint8_t lastSegment = 0xFF; // GBS segment for direct access
 //uint8_t globalDelay; // used for dev / debug
@@ -289,6 +292,51 @@ struct FrameSyncAttrs
                                                       // to debug: syncTargetPhase = 343 lockInterval = 15 * 16
 };
 typedef FrameSyncManager<GBS, FrameSyncAttrs> FrameSync;
+
+// VDS color toggle state (file-scope so case 'U' and doPostPresetLoadSteps can reset)
+static bool brightnessBoosted = false;
+static bool contrastBoosted = false;
+static bool colorBoosted = false;
+
+void resetColorToggles()
+{
+    brightnessBoosted = false;
+    contrastBoosted = false;
+    colorBoosted = false;
+}
+
+void updateLedStatus()
+{
+    static unsigned long lastToggle = 0;
+    static bool ledOn = false;
+    unsigned long now = millis();
+
+    LedState state = calcLedState(rto->isInLowPowerMode, rto->sourceDisconnected,
+                                  rto->noSyncCounter, rto->continousStableCounter);
+
+    switch (state) {
+    case LED_OFF:
+        LEDOFF;
+        return;
+    case LED_FAST_BLINK:
+        if (now - lastToggle > 100) {
+            lastToggle = now;
+            ledOn = !ledOn;
+            if (ledOn) { LEDON; } else { LEDOFF; }
+        }
+        return;
+    case LED_SLOW_BLINK:
+        if (now - lastToggle > 500) {
+            lastToggle = now;
+            ledOn = !ledOn;
+            if (ledOn) { LEDON; } else { LEDOFF; }
+        }
+        return;
+    case LED_SOLID_ON:
+        LEDON;
+        return;
+    }
+}
 
 void externalClockGenResetClock()
 {
@@ -464,10 +512,7 @@ void copyBank(uint8_t *bank, const uint8_t *programArray, uint16_t *index)
 
 boolean videoStandardInputIsPalNtscSd()
 {
-    if (rto->videoStandardInput == 1 || rto->videoStandardInput == 2) {
-        return true;
-    }
-    return false;
+    return isPalNtscSd(rto->videoStandardInput);
 }
 
 void zeroAll()
@@ -1258,10 +1303,12 @@ boolean optimizePhaseSP()
             rto->phaseSP &= 0x1f;
             setAndLatchPhaseSP();
             badHt = 0;
+            ESP.wdtFeed();
             delayMicroseconds(256);
             for (uint8_t i = 0; i < 20; i++) {
                 if (GBS::STATUS_SYNC_PROC_HTOTAL::read() != pixelClock) {
                     badHt++;
+                    ESP.wdtFeed();
                     delayMicroseconds(384);
                 }
             }
@@ -1780,6 +1827,7 @@ void resetPLLAD()
 void latchPLLAD()
 {
     GBS::PLLAD_LAT::write(0);
+    ESP.wdtFeed();
     delayMicroseconds(128);
     GBS::PLLAD_LAT::write(1);
 }
@@ -1837,6 +1885,7 @@ void resetDigital()
 void resetSyncProcessor()
 {
     GBS::SFTRST_SYNC_RSTZ::write(0);
+    ESP.wdtFeed();
     delayMicroseconds(10);
     GBS::SFTRST_SYNC_RSTZ::write(1);
     //rto->clampPositionIsSet = false;  // resetSyncProcessor is part of autosog
@@ -1857,40 +1906,15 @@ void shiftHorizontal(uint16_t amountToShift, bool subtracting)
     uint16_t hrst = GBS::VDS_HSYNC_RST::read();
     uint16_t hbst = GBS::VDS_HB_ST::read();
     uint16_t hbsp = GBS::VDS_HB_SP::read();
+    uint16_t dis_hb_st = GBS::VDS_DIS_HB_ST::read();
 
-    // Perform the addition/subtraction
-    if (subtracting) {
-        if ((int16_t)hbst - amountToShift >= 0) {
-            hbst -= amountToShift;
-        } else {
-            hbst = hrst - (amountToShift - hbst);
-        }
-        if ((int16_t)hbsp - amountToShift >= 0) {
-            hbsp -= amountToShift;
-        } else {
-            hbsp = hrst - (amountToShift - hbsp);
-        }
-    } else {
-        if ((int16_t)hbst + amountToShift <= hrst) {
-            hbst += amountToShift;
-            // also extend hbst_d to maximum hrst-1
-            if (hbst > GBS::VDS_DIS_HB_ST::read()) {
-                GBS::VDS_DIS_HB_ST::write(hbst);
-            }
-        } else {
-            hbst = 0 + (amountToShift - (hrst - hbst));
-        }
-        if ((int16_t)hbsp + amountToShift <= hrst) {
-            hbsp += amountToShift;
-        } else {
-            hbsp = 0 + (amountToShift - (hrst - hbsp));
-        }
+    HShiftResult r = calcShiftHorizontal(hrst, hbst, hbsp, dis_hb_st, amountToShift, subtracting);
+
+    if (r.dis_hb_st != dis_hb_st) {
+        GBS::VDS_DIS_HB_ST::write(r.dis_hb_st);
     }
-
-    GBS::VDS_HB_ST::write(hbst);
-    GBS::VDS_HB_SP::write(hbsp);
-    //Serial.print("hbst: "); Serial.println(hbst);
-    //Serial.print("hbsp: "); Serial.println(hbsp);
+    GBS::VDS_HB_ST::write(r.hbst);
+    GBS::VDS_HB_SP::write(r.hbsp);
 }
 
 void shiftHorizontalLeft()
@@ -1971,34 +1995,20 @@ void shiftHorizontalRightIF(uint8_t amount)
 void scaleHorizontal(uint16_t amountToScale, bool subtracting)
 {
     uint16_t hscale = GBS::VDS_HSCALE::read();
+    HScaleResult sr = calcScaleHorizontal(hscale, amountToScale, subtracting);
 
-    // smooth out areas of interest
-    if (subtracting && (hscale == 513 || hscale == 512))
-        amountToScale = 1;
-    if (!subtracting && (hscale == 511 || hscale == 512))
-        amountToScale = 1;
-
-    if (subtracting && (((int)hscale - amountToScale) <= 256)) {
-        hscale = 256;
-        GBS::VDS_HSCALE::write(hscale);
+    if (sr.limitHit && !sr.bypass) {
+        GBS::VDS_HSCALE::write(sr.hscale);
         SerialM.println("limit");
         return;
     }
-
-    if (subtracting && (hscale - amountToScale > 255)) {
-        hscale -= amountToScale;
-    } else if (hscale + amountToScale < 1023) {
-        hscale += amountToScale;
-    } else if (hscale + amountToScale == 1023) { // exact max > bypass but apply VDS fetch changes
-        hscale = 1023;
-        GBS::VDS_HSCALE::write(hscale);
+    if (sr.bypass) {
+        GBS::VDS_HSCALE::write(sr.hscale);
         GBS::VDS_HSCALE_BYPS::write(1);
-    } else if (hscale + amountToScale > 1023) { // max + overshoot > bypass and no VDS fetch adjust
-        hscale = 1023;
-        GBS::VDS_HSCALE::write(hscale);
-        GBS::VDS_HSCALE_BYPS::write(1);
-        SerialM.println("limit");
-        return;
+        if (sr.limitHit) {
+            SerialM.println("limit");
+            return;
+        }
     }
 
     // will be scaling
@@ -2006,16 +2016,9 @@ void scaleHorizontal(uint16_t amountToScale, bool subtracting)
 
     // move within VDS VB fetch area (within reason)
     uint16_t htotal = GBS::VDS_HSYNC_RST::read();
-    uint16_t toShift = 0;
-    if (hscale < 540)
-        toShift = 4;
-    else if (hscale < 640)
-        toShift = 3;
-    else
-        toShift = 2;
 
     if (subtracting) {
-        shiftHorizontal(toShift, true);
+        shiftHorizontal(sr.toShift, true);
         if ((GBS::VDS_HB_ST::read() + 5) < GBS::VDS_DIS_HB_ST::read()) {
             GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 5);
         } else if ((GBS::VDS_DIS_HB_ST::read() + 5) < htotal) {
@@ -2031,54 +2034,26 @@ void scaleHorizontal(uint16_t amountToScale, bool subtracting)
         }
     }
 
-    // !subtracting check just for readability
     if (!subtracting) {
-        shiftHorizontal(toShift, false);
+        shiftHorizontal(sr.toShift, false);
         if ((GBS::VDS_HB_ST::read() - 5) > 0) {
             GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() - 5);
         }
     }
 
-    // fix scaling < 512 glitch: factor even, htotal even: hbst / hbsp should be even, etc
-    if (hscale < 512) {
-        if (hscale % 2 == 0) { // hscale 512 / even
-            if (GBS::VDS_HB_ST::read() % 2 == 1) {
-                GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 1);
-            }
-            if (htotal % 2 == 1) {
-                if (GBS::VDS_HB_SP::read() % 2 == 0) {
-                    GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - 1);
-                }
-            } else {
-                if (GBS::VDS_HB_SP::read() % 2 == 1) {
-                    GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - 1);
-                }
-            }
-        } else { // hscale 499 / uneven
-            if (GBS::VDS_HB_ST::read() % 2 == 1) {
-                GBS::VDS_HB_ST::write(GBS::VDS_HB_ST::read() + 1);
-            }
-            if (htotal % 2 == 0) {
-                if (GBS::VDS_HB_SP::read() % 2 == 1) {
-                    GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - 1);
-                }
-            } else {
-                if (GBS::VDS_HB_SP::read() % 2 == 0) {
-                    GBS::VDS_HB_SP::write(GBS::VDS_HB_SP::read() - 1);
-                }
-            }
-        }
-        // if scaling was < 512 and HB_ST moved, align with VDS_DIS_HB_ST
-        if (GBS::VDS_DIS_HB_ST::read() < GBS::VDS_HB_ST::read()) {
-            GBS::VDS_DIS_HB_ST::write(GBS::VDS_HB_ST::read());
+    // fix scaling < 512 parity glitch
+    ParityFix pf = calcParityFix(sr.hscale, htotal, GBS::VDS_HB_ST::read(), GBS::VDS_HB_SP::read());
+    if (pf.dis_hb_st_needs_update) {
+        GBS::VDS_HB_ST::write(pf.hbst);
+        GBS::VDS_HB_SP::write(pf.hbsp);
+        if (GBS::VDS_DIS_HB_ST::read() < pf.hbst) {
+            GBS::VDS_DIS_HB_ST::write(pf.hbst);
         }
     }
 
-    //SerialM.print("HB_ST: "); SerialM.println(GBS::VDS_HB_ST::read());
-    //SerialM.print("HB_SP: "); SerialM.println(GBS::VDS_HB_SP::read());
     SerialM.print("HScale: ");
-    SerialM.println(hscale);
-    GBS::VDS_HSCALE::write(hscale);
+    SerialM.println(sr.hscale);
+    GBS::VDS_HSCALE::write(sr.hscale);
 }
 
 // moves horizontal sync (VDS or HDB as needed)
@@ -2219,30 +2194,10 @@ void scaleVertical(uint16_t amountToScale, bool subtracting)
         GBS::VDS_VSCALE_BYPS::write(0);
     }
 
-    // smooth out areas of interest
-    if (subtracting && (vscale == 513 || vscale == 512))
-        amountToScale = 1;
-    if (subtracting && (vscale == 684 || vscale == 683))
-        amountToScale = 1;
-    if (!subtracting && (vscale == 511 || vscale == 512))
-        amountToScale = 1;
-    if (!subtracting && (vscale == 682 || vscale == 683))
-        amountToScale = 1;
-
-    if (subtracting && (vscale - amountToScale > 128)) {
-        vscale -= amountToScale;
-    } else if (subtracting) {
-        vscale = 128;
-    } else if (vscale + amountToScale <= 1023) {
-        vscale += amountToScale;
-    } else if (vscale + amountToScale > 1023) {
-        vscale = 1023;
-        // don't enable vscale bypass here, since that disables ie line filter
-    }
-
+    VScaleResult r = calcScaleVertical(vscale, amountToScale, subtracting);
     SerialM.print("VScale: ");
-    SerialM.println(vscale);
-    GBS::VDS_VSCALE::write(vscale);
+    SerialM.println(r.vscale);
+    GBS::VDS_VSCALE::write(r.vscale);
 }
 
 // modified to move VBSP, set VBST to VBSP-2
@@ -2251,45 +2206,10 @@ void shiftVertical(uint16_t amountToAdd, bool subtracting)
     typedef GBS::Tie<GBS::VDS_VB_ST, GBS::VDS_VB_SP> Regs;
     uint16_t vrst = GBS::VDS_VSYNC_RST::read() - FrameSync::getSyncLastCorrection();
     uint16_t vbst = 0, vbsp = 0;
-    int16_t newVbst = 0, newVbsp = 0;
-
     Regs::read(vbst, vbsp);
-    newVbst = vbst;
-    newVbsp = vbsp;
 
-    if (subtracting) {
-        //newVbst -= amountToAdd;
-        newVbsp -= amountToAdd;
-    } else {
-        //newVbst += amountToAdd;
-        newVbsp += amountToAdd;
-    }
-
-    // handle the case where hbst or hbsp have been decremented below 0
-    if (newVbst < 0) {
-        newVbst = vrst + newVbst;
-    }
-    if (newVbsp < 0) {
-        newVbsp = vrst + newVbsp;
-    }
-
-    // handle the case where vbst or vbsp have been incremented above vrstValue
-    if (newVbst > (int16_t)vrst) {
-        newVbst = newVbst - vrst;
-    }
-    if (newVbsp > (int16_t)vrst) {
-        newVbsp = newVbsp - vrst;
-    }
-
-    // mod: newVbsp needs to be at least newVbst+2
-    if (newVbsp < (newVbst + 2)) {
-        newVbsp = newVbst + 2;
-    }
-    // mod: -= 2
-    newVbst = newVbsp - 2;
-
-    Regs::write(newVbst, newVbsp);
-    //SerialM.print("VSST: "); SerialM.print(newVbst); SerialM.print(" VSSP: "); SerialM.println(newVbsp);
+    VShiftResult r = calcShiftVertical(vrst, vbst, vbsp, amountToAdd, subtracting);
+    Regs::write(r.vbst, r.vbsp);
 }
 
 void shiftVerticalUp()
@@ -2525,51 +2445,26 @@ void printVideoTimings()
 
 void set_htotal(uint16_t htotal)
 {
-    // ModeLine "1280x960" 108.00 1280 1376 1488 1800 960 961 964 1000 +HSync +VSync
-    // front porch: H2 - H1: 1376 - 1280
-    // back porch : H4 - H3: 1800 - 1488
-    // sync pulse : H3 - H2: 1488 - 1376
-
-    uint16_t h_blank_display_start_position = htotal - 1;
-    uint16_t h_blank_display_stop_position = htotal - ((htotal * 3) / 4);
-    uint16_t center_blank = ((h_blank_display_stop_position / 2) * 3) / 4; // a bit to the left
-    uint16_t h_sync_start_position = center_blank - (center_blank / 2);
-    uint16_t h_sync_stop_position = center_blank + (center_blank / 2);
-    uint16_t h_blank_memory_start_position = h_blank_display_start_position - 1;
-    uint16_t h_blank_memory_stop_position = h_blank_display_stop_position - (h_blank_display_stop_position / 50);
-
-    GBS::VDS_HSYNC_RST::write(htotal);
-    GBS::VDS_HS_ST::write(h_sync_start_position);
-    GBS::VDS_HS_SP::write(h_sync_stop_position);
-    GBS::VDS_DIS_HB_ST::write(h_blank_display_start_position);
-    GBS::VDS_DIS_HB_SP::write(h_blank_display_stop_position);
-    GBS::VDS_HB_ST::write(h_blank_memory_start_position);
-    GBS::VDS_HB_SP::write(h_blank_memory_stop_position);
+    HtotalTimings t = calcHtotal(htotal);
+    GBS::VDS_HSYNC_RST::write(t.hsync_rst);
+    GBS::VDS_HS_ST::write(t.hs_st);
+    GBS::VDS_HS_SP::write(t.hs_sp);
+    GBS::VDS_DIS_HB_ST::write(t.dis_hb_st);
+    GBS::VDS_DIS_HB_SP::write(t.dis_hb_sp);
+    GBS::VDS_HB_ST::write(t.hb_st);
+    GBS::VDS_HB_SP::write(t.hb_sp);
 }
 
 void set_vtotal(uint16_t vtotal)
 {
-    uint16_t VDS_DIS_VB_ST = vtotal - 2;                         // just below vtotal
-    uint16_t VDS_DIS_VB_SP = (vtotal >> 6) + 8;                  // positive, above new sync stop position
-    uint16_t VDS_VB_ST = ((uint16_t)(vtotal * 0.016f)) & 0xfffe; // small fraction of vtotal
-    uint16_t VDS_VB_SP = VDS_VB_ST + 2;                          // always VB_ST + 2
-    uint16_t v_sync_start_position = 1;
-    uint16_t v_sync_stop_position = 5;
-    // most low line count formats have negative sync!
-    // exception: 1024x768 (1344x806 total) has both sync neg. // also 1360x768 (1792x795 total)
-    if ((vtotal < 530) || (vtotal >= 803 && vtotal <= 809) || (vtotal >= 793 && vtotal <= 798)) {
-        uint16_t temp = v_sync_start_position;
-        v_sync_start_position = v_sync_stop_position;
-        v_sync_stop_position = temp;
-    }
-
-    GBS::VDS_VSYNC_RST::write(vtotal);
-    GBS::VDS_VS_ST::write(v_sync_start_position);
-    GBS::VDS_VS_SP::write(v_sync_stop_position);
-    GBS::VDS_VB_ST::write(VDS_VB_ST);
-    GBS::VDS_VB_SP::write(VDS_VB_SP);
-    GBS::VDS_DIS_VB_ST::write(VDS_DIS_VB_ST);
-    GBS::VDS_DIS_VB_SP::write(VDS_DIS_VB_SP);
+    VtotalTimings t = calcVtotal(vtotal);
+    GBS::VDS_VSYNC_RST::write(t.vsync_rst);
+    GBS::VDS_VS_ST::write(t.vs_st);
+    GBS::VDS_VS_SP::write(t.vs_sp);
+    GBS::VDS_VB_ST::write(t.vb_st);
+    GBS::VDS_VB_SP::write(t.vb_sp);
+    GBS::VDS_DIS_VB_ST::write(t.dis_vb_st);
+    GBS::VDS_DIS_VB_SP::write(t.dis_vb_sp);
 
     // VDS_VSYN_SIZE1 + VDS_VSYN_SIZE2 to VDS_VSYNC_RST + 2
     GBS::VDS_VSYN_SIZE1::write(GBS::VDS_VSYNC_RST::read() + 2);
@@ -3029,6 +2924,7 @@ boolean applyBestHTotal(uint16_t bestHTotal)
         GBS::VDS_HB_SP::write(h_blank_memory_stop_position);
         GBS::VDS_HS_ST::write(h_sync_start_position);
         GBS::VDS_HS_SP::write(h_sync_stop_position);
+
     }
 
     boolean print = 1;
@@ -3188,6 +3084,7 @@ uint32_t getPllRate()
     }
     GBS::PAD_BOUT_EN::write(1); // enable output to pin for test
     yield();                    // BOUT signal and wifi
+    ESP.wdtFeed();
     delayMicroseconds(200);
     uint32_t ticks = FrameSync::getPulseTicks();
 
@@ -3334,6 +3231,16 @@ void doPostPresetLoadSteps()
         // overwritten further down at `uopt->enableAutoGain == 1`.
         setAdcParametersGainAndOffset();
     }
+
+    // restore saved ADC per-channel values (if auto-gain is off)
+    if (!uopt->enableAutoGain) {
+        GBS::ADC_RGCTRL::write(adco->r_gain);
+        GBS::ADC_GGCTRL::write(adco->g_gain);
+        GBS::ADC_BGCTRL::write(adco->b_gain);
+    }
+    GBS::ADC_ROFCTRL::write(adco->r_off);
+    GBS::ADC_GOFCTRL::write(adco->g_off);
+    GBS::ADC_BOFCTRL::write(adco->b_off);
 
     GBS::GPIO_CONTROL_00::write(0x67); // most GPIO pins regular GPIO
     GBS::GPIO_CONTROL_01::write(0x00); // all GPIO outputs disabled
@@ -3889,6 +3796,7 @@ void doPostPresetLoadSteps()
     GBS::DAC_RGBS_S1EN::write(1);  // these 2 also help
 
     rto->useHdmiSyncFix = 0; // reset flag
+    resetColorToggles();     // sync toggle state with new preset defaults
 
     GBS::SP_H_PROTECT::write(0);
     if (rto->videoStandardInput >= 5) {
@@ -4007,6 +3915,8 @@ void doPostPresetLoadSteps()
         SerialM.print(F("1920x1080"));
     else if (rto->presetID == 0x06 || rto->presetID == 0x16)
         SerialM.print(F("downscale"));
+    else if (rto->presetID == 0x07 || rto->presetID == 0x17)
+        SerialM.print(F("1024x768"));
     else if (rto->presetID == 0x04)
         SerialM.print(F("720x480"));
     else if (rto->presetID == 0x14)
@@ -4262,6 +4172,8 @@ void applyPresets(uint8_t result)
             writeProgramArrayNew(ntsc_1920x1080, false);
         } else if (uopt->presetPreference == 6) {
             writeProgramArrayNew(ntsc_downscale, false);
+        } else if (uopt->presetPreference == 7) {
+            writeProgramArrayNew(ntsc_1024x768, false);
         }
     } else if (result == 2 || result == 4) {
         // PAL input
@@ -4292,6 +4204,8 @@ void applyPresets(uint8_t result)
             writeProgramArrayNew(pal_1920x1080, false);
         } else if (uopt->presetPreference == 6) {
             writeProgramArrayNew(pal_downscale, false);
+        } else if (uopt->presetPreference == 7) {
+            writeProgramArrayNew(pal_1024x768, false);
         }
     } else if (result == 5 || result == 6 || result == 7 || result == 13) {
         // use bypass mode for these HD sources
@@ -4742,6 +4656,7 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck)
                     } else {
                         break;
                     }
+                    ESP.wdtFeed();
                     delayMicroseconds(100);
                 }
 
@@ -4762,6 +4677,7 @@ void updateSpDynamic(boolean withCurrentVideoModeCheck)
                             ratioHs = ratioHsAverage / testOk;
                             break;
                         }
+                        ESP.wdtFeed();
                         delayMicroseconds(30);
                     }
                 }
@@ -4955,6 +4871,7 @@ void updateClampPosition()
         }
 
         prevInHlength = thisInHlength;
+        ESP.wdtFeed();
         delayMicroseconds(100);
     }
     accInHlength = accInHlength / 16; // for the 16x loop
@@ -5550,9 +5467,9 @@ void enableScanlines()
         GBS::MADPT_Y_MI_DET_BYPS::write(1);    // make sure, so that mixing works
         //GBS::VDS_Y_GAIN::write(GBS::VDS_Y_GAIN::read() + 0x30); // more luma gain
         //GBS::VDS_Y_OFST::write(GBS::VDS_Y_OFST::read() + 4);
-        GBS::VDS_WLEV_GAIN::write(0x08);                       // 3_58
+        GBS::VDS_WLEV_GAIN::write(uopt->wlevGain);              // 3_58
         GBS::VDS_W_LEV_BYPS::write(0);                         // brightness
-        GBS::MADPT_VIIR_COEF::write(0x08);                     // 2_27 VIIR filter strength
+        GBS::MADPT_VIIR_COEF::write(uopt->viirCoef);           // 2_27 VIIR filter strength
         GBS::MADPT_Y_MI_OFFSET::write(uopt->scanlineStrength); // 2_0b offset (mixing factor here)
         GBS::MADPT_VIIR_BYPS::write(0);                        // 2_26 6 VIIR line fifo // 1 = off
         GBS::RFF_LINE_FLIP::write(1);                          // clears potential garbage in rff buffer
@@ -5804,6 +5721,7 @@ void stopWire()
 {
     pinMode(SCL, INPUT);
     pinMode(SDA, INPUT);
+    ESP.wdtFeed();
     delayMicroseconds(80);
 }
 
@@ -5993,18 +5911,18 @@ void runSyncWatcher()
         rto->continousStableCounter = 0;
         lastVsyncLock = millis(); // best reset this
         if (rto->noSyncCounter == 1) {
-            freezeVideo();
+            // freezeVideo(); // removed: let output ride through brief glitches
             return; // do nothing else
         }
 
         rto->phaseIsSet = 0;
 
         if (rto->noSyncCounter <= 3 || GBS::STATUS_SYNC_PROC_HSACT::read() == 0) {
-            freezeVideo();
+            // freezeVideo(); // removed: avoid output disruption during brief sync loss
         }
 
         if (newVideoModeCounter == 0) {
-            LEDOFF; // LEDOFF on sync loss
+            // LEDOFF; // removed: handled by updateLedStatus()
 
             if (rto->noSyncCounter == 2) { // this usually repeats
                 //printInfo(); printInfo(); SerialM.println();
@@ -6180,7 +6098,7 @@ void runSyncWatcher()
                 SerialM.print(newVideoModeCounter);
             }
             if (newVideoModeCounter == 3) {
-                freezeVideo();
+                // freezeVideo(); // removed: avoid output disruption during mode change detection
                 GBS::SP_H_CST_ST::write(0x10);
                 GBS::SP_H_CST_SP::write(0x100);
                 rto->coastPositionIsSet = 0;
@@ -6220,15 +6138,7 @@ void runSyncWatcher()
                 }
                 boolean wantPassThroughMode = uopt->presetPreference == 10;
 
-                if (((rto->videoStandardInput == 1 || rto->videoStandardInput == 3) && (detectedVideoMode == 2 || detectedVideoMode == 4)) ||
-                    rto->videoStandardInput == 0 ||
-                    ((rto->videoStandardInput == 2 || rto->videoStandardInput == 4) && (detectedVideoMode == 1 || detectedVideoMode == 3))) {
-                    rto->useHdmiSyncFix = 1;
-                    //SerialM.println("hdmi sync fix: yes");
-                } else {
-                    rto->useHdmiSyncFix = 0;
-                    //SerialM.println("hdmi sync fix: no");
-                }
+                rto->useHdmiSyncFix = 1; // hold sync output during all mode changes
 
                 if (!wantPassThroughMode) {
                     // needs to know the sync type for early updateclamp (set above)
@@ -6296,7 +6206,7 @@ void runSyncWatcher()
         }
 
         if (rto->continousStableCounter == 4) {
-            LEDON;
+            // LEDON; // removed: handled by updateLedStatus()
         }
 
         if (!rto->phaseIsSet) {
@@ -7102,7 +7012,7 @@ void loadDefaultUserOptions()
     uopt->wantScanlines = 0;
     uopt->wantOutputComponent = 0;
     uopt->deintMode = 0;
-    uopt->wantVdsLineFilter = 0;
+    uopt->wantVdsLineFilter = 1;
     uopt->wantPeaking = 1;
     uopt->preferScalingRgbhv = 1;
     uopt->wantTap6 = 1;
@@ -7111,8 +7021,10 @@ void loadDefaultUserOptions()
     uopt->wantStepResponse = 1;              // #15
     uopt->wantFullHeight = 1;                // #16
     uopt->enableCalibrationADC = 1;          // #17
-    uopt->scanlineStrength = 0x30;           // #18
+    uopt->scanlineStrength = 23;             // #18 (UI default 2, inverted: 25-2=23)
     uopt->disableExternalClockGenerator = 0; // #19
+    uopt->viirCoef = 16;
+    uopt->wlevGain = 8;
 }
 
 //RF_PRE_INIT() {
@@ -7188,6 +7100,52 @@ void ICACHE_RAM_ATTR isrRotaryEncoderPushForNewMenu()
     lastInterruptTime = interruptTime;
 }
 #endif
+
+void migrateSlots()
+{
+    File f = SPIFFS.open(SLOTS_FILE, "r");
+    if (!f) return; // no file yet, will be created on first access
+
+    size_t fileSize = f.size();
+    const size_t oldEntrySize = 32; // SlotMeta before viirCoef/wlevGain
+    const size_t newFileSize = sizeof(SlotMetaArray);
+    const size_t oldFileSize = SLOTS_TOTAL * oldEntrySize;
+
+    if (fileSize == newFileSize) {
+        f.close();
+        return; // already current format
+    }
+
+    if (fileSize == oldFileSize) {
+        SerialM.println(F("migrating slots.bin"));
+        SlotMetaArray slotsObject;
+        uint8_t buf[oldEntrySize];
+        for (int i = 0; i < SLOTS_TOTAL; i++) {
+            f.read(buf, oldEntrySize);
+            memcpy(slotsObject.slot[i].name, buf, 25);
+            slotsObject.slot[i].presetID = buf[25];
+            slotsObject.slot[i].scanlines = buf[26];
+            slotsObject.slot[i].scanlinesStrength = buf[27];
+            slotsObject.slot[i].slot = buf[28];
+            slotsObject.slot[i].wantVdsLineFilter = buf[29];
+            slotsObject.slot[i].wantStepResponse = buf[30];
+            slotsObject.slot[i].wantPeaking = buf[31];
+            slotsObject.slot[i].viirCoef = 16;
+            slotsObject.slot[i].wlevGain = 8;
+        }
+        f.close();
+        File fw = SPIFFS.open(SLOTS_FILE, "w");
+        if (fw) {
+            fw.write((byte *)&slotsObject, sizeof(slotsObject));
+            fw.close();
+        }
+    } else {
+        // unknown size, remove and let it be recreated
+        f.close();
+        SPIFFS.remove(SLOTS_FILE);
+        SerialM.println(F("slots.bin size mismatch, removed"));
+    }
+}
 
 void setup()
 {
@@ -7323,6 +7281,7 @@ void setup()
     if (!SPIFFS.begin()) {
         SerialM.println(F("SPIFFS mount failed! ((1M SPIFFS) selected?)"));
     } else {
+        migrateSlots();
         // load user preferences file
         File f = SPIFFS.open("/preferencesv2.txt", "r");
         if (!f) {
@@ -7363,7 +7322,7 @@ void setup()
 
             uopt->wantVdsLineFilter = (uint8_t)(f.read() - '0');
             if (uopt->wantVdsLineFilter > 1)
-                uopt->wantVdsLineFilter = 0;
+                uopt->wantVdsLineFilter = 1;
 
             uopt->wantPeaking = (uint8_t)(f.read() - '0');
             if (uopt->wantPeaking > 1)
@@ -7409,6 +7368,7 @@ void setup()
         }
     }
 
+    loadAdcPrefs();
 
     GBS::PAD_CKIN_ENZ::write(1); // disable to prevent startup spike damage
     externalClockGenDetectAndInitialize();
@@ -7447,6 +7407,7 @@ void setup()
             startWire();
             GBS::STATUS_00::read();
             digitalWrite(SCL, 0);
+            ESP.wdtFeed();
             delayMicroseconds(12);
             stopWire();
             if (digitalRead(SDA) == 1) {
@@ -7646,6 +7607,10 @@ void updateWebSocketData()
                 case 0x16:
                     toSend[1] = '6';
                     break;
+                case 0x07:
+                case 0x17:
+                    toSend[1] = '7';
+                    break;
                 case PresetHdBypass: // bypass 1
                 case PresetBypassRGBHV: // bypass 2
                     toSend[1] = '8';
@@ -7786,6 +7751,94 @@ void loop()
 #endif
 
     handleWiFi(0); // WiFi + OTA + WS + MDNS, checks for server enabled + started
+
+    // process deferred /wr register writes
+    while (!wrQueueEmpty(wrHead, wrTail)) {
+        WrEntry &e = wrQueue[wrTail];
+        if (e.isRaw) {
+            writeOneByte(0xF0, e.seg);
+            writeOneByte(e.addr, (uint8_t)e.val);
+            SerialM.print("wr s"); SerialM.print(e.seg);
+            SerialM.print("_0x"); SerialM.print(e.addr, HEX);
+            SerialM.print(" "); SerialM.println(e.val);
+        } else {
+            if (strcmp(e.reg, "ht") == 0) { rto->forceRetime = 1; applyBestHTotal(e.val); }
+            else if (strcmp(e.reg, "vt") == 0) { set_vtotal(e.val); }
+            else if (strcmp(e.reg, "hsst") == 0) { setHSyncStartPosition(e.val); }
+            else if (strcmp(e.reg, "hssp") == 0) { setHSyncStopPosition(e.val); }
+            else if (strcmp(e.reg, "hbst") == 0) { setMemoryHblankStartPosition(e.val); }
+            else if (strcmp(e.reg, "hbsp") == 0) { setMemoryHblankStopPosition(e.val); }
+            else if (strcmp(e.reg, "hbstd") == 0) { setDisplayHblankStartPosition(e.val); }
+            else if (strcmp(e.reg, "hbspd") == 0) { setDisplayHblankStopPosition(e.val); }
+            else if (strcmp(e.reg, "vsst") == 0) { setVSyncStartPosition(e.val); }
+            else if (strcmp(e.reg, "vssp") == 0) { setVSyncStopPosition(e.val); }
+            else if (strcmp(e.reg, "vbst") == 0) { setMemoryVblankStartPosition(e.val); }
+            else if (strcmp(e.reg, "vbsp") == 0) { setMemoryVblankStopPosition(e.val); }
+            else if (strcmp(e.reg, "vbstd") == 0) { setDisplayVblankStartPosition(e.val); }
+            else if (strcmp(e.reg, "vbspd") == 0) { setDisplayVblankStopPosition(e.val); }
+            else if (strcmp(e.reg, "sog") == 0) { setAndUpdateSogLevel(e.val); }
+            else if (strcmp(e.reg, "hscale") == 0) { GBS::VDS_HSCALE::write(e.val); }
+            else if (strcmp(e.reg, "vscale") == 0) { GBS::VDS_VSCALE::write(e.val); }
+            else if (strcmp(e.reg, "ifhbst") == 0) { GBS::IF_HB_ST::write(e.val); }
+            else if (strcmp(e.reg, "ifhbsp") == 0) { GBS::IF_HB_SP::write(e.val); }
+            else if (strcmp(e.reg, "ifhbinst") == 0) { GBS::IF_HBIN_ST::write(e.val); }
+            else if (strcmp(e.reg, "ifhbinsp") == 0) { GBS::IF_HBIN_SP::write(e.val); }
+            else if (strcmp(e.reg, "ifvbst") == 0) { GBS::IF_VB_ST::write(e.val); }
+            else if (strcmp(e.reg, "ifvbsp") == 0) { GBS::IF_VB_SP::write(e.val); }
+            else if (strcmp(e.reg, "exthbst") == 0) { GBS::VDS_EXT_HB_ST::write(e.val); }
+            else if (strcmp(e.reg, "exthbsp") == 0) { GBS::VDS_EXT_HB_SP::write(e.val); }
+            else if (strcmp(e.reg, "extvbst") == 0) { GBS::VDS_EXT_VB_ST::write(e.val); }
+            else if (strcmp(e.reg, "extvbsp") == 0) { GBS::VDS_EXT_VB_SP::write(e.val); }
+            else if (strcmp(e.reg, "hdhbst") == 0) { GBS::HD_HB_ST::write(e.val); }
+            else if (strcmp(e.reg, "hdhbsp") == 0) { GBS::HD_HB_SP::write(e.val); }
+            else if (strcmp(e.reg, "hdvbst") == 0) { GBS::HD_VB_ST::write(e.val); }
+            else if (strcmp(e.reg, "hdvbsp") == 0) { GBS::HD_VB_SP::write(e.val); }
+            else if (strcmp(e.reg, "pbfetch") == 0) { GBS::PB_FETCH_NUM::write(e.val); }
+            else if (strcmp(e.reg, "pboffset") == 0) { GBS::PB_CAP_OFFSET::write(e.val); }
+            else if (strcmp(e.reg, "rfffetch") == 0) { GBS::RFF_FETCH_NUM::write(e.val); }
+            else if (strcmp(e.reg, "rffoffset") == 0) { GBS::RFF_WFF_OFFSET::write(e.val); }
+            // input formatter registers (multi-byte fields)
+            else if (strcmp(e.reg, "ifhsyncrst") == 0) { GBS::IF_HSYNC_RST::write(e.val); }
+            else if (strcmp(e.reg, "ifhbst2") == 0) { GBS::IF_HB_ST2::write(e.val); }
+            else if (strcmp(e.reg, "ifhbsp2") == 0) { GBS::IF_HB_SP2::write(e.val); }
+            else if (strcmp(e.reg, "iflinest") == 0) { GBS::IF_LINE_ST::write(e.val); }
+            else if (strcmp(e.reg, "iflinesp") == 0) { GBS::IF_LINE_SP::write(e.val); }
+            else if (strcmp(e.reg, "ifinist") == 0) { GBS::IF_INI_ST::write(e.val); }
+            else if (strcmp(e.reg, "ifldst") == 0) { GBS::IF_LD_ST::write(e.val); }
+            // VDS output registers
+            else if (strcmp(e.reg, "vdsdsp") == 0) { GBS::VDS_D_SP::write(e.val); }
+            else if (strcmp(e.reg, "ygain") == 0) { GBS::VDS_Y_GAIN::write(e.val); }
+            else if (strcmp(e.reg, "yofst") == 0) { GBS::VDS_Y_OFST::write(e.val); }
+            else if (strcmp(e.reg, "uofst") == 0) { GBS::VDS_U_OFST::write(e.val); }
+            else if (strcmp(e.reg, "vofst") == 0) { GBS::VDS_V_OFST::write(e.val); }
+            else if (strcmp(e.reg, "synclev") == 0) { GBS::VDS_SYNC_LEV::write(e.val); }
+            // ADC per-channel gain/offset
+            else if (strcmp(e.reg, "rgain") == 0) { GBS::ADC_RGCTRL::write(e.val); adco->r_gain = e.val; uopt->enableAutoGain = 0; }
+            else if (strcmp(e.reg, "ggain") == 0) { GBS::ADC_GGCTRL::write(e.val); adco->g_gain = e.val; uopt->enableAutoGain = 0; }
+            else if (strcmp(e.reg, "bgain") == 0) { GBS::ADC_BGCTRL::write(e.val); adco->b_gain = e.val; uopt->enableAutoGain = 0; }
+            else if (strcmp(e.reg, "roff") == 0) { GBS::ADC_ROFCTRL::write(e.val); adco->r_off = e.val; }
+            else if (strcmp(e.reg, "goff") == 0) { GBS::ADC_GOFCTRL::write(e.val); adco->g_off = e.val; }
+            else if (strcmp(e.reg, "boff") == 0) { GBS::ADC_BOFCTRL::write(e.val); adco->b_off = e.val; }
+            else if (strcmp(e.reg, "ucgain") == 0) { GBS::VDS_UCOS_GAIN::write(e.val); }
+            else if (strcmp(e.reg, "vcgain") == 0) { GBS::VDS_VCOS_GAIN::write(e.val); }
+            else if (strcmp(e.reg, "pklb") == 0) { GBS::VDS_PK_LB_GAIN::write(e.val); }
+            else if (strcmp(e.reg, "pklh") == 0) { GBS::VDS_PK_LH_GAIN::write(e.val); }
+            else if (strcmp(e.reg, "slstr") == 0) {
+                GBS::MADPT_Y_MI_OFFSET::write(e.val);
+                GBS::MADPT_UV_MI_OFFSET::write(e.val);
+                uopt->scanlineStrength = e.val;
+            }
+            else if (strcmp(e.reg, "slsoft") == 0) { GBS::MADPT_VIIR_COEF::write(e.val); uopt->viirCoef = e.val; }
+            else if (strcmp(e.reg, "slbrt") == 0) { GBS::VDS_WLEV_GAIN::write(e.val); uopt->wlevGain = e.val; }
+            SerialM.print("wr "); SerialM.print(e.reg); SerialM.print(" "); SerialM.println(e.val);
+            // persist ADC values to SPIFFS when changed via /wr
+            if (strcmp(e.reg, "rgain") == 0 || strcmp(e.reg, "ggain") == 0 || strcmp(e.reg, "bgain") == 0 ||
+                strcmp(e.reg, "roff") == 0 || strcmp(e.reg, "goff") == 0 || strcmp(e.reg, "boff") == 0) {
+                saveAdcPrefs();
+            }
+        }
+        wrTail = (wrTail + 1) % WR_QUEUE_SIZE;
+    }
 
     // is there a command from Terminal or web ui?
     // Serial takes precedence
@@ -8675,6 +8728,8 @@ void loop()
         handleWiFi(1);
     }
 
+    updateLedStatus();
+
     // run FrameTimeLock if enabled
     if (uopt->enableFrameTimeLock && rto->sourceDisconnected == false && rto->autoBestHtotalEnabled &&
         rto->syncWatcherEnabled && FrameSync::ready() && millis() - lastVsyncLock > FrameSyncAttrs::lockInterval && rto->continousStableCounter > 20 && rto->noSyncCounter == 0)
@@ -8820,6 +8875,7 @@ void loop()
                         GBS::GBS_PRESET_DISPLAY_CLOCK::write(GBS::PLL648_CONTROL_01::read());
                         // enable and switch input
                         Si.enable(0);
+                        ESP.wdtFeed();
                         delayMicroseconds(800);
                         GBS::PLL648_CONTROL_01::write(0x75);
                     }
@@ -8962,6 +9018,7 @@ void handleType2Command(char argument)
                 rto->videoStandardInput = 15;
             } else {
                 // normal path
+                rto->useHdmiSyncFix = 1; // hold sync output during preset load
                 applyPresets(rto->videoStandardInput);
             }
             saveUserPrefs();
@@ -9065,7 +9122,8 @@ void handleType2Command(char argument)
         case 'h':
         case 'p':
         case 's':
-        case 'L': {
+        case 'L':
+        case 'k': {
             // load preset via webui
             uint8_t videoMode = getVideoMode();
             if (videoMode == 0 && GBS::STATUS_SYNC_PROC_HSACT::read())
@@ -9084,6 +9142,8 @@ void handleType2Command(char argument)
                 uopt->presetPreference = Output1080P; // 1920x1080
             if (argument == 'L')
                 uopt->presetPreference = OutputDownscale; // downscale
+            if (argument == 'k')
+                uopt->presetPreference = Output1024x768; // 1024x768
 
             rto->useHdmiSyncFix = 1; // disables sync out when programming preset
             if (rto->videoStandardInput == 14) {
@@ -9350,19 +9410,20 @@ void handleType2Command(char argument)
             }
             break;
         case 'K':
-            // scanline strength
-            if (uopt->scanlineStrength >= 0x10) {
-                uopt->scanlineStrength -= 0x10;
+            // scanline strength: cycle register values 20,15,10,5,0
+            // (inverted UI: slider 5,10,15,20,25)
+            if (uopt->scanlineStrength >= 5) {
+                uopt->scanlineStrength -= 5;
             } else {
-                uopt->scanlineStrength = 0x50;
+                uopt->scanlineStrength = 20;
             }
             if (rto->scanlinesEnabled) {
                 GBS::MADPT_Y_MI_OFFSET::write(uopt->scanlineStrength);
                 GBS::MADPT_UV_MI_OFFSET::write(uopt->scanlineStrength);
             }
             saveUserPrefs();
-            SerialM.print(F("Scanline Brightness: "));
-            SerialM.println(uopt->scanlineStrength, HEX);
+            SerialM.print(F("Scanline Strength: "));
+            SerialM.println(25 - uopt->scanlineStrength);
             break;
         case 'Z':
             // brightness++
@@ -9478,7 +9539,87 @@ void handleType2Command(char argument)
                 GBS::ADC_BOFCTRL::write(adco->b_off);
                 SerialM.println("YPbPr:defauit");
             }
+            // reset peaking to preset defaults
+            GBS::VDS_PK_LB_GAIN::write(32);
+            if (rto->presetID == 0x05 || rto->presetID == 0x15) {
+                GBS::VDS_PK_LH_GAIN::write(0x0A);
+            } else {
+                GBS::VDS_PK_LH_GAIN::write(0x18);
+            }
+            resetColorToggles();
             break;
+        case 'I':
+        {
+            // brightness toggle
+            static uint8_t savedYofst = 0;
+            if (!brightnessBoosted) {
+                savedYofst = GBS::VDS_Y_OFST::read();
+                GBS::VDS_Y_OFST::write(calcBoostedValue(savedYofst, 0x24));
+                brightnessBoosted = true;
+            } else {
+                GBS::VDS_Y_OFST::write(savedYofst);
+                brightnessBoosted = false;
+            }
+            break;
+        }
+        case 'J':
+        {
+            // contrast toggle
+            static uint8_t savedYgain = 0;
+            if (!contrastBoosted) {
+                savedYgain = GBS::VDS_Y_GAIN::read();
+                GBS::VDS_Y_GAIN::write(calcBoostedValue(savedYgain, 0x20));
+                contrastBoosted = true;
+            } else {
+                GBS::VDS_Y_GAIN::write(savedYgain);
+                contrastBoosted = false;
+            }
+            break;
+        }
+        case 'R':
+        {
+            // color saturation toggle
+            static uint8_t savedUcos = 0, savedVcos = 0;
+            if (!colorBoosted) {
+                savedUcos = GBS::VDS_UCOS_GAIN::read();
+                savedVcos = GBS::VDS_VCOS_GAIN::read();
+                GBS::VDS_UCOS_GAIN::write(calcBoostedValue(savedUcos, 8));
+                GBS::VDS_VCOS_GAIN::write(calcBoostedValue(savedVcos, 8));
+                colorBoosted = true;
+            } else {
+                GBS::VDS_UCOS_GAIN::write(savedUcos);
+                GBS::VDS_VCOS_GAIN::write(savedVcos);
+                colorBoosted = false;
+            }
+            break;
+        }
+        case 'W':
+        {
+            // sharpness toggle
+            SharpnessParams sp = calcSharpnessToggle(GBS::VDS_PK_LB_GAIN::read(), rto->presetID);
+            GBS::VDS_PK_Y_H_BYPS::write(sp.enable ? 0 : 1);
+            GBS::VDS_PK_LB_GAIN::write(sp.lbGain);
+            GBS::VDS_PK_LH_GAIN::write(sp.lhGain);
+            SerialM.println(sp.enable ? F("Sharpness: boosted") : F("Sharpness: normal"));
+            break;
+        }
+        case 'G':
+        {
+            // ADC reset: restore default gain/offset and re-enable auto gain
+            setAdcParametersGainAndOffset();
+            adco->r_gain = 0x7B;
+            adco->g_gain = 0x7B;
+            adco->b_gain = 0x7B;
+            adco->r_off = 0x40;
+            adco->g_off = 0x40;
+            adco->b_off = 0x40;
+            uopt->enableAutoGain = 1;
+            setAdcGain(AUTO_GAIN_INIT);
+            GBS::DEC_TEST_ENABLE::write(1);
+            saveAdcPrefs();
+            SerialM.println(F("ADC reset to defaults, auto gain on"));
+            break;
+        }
         default:
             break;
     }
@@ -9542,7 +9683,7 @@ void startWebserver()
             //Serial.print("got serial request params: ");
             //Serial.println(params);
             if (params > 0) {
-                AsyncWebParameter *p = request->getParam(0);
+                const AsyncWebParameter *p = request->getParam((size_t)0);
                 //Serial.println(p->name());
                 serialCommand = p->name().charAt(0);
 
@@ -9561,11 +9702,149 @@ void startWebserver()
             //Serial.print("got user request params: ");
             //Serial.println(params);
             if (params > 0) {
-                AsyncWebParameter *p = request->getParam(0);
+                const AsyncWebParameter *p = request->getParam((size_t)0);
                 //Serial.println(p->name());
                 userCommand = p->name().charAt(0);
             }
             request->send(200); // reply
+        }
+    });
+
+    // register write endpoint for live tuning (eliminates reflash cycle)
+    // writes are deferred to loop() to avoid I2C contention; reads are synchronous because the response needs the value
+    server.on("/wr", HTTP_GET, [](AsyncWebServerRequest *request) {
+        if (ESP.getFreeHeap() < 10000) {
+            request->send(503, "text/plain", "low memory");
+            return;
+        }
+        // raw segment:address mode — /wr?seg=3&addr=16&val=108 (write) or /wr?seg=3&addr=16 (read)
+        if (request->hasParam("seg") && request->hasParam("addr")) {
+            unsigned long segVal;
+            if (parseUint(request->getParam("seg")->value().c_str(), &segVal, 5) != WR_PARSE_OK) {
+                request->send(400, "text/plain", "seg 0-5"); return;
+            }
+            unsigned long addrVal;
+            if (parseUint(request->getParam("addr")->value().c_str(), &addrVal, 255) != WR_PARSE_OK) {
+                request->send(400, "text/plain", "addr 0-255"); return;
+            }
+            uint8_t seg = (uint8_t)segVal;
+            uint8_t addr = (uint8_t)addrVal;
+            if (request->hasParam("val")) {
+                unsigned long rawVal;
+                if (parseUint(request->getParam("val")->value().c_str(), &rawVal, 255) != WR_PARSE_OK) {
+                    request->send(400, "text/plain", "raw val 0-255"); return;
+                }
+                if (wrQueueFull(wrHead, wrTail)) { request->send(503, "text/plain", "busy"); return; }
+                WrEntry &e = wrQueue[wrHead];
+                e.isRaw = true;
+                e.seg = seg;
+                e.addr = addr;
+                e.val = (uint16_t)rawVal;
+                e.reg[0] = '\0';
+                wrHead = (wrHead + 1) % WR_QUEUE_SIZE;
+                request->send(200, "text/plain", "ok");
+            } else {
+                // raw read
+                writeOneByte(0xF0, seg);
+                uint8_t readout;
+                readFromRegister(addr, 1, &readout);
+                String result = "s" + String(seg) + "_0x" + String(addr, HEX) + "=" + String(readout);
+                request->send(200, "text/plain", result);
+            }
+        }
+        // named register mode — /wr?reg=hscale&val=620
+        else if (request->hasParam("reg") && request->hasParam("val")) {
+            unsigned long val;
+            WrParseResult pr = parseUint(request->getParam("val")->value().c_str(), &val, 4095);
+            if (pr == WR_PARSE_INVALID) { request->send(400, "text/plain", "invalid number"); return; }
+            if (pr == WR_PARSE_RANGE) { request->send(400, "text/plain", "val out of range"); return; }
+            const String &regName = request->getParam("reg")->value();
+            if (!isKnownRegister(regName.c_str())) { request->send(400, "text/plain", "unknown reg"); return; }
+            if (wrQueueFull(wrHead, wrTail)) { request->send(503, "text/plain", "busy"); return; }
+            WrEntry &e = wrQueue[wrHead];
+            e.isRaw = false;
+            strncpy(e.reg, regName.c_str(), sizeof(e.reg) - 1);
+            e.reg[sizeof(e.reg) - 1] = '\0';
+            e.val = (uint16_t)val;
+            wrHead = (wrHead + 1) % WR_QUEUE_SIZE;
+            request->send(200, "text/plain", "ok");
+        }
+        // named register read — /wr?reg=hscale
+        else if (request->hasParam("reg")) {
+            String reg = request->getParam("reg")->value();
+            uint16_t val = 0;
+            bool found = true;
+            if (reg == "ht") val = GBS::VDS_HSYNC_RST::read();
+            else if (reg == "vt") val = GBS::VDS_VSYNC_RST::read();
+            else if (reg == "hsst") val = GBS::VDS_HS_ST::read();
+            else if (reg == "hssp") val = GBS::VDS_HS_SP::read();
+            else if (reg == "hbst") val = GBS::VDS_HB_ST::read();
+            else if (reg == "hbsp") val = GBS::VDS_HB_SP::read();
+            else if (reg == "hbstd") val = GBS::VDS_DIS_HB_ST::read();
+            else if (reg == "hbspd") val = GBS::VDS_DIS_HB_SP::read();
+            else if (reg == "vsst") val = GBS::VDS_VS_ST::read();
+            else if (reg == "vssp") val = GBS::VDS_VS_SP::read();
+            else if (reg == "vbst") val = GBS::VDS_VB_ST::read();
+            else if (reg == "vbsp") val = GBS::VDS_VB_SP::read();
+            else if (reg == "vbstd") val = GBS::VDS_DIS_VB_ST::read();
+            else if (reg == "vbspd") val = GBS::VDS_DIS_VB_SP::read();
+            else if (reg == "hscale") val = GBS::VDS_HSCALE::read();
+            else if (reg == "vscale") val = GBS::VDS_VSCALE::read();
+            else if (reg == "sog") val = GBS::ADC_SOGCTRL::read();
+            else if (reg == "ifhbst") val = GBS::IF_HB_ST::read();
+            else if (reg == "ifhbsp") val = GBS::IF_HB_SP::read();
+            else if (reg == "ifhbinst") val = GBS::IF_HBIN_ST::read();
+            else if (reg == "ifhbinsp") val = GBS::IF_HBIN_SP::read();
+            else if (reg == "ifvbst") val = GBS::IF_VB_ST::read();
+            else if (reg == "ifvbsp") val = GBS::IF_VB_SP::read();
+            else if (reg == "exthbst") val = GBS::VDS_EXT_HB_ST::read();
+            else if (reg == "exthbsp") val = GBS::VDS_EXT_HB_SP::read();
+            else if (reg == "extvbst") val = GBS::VDS_EXT_VB_ST::read();
+            else if (reg == "extvbsp") val = GBS::VDS_EXT_VB_SP::read();
+            else if (reg == "hdhbst") val = GBS::HD_HB_ST::read();
+            else if (reg == "hdhbsp") val = GBS::HD_HB_SP::read();
+            else if (reg == "hdvbst") val = GBS::HD_VB_ST::read();
+            else if (reg == "hdvbsp") val = GBS::HD_VB_SP::read();
+            else if (reg == "pbfetch") val = GBS::PB_FETCH_NUM::read();
+            else if (reg == "pboffset") val = GBS::PB_CAP_OFFSET::read();
+            else if (reg == "rfffetch") val = GBS::RFF_FETCH_NUM::read();
+            else if (reg == "rffoffset") val = GBS::RFF_WFF_OFFSET::read();
+            else if (reg == "ifhsyncrst") val = GBS::IF_HSYNC_RST::read();
+            else if (reg == "ifhbst2") val = GBS::IF_HB_ST2::read();
+            else if (reg == "ifhbsp2") val = GBS::IF_HB_SP2::read();
+            else if (reg == "iflinest") val = GBS::IF_LINE_ST::read();
+            else if (reg == "iflinesp") val = GBS::IF_LINE_SP::read();
+            else if (reg == "ifinist") val = GBS::IF_INI_ST::read();
+            else if (reg == "ifldst") val = GBS::IF_LD_ST::read();
+            else if (reg == "vdsdsp") val = GBS::VDS_D_SP::read();
+            else if (reg == "ygain") val = GBS::VDS_Y_GAIN::read();
+            else if (reg == "yofst") val = GBS::VDS_Y_OFST::read();
+            else if (reg == "uofst") val = GBS::VDS_U_OFST::read();
+            else if (reg == "vofst") val = GBS::VDS_V_OFST::read();
+            else if (reg == "synclev") val = GBS::VDS_SYNC_LEV::read();
+            else if (reg == "rgain") val = GBS::ADC_RGCTRL::read();
+            else if (reg == "ggain") val = GBS::ADC_GGCTRL::read();
+            else if (reg == "bgain") val = GBS::ADC_BGCTRL::read();
+            else if (reg == "roff") val = GBS::ADC_ROFCTRL::read();
+            else if (reg == "goff") val = GBS::ADC_GOFCTRL::read();
+            else if (reg == "boff") val = GBS::ADC_BOFCTRL::read();
+            else if (reg == "ucgain") val = GBS::VDS_UCOS_GAIN::read();
+            else if (reg == "vcgain") val = GBS::VDS_VCOS_GAIN::read();
+            else if (reg == "pklb") val = GBS::VDS_PK_LB_GAIN::read();
+            else if (reg == "pklh") val = GBS::VDS_PK_LH_GAIN::read();
+            else if (reg == "slstr") val = GBS::MADPT_Y_MI_OFFSET::read();
+            else if (reg == "slsoft") val = GBS::MADPT_VIIR_COEF::read();
+            else if (reg == "slbrt") val = GBS::VDS_WLEV_GAIN::read();
+            else found = false;
+            if (found) {
+                String result = reg + "=" + String(val);
+                request->send(200, "text/plain", result);
+            } else {
+                request->send(400, "text/plain", "unknown reg");
+            }
+        }
+        else {
+            request->send(400, "text/plain", "need reg+val, reg (read), or seg+addr params");
         }
     });
 
@@ -9603,6 +9882,8 @@ void startWebserver()
                     slotsObject.slot[i].wantVdsLineFilter = false;
                     slotsObject.slot[i].wantStepResponse = true;
                     slotsObject.slot[i].wantPeaking = true;
+                    slotsObject.slot[i].viirCoef = 16;
+                    slotsObject.slot[i].wlevGain = 8;
                     char emptySlotName[25] = "Empty                   ";
                     strncpy(slotsObject.slot[i].name, emptySlotName, 25);
                 }
@@ -9623,7 +9904,7 @@ void startWebserver()
             int params = request->params();
 
             if (params > 0) {
-                AsyncWebParameter *slotParam = request->getParam(0);
+                const AsyncWebParameter *slotParam = request->getParam((size_t)0);
                 String slotParamValue = slotParam->value();
                 char slotValue[2];
                 slotParamValue.toCharArray(slotValue, sizeof(slotValue));
@@ -9661,6 +9942,8 @@ void startWebserver()
                         slotsObject.slot[i].wantVdsLineFilter = false;
                         slotsObject.slot[i].wantStepResponse = true;
                         slotsObject.slot[i].wantPeaking = true;
+                        slotsObject.slot[i].viirCoef = 16;
+                        slotsObject.slot[i].wlevGain = 8;
                         char emptySlotName[25] = "Empty                   ";
                         strncpy(slotsObject.slot[i].name, emptySlotName, 25);
                     }
@@ -9670,7 +9953,7 @@ void startWebserver()
                 }
 
                 // index param
-                AsyncWebParameter *slotIndexParam = request->getParam(0);
+                const AsyncWebParameter *slotIndexParam = request->getParam((size_t)0);
                 String slotIndexString = slotIndexParam->value();
                 uint8_t slotIndex = lowByte(slotIndexString.toInt());
                 if (slotIndex >= SLOTS_TOTAL) {
@@ -9678,7 +9961,7 @@ void startWebserver()
                 }
 
                 // name param
-                AsyncWebParameter *slotNameParam = request->getParam(1);
+                const AsyncWebParameter *slotNameParam = request->getParam((size_t)1);
                 String slotName = slotNameParam->value();
 
                 char emptySlotName[25] = "                        ";
@@ -9692,6 +9975,8 @@ void startWebserver()
                 slotsObject.slot[slotIndex].wantVdsLineFilter = uopt->wantVdsLineFilter;
                 slotsObject.slot[slotIndex].wantStepResponse = uopt->wantStepResponse;
                 slotsObject.slot[slotIndex].wantPeaking = uopt->wantPeaking;
+                slotsObject.slot[slotIndex].viirCoef = uopt->viirCoef;
+                slotsObject.slot[slotIndex].wlevGain = uopt->wlevGain;
 
                 File slotsBinaryOutputFile = SPIFFS.open(SLOTS_FILE, "w");
                 slotsBinaryOutputFile.write((byte *)&slotsObject, sizeof(slotsObject));
@@ -9708,7 +9993,7 @@ void startWebserver()
     server.on("/slot/remove", HTTP_GET, [](AsyncWebServerRequest *request) {
         bool result = false;
         int params = request->params();
-        AsyncWebParameter *p = request->getParam(0);
+        const AsyncWebParameter *p = request->getParam((size_t)0);
         char param = p->name().charAt(0);
         if (params > 0)
         {
@@ -9764,6 +10049,8 @@ void startWebserver()
                     slotsObject.slot[currentSlot + loopCount].wantVdsLineFilter = slotsObject.slot[currentSlot + loopCount + 1].wantVdsLineFilter;
                     slotsObject.slot[currentSlot + loopCount].wantStepResponse = slotsObject.slot[currentSlot + loopCount + 1].wantStepResponse;
                     slotsObject.slot[currentSlot + loopCount].wantPeaking = slotsObject.slot[currentSlot + loopCount + 1].wantPeaking;
+                    slotsObject.slot[currentSlot + loopCount].viirCoef = slotsObject.slot[currentSlot + loopCount + 1].viirCoef;
+                    slotsObject.slot[currentSlot + loopCount].wlevGain = slotsObject.slot[currentSlot + loopCount + 1].wlevGain;
                     // slotsObject.slot[currentSlot + loopCount].name = slotsObject.slot[currentSlot + loopCount + 1].name;
                     strncpy(slotsObject.slot[currentSlot + loopCount].name, slotsObject.slot[currentSlot + loopCount + 1].name, 25);
                     loopCount++;
@@ -9803,7 +10090,7 @@ void startWebserver()
         if (ESP.getFreeHeap() > 10000) {
             int params = request->params();
             if (params > 0) {
-                request->send(SPIFFS, request->getParam(0)->value(), String(), true);
+                request->send(SPIFFS, request->getParam((size_t)0)->value(), String(), true);
             } else {
                 request->send(200, "application/json", "false");
             }
@@ -9872,6 +10159,8 @@ void startWebserver()
             uopt->wantVdsLineFilter = slotsObject.slot[currentSlot].wantVdsLineFilter;
             uopt->wantStepResponse = slotsObject.slot[currentSlot].wantStepResponse;
             uopt->wantPeaking = slotsObject.slot[currentSlot].wantPeaking;
+            uopt->viirCoef = slotsObject.slot[currentSlot].viirCoef;
+            uopt->wlevGain = slotsObject.slot[currentSlot].wlevGain;
             result = true;
         }
 
@@ -10193,6 +10482,38 @@ void saveUserPrefs()
     f.write(uopt->disableExternalClockGenerator + '0'); // #19
 
 
+    f.close();
+}
+
+void saveAdcPrefs()
+{
+    File f = SPIFFS.open("/adcprefs.txt", "w");
+    if (!f) {
+        SerialM.println(F("saveAdcPrefs: open failed"));
+        return;
+    }
+    f.write(adco->r_gain);
+    f.write(adco->g_gain);
+    f.write(adco->b_gain);
+    f.write(adco->r_off);
+    f.write(adco->g_off);
+    f.write(adco->b_off);
+    f.close();
+}
+
+void loadAdcPrefs()
+{
+    File f = SPIFFS.open("/adcprefs.txt", "r");
+    if (!f || f.size() < 6) {
+        if (f) f.close();
+        return;
+    }
+    adco->r_gain = f.read();
+    adco->g_gain = f.read();
+    adco->b_gain = f.read();
+    adco->r_off = f.read();
+    adco->g_off = f.read();
+    adco->b_off = f.read();
     f.close();
 }
 
@@ -10731,6 +11052,8 @@ void settingsMenuOLED()
             display.drawString(0, 0, "1920x1080");
         } else if (rto->presetID == 0x06 || rto->presetID == 0x16) {
             display.drawString(0, 0, "Downscale");
+        } else if (rto->presetID == 0x07 || rto->presetID == 0x17) {
+            display.drawString(0, 0, "1024x768");
         } else if (rto->presetID == 0x04) {
             display.drawString(0, 0, "720x480");
         } else if (rto->presetID == 0x14) {

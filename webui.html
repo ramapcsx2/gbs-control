@@ -246,7 +246,7 @@ body {
   text-align: right;
   vertical-align: top;
   white-space: initial;
-  width: 84px;
+  width: 72px;
 }
 
 .gbs-button__control-action {
@@ -847,6 +847,16 @@ section[name="alert"] {
               </button>
               <button
                 class="gbs-button gbs-button__resolution"
+                gbs-message="k"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="button1024x768"
+                gbs-role="preset"
+              >
+                1024 <span>x768</span>
+              </button>
+              <button
+                class="gbs-button gbs-button__resolution"
                 gbs-message="h"
                 gbs-message-type="user"
                 gbs-click="normal"
@@ -908,17 +918,9 @@ section[name="alert"] {
                 onclick="savePreset()"
                 active
               >
-                <div class="gbs-icon">add_circle_outline</div>
+                <div class="gbs-icon">fiber_manual_record</div>
                 <div>save preset</div>
               </button>
-              <button
-              class="gbs-button gbs-button__control-action gbs-button__secondary"
-              onclick="removePreset()"
-              active
-            >
-              <div class="gbs-icon">highlight_remove</div>
-              <div>remove preset</div>
-            </button>
             </div>
           </fieldset>
         </section>
@@ -1403,119 +1405,135 @@ section[name="alert"] {
                 <li>Peaking increases contrast around horizontal brightness steps, and is recommended.</li>
                 <li>Step Response increases the sharpness of horizontal color steps, and is recommended.</li>
               </ul>
+            </div>
           </fieldset>
-          <fieldset class="gbs-fieldset filters">
+          <fieldset class="gbs-fieldset">
             <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
-              <div class="gbs-icon">wb_sunny</div>
-              <div>Сolor correction</div>
+              <div class="gbs-icon">gradient</div>
+              <div>Scanline Tuning</div>
             </legend>
-            <div class="gbs-flex">
-              <button
-                gbs-message="Z"
-                gbs-message-type="user"
-                gbs-click="repeat"
-                class="gbs-button gbs-button__control"
-              >
-                <div class="gbs-icon">add_circle_outline</div>
-                <div>Brightness</div>
-              </button>
-              <button
-                gbs-message="T"
-                gbs-message-type="user"
-                gbs-click="repeat"
-                class="gbs-button gbs-button__control"
-              >
-                <div class="gbs-icon">remove_circle_outline</div>
-                <div>Brightness</div>
-              </button>
+            <!-- prettier-ignore -->
+            <ul class="gbs-help">
+              <li>Strength controls how dark the scanlines are (0 = invisible, 127 = maximum).</li>
+              <li>Softness blurs the edges between bright and dark lines (0 = sharp/binary, 127 = very soft).</li>
+              <li>Brightness Boost compensates for the overall darkening caused by scanlines.</li>
+              <li>These sliders only take effect when scanlines are enabled.</li>
+            </ul>
+            <div>
+              <label>Strength: <span id="sl-slstr-val">2</span></label>
+              <input type="range" id="sl-slstr" min="0" max="25" value="2">
+            </div>
+            <div>
+              <label>Softness: <span id="sl-slsoft-val">16</span></label>
+              <input type="range" id="sl-slsoft" min="0" max="25" value="16">
+            </div>
+            <div>
+              <label>Brightness Boost: <span id="sl-slbrt-val">8</span></label>
+              <input type="range" id="sl-slbrt" min="0" max="25" value="8">
             </div>
             <div class="gbs-flex">
-              <button
-                gbs-message="N"
-                gbs-message-type="user"
-                gbs-click="repeat"
-                class="gbs-button gbs-button__control"
-              >
-                <div class="gbs-icon">add_circle_outline</div>
-                <div>Contrast</div>
-              </button>
-              <button
-                gbs-message="M"
-                gbs-message-type="user"
-                gbs-click="repeat"
-                class="gbs-button gbs-button__control"
-              >
-                <div class="gbs-icon">remove_circle_outline</div>
-                <div>Contrast</div>
+              <button id="sl-reset"
+                class="gbs-button gbs-button__control gbs-button__secondary">
+                <div class="gbs-icon">restart_alt</div>
+                <div>Reset Scanlines</div>
               </button>
             </div>
-            <div class="gbs-flex">
-              <button
-                gbs-message="Q"
-                gbs-message-type="user"
-                gbs-click="repeat"
-                class="gbs-button gbs-button__control"
-              >
-                <div class="gbs-icon">add_circle_outline</div>
-                <div>Pb/U gain</div>
-              </button>
-              <button
-                gbs-message="H"
-                gbs-message-type="user"
-                gbs-click="repeat"
-                class="gbs-button gbs-button__control"
-              >
-                <div class="gbs-icon">remove_circle_outline</div>
-                <div>Pb/U gain</div>
-              </button>
+          </fieldset>
+          <fieldset class="gbs-fieldset">
+            <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
+              <div class="gbs-icon">palette</div>
+              <div>Output Color</div>
+            </legend>
+            <!-- prettier-ignore -->
+            <ul class="gbs-help">
+              <li>Brightness adjusts the luminance offset (black level shift).</li>
+              <li>Contrast adjusts the luminance gain (white level).</li>
+              <li>Blue (Pb/U) and Red (Pr/V) adjust color saturation per channel.</li>
+              <li>Sharpness controls the peaking filter gain for edge enhancement.</li>
+              <li>Reset Colors restores all output color settings to defaults.</li>
+            </ul>
+            <div>
+              <label>Brightness: <span id="vds-yofst-val">0</span></label>
+              <input type="range" id="vds-yofst" min="0" max="255" value="0">
+            </div>
+            <div>
+              <label>Contrast: <span id="vds-ygain-val">128</span></label>
+              <input type="range" id="vds-ygain" min="0" max="255" value="128">
+            </div>
+            <div>
+              <label>Blue (Pb/U): <span id="vds-ucgain-val">28</span></label>
+              <input type="range" id="vds-ucgain" min="0" max="255" value="28">
+            </div>
+            <div>
+              <label>Red (Pr/V): <span id="vds-vcgain-val">41</span></label>
+              <input type="range" id="vds-vcgain" min="0" max="255" value="41">
+            </div>
+            <div>
+              <label>Sharpness: <span id="vds-pklb-val">32</span></label>
+              <input type="range" id="vds-pklb" min="0" max="63" value="32">
             </div>
             <div class="gbs-flex">
-              <button
-                gbs-message="P"
-                gbs-message-type="user"
-                gbs-click="repeat"
-                class="gbs-button gbs-button__control"
-                >
-                <div class="gbs-icon">add_circle_outline</div>
-                <div>Pr/V gain</div>
-              </button>
-              <button
-                gbs-message="S"
-                gbs-message-type="user"
-                gbs-click="repeat"
-                class="gbs-button gbs-button__control"
-                >
-                <div class="gbs-icon">remove_circle_outline</div>
-                <div>Pr/V gain</div>
-              </button>
-            </div>
-            <div class="gbs-flex">
-              <button
-                gbs-message="O"
-                gbs-message-type="user"
-                gbs-click="repeat"
-                class="gbs-button gbs-button__control"
-              >
-              <div class="gbs-icon">info</div>
-              <div>Info</div>
-              </button>
               <button
                 gbs-message="U"
                 gbs-message-type="user"
-                gbs-click="repeat"
-                class="gbs-button gbs-button__control"
+                gbs-click="normal"
+                class="gbs-button gbs-button__control gbs-button__secondary"
               >
-                <div class="gbs-icon">settings_backup_restore</div>
-                <div>Default</div>
+                <div class="gbs-icon">restart_alt</div>
+                <div>Reset Colors</div>
               </button>
             </div>
+          </fieldset>
+          <fieldset class="gbs-fieldset">
+            <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
+              <div class="gbs-icon">tune</div>
+              <div>ADC Channels</div>
+            </legend>
+            <div>
+              <label>R Gain: <span id="adc-rgain-val">0</span></label>
+              <input type="range" id="adc-rgain" min="0" max="255" value="123">
+            </div>
+            <div>
+              <label>G Gain: <span id="adc-ggain-val">0</span></label>
+              <input type="range" id="adc-ggain" min="0" max="255" value="123">
+            </div>
+            <div>
+              <label>B Gain: <span id="adc-bgain-val">0</span></label>
+              <input type="range" id="adc-bgain" min="0" max="255" value="123">
+            </div>
+            <div>
+              <label>R Offset: <span id="adc-roff-val">0</span></label>
+              <input type="range" id="adc-roff" min="0" max="255" value="64">
+            </div>
+            <div>
+              <label>G Offset: <span id="adc-goff-val">0</span></label>
+              <input type="range" id="adc-goff" min="0" max="255" value="64">
+            </div>
+            <div>
+              <label>B Offset: <span id="adc-boff-val">0</span></label>
+              <input type="range" id="adc-boff" min="0" max="255" value="64">
+            </div>
+            <div class="gbs-flex">
+              <button
+                id="adc-reset"
+                gbs-message="G"
+                gbs-message-type="user"
+                gbs-click="normal"
+                class="gbs-button gbs-button__control gbs-button__secondary"
+              >
+                <div class="gbs-icon">restart_alt</div>
+                <div>Reset ADC</div>
+              </button>
+            </div>
+            <!-- prettier-ignore -->
             <ul class="gbs-help">
-              <!-- prettier-ignore -->
-              <li>Pb/U gain - change blue-luma gain.</li>
-              <li>Pr/V gain - change red-luma gain.</li>
+              <li>Gain sets white level, Offset sets black level per channel.</li>
+              <li>Changing gain disables Auto Gain.</li>
+              <li>Reset ADC restores default gain and offset values and re-enables Auto Gain.</li>
             </ul>
           </fieldset>
         </section>
+
         <section name="preferences" hidden>
           <fieldset class="gbs-fieldset">
             <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
@@ -2208,6 +2226,8 @@ section[name="alert"] {
         { name: "wantVdsLineFilter", type: "byte", size: 1 },
         { name: "wantStepResponse", type: "byte", size: 1 },
         { name: "wantPeaking", type: "byte", size: 1 },
+        { name: "viirCoef", type: "byte", size: 1 },
+        { name: "wlevGain", type: "byte", size: 1 },
     ],
 };
 const StructParser = {
@@ -2263,6 +2283,7 @@ const GBSControl = {
         4: "button720x480",
         5: "button1920x1080",
         6: "button15kHzScaleDown",
+        7: "button1024x768",
         8: "buttonSourcePassThrough",
         9: "buttonLoadCustomPreset",
     },
@@ -2582,23 +2603,6 @@ const loadPreset = () => {
         }
     });
 };
-const removePreset = () => {
-    fetch(`/slot/remove?0&nocache=${new Date().getTime()}`).then(() => {
-        setTimeout(() => {
-            clearTimeout(GBSControl.wsTimeout);
-            // GBSControl.wsTimeout = setTimeout(timeOutWs, 6000); //TODO: calc timeout
-            fetch(`/slot/remove?1&nocache=${new Date().getTime()}`).then(() => {
-                setTimeout(() => {
-                    fetchSlotNames().then((success) => {
-                        if (success) {
-                            updateSlotNames();
-                        }
-                    });
-                }, 500);
-            });
-        }, 200);
-    });
-};
 const getSlotsHTML = () => {
     // prettier-ignore
     return [
@@ -2660,6 +2664,9 @@ const getSlotPresetName = (presetID) => {
         case 0x06:
         case 0x016:
             return "DOWNSCALE";
+        case 0x07:
+        case 0x017:
+            return "1024x768";
         case 0x04:
             return "720x480";
         case 0x14:
@@ -3290,6 +3297,98 @@ const initUI = () => {
     initUnloadListener();
     initDeveloperMode();
     initHelp();
+    initAdcSliders();
+};
+// Registers that use two's complement signed encoding (-128..127).
+// Slider 0 = darkest (-128), 128 = neutral (0), 255 = brightest (127).
+// Transform is its own inverse: (x + 128) & 0xFF applied twice = x.
+const signedRegs = new Set(["yofst"]);
+const signedTransform = (v) => (v + 128) & 0xff;
+// Registers where higher register value = weaker effect (inverted UI sense).
+// Transform: max - v (self-inverse). Map: reg name -> max slider value.
+const invertedRegs = { slstr: 25 };
+const initWrSliders = (prefix, regs) => {
+    const refresh = () => {
+        // serialize reads: ESP8266 can't handle many concurrent requests
+        let chain = Promise.resolve();
+        regs.forEach((reg) => {
+            chain = chain.then(() => {
+                const slider = document.getElementById(`${prefix}-${reg}`);
+                const label = document.getElementById(`${prefix}-${reg}-val`);
+                if (!slider || !label)
+                    return;
+                return fetch(`http://${GBSControl.serverIP}/wr?reg=${reg}`)
+                    .then((r) => r.text())
+                    .then((t) => {
+                    const val = t.split("=")[1];
+                    if (val) {
+                        let display = parseInt(val, 10);
+                        if (signedRegs.has(reg))
+                            display = signedTransform(display);
+                        if (reg in invertedRegs)
+                            display = invertedRegs[reg] - display;
+                        slider.value = String(display);
+                        label.textContent = String(display);
+                    }
+                })
+                    .catch(() => { });
+            });
+        });
+    };
+    regs.forEach((reg) => {
+        const slider = document.getElementById(`${prefix}-${reg}`);
+        const label = document.getElementById(`${prefix}-${reg}-val`);
+        if (!slider || !label)
+            return;
+        slider.addEventListener("input", () => {
+            label.textContent = slider.value;
+        });
+        slider.addEventListener("change", () => {
+            let rawVal = slider.value;
+            if (reg in invertedRegs)
+                rawVal = invertedRegs[reg] - parseInt(slider.value, 10);
+            if (signedRegs.has(reg))
+                rawVal = signedTransform(parseInt(String(rawVal), 10));
+            fetch(`http://${GBSControl.serverIP}/wr?reg=${reg}&val=${rawVal}`).catch(() => { });
+        });
+    });
+    refresh();
+    return refresh;
+};
+const initAdcSliders = () => {
+    const adcRegs = ["rgain", "ggain", "bgain", "roff", "goff", "boff"];
+    const vdsRegs = ["yofst", "ygain", "ucgain", "vcgain", "pklb"];
+    const refreshAdc = initWrSliders("adc", adcRegs);
+    const refreshVds = initWrSliders("vds", vdsRegs);
+    // refresh sliders after ADC reset (2s delay: auto-gain needs time to converge)
+    const adcResetBtn = document.getElementById("adc-reset");
+    if (adcResetBtn) {
+        adcResetBtn.addEventListener("click", () => {
+            setTimeout(refreshAdc, 2000);
+        });
+    }
+    // refresh VDS sliders after Reset Colors
+    const colorResetBtns = document.querySelectorAll('[gbs-message="U"]');
+    colorResetBtns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+            setTimeout(refreshVds, 500);
+        });
+    });
+    // scanline tuning sliders
+    const slRegs = ["slstr", "slsoft", "slbrt"];
+    const refreshSl = initWrSliders("sl", slRegs);
+    // reset scanline tuning to defaults from enableScanlines()
+    const slResetBtn = document.getElementById("sl-reset");
+    if (slResetBtn) {
+        slResetBtn.addEventListener("click", () => {
+            const defaults = [["slstr", 23], ["slsoft", 16], ["slbrt", 8]];
+            let chain = Promise.resolve();
+            defaults.forEach((pair) => {
+                chain = chain.then(() => fetch(`http://${GBSControl.serverIP}/wr?reg=${pair[0]}&val=${pair[1]}`).catch(() => { }));
+            });
+            chain.then(() => setTimeout(refreshSl, 300));
+        });
+    }
 };
 const main = () => {
     const ip = location.hostname;

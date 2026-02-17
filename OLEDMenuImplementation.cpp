@@ -64,6 +64,9 @@ bool resolutionMenuHandler(OLEDMenuManager *manager, OLEDMenuItem *item, OLEDMen
         case MT_480s576:
             preset = PresetPreference::Output480P;
             break;
+        case MT_1024x768:
+            preset = PresetPreference::Output1024x768;
+            break;
         case MT_DOWNSCALE:
             preset = PresetPreference::OutputDownscale;
             break;
@@ -256,6 +259,8 @@ bool currentSettingHandler(OLEDMenuManager *manager, OLEDMenuItem *, OLEDMenuNav
             display.drawString(0, 0, "1920x1080");
         } else if (rto->presetID == 0x06 || rto->presetID == 0x16) {
             display.drawString(0, 0, "Downscale");
+        } else if (rto->presetID == 0x07 || rto->presetID == 0x17) {
+            display.drawString(0, 0, "1024x768");
         } else if (rto->presetID == 0x04) {
             display.drawString(0, 0, "720x480");
         } else if (rto->presetID == 0x14) {
@@ -391,9 +396,9 @@ void initOLEDMenu()
 
     // Resolutions
     OLEDMenuItem *resMenu = oledMenu.registerItem(root, MT_NULL, IMAGE_ITEM(OM_RESOLUTION));
-    const char *resolutions[5] = {"1280x960", "1280x1024", "1280x720", "1920x1080", "480/576"};
-    uint8_t tags[5] = {MT_1280x960, MT1280x1024, MT1280x720, MT1920x1080, MT_480s576};
-    for (int i = 0; i < 5; ++i) {
+    const char *resolutions[6] = {"1920x1080", "1280x1024", "1280x960", "1280x720", "1024x768", "480/576"};
+    uint8_t tags[6] = {MT1920x1080, MT1280x1024, MT_1280x960, MT1280x720, MT_1024x768, MT_480s576};
+    for (int i = 0; i < 6; ++i) {
         oledMenu.registerItem(resMenu, tags[i], resolutions[i], resolutionMenuHandler);
     }
     // downscale and passthrough

@@ -168,6 +168,16 @@
               </button>
               <button
                 class="gbs-button gbs-button__resolution"
+                gbs-message="k"
+                gbs-message-type="user"
+                gbs-click="normal"
+                gbs-element-ref="button1024x768"
+                gbs-role="preset"
+              >
+                1024 <span>x768</span>
+              </button>
+              <button
+                class="gbs-button gbs-button__resolution"
                 gbs-message="h"
                 gbs-message-type="user"
                 gbs-click="normal"
@@ -717,6 +727,131 @@
                 <li>Step Response increases the sharpness of horizontal color steps, and is recommended.</li>
               </ul>
             </div>
+          </fieldset>
+          <fieldset class="gbs-fieldset">
+            <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
+              <div class="gbs-icon">gradient</div>
+              <div>Scanline Tuning</div>
+            </legend>
+            <!-- prettier-ignore -->
+            <ul class="gbs-help">
+              <li>Strength controls how dark the scanlines are (0 = invisible, 127 = maximum).</li>
+              <li>Softness blurs the edges between bright and dark lines (0 = sharp/binary, 127 = very soft).</li>
+              <li>Brightness Boost compensates for the overall darkening caused by scanlines.</li>
+              <li>These sliders only take effect when scanlines are enabled.</li>
+            </ul>
+            <div>
+              <label>Strength: <span id="sl-slstr-val">2</span></label>
+              <input type="range" id="sl-slstr" min="0" max="25" value="2">
+            </div>
+            <div>
+              <label>Softness: <span id="sl-slsoft-val">16</span></label>
+              <input type="range" id="sl-slsoft" min="0" max="25" value="16">
+            </div>
+            <div>
+              <label>Brightness Boost: <span id="sl-slbrt-val">8</span></label>
+              <input type="range" id="sl-slbrt" min="0" max="25" value="8">
+            </div>
+            <div class="gbs-flex">
+              <button id="sl-reset"
+                class="gbs-button gbs-button__control gbs-button__secondary">
+                <div class="gbs-icon">restart_alt</div>
+                <div>Reset Scanlines</div>
+              </button>
+            </div>
+          </fieldset>
+          <fieldset class="gbs-fieldset">
+            <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
+              <div class="gbs-icon">palette</div>
+              <div>Output Color</div>
+            </legend>
+            <!-- prettier-ignore -->
+            <ul class="gbs-help">
+              <li>Brightness adjusts the luminance offset (black level shift).</li>
+              <li>Contrast adjusts the luminance gain (white level).</li>
+              <li>Blue (Pb/U) and Red (Pr/V) adjust color saturation per channel.</li>
+              <li>Sharpness controls the peaking filter gain for edge enhancement.</li>
+              <li>Reset Colors restores all output color settings to defaults.</li>
+            </ul>
+            <div>
+              <label>Brightness: <span id="vds-yofst-val">0</span></label>
+              <input type="range" id="vds-yofst" min="0" max="255" value="0">
+            </div>
+            <div>
+              <label>Contrast: <span id="vds-ygain-val">128</span></label>
+              <input type="range" id="vds-ygain" min="0" max="255" value="128">
+            </div>
+            <div>
+              <label>Blue (Pb/U): <span id="vds-ucgain-val">28</span></label>
+              <input type="range" id="vds-ucgain" min="0" max="255" value="28">
+            </div>
+            <div>
+              <label>Red (Pr/V): <span id="vds-vcgain-val">41</span></label>
+              <input type="range" id="vds-vcgain" min="0" max="255" value="41">
+            </div>
+            <div>
+              <label>Sharpness: <span id="vds-pklb-val">32</span></label>
+              <input type="range" id="vds-pklb" min="0" max="63" value="32">
+            </div>
+            <div class="gbs-flex">
+              <button
+                gbs-message="U"
+                gbs-message-type="user"
+                gbs-click="normal"
+                class="gbs-button gbs-button__control gbs-button__secondary"
+              >
+                <div class="gbs-icon">restart_alt</div>
+                <div>Reset Colors</div>
+              </button>
+            </div>
+          </fieldset>
+          <fieldset class="gbs-fieldset">
+            <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
+              <div class="gbs-icon">tune</div>
+              <div>ADC Channels</div>
+            </legend>
+            <div>
+              <label>R Gain: <span id="adc-rgain-val">0</span></label>
+              <input type="range" id="adc-rgain" min="0" max="255" value="123">
+            </div>
+            <div>
+              <label>G Gain: <span id="adc-ggain-val">0</span></label>
+              <input type="range" id="adc-ggain" min="0" max="255" value="123">
+            </div>
+            <div>
+              <label>B Gain: <span id="adc-bgain-val">0</span></label>
+              <input type="range" id="adc-bgain" min="0" max="255" value="123">
+            </div>
+            <div>
+              <label>R Offset: <span id="adc-roff-val">0</span></label>
+              <input type="range" id="adc-roff" min="0" max="255" value="64">
+            </div>
+            <div>
+              <label>G Offset: <span id="adc-goff-val">0</span></label>
+              <input type="range" id="adc-goff" min="0" max="255" value="64">
+            </div>
+            <div>
+              <label>B Offset: <span id="adc-boff-val">0</span></label>
+              <input type="range" id="adc-boff" min="0" max="255" value="64">
+            </div>
+            <div class="gbs-flex">
+              <button
+                id="adc-reset"
+                gbs-message="G"
+                gbs-message-type="user"
+                gbs-click="normal"
+                class="gbs-button gbs-button__control gbs-button__secondary"
+              >
+                <div class="gbs-icon">restart_alt</div>
+                <div>Reset ADC</div>
+              </button>
+            </div>
+            <!-- prettier-ignore -->
+            <ul class="gbs-help">
+              <li>Gain sets white level, Offset sets black level per channel.</li>
+              <li>Changing gain disables Auto Gain.</li>
+              <li>Reset ADC restores default gain and offset values and re-enables Auto Gain.</li>
+            </ul>
           </fieldset>
         </section>
 

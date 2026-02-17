@@ -8,6 +8,8 @@ const Structs = {
         { name: "wantVdsLineFilter", type: "byte", size: 1 },
         { name: "wantStepResponse", type: "byte", size: 1 },
         { name: "wantPeaking", type: "byte", size: 1 },
+        { name: "viirCoef", type: "byte", size: 1 },
+        { name: "wlevGain", type: "byte", size: 1 },
     ],
 };
 const StructParser = {
@@ -63,6 +65,7 @@ const GBSControl = {
         4: "button720x480",
         5: "button1920x1080",
         6: "button15kHzScaleDown",
+        7: "button1024x768",
         8: "buttonSourcePassThrough",
         9: "buttonLoadCustomPreset",
     },
@@ -443,6 +446,9 @@ const getSlotPresetName = (presetID) => {
         case 0x06:
         case 0x016:
             return "DOWNSCALE";
+        case 0x07:
+        case 0x017:
+            return "1024x768";
         case 0x04:
             return "720x480";
         case 0x14:
@@ -1073,6 +1079,98 @@ const initUI = () => {
     initUnloadListener();
     initDeveloperMode();
     initHelp();
+    initAdcSliders();
+};
+// Registers that use two's complement signed encoding (-128..127).
+// Slider 0 = darkest (-128), 128 = neutral (0), 255 = brightest (127).
+// Transform is its own inverse: (x + 128) & 0xFF applied twice = x.
+const signedRegs = new Set(["yofst"]);
+const signedTransform = (v) => (v + 128) & 0xff;
+// Registers where higher register value = weaker effect (inverted UI sense).
+// Transform: max - v (self-inverse). Map: reg name -> max slider value.
+const invertedRegs = { slstr: 25 };
+const initWrSliders = (prefix, regs) => {
+    const refresh = () => {
+        // serialize reads: ESP8266 can't handle many concurrent requests
+        let chain = Promise.resolve();
+        regs.forEach((reg) => {
+            chain = chain.then(() => {
+                const slider = document.getElementById(`${prefix}-${reg}`);
+                const label = document.getElementById(`${prefix}-${reg}-val`);
+                if (!slider || !label)
+                    return;
+                return fetch(`http://${GBSControl.serverIP}/wr?reg=${reg}`)
+                    .then((r) => r.text())
+                    .then((t) => {
+                    const val = t.split("=")[1];
+                    if (val) {
+                        let display = parseInt(val, 10);
+                        if (signedRegs.has(reg))
+                            display = signedTransform(display);
+                        if (reg in invertedRegs)
+                            display = invertedRegs[reg] - display;
+                        slider.value = String(display);
+                        label.textContent = String(display);
+                    }
+                })
+                    .catch(() => { });
+            });
+        });
+    };
+    regs.forEach((reg) => {
+        const slider = document.getElementById(`${prefix}-${reg}`);
+        const label = document.getElementById(`${prefix}-${reg}-val`);
+        if (!slider || !label)
+            return;
+        slider.addEventListener("input", () => {
+            label.textContent = slider.value;
+        });
+        slider.addEventListener("change", () => {
+            let rawVal = slider.value;
+            if (reg in invertedRegs)
+                rawVal = invertedRegs[reg] - parseInt(slider.value, 10);
+            if (signedRegs.has(reg))
+                rawVal = signedTransform(parseInt(String(rawVal), 10));
+            fetch(`http://${GBSControl.serverIP}/wr?reg=${reg}&val=${rawVal}`).catch(() => { });
+        });
+    });
+    refresh();
+    return refresh;
+};
+const initAdcSliders = () => {
+    const adcRegs = ["rgain", "ggain", "bgain", "roff", "goff", "boff"];
+    const vdsRegs = ["yofst", "ygain", "ucgain", "vcgain", "pklb"];
+    const refreshAdc = initWrSliders("adc", adcRegs);
+    const refreshVds = initWrSliders("vds", vdsRegs);
+    // refresh sliders after ADC reset (2s delay: auto-gain needs time to converge)
+    const adcResetBtn = document.getElementById("adc-reset");
+    if (adcResetBtn) {
+        adcResetBtn.addEventListener("click", () => {
+            setTimeout(refreshAdc, 2000);
+        });
+    }
+    // refresh VDS sliders after Reset Colors
+    const colorResetBtns = document.querySelectorAll('[gbs-message="U"]');
+    colorResetBtns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+            setTimeout(refreshVds, 500);
+        });
+    });
+    // scanline tuning sliders
+    const slRegs = ["slstr", "slsoft", "slbrt"];
+    const refreshSl = initWrSliders("sl", slRegs);
+    // reset scanline tuning to defaults from enableScanlines()
+    const slResetBtn = document.getElementById("sl-reset");
+    if (slResetBtn) {
+        slResetBtn.addEventListener("click", () => {
+            const defaults = [["slstr", 23], ["slsoft", 16], ["slbrt", 8]];
+            let chain = Promise.resolve();
+            defaults.forEach((pair) => {
+                chain = chain.then(() => fetch(`http://${GBSControl.serverIP}/wr?reg=${pair[0]}&val=${pair[1]}`).catch(() => { }));
+            });
+            chain.then(() => setTimeout(refreshSl, 300));
+        });
+    }
 };
 const main = () => {
     const ip = location.hostname;

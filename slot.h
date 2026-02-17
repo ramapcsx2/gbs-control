@@ -13,6 +13,8 @@ typedef struct
     uint8_t wantVdsLineFilter;
     uint8_t wantStepResponse;
     uint8_t wantPeaking;
+    uint8_t viirCoef;
+    uint8_t wlevGain;
 } SlotMeta;
 
 typedef struct

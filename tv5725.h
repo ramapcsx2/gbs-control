@@ -75,6 +75,7 @@ public:
     typedef UReg<0x00, 0x04, 5, 1> STATUS_IF_INP_HD;
     typedef UReg<0x00, 0x04, 6, 1> STATUS_IF_INP_INT;
     typedef UReg<0x00, 0x04, 7, 1> STATUS_IF_INP_PRG;
+    typedef UReg<0x00, 0x04, 6, 2> INTERLACE_PROGRESSIVE_RECOGNIZE;
     typedef UReg<0x00, 0x05, 0, 8> STATUS_05; // whole register for convenience
     typedef UReg<0x00, 0x05, 0, 1> STATUS_IF_INP_USER;
     typedef UReg<0x00, 0x05, 1, 1> STATUS_IF_NO_SYNC;
@@ -84,6 +85,11 @@ public:
 
     typedef UReg<0x00, 0x06, 0, 9> HPERIOD_IF;
     typedef UReg<0x00, 0x07, 1, 11> VPERIOD_IF;
+    // Byte-aligned views of HPERIOD_IF / VPERIOD_IF for individual byte access
+    typedef UReg<0x00, 0x06, 0, 8> H_TOTAL_LOW;
+    typedef UReg<0x00, 0x07, 0, 1> H_TOTAL_HIGH;
+    typedef UReg<0x00, 0x07, 1, 7> V_TOTAL_LOW;
+    typedef UReg<0x00, 0x08, 0, 4> V_TOTAL_HIGH;
 
     typedef UReg<0x00, 0x09, 6, 1> STATUS_MISC_PLL648_LOCK;
     typedef UReg<0x00, 0x09, 7, 1> STATUS_MISC_PLLAD_LOCK;
@@ -93,6 +99,7 @@ public:
     typedef UReg<0x00, 0x0A, 5, 1> STATUS_MISC_HBLK;
     typedef UReg<0x00, 0x0A, 6, 1> STATUS_MISC_VSYNC;
     typedef UReg<0x00, 0x0A, 7, 1> STATUS_MISC_HSYNC;
+    typedef UReg<0x00, 0x0A, 0, 8> STATUS_MISC;
 
     typedef UReg<0x00, 0x0B, 0, 8> CHIP_ID_FOUNDRY;
     typedef UReg<0x00, 0x0C, 0, 8> CHIP_ID_PRODUCT;
@@ -191,6 +198,7 @@ public:
     typedef UReg<0x00, 0x49, 1, 1> PAD_CKOUT_ENZ;
     typedef UReg<0x00, 0x49, 2, 1> PAD_SYNC_OUT_ENZ;
     typedef UReg<0x00, 0x49, 4, 1> PAD_TRI_ENZ;
+    typedef UReg<0x00, 0x49, 3, 1> PAD_BLK_OUT_ENZ;
     typedef UReg<0x00, 0x4A, 0, 3> PAD_OSC_CNTRL;
     typedef UReg<0x00, 0x4B, 1, 1> DAC_RGBS_BYPS2DAC;
     typedef UReg<0x00, 0x4B, 2, 1> DAC_RGBS_ADC2DAC;
@@ -575,6 +583,7 @@ public:
     typedef UReg<0x04, 0x2b, 1, 2> PB_REQ_SEL;
     typedef UReg<0x04, 0x2b, 3, 1> PB_BYPASS;
     typedef UReg<0x04, 0x2b, 5, 1> PB_DB_BUFFER_EN;
+    typedef UReg<0x04, 0x2b, 4, 1> PB_DB_FIELD_EN;
     typedef UReg<0x04, 0x2b, 7, 1> PB_ENABLE;
     typedef UReg<0x04, 0x2c, 0, 8> PB_MAST_FLAG_REG;
     typedef UReg<0x04, 0x2d, 0, 8> PB_GENERAL_FLAG_REG;

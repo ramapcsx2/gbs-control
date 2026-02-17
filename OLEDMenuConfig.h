@@ -18,7 +18,7 @@
 #define OLED_MENU_OVER_DRAW 0 // if set to 0, the last menu item of a page will not be drawn at all if partially outside the screen, and you need to scroll down to see them
 #define OLED_MENU_RESET_ALWAYS_SCROLL_ON_SELECTION 0 // if set 1, scrolling items will reset to original position on selection
 #define OLED_MENU_WRAPPING_SPACE (OLED_MENU_WIDTH / 3)
-#define REVERSE_ROTARY_ENCODER_FOR_OLED_MENU 0 // if set 1, rotary encoder will be reversed for menu navigation
+#define REVERSE_ROTARY_ENCODER_FOR_OLED_MENU 1 // if set 1, rotary encoder will be reversed for menu navigation
 #define REVERSE_ROTARY_ENCODER_FOR_OSD 0 // if set 1, rotary encoder will be reversed for OSD navigation
 #define OSD_TIMEOUT 8000 // OSD will disappear after OSD_TIMEOUT milliseconds without inputs
 

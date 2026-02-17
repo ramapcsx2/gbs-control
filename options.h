@@ -9,6 +9,7 @@ enum PresetPreference : uint8_t {
     Output1024P = 4,
     Output1080P = 5,
     OutputDownscale = 6,
+    Output1024x768 = 7,
     OutputBypass = 10,
 };
 
@@ -16,7 +17,7 @@ enum PresetPreference : uint8_t {
 struct userOptions
 {
     // 0 - normal, 1 - x480/x576, 2 - customized, 3 - 1280x720, 4 - 1280x1024, 5 - 1920x1080,
-    // 6 - downscale, 10 - bypass
+    // 6 - downscale, 7 - 1024x768, 10 - bypass
     PresetPreference presetPreference;
     Ascii8 presetSlot;
     uint8_t enableFrameTimeLock;
@@ -36,6 +37,8 @@ struct userOptions
     uint8_t wantFullHeight;
     uint8_t enableCalibrationADC;
     uint8_t scanlineStrength;
+    uint8_t viirCoef;
+    uint8_t wlevGain;
 };
 
 
