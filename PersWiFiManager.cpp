@@ -5,7 +5,10 @@
    modified for inclusion in gbs-control
    see /3rdparty/PersWiFiManager/ for original code and license
 */
-#if defined(ESP8266)
+#ifndef ENABLE_WIFI
+#define ENABLE_WIFI 1
+#endif
+#if defined(ESP8266) && ENABLE_WIFI
 #include "PersWiFiManager.h"
 
 // #define WIFI_HTM_PROGMEM
