@@ -229,9 +229,17 @@
                 onclick="savePreset()"
                 active
               >
-                <div class="gbs-icon">fiber_manual_record</div>
+                <div class="gbs-icon">add_circle_outline</div>
                 <div>save preset</div>
               </button>
+              <button
+              class="gbs-button gbs-button__control-action gbs-button__secondary"
+              onclick="removePreset()"
+              active
+            >
+              <div class="gbs-icon">highlight_remove</div>
+              <div>remove preset</div>
+            </button>
             </div>
           </fieldset>
         </section>
@@ -718,6 +726,117 @@
               </ul>
             </div>
           </fieldset>
+          <fieldset class="gbs-fieldset filters">
+            <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
+              <div class="gbs-icon">wb_sunny</div>
+              <div>Color Correction</div>
+            </legend>
+            <div class="gbs-flex">
+              <button
+                gbs-message="Z"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control"
+              >
+                <div class="gbs-icon">add_circle_outline</div>
+                <div>Brightness</div>
+              </button>
+              <button
+                gbs-message="T"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control"
+              >
+                <div class="gbs-icon">remove_circle_outline</div>
+                <div>Brightness</div>
+              </button>
+            </div>
+            <div class="gbs-flex">
+              <button
+                gbs-message="N"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control"
+              >
+                <div class="gbs-icon">add_circle_outline</div>
+                <div>Contrast</div>
+              </button>
+              <button
+                gbs-message="M"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control"
+              >
+                <div class="gbs-icon">remove_circle_outline</div>
+                <div>Contrast</div>
+              </button>
+            </div>
+            <div class="gbs-flex">
+              <button
+                gbs-message="Q"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control"
+              >
+                <div class="gbs-icon">add_circle_outline</div>
+                <div>Pb/U gain</div>
+              </button>
+              <button
+                gbs-message="H"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control"
+              >
+                <div class="gbs-icon">remove_circle_outline</div>
+                <div>Pb/U gain</div>
+              </button>
+            </div>
+            <div class="gbs-flex">
+              <button
+                gbs-message="P"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control"
+                >
+                <div class="gbs-icon">add_circle_outline</div>
+                <div>Pr/V gain</div>
+              </button>
+              <button
+                gbs-message="S"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control"
+                >
+                <div class="gbs-icon">remove_circle_outline</div>
+                <div>Pr/V gain</div>
+              </button>
+            </div>
+            <div class="gbs-flex">
+              <button
+                gbs-message="O"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control"
+              >
+              <div class="gbs-icon">info</div>
+              <div>Info</div>
+              </button>
+              <button
+                gbs-message="U"
+                gbs-message-type="user"
+                gbs-click="repeat"
+                class="gbs-button gbs-button__control"
+              >
+                <div class="gbs-icon">settings_backup_restore</div>
+                <div>Default</div>
+              </button>
+            </div>
+            <ul class="gbs-help">
+              <!-- prettier-ignore -->
+              <li>Pb/U gain - change blue-luma gain.</li>
+              <li>Pr/V gain - change red-luma gain.</li>
+            </ul>
+          </fieldset>
         </section>
 
         <section name="preferences" hidden>
@@ -876,7 +995,7 @@
                 </td>
               </tr>
               <tr>
-                <td class="gbs-padding__left-16">FrameTime Lock</td>
+                <td class="gbs-padding__left-16 gbs-padding__bottom--16">FrameTime Lock</td>
                 <td
                   class="gbs-icon"
                   gbs-message="5"
@@ -888,15 +1007,32 @@
                 </td>
               </tr>
               <tr>
-                <td class="gbs-padding__left-16">Switch Lock Method</td>
+                <td class="gbs-preferences__child gbs-padding__left-16">FrameTime Lock Method</td>
+              </tr>
+              <tr>
+                <td class="gbs-padding__left-16">VTotal + VSST</td>
                 <td
                   class="gbs-icon"
                   gbs-message="i"
                   gbs-message-type="user"
                   gbs-click="normal"
                   style="cursor: pointer"
+                  gbs-toggle-switch="frameTimeLockMethod_vtotal_vsst"
                 >
-                  swap_horiz
+                  toggle_off
+                </td>
+              </tr>
+              <tr>
+                <td class="gbs-padding__left-16">VTotal</td>
+                <td
+                  class="gbs-icon"
+                  gbs-message="I"
+                  gbs-message-type="user"
+                  gbs-click="normal"
+                  style="cursor: pointer"
+                  gbs-toggle-switch="frameTimeLockMethod_vtotal_only"
+                >
+                  toggle_off
                 </td>
               </tr>
               <tr>

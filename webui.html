@@ -595,6 +595,10 @@ section[name="alert"] {
   margin-bottom: 16px;
 }
 
+.gbs-padding__bottom--16 {
+  padding-bottom: 16px;
+}
+
 .gbs-padding__left-16 {
   padding-left: 16px;
 }
@@ -1403,11 +1407,12 @@ section[name="alert"] {
                 <li>Peaking increases contrast around horizontal brightness steps, and is recommended.</li>
                 <li>Step Response increases the sharpness of horizontal color steps, and is recommended.</li>
               </ul>
+            </div>
           </fieldset>
           <fieldset class="gbs-fieldset filters">
             <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
               <div class="gbs-icon">wb_sunny</div>
-              <div>Сolor correction</div>
+              <div>Color Correction</div>
             </legend>
             <div class="gbs-flex">
               <button
@@ -1516,6 +1521,7 @@ section[name="alert"] {
             </ul>
           </fieldset>
         </section>
+
         <section name="preferences" hidden>
           <fieldset class="gbs-fieldset">
             <legend class="gbs-fieldset__legend gbs-fieldset__legend--help">
@@ -1672,7 +1678,7 @@ section[name="alert"] {
                 </td>
               </tr>
               <tr>
-                <td class="gbs-padding__left-16">FrameTime Lock</td>
+                <td class="gbs-padding__left-16 gbs-padding__bottom--16">FrameTime Lock</td>
                 <td
                   class="gbs-icon"
                   gbs-message="5"
@@ -1684,15 +1690,32 @@ section[name="alert"] {
                 </td>
               </tr>
               <tr>
-                <td class="gbs-padding__left-16">Switch Lock Method</td>
+                <td class="gbs-preferences__child gbs-padding__left-16">FrameTime Lock Method</td>
+              </tr>
+              <tr>
+                <td class="gbs-padding__left-16">VTotal + VSST</td>
                 <td
                   class="gbs-icon"
                   gbs-message="i"
                   gbs-message-type="user"
                   gbs-click="normal"
                   style="cursor: pointer"
+                  gbs-toggle-switch="frameTimeLockMethod_vtotal_vsst"
                 >
-                  swap_horiz
+                  toggle_off
+                </td>
+              </tr>
+              <tr>
+                <td class="gbs-padding__left-16">VTotal</td>
+                <td
+                  class="gbs-icon"
+                  gbs-message="I"
+                  gbs-message-type="user"
+                  gbs-click="normal"
+                  style="cursor: pointer"
+                  gbs-toggle-switch="frameTimeLockMethod_vtotal_only"
+                >
+                  toggle_off
                 </td>
               </tr>
               <tr>
@@ -2471,6 +2494,12 @@ const createWebSocket = () => {
                         case "frameTimeLock":
                             toggleMethod(button, (optionByte1 & 0x02) == 0x02);
                             break;
+                        case "frameTimeLockMethod_vtotal_vsst":
+                            toggleMethod(button, (optionByte1 & 0x02) == 0x02 && (optionByte1 & 0x08) != 0x08);
+                            break;
+                        case "frameTimeLockMethod_vtotal_only":
+                            toggleMethod(button, (optionByte1 & 0x02) == 0x02 && (optionByte1 & 0x08) == 0x08);
+                            break;
                         case "motionAdaptive":
                             toggleMethod(button, (optionByte1 & 0x04) == 0x04);
                             break;
@@ -2573,15 +2602,6 @@ const savePreset = () => {
     })
         .catch(() => { });
 };
-const loadPreset = () => {
-    loadUser("3").then(() => {
-        if (GBSStorage.read("customSlotFilters") === true) {
-            setTimeout(() => {
-                fetch(`/gbs/restore-filters?${+new Date()}`);
-            }, 250);
-        }
-    });
-};
 const removePreset = () => {
     fetch(`/slot/remove?0&nocache=${new Date().getTime()}`).then(() => {
         setTimeout(() => {
@@ -2597,6 +2617,15 @@ const removePreset = () => {
                 }, 500);
             });
         }, 200);
+    });
+};
+const loadPreset = () => {
+    loadUser("3").then(() => {
+        if (GBSStorage.read("customSlotFilters") === true) {
+            setTimeout(() => {
+                fetch(`/gbs/restore-filters?${+new Date()}`);
+            }, 250);
+        }
     });
 };
 const getSlotsHTML = () => {

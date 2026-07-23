@@ -588,6 +588,10 @@ section[name="alert"] {
   margin-bottom: 16px;
 }
 
+.gbs-padding__bottom--16 {
+  padding-bottom: 16px;
+}
+
 .gbs-padding__left-16 {
   padding-left: 16px;
 }

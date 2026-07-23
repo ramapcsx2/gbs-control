@@ -332,6 +332,12 @@ const createWebSocket = () => {
             case "frameTimeLock":
               toggleMethod(button, (optionByte1 & 0x02) == 0x02);
               break;
+            case "frameTimeLockMethod_vtotal_vsst":
+              toggleMethod(button, (optionByte1 & 0x02) == 0x02 && (optionByte1 & 0x08) != 0x08);
+              break;
+            case "frameTimeLockMethod_vtotal_only":
+              toggleMethod(button, (optionByte1 & 0x02) == 0x02 && (optionByte1 & 0x08) == 0x08);
+              break;
             case "motionAdaptive":
               toggleMethod(button, (optionByte1 & 0x04) == 0x04);
               break;
@@ -454,6 +460,24 @@ const savePreset = () => {
       }
     })
     .catch(() => {});
+};
+
+const removePreset = () => {
+    fetch(`/slot/remove?0&nocache=${new Date().getTime()}`).then(() => {
+        setTimeout(() => {
+            clearTimeout(GBSControl.wsTimeout);
+            // GBSControl.wsTimeout = setTimeout(timeOutWs, 6000); //TODO: calc timeout
+            fetch(`/slot/remove?1&nocache=${new Date().getTime()}`).then(() => {
+                setTimeout(() => {
+                    fetchSlotNames().then((success) => {
+                        if (success) {
+                            updateSlotNames();
+                        }
+                    });
+                }, 500);
+            });
+        }, 200);
+    });
 };
 
 const loadPreset = () => {

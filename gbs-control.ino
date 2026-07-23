@@ -7728,12 +7728,17 @@ void updateWebSocketData()
             if (uopt->enableFrameTimeLock) {
                 toSend[4] |= (1 << 1);
             }
+            if (uopt->frameTimeLockMethod) {
+                toSend[4] |= (1 << 3);
+            }
             if (uopt->deintMode) {
                 toSend[4] |= (1 << 2);
             }
+            /*
             if (uopt->wantTap6) {
                 toSend[4] |= (1 << 3);
             }
+            */
             if (uopt->wantStepResponse) {
                 toSend[4] |= (1 << 4);
             }
@@ -9150,16 +9155,31 @@ void handleType2Command(char argument)
         } break;
         case 'i':
             // toggle active frametime lock method
-            if (!rto->extClockGenDetected) {
-                FrameSync::reset(uopt->frameTimeLockMethod);
-            }
-            if (uopt->frameTimeLockMethod == 0) {
-                uopt->frameTimeLockMethod = 1;
-            } else if (uopt->frameTimeLockMethod == 1) {
+            // vtotal and VSST
+            if (uopt->enableFrameTimeLock == 1) {
                 uopt->frameTimeLockMethod = 0;
+                if (!rto->extClockGenDetected) {
+                    FrameSync::reset(uopt->frameTimeLockMethod);
+                }
+                saveUserPrefs();
+                activeFrameTimeLockInitialSteps();
+            } else {
+                SerialM.println("Enable FrameTime Lock to set a method");
             }
-            saveUserPrefs();
-            activeFrameTimeLockInitialSteps();
+            break;
+        case 'I':
+            // toggle active frametime lock method
+            // vtotal only
+            if (uopt->enableFrameTimeLock == 1) {
+                uopt->frameTimeLockMethod = 1;
+                if (!rto->extClockGenDetected) {
+                    FrameSync::reset(uopt->frameTimeLockMethod);
+                }
+                saveUserPrefs();
+                activeFrameTimeLockInitialSteps();
+            } else {
+                SerialM.println("Enable FrameTime Lock to set a method");
+            }
             break;
         case 'l':
             // cycle through available SDRAM clocks
@@ -9598,7 +9618,7 @@ void startWebserver()
             //Serial.print("got serial request params: ");
             //Serial.println(params);
             if (params > 0) {
-                AsyncWebParameter *p = request->getParam(0);
+                const AsyncWebParameter *p = request->getParam((size_t)0);
                 //Serial.println(p->name());
                 serialCommand = p->name().charAt(0);
 
@@ -9617,7 +9637,7 @@ void startWebserver()
             //Serial.print("got user request params: ");
             //Serial.println(params);
             if (params > 0) {
-                AsyncWebParameter *p = request->getParam(0);
+                const AsyncWebParameter *p = request->getParam((size_t)0);
                 //Serial.println(p->name());
                 userCommand = p->name().charAt(0);
             }
@@ -9679,7 +9699,7 @@ void startWebserver()
             int params = request->params();
 
             if (params > 0) {
-                AsyncWebParameter *slotParam = request->getParam(0);
+                const AsyncWebParameter *slotParam = request->getParam((size_t)0);
                 String slotParamValue = slotParam->value();
                 char slotValue[2];
                 slotParamValue.toCharArray(slotValue, sizeof(slotValue));
@@ -9726,7 +9746,7 @@ void startWebserver()
                 }
 
                 // index param
-                AsyncWebParameter *slotIndexParam = request->getParam(0);
+                const AsyncWebParameter *slotIndexParam = request->getParam((size_t)0);
                 String slotIndexString = slotIndexParam->value();
                 uint8_t slotIndex = lowByte(slotIndexString.toInt());
                 if (slotIndex >= SLOTS_TOTAL) {
@@ -9734,7 +9754,7 @@ void startWebserver()
                 }
 
                 // name param
-                AsyncWebParameter *slotNameParam = request->getParam(1);
+                const AsyncWebParameter *slotNameParam = request->getParam((size_t)1);
                 String slotName = slotNameParam->value();
 
                 char emptySlotName[25] = "                        ";
@@ -9764,7 +9784,7 @@ void startWebserver()
     server.on("/slot/remove", HTTP_GET, [](AsyncWebServerRequest *request) {
         bool result = false;
         int params = request->params();
-        AsyncWebParameter *p = request->getParam(0);
+        const AsyncWebParameter *p = request->getParam((size_t)0);
         char param = p->name().charAt(0);
         if (params > 0)
         {
@@ -9833,6 +9853,7 @@ void startWebserver()
             }
         }
 
+        fail:
         request->send(200, "application/json", result ? "true" : "false");
     });
 
@@ -9859,7 +9880,7 @@ void startWebserver()
         if (ESP.getFreeHeap() > 10000) {
             int params = request->params();
             if (params > 0) {
-                request->send(SPIFFS, request->getParam(0)->value(), String(), true);
+                request->send(SPIFFS, request->getParam((size_t)0)->value(), String(), true);
             } else {
                 request->send(200, "application/json", "false");
             }
