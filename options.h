@@ -85,6 +85,7 @@ struct runTimeOptions
     bool isValidForScalingRGBHV;
     bool useHdmiSyncFix;
     bool extClockGenDetected;
+    bool neoGeoCsyncLatched; // sticky Neo Geo (MVS/AES) gate state, see updateSpDynamic()
 };
 // remember adc options across presets
 struct adcOptions
