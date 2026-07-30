@@ -9630,6 +9630,8 @@ void startWebserver()
             request->beginResponse(200, "application/json", "true");
         request->send(response);
 
+        WiFi.persistent(true);
+
         if (request->arg("n").length()) {     // n holds ssid
             if (request->arg("p").length()) { // p holds password
                 // false = only save credentials, don't connect
